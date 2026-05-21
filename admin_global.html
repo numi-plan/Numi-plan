@@ -1,0 +1,693 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>🌐 ADMIN GLOBAL — Toutes les agences</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:wght@400;500;600;700&family=Cairo:wght@400;600;700;900&display=swap');
+  :root {
+    --bg:#0d1117; --surface:#161b22; --surface2:#21262d; --border:#30363d;
+    --accent:#f0a500; --green:#2ea043; --blue:#1f6feb; --red:#e63946;
+    --text:#e6edf3; --muted:#8b949e; --radius:10px;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:'DM Sans','Cairo',sans-serif;background:var(--bg);color:var(--text);min-height:100vh}
+
+  /* HEADER */
+  header{background:var(--surface);border-bottom:3px solid #a371f7;padding:12px 24px;display:flex;align-items:center;gap:14px;position:sticky;top:0;z-index:100}
+  .logo{font-family:'Bebas Neue',sans-serif;font-size:28px;color:#a371f7;letter-spacing:2px}
+  .subtitle{font-size:11px;color:var(--muted)}
+  .clock{margin-left:auto;text-align:right}
+  .clock .time{font-family:'Bebas Neue',sans-serif;font-size:28px;color:#a371f7}
+  .clock .date{font-size:11px;color:var(--muted)}
+
+  /* LAYOUT */
+  .main{padding:20px;max-width:1600px;margin:0 auto}
+
+  /* TABS */
+  .tab-bar{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:20px;border-bottom:1px solid var(--border);padding-bottom:12px}
+  .tab-btn{padding:9px 18px;border-radius:20px;border:2px solid var(--border);background:transparent;color:var(--muted);font-family:'DM Sans',sans-serif;font-size:13px;font-weight:600;cursor:pointer;transition:all .2s}
+  .tab-btn.active{border-color:#a371f7;color:#a371f7;background:rgba(163,113,247,.12)}
+  .tab-btn:hover:not(.active){border-color:var(--muted);color:var(--text)}
+
+  /* KPI GLOBAUX */
+  .kpi-grid{display:grid;grid-template-columns:repeat(6,1fr);gap:10px;margin-bottom:20px}
+  @media(max-width:900px){.kpi-grid{grid-template-columns:repeat(3,1fr)}}
+  .kpi-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:14px;text-align:center}
+  .kpi-val{font-family:'Bebas Neue',sans-serif;font-size:32px}
+  .kpi-lbl{font-size:10px;color:var(--muted);margin-top:2px}
+  .c1{color:#f0a500} .c2{color:#58a6ff} .c3{color:#56d364} .c4{color:#e63946} .c5{color:#3fb950} .c6{color:#a371f7}
+
+  /* AGENCE CARDS */
+  .agencies-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:14px}
+  .agency-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;transition:border-color .2s}
+  .agency-card:hover{border-color:#a371f7}
+  .agency-header{display:flex;align-items:center;justify-content:space-between;padding:12px 16px;background:var(--surface2);border-bottom:1px solid var(--border);cursor:pointer}
+  .agency-name{font-family:'Bebas Neue',sans-serif;font-size:18px;color:#a371f7;letter-spacing:1px}
+  .agency-status{display:flex;gap:6px;align-items:center}
+  .agency-dot{width:8px;height:8px;border-radius:50%;background:var(--muted)}
+  .agency-dot.live{background:#3fb950;box-shadow:0 0 6px #3fb950;animation:pulse-dot 2s infinite}
+  .agency-dot.empty{background:var(--muted)}
+  @keyframes pulse-dot{0%,100%{opacity:1}50%{opacity:.4}}
+  .agency-mini-stats{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:var(--border)}
+  .mini-stat{background:var(--surface);padding:8px 4px;text-align:center}
+  .mini-val{font-family:'Bebas Neue',sans-serif;font-size:20px}
+  .mini-lbl{font-size:9px;color:var(--muted)}
+  .agency-trucks{padding:10px 12px;max-height:220px;overflow-y:auto}
+  .truck-row{display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid rgba(48,54,61,.5);font-size:11px}
+  .truck-row:last-child{border:none}
+  .truck-mat-sm{font-family:'Bebas Neue',sans-serif;font-size:13px;color:var(--accent);min-width:110px}
+  .truck-status-pill{padding:2px 7px;border-radius:8px;font-size:9px;font-weight:700}
+  .pill-wait{background:rgba(240,165,0,.15);color:#f0a500}
+  .pill-quai{background:rgba(88,166,255,.15);color:#58a6ff}
+  .pill-site{background:rgba(86,211,100,.15);color:#56d364}
+  .pill-maint{background:rgba(63,185,80,.15);color:#3fb950}
+  .pill-exit{background:rgba(48,54,61,.5);color:var(--muted)}
+  .no-activity{text-align:center;padding:20px;color:var(--muted);font-size:12px}
+
+  /* VUE UNIFIÉE TABLE */
+  .table-wrap{overflow-x:auto;border-radius:var(--radius);border:1px solid var(--border)}
+  table{width:100%;border-collapse:collapse;font-size:12px}
+  th{background:var(--surface2);color:var(--muted);font-weight:600;padding:10px 12px;text-align:left;white-space:nowrap;border-bottom:1px solid var(--border)}
+  td{padding:9px 12px;border-bottom:1px solid rgba(48,54,61,.4);vertical-align:middle}
+  tr:last-child td{border:none}
+  tr:hover td{background:rgba(255,255,255,.03)}
+  .mat-cell{font-family:'Bebas Neue',sans-serif;font-size:14px;color:var(--accent)}
+  .site-tag{display:inline-block;padding:2px 8px;border-radius:8px;font-size:10px;font-weight:700;background:rgba(163,113,247,.15);color:#a371f7}
+  .ok{color:#56d364} .warning{color:#f0a500} .danger{color:#e63946;font-weight:700}
+  .objet-badge{display:inline-block;padding:2px 8px;border-radius:8px;font-size:10px;font-weight:700}
+  .obj-charge{background:rgba(240,165,0,.15);color:#f0a500}
+  .obj-decharge{background:rgba(88,166,255,.15);color:#58a6ff}
+  .obj-maint{background:rgba(63,185,80,.15);color:#3fb950}
+
+  /* FILTERS */
+  .filter-bar{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px}
+  .filter-bar input,.filter-bar select{background:var(--surface2);color:var(--text);border:1px solid var(--border);border-radius:8px;padding:8px 12px;font-size:12px;font-family:'DM Sans',sans-serif}
+  .filter-bar input{flex:1;min-width:200px}
+
+  /* SYNC */
+  .sync-bar{display:flex;align-items:center;gap:8px;margin-bottom:16px;flex-wrap:wrap}
+  .sync-item{display:flex;align-items:center;gap:5px;font-size:11px;padding:4px 10px;border-radius:8px;border:1px solid var(--border);background:var(--surface2)}
+  .sync-dot{width:7px;height:7px;border-radius:50%}
+  .sync-ok{background:#3fb950}
+  .sync-err{background:#e63946}
+  .sync-wait{background:#f0a500;animation:pulse-dot 1s infinite}
+
+  /* TAB VIEWS */
+  .tab-view{display:none}
+  .tab-view.active{display:block}
+
+  /* EXPORT */
+  .export-btn{padding:8px 16px;background:rgba(46,160,67,.15);border:1px solid var(--green);border-radius:8px;color:#56d364;font-size:12px;font-weight:700;cursor:pointer;font-family:'DM Sans',sans-serif}
+  .export-btn:hover{background:rgba(46,160,67,.3)}
+
+  /* PAR AGENCE STATS */
+  .agency-stats-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(420px,1fr));gap:14px}
+  .ags-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:16px}
+  .ags-title{font-family:'Bebas Neue',sans-serif;font-size:20px;color:#a371f7;margin-bottom:12px;display:flex;justify-content:space-between;align-items:center}
+  .ags-mini{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin-bottom:10px}
+  .ags-mini-card{background:var(--surface2);border-radius:8px;padding:8px;text-align:center}
+  .ags-mini-val{font-family:'Bebas Neue',sans-serif;font-size:22px}
+  .ags-mini-lbl{font-size:9px;color:var(--muted)}
+
+  /* POPUP */
+  .overlay{position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:500;display:flex;align-items:center;justify-content:center;opacity:0;pointer-events:none;transition:opacity .2s}
+  .overlay.open{opacity:1;pointer-events:all}
+  .popup{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:24px;max-width:480px;width:90%;position:relative;max-height:90vh;overflow-y:auto}
+  .popup-close{position:absolute;top:12px;right:12px;background:transparent;border:none;color:var(--muted);font-size:18px;cursor:pointer}
+  .popup-title{font-family:'Bebas Neue',sans-serif;font-size:20px;color:var(--accent);margin-bottom:16px}
+  .detail-row{display:flex;justify-content:space-between;align-items:flex-start;padding:6px 0;border-bottom:1px solid rgba(48,54,61,.4);gap:12px;font-size:13px}
+  .detail-row:last-child{border:none}
+  .detail-key{color:var(--muted);min-width:140px;font-size:12px}
+  .detail-val{text-align:right;font-weight:600}
+
+  /* LAST UPDATED */
+  #lastUpdated{font-size:11px;color:var(--muted);margin-left:auto}
+</style>
+</head>
+<body>
+
+<header>
+  <div>
+    <div class="logo">🌐 ADMIN GLOBAL</div>
+    <div class="subtitle">Vue consolidée — Toutes les agences<span style="font-family:Cairo;direction:rtl;display:block">عرض موحد — جميع الوكالات</span></div>
+  </div>
+  <div id="lastUpdated">—</div>
+  <div class="clock">
+    <div class="time" id="clock">--:--:--</div>
+    <div class="date" id="clockDate">--/--/----</div>
+  </div>
+</header>
+
+<div class="main">
+
+  <!-- SYNC STATUS -->
+  <div class="sync-bar" id="syncBar">
+    <span style="font-size:11px;color:var(--muted);font-weight:600">SYNC :</span>
+    <!-- rempli dynamiquement -->
+  </div>
+
+  <!-- TABS -->
+  <div class="tab-bar">
+    <button class="tab-btn active" onclick="switchTab('vue-ensemble')">🏠 Vue d'ensemble</button>
+    <button class="tab-btn" onclick="switchTab('vue-liste')">📋 Liste unifiée</button>
+    <button class="tab-btn" onclick="switchTab('vue-agences')">📊 Par agence</button>
+    <button class="tab-btn" onclick="switchTab('vue-historique')">📅 Historique global</button>
+  </div>
+
+  <!-- KPI GLOBAUX -->
+  <div class="kpi-grid" id="kpiGrid">
+    <div class="kpi-card"><div class="kpi-val c1" id="kpiAttente">0</div><div class="kpi-lbl">En attente</div></div>
+    <div class="kpi-card"><div class="kpi-val c2" id="kpiQuai">0</div><div class="kpi-lbl">Sur quai</div></div>
+    <div class="kpi-card"><div class="kpi-val c5" id="kpiMaint">0</div><div class="kpi-lbl">🔧 Maintenance</div></div>
+    <div class="kpi-card"><div class="kpi-val c3" id="kpiSortis">0</div><div class="kpi-lbl">Sortis aujourd'hui</div></div>
+    <div class="kpi-card"><div class="kpi-val c6" id="kpiSites">0</div><div class="kpi-lbl">Sites actifs</div></div>
+    <div class="kpi-card"><div class="kpi-val c4" id="kpiTotal">0</div><div class="kpi-lbl">Total mouvements</div></div>
+  </div>
+
+  <!-- TAB : VUE ENSEMBLE -->
+  <div class="tab-view active" id="tab-vue-ensemble">
+    <div class="agencies-grid" id="agenciesGrid">
+      <div style="grid-column:1/-1;text-align:center;padding:40px;color:var(--muted)">⏳ Chargement des agences...</div>
+    </div>
+  </div>
+
+  <!-- TAB : LISTE UNIFIÉE -->
+  <div class="tab-view" id="tab-vue-liste">
+    <div class="filter-bar">
+      <input type="text" id="listSearch" placeholder="🔍 Rechercher immat, agence, client..." oninput="renderListe()">
+      <select id="listSite" onchange="renderListe()">
+        <option value="">Toutes les agences</option>
+      </select>
+      <select id="listObjet" onchange="renderListe()">
+        <option value="">Tous les objets</option>
+        <option>CHARGEMENT</option><option>DÉCHARGEMENT</option><option>MAINTENANCE</option>
+      </select>
+      <select id="listStatut" onchange="renderListe()">
+        <option value="">Tous statuts</option>
+        <option value="attente">En attente</option>
+        <option value="quai">Sur quai</option>
+        <option value="site">Sur site</option>
+        <option value="maint">Maintenance</option>
+      </select>
+      <button class="export-btn" onclick="exportAll()">📥 Exporter tout</button>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr>
+          <th>Site</th><th>Immat.</th><th>Agence véhicule</th><th>Client</th><th>Objet</th>
+          <th>Destination</th><th>Réf.</th><th>Quai</th>
+          <th>Présentation</th><th>Entrée site</th><th>Sortie</th>
+          <th>Sur site</th><th>Total</th><th>Statut</th>
+        </tr></thead>
+        <tbody id="listBody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- TAB : PAR AGENCE -->
+  <div class="tab-view" id="tab-vue-agences">
+    <div class="agency-stats-grid" id="agenceStatsGrid"></div>
+  </div>
+
+  <!-- TAB : HISTORIQUE GLOBAL -->
+  <div class="tab-view" id="tab-vue-historique">
+    <div class="filter-bar">
+      <input type="text" id="histSearch" placeholder="🔍 Rechercher..." oninput="renderHistGlobal()">
+      <select id="histSite" onchange="renderHistGlobal()">
+        <option value="">Toutes les agences</option>
+      </select>
+      <select id="histObjet" onchange="renderHistGlobal()">
+        <option value="">Tous les objets</option>
+        <option>CHARGEMENT</option><option>DÉCHARGEMENT</option><option>MAINTENANCE</option>
+      </select>
+      <select id="histDate" onchange="renderHistGlobal()">
+        <option value="">Toutes dates</option>
+        <option value="today">Aujourd'hui</option>
+        <option value="week">Cette semaine</option>
+        <option value="month">Ce mois</option>
+      </select>
+      <button class="export-btn" onclick="exportHist()">📥 Exporter</button>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr>
+          <th>Site</th><th>Date</th><th>Immat.</th><th>Agence véhicule</th><th>Client</th><th>Objet</th>
+          <th>Destination</th><th>Réf.</th><th>Quai</th>
+          <th>Présentation</th><th>Entrée</th><th>Sortie</th>
+          <th>Att.ext</th><th>Sur site</th><th>Total</th>
+        </tr></thead>
+        <tbody id="histBody"></tbody>
+      </table>
+    </div>
+  </div>
+
+</div>
+
+<!-- POPUP DÉTAIL -->
+<div class="overlay" id="popupDetail">
+  <div class="popup">
+    <button class="popup-close" onclick="closePopup()">✕</button>
+    <div class="popup-title">📋 DÉTAIL MOUVEMENT</div>
+    <div id="detailContent"></div>
+  </div>
+</div>
+
+<script type="module">
+import { initializeApp }                                  from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+import { getFirestore, doc, onSnapshot, collection, getDocs } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+
+const firebaseConfig = {
+  apiKey:            "AIzaSyDA-loDmlfcdPC0es0sb6tiCM4JXP2VF24",
+  authDomain:        "numi-pro.firebaseapp.com",
+  projectId:         "numi-pro",
+  storageBucket:     "numi-pro.firebasestorage.app",
+  messagingSenderId: "438168275921",
+  appId:             "1:438168275921:web:5c7e1f64931706610baef0"
+};
+
+// ── LISTE DES SITES À SURVEILLER ────────────────────────────
+// Ajouter ici chaque nouveau site lors de son déploiement
+const SITES = [
+  'DEFAULT',
+  'BEJAIA',
+  'BOUIRA_SEC',
+  'BOUIRA_FRAIS_A',
+  'BOUIRA_FRAIS_B',
+  'HASSI_AMEUR',
+  'LLK',
+  'NUMILOG',
+  'PARTENAIRE_A',
+  'PARTENAIRE_ALGER',
+  'PARTENAIRE_B',
+  'PARTENAIRE_BEJAIA',
+  'PARTENAIRE_C',
+  'PARTENAIRE_D',
+  'SETIF',
+];
+
+const app  = initializeApp(firebaseConfig);
+const fbDB = getFirestore(app);
+
+// Données agrégées : siteId → movements[]
+window._allSiteData = {};
+window._siteStatus  = {};   // 'ok' | 'error' | 'loading'
+
+// Abonnements Firebase pour chaque site
+SITES.forEach(siteId => {
+  window._siteStatus[siteId] = 'loading';
+  const ref = doc(fbDB, 'qm_data', 'movements_' + siteId);
+  onSnapshot(ref,
+    (snap) => {
+      const data = snap.data();
+      window._allSiteData[siteId] = (data && data.movements) ? data.movements : [];
+      window._siteStatus[siteId]  = 'ok';
+      renderAll();
+    },
+    (err) => {
+      console.warn('Erreur ' + siteId, err);
+      window._siteStatus[siteId] = 'error';
+      renderAll();
+    }
+  );
+});
+
+window._renderAll = renderAll;
+
+function renderAll() {
+  updateSyncBar();
+  updateKPIs();
+  const tab = document.querySelector('.tab-view.active')?.id?.replace('tab-','');
+  if (tab === 'vue-ensemble')   renderEnsemble();
+  if (tab === 'vue-liste')      renderListe();
+  if (tab === 'vue-agences')    renderAgences();
+  if (tab === 'vue-historique') renderHistGlobal();
+  document.getElementById('lastUpdated').textContent = '🔄 Mis à jour ' + fmtTime(new Date());
+}
+
+// ── SYNC BAR ────────────────────────────────────────────────
+function updateSyncBar() {
+  const bar = document.getElementById('syncBar');
+  bar.innerHTML = '<span style="font-size:11px;color:var(--muted);font-weight:600">SYNC :</span>' +
+    SITES.map(s => {
+      const st = window._siteStatus[s] || 'loading';
+      const dotClass = st === 'ok' ? 'sync-ok' : st === 'error' ? 'sync-err' : 'sync-wait';
+      const count = (window._allSiteData[s]||[]).filter(m=>!m.sortie).length;
+      return `<div class="sync-item"><div class="sync-dot ${dotClass}"></div><span>${s}</span>${count>0?`<strong style="color:#a371f7">${count}</strong>`:''}</div>`;
+    }).join('');
+}
+
+// ── KPIs GLOBAUX ────────────────────────────────────────────
+function updateKPIs() {
+  const all = getAllMovements();
+  const active = all.filter(m => !m.sortie);
+  const today = new Date(); today.setHours(0,0,0,0);
+  const todayDone = all.filter(m => m.sortie && new Date(m.sortie) >= today);
+  const sitesActifs = SITES.filter(s => (window._allSiteData[s]||[]).some(m=>!m.sortie)).length;
+  document.getElementById('kpiAttente').textContent = active.filter(m=>!m.quai && m.objet!=='MAINTENANCE').length;
+  document.getElementById('kpiQuai').textContent    = active.filter(m=>m.quai && m.entree && m.objet!=='MAINTENANCE').length;
+  document.getElementById('kpiMaint').textContent   = active.filter(m=>m.objet==='MAINTENANCE').length;
+  document.getElementById('kpiSortis').textContent  = todayDone.length;
+  document.getElementById('kpiSites').textContent   = sitesActifs;
+  document.getElementById('kpiTotal').textContent   = all.length;
+}
+
+// ── VUE ENSEMBLE ────────────────────────────────────────────
+function renderEnsemble() {
+  const grid = document.getElementById('agenciesGrid');
+  const today = new Date(); today.setHours(0,0,0,0);
+
+  grid.innerHTML = SITES.map(siteId => {
+    const movs = window._allSiteData[siteId] || [];
+    const active = movs.filter(m => !m.sortie);
+    const todayDone = movs.filter(m => m.sortie && new Date(m.sortie) >= today);
+    const enAttente = active.filter(m => !m.quai && m.objet !== 'MAINTENANCE').length;
+    const surQuai   = active.filter(m => m.quai && m.entree && m.objet !== 'MAINTENANCE').length;
+    const maint     = active.filter(m => m.objet === 'MAINTENANCE').length;
+    const hasLive   = active.length > 0;
+
+    const trucksHtml = active.length === 0
+      ? `<div class="no-activity">✅ Aucune activité en cours</div>`
+      : `<div class="agency-trucks">${active.slice().reverse().map(m => {
+          let pill, pillClass;
+          if (m.objet === 'MAINTENANCE') { pill = '🔧 MAINT.'; pillClass = 'pill-maint'; }
+          else if (m.entree) { pill = '🏭 SITE'; pillClass = 'pill-site'; }
+          else if (m.quai)   { pill = '🏭 ' + m.quai; pillClass = 'pill-quai'; }
+          else               { pill = '⏳ ATT.'; pillClass = 'pill-wait'; }
+          const dur = m.entree ? getDuration(m.entree, null) : (m.presentation ? getDuration(m.presentation, null) : '—');
+          return `<div class="truck-row" onclick="openDetail('${siteId}',${m.id})" style="cursor:pointer">
+            <span class="truck-mat-sm">${m.matricule}</span>
+            <span style="font-size:10px;color:var(--muted);flex:1">${m.client||'—'}</span>
+            <span class="truck-status-pill ${pillClass}">${pill}</span>
+            <span style="font-size:10px;color:var(--muted);min-width:42px;text-align:right">${dur}</span>
+          </div>`;
+        }).join('')}</div>`;
+
+    return `<div class="agency-card">
+      <div class="agency-header" onclick="this.nextElementSibling.nextElementSibling.style.display=this.nextElementSibling.nextElementSibling.style.display==='none'?'block':'none'">
+        <div>
+          <div class="agency-name">${siteId}</div>
+          <div style="font-size:10px;color:var(--muted)">${active.length} actif · ${todayDone.length} sorti auj.</div>
+        </div>
+        <div class="agency-status">
+          <div class="agency-dot ${hasLive ? 'live' : 'empty'}"></div>
+          <span style="font-size:10px;color:var(--muted)">${hasLive ? 'ACTIF' : 'INACTIF'}</span>
+        </div>
+      </div>
+      <div class="agency-mini-stats">
+        <div class="mini-stat"><div class="mini-val c1">${enAttente}</div><div class="mini-lbl">Attente</div></div>
+        <div class="mini-stat"><div class="mini-val c2">${surQuai}</div><div class="mini-lbl">Sur quai</div></div>
+        <div class="mini-stat"><div class="mini-val c5">${maint}</div><div class="mini-lbl">Maint.</div></div>
+        <div class="mini-stat"><div class="mini-val c3">${todayDone.length}</div><div class="mini-lbl">Sortis</div></div>
+      </div>
+      <div>${trucksHtml}</div>
+    </div>`;
+  }).join('');
+}
+
+// ── LISTE UNIFIÉE ────────────────────────────────────────────
+window.renderListe = function() {
+  const q      = (document.getElementById('listSearch')?.value||'').toUpperCase();
+  const site   = document.getElementById('listSite')?.value||'';
+  const objet  = document.getElementById('listObjet')?.value||'';
+  const statut = document.getElementById('listStatut')?.value||'';
+
+  let list = getActiveWithSite();
+  if (q)      list = list.filter(m => m.matricule.toUpperCase().includes(q) || (m.agence||'').toUpperCase().includes(q) || (m.client||'').toUpperCase().includes(q));
+  if (site)   list = list.filter(m => m._site === site);
+  if (objet)  list = list.filter(m => m.objet === objet);
+  if (statut === 'attente') list = list.filter(m => !m.quai && m.objet !== 'MAINTENANCE');
+  if (statut === 'quai')    list = list.filter(m => m.quai && m.entree && m.objet !== 'MAINTENANCE');
+  if (statut === 'site')    list = list.filter(m => m.entree && !m.sortie);
+  if (statut === 'maint')   list = list.filter(m => m.objet === 'MAINTENANCE');
+
+  populateSiteFilter('listSite');
+  const tbody = document.getElementById('listBody');
+  if (!list.length) { tbody.innerHTML = '<tr><td colspan="14" style="text-align:center;padding:30px;color:var(--muted)">Aucun mouvement actif</td></tr>'; return; }
+  tbody.innerHTML = list.map(m => {
+    const surSite = m.entree ? getDuration(m.entree, null) : '—';
+    const total   = getDuration(m.presentation||m.entree, null);
+    const tc      = m.entree ? getTimeClass(m.entree, null) : 'warning';
+    let stPill, stClass;
+    if (m.objet==='MAINTENANCE'){ stPill='🔧 MAINT.'; stClass='pill-maint'; }
+    else if (m.entree)          { stPill='🏭 SUR SITE'; stClass='pill-site'; }
+    else if (m.quai)            { stPill='🏭 '+m.quai; stClass='pill-quai'; }
+    else                        { stPill='⏳ ATTENTE'; stClass='pill-wait'; }
+    return `<tr onclick="openDetail('${m._site}',${m.id})" style="cursor:pointer">
+      <td><span class="site-tag">${m._site}</span></td>
+      <td class="mat-cell">${m.matricule}</td>
+      <td style="font-size:11px">${m.agence||'—'}</td>
+      <td style="font-size:11px">${m.client||'—'}</td>
+      <td>${objetBadge(m.objet)}</td>
+      <td style="font-size:11px;color:#58a6ff">${m.destination||'—'}</td>
+      <td style="font-size:11px;color:#f0a500;font-weight:700">${m.refCommande||'—'}</td>
+      <td style="color:#58a6ff">${m.quai||'—'}</td>
+      <td style="font-size:10px">${m.presentation?fmtDateTime(m.presentation):'—'}</td>
+      <td style="font-size:10px">${m.entree?fmtDateTime(m.entree):'—'}</td>
+      <td style="font-size:10px">${m.sortie?fmtDateTime(m.sortie):'—'}</td>
+      <td class="${tc}">${surSite}</td>
+      <td class="${tc}"><strong>${total}</strong></td>
+      <td><span class="truck-status-pill ${stClass}">${stPill}</span></td>
+    </tr>`;
+  }).join('');
+};
+
+// ── PAR AGENCE ───────────────────────────────────────────────
+function renderAgences() {
+  const today = new Date(); today.setHours(0,0,0,0);
+  const grid = document.getElementById('agenceStatsGrid');
+  grid.innerHTML = SITES.map(siteId => {
+    const movs     = window._allSiteData[siteId] || [];
+    const active   = movs.filter(m => !m.sortie);
+    const done     = movs.filter(m => m.sortie);
+    const todayAll = movs.filter(m => new Date(m.presentation||m.entree) >= today);
+    const todayDone= done.filter(m => new Date(m.sortie) >= today);
+    const avgDur   = todayDone.length
+      ? (todayDone.reduce((a,m)=>a+((new Date(m.sortie)-new Date(m.entree||m.presentation))/3600000),0)/todayDone.length).toFixed(1)+'h'
+      : '—';
+    const charge   = todayAll.filter(m=>m.objet==='CHARGEMENT').length;
+    const decharge = todayAll.filter(m=>m.objet==='DÉCHARGEMENT').length;
+    const maint    = todayAll.filter(m=>m.objet==='MAINTENANCE').length;
+    return `<div class="ags-card">
+      <div class="ags-title">
+        <span>${siteId}</span>
+        <span style="font-size:12px;color:var(--muted)">${todayAll.length} mvt auj.</span>
+      </div>
+      <div class="ags-mini">
+        <div class="ags-mini-card"><div class="ags-mini-val c1">${active.filter(m=>!m.quai&&m.objet!=='MAINTENANCE').length}</div><div class="ags-mini-lbl">Attente</div></div>
+        <div class="ags-mini-card"><div class="ags-mini-val c2">${active.filter(m=>m.quai&&m.entree&&m.objet!=='MAINTENANCE').length}</div><div class="ags-mini-lbl">Sur quai</div></div>
+        <div class="ags-mini-card"><div class="ags-mini-val c5">${active.filter(m=>m.objet==='MAINTENANCE').length}</div><div class="ags-mini-lbl">Maint.</div></div>
+        <div class="ags-mini-card"><div class="ags-mini-val c3">${todayDone.length}</div><div class="ags-mini-lbl">Sortis auj.</div></div>
+        <div class="ags-mini-card"><div class="ags-mini-val c4">${avgDur}</div><div class="ags-mini-lbl">Moy. durée</div></div>
+      </div>
+      <div style="display:flex;gap:8px;font-size:11px;color:var(--muted)">
+        <span>📤 <strong style="color:#f0a500">${charge}</strong> chargements</span>
+        <span>📥 <strong style="color:#58a6ff">${decharge}</strong> déchargements</span>
+        <span>🔧 <strong style="color:#3fb950">${maint}</strong> maintenances</span>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// ── HISTORIQUE GLOBAL ────────────────────────────────────────
+window.renderHistGlobal = function() {
+  const q    = (document.getElementById('histSearch')?.value||'').toUpperCase();
+  const site = document.getElementById('histSite')?.value||'';
+  const objet= document.getElementById('histObjet')?.value||'';
+  const date = document.getElementById('histDate')?.value||'';
+  populateSiteFilter('histSite');
+
+  const today=new Date(); today.setHours(0,0,0,0);
+  const startOfWeek=new Date(today); startOfWeek.setDate(today.getDate()-today.getDay());
+  const startOfMonth=new Date(today.getFullYear(),today.getMonth(),1);
+
+  let list = getAllWithSite().filter(m => m.sortie || true); // tout
+  if (q)     list = list.filter(m => m.matricule.toUpperCase().includes(q) || (m.agence||'').toUpperCase().includes(q));
+  if (site)  list = list.filter(m => m._site === site);
+  if (objet) list = list.filter(m => m.objet === objet);
+  if (date) {
+    list = list.filter(m => {
+      const d = new Date(m.presentation||m.entree||m.sortie);
+      if (date==='today')  return d>=today;
+      if (date==='week')   return d>=startOfWeek;
+      if (date==='month')  return d>=startOfMonth;
+      return true;
+    });
+  }
+  list = list.slice().sort((a,b)=>new Date(b.presentation||b.entree||0)-new Date(a.presentation||a.entree||0));
+
+  const tbody = document.getElementById('histBody');
+  if (!list.length) { tbody.innerHTML = '<tr><td colspan="15" style="text-align:center;padding:30px;color:var(--muted)">Aucun historique</td></tr>'; return; }
+  tbody.innerHTML = list.map(m => {
+    const attExt = m.entree&&m.presentation ? getDuration(m.presentation,m.entree) : '—';
+    const surSite= m.entree ? getDuration(m.entree,m.sortie||null) : '—';
+    const total  = getDuration(m.presentation||m.entree, m.sortie||null);
+    const dateStr= m.presentation ? fmtDateTime(m.presentation).split(' ')[0] : '—';
+    const tc = m.entree ? getTimeClass(m.entree,m.sortie||null) : 'warning';
+    return `<tr onclick="openDetail('${m._site}',${m.id})" style="cursor:pointer">
+      <td><span class="site-tag">${m._site}</span></td>
+      <td style="font-size:10px">${dateStr}</td>
+      <td class="mat-cell">${m.matricule}</td>
+      <td style="font-size:10px">${m.agence||'—'}</td>
+      <td style="font-size:11px">${m.client||'—'}</td>
+      <td>${objetBadge(m.objet)}</td>
+      <td style="font-size:11px;color:#58a6ff">${m.destination||'—'}</td>
+      <td style="font-size:11px;color:#f0a500;font-weight:700">${m.refCommande||'—'}</td>
+      <td style="color:#58a6ff">${m.quai||'—'}</td>
+      <td style="font-size:10px">${m.presentation?fmtDateTime(m.presentation):'—'}</td>
+      <td style="font-size:10px">${m.entree?fmtDateTime(m.entree):'—'}</td>
+      <td style="font-size:10px">${m.sortie?fmtDateTime(m.sortie):'<span style="color:#f0a500">En cours</span>'}</td>
+      <td class="${tc}">${attExt}</td>
+      <td class="${tc}">${surSite}</td>
+      <td class="${tc}"><strong>${total}</strong></td>
+    </tr>`;
+  }).join('');
+};
+
+// ── DETAIL POPUP ─────────────────────────────────────────────
+window.openDetail = function(siteId, id) {
+  const movs = window._allSiteData[siteId] || [];
+  const m = movs.find(x => x.id === id);
+  if (!m) return;
+  const attExt = m.entree&&m.presentation ? getDuration(m.presentation,m.entree) : '—';
+  const surSite= m.entree ? getDuration(m.entree,m.sortie||null) : '—';
+  const total  = getDuration(m.presentation||m.entree,m.sortie||null);
+  document.getElementById('detailContent').innerHTML = `
+    <div class="detail-row"><span class="detail-key">📍 Site</span><span class="detail-val" style="color:#a371f7">${siteId}</span></div>
+    <div class="detail-row"><span class="detail-key">Immatriculation</span><span class="detail-val" style="color:var(--accent)">${m.matricule}</span></div>
+    <div class="detail-row"><span class="detail-key">Agence véhicule</span><span class="detail-val">${m.agence||'—'}</span></div>
+    <div class="detail-row"><span class="detail-key">Client</span><span class="detail-val">${m.client||'—'}</span></div>
+    <div class="detail-row"><span class="detail-key">Téléphone</span><span class="detail-val">${m.tel||'—'}</span></div>
+    <div class="detail-row"><span class="detail-key">Objet</span><span class="detail-val">${objetBadge(m.objet)}</span></div>
+    ${m.destination?`<div class="detail-row"><span class="detail-key">📍 Destination</span><span class="detail-val" style="color:#58a6ff">${m.destination}</span></div>`:''}
+    ${m.refCommande?`<div class="detail-row"><span class="detail-key">📄 Réf. commande</span><span class="detail-val" style="color:#f0a500;font-weight:700">${m.refCommande}</span></div>`:''}
+    <div class="detail-row"><span class="detail-key">Quai</span><span class="detail-val" style="color:#58a6ff">${m.quai||'—'}</span></div>
+    <hr style="border-color:var(--border);margin:8px 0">
+    <div class="detail-row"><span class="detail-key">📋 Présentation</span><span class="detail-val">${m.presentation?fmtDateTime(m.presentation):'—'}</span></div>
+    <div class="detail-row"><span class="detail-key">🟢 Entrée site</span><span class="detail-val">${m.entree?fmtDateTime(m.entree):'—'}</span></div>
+    <div class="detail-row"><span class="detail-key">🚪 Sortie</span><span class="detail-val">${m.sortie?fmtDateTime(m.sortie):'Toujours sur site'}</span></div>
+    <hr style="border-color:var(--border);margin:8px 0">
+    <div class="detail-row"><span class="detail-key">⏱ Attente ext.</span><span class="detail-val warning">${attExt}</span></div>
+    <div class="detail-row"><span class="detail-key">⏱ Sur site</span><span class="detail-val warning">${surSite}</span></div>
+    <div class="detail-row"><span class="detail-key">⏱ Durée totale</span><span class="detail-val" style="color:var(--accent);font-size:16px">${total}</span></div>`;
+  document.getElementById('popupDetail').classList.add('open');
+};
+window.closePopup = () => document.getElementById('popupDetail').classList.remove('open');
+
+// ── EXPORT ───────────────────────────────────────────────────
+window.exportAll = function() {
+  const list = getActiveWithSite();
+  const headers = ['Site','Immat','Agence','Client','Objet','Destination','Réf.Commande','Quai','Présentation','Entrée','Sortie','Total(h)'];
+  downloadCSV(list, headers, m => [
+    m._site, m.matricule, m.agence||'', m.client||'', m.objet||'', m.destination||'', m.refCommande||'', m.quai||'',
+    m.presentation?fmtDateTime(m.presentation):'',
+    m.entree?fmtDateTime(m.entree):'',
+    m.sortie?fmtDateTime(m.sortie):'',
+    m.sortie?((new Date(m.sortie)-new Date(m.presentation||m.entree))/3600000).toFixed(2):''
+  ], 'global_en_cours');
+};
+window.exportHist = function() {
+  const list = getAllWithSite().slice().sort((a,b)=>new Date(b.presentation||b.entree||0)-new Date(a.presentation||a.entree||0));
+  const headers = ['Site','Date','Immat','Agence','Client','Objet','Destination','Réf.Commande','Quai','Présentation','Entrée','Sortie','Total(h)'];
+  downloadCSV(list, headers, m => [
+    m._site,
+    m.presentation?fmtDateTime(m.presentation).split(' ')[0]:'',
+    m.matricule, m.agence||'', m.client||'', m.objet||'', m.destination||'', m.refCommande||'', m.quai||'',
+    m.presentation?fmtDateTime(m.presentation):'',
+    m.entree?fmtDateTime(m.entree):'',
+    m.sortie?fmtDateTime(m.sortie):'',
+    m.sortie?((new Date(m.sortie)-new Date(m.presentation||m.entree))/3600000).toFixed(2):''
+  ], 'global_historique');
+};
+
+function downloadCSV(rows, headers, rowFn, filename) {
+  const lines = [headers.join(';'), ...rows.map(m => rowFn(m).join(';'))];
+  const blob = new Blob(['\uFEFF'+lines.join('\n')], {type:'text/csv;charset=utf-8;'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = filename+'_'+new Date().toISOString().slice(0,10)+'.csv';
+  a.click(); URL.revokeObjectURL(a.href);
+}
+
+// ── HELPERS ──────────────────────────────────────────────────
+function getAllMovements() {
+  return SITES.flatMap(s => (window._allSiteData[s]||[]));
+}
+function getAllWithSite() {
+  return SITES.flatMap(s => (window._allSiteData[s]||[]).map(m => ({...m, _site:s})));
+}
+function getActiveWithSite() {
+  return getAllWithSite().filter(m => !m.sortie);
+}
+
+function populateSiteFilter(id) {
+  const sel = document.getElementById(id);
+  if (!sel || sel.dataset.populated) return;
+  SITES.forEach(s => {
+    const opt = document.createElement('option');
+    opt.value = s; opt.textContent = s;
+    sel.appendChild(opt);
+  });
+  sel.dataset.populated = '1';
+}
+
+function objetBadge(objet) {
+  if (objet==='CHARGEMENT')    return `<span class="objet-badge obj-charge">📤 CHARGEMENT</span>`;
+  if (objet==='DÉCHARGEMENT')  return `<span class="objet-badge obj-decharge">📥 DÉCHARGEMENT</span>`;
+  if (objet==='MAINTENANCE')   return `<span class="objet-badge obj-maint">🔧 MAINTENANCE</span>`;
+  return `<span class="objet-badge">${objet||'—'}</span>`;
+}
+
+function fmtTime(d) { const p=n=>String(n).padStart(2,'0'); return `${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`; }
+function fmtDateTime(iso) { const d=new Date(iso),p=n=>String(n).padStart(2,'0'); return `${p(d.getDate())}/${p(d.getMonth()+1)}/${d.getFullYear()} ${fmtTime(d)}`; }
+function getDuration(e,s) {
+  const diff=Math.floor((((s?new Date(s):new Date()))-new Date(e))/1000);
+  if(diff<0) return '0m';
+  const h=Math.floor(diff/3600),m=Math.floor((diff%3600)/60),sec=diff%60;
+  return h>0?`${h}h ${String(m).padStart(2,'0')}m`:`${m}m ${String(sec).padStart(2,'0')}s`;
+}
+function getTimeClass(e,s) {
+  const h=((s?new Date(s):new Date())-new Date(e))/3600000;
+  return h<2?'ok':h<4?'warning':'danger';
+}
+
+// Expose pour le switcher de tabs
+window._renderEnsemble  = renderEnsemble;
+window._renderAgences   = renderAgences;
+</script>
+
+<script>
+// ── TAB SWITCHER ────────────────────────────────────────────
+function switchTab(id) {
+  document.querySelectorAll('.tab-btn').forEach((b,i)=>{
+    const ids=['vue-ensemble','vue-liste','vue-agences','vue-historique'];
+    b.classList.toggle('active', ids[i]===id);
+  });
+  document.querySelectorAll('.tab-view').forEach(v => v.classList.toggle('active', v.id==='tab-'+id));
+  // Déclencher le render du tab activé
+  if (id==='vue-liste')      window.renderListe && window.renderListe();
+  if (id==='vue-agences')    window._renderAgences && window._renderAgences();
+  if (id==='vue-historique') window.renderHistGlobal && window.renderHistGlobal();
+  if (id==='vue-ensemble')   window._renderEnsemble && window._renderEnsemble();
+}
+
+// ── HORLOGE ─────────────────────────────────────────────────
+function tick() {
+  const now = new Date();
+  const p = n => String(n).padStart(2,'0');
+  document.getElementById('clock').textContent = `${p(now.getHours())}:${p(now.getMinutes())}:${p(now.getSeconds())}`;
+  document.getElementById('clockDate').textContent = `${p(now.getDate())}/${p(now.getMonth()+1)}/${now.getFullYear()}`;
+}
+setInterval(tick,1000); tick();
+
+// Refresh auto KPIs toutes les 30s (pour les durées)
+setInterval(() => { window._renderAll && window._renderAll(); }, 30000);
+
+// Fermer popup en cliquant dehors
+document.getElementById('popupDetail').addEventListener('click', e => {
+  if (e.target === e.currentTarget) window.closePopup();
+});
+</script>
+</body>
+</html>
