@@ -183,34 +183,6 @@
   loadArchivesFromFirebase();
   window._reloadArchives = loadArchivesFromFirebase;
 
-  window._loadAllArchivesFromFirebase = async function() {
-    try {
-      showFirebaseBadge('⏳ Chargement de tout l\'historique...');
-      const snapshot = await getDocs(arcCol);
-      if (snapshot.empty) {
-        showFirebaseBadge('ℹ️ Aucune archive trouvée dans le cloud');
-        return;
-      }
-      const cache = {};
-      snapshot.forEach(docSnap => {
-        const id = docSnap.id;
-        const eq = id.charAt(0);
-        if (!['A','B','C','D'].includes(eq)) return;
-        if (!cache[eq]) cache[eq] = {};
-        Object.assign(cache[eq], docSnap.data());
-      });
-      if (typeof window._syncArchives === 'function') {
-        window._syncArchives(cache);
-      }
-      if (typeof renderArchives === 'function') renderArchives();
-      const total = Object.values(cache).reduce((s, eq) => s + Object.keys(eq).length, 0);
-      showFirebaseBadge('✅ ' + total + ' jours d'archives chargés depuis le cloud');
-    } catch(e) {
-      console.error('loadAllArchives error:', e);
-      showFirebaseBadge('⚠️ Erreur chargement historique complet', true);
-    }
-  };
-
   // ──────────────────────────────────────────────
   // ÉCRITURE — MERGE sur la clé de l'équipe active uniquement
   // ⚠️  N'écrase JAMAIS les données des autres équipes
@@ -234,7 +206,7 @@
     });
   };
 
-  window._firebaseSaveArchives = async function(eq, snapData) {
+  window._firebaseSaveArchives = function(eq, snapData) {
     // snapData = { "2026-05-21": snap, ... }
     // Regrouper par mois → 1 document Firestore par équipe/mois
     const byMonth = {};
@@ -243,30 +215,20 @@
       if (!byMonth[mois]) byMonth[mois] = {};
       byMonth[mois][date] = snap;
     });
-    let ok = 0, ko = 0;
-    for (const [mois, joursSnap] of Object.entries(byMonth)) {
+    Object.entries(byMonth).forEach(([mois, joursSnap]) => {
       const docRef = doc(arcCol, eq + '_' + mois);
-      try {
-        try {
-          await updateDoc(docRef, joursSnap);
-        } catch(err) {
-          if (err.code === 'not-found') {
-            await setDoc(docRef, joursSnap);
-          } else {
-            throw err;
-          }
+      updateDoc(docRef, joursSnap).catch(err => {
+        if (err.code === 'not-found') {
+          setDoc(docRef, joursSnap).catch(e => {
+            console.error('Firebase archives setDoc error:', e);
+            showFirebaseBadge('\u26a0\ufe0f Erreur sauvegarde archives', true);
+          });
+        } else {
+          console.error('Firebase archives updateDoc error:', err);
+          showFirebaseBadge('\u26a0\ufe0f Erreur sauvegarde archives', true);
         }
-        ok++;
-        console.log('[Firebase Archives] ✅ Sauvegardé:', eq + '_' + mois, Object.keys(joursSnap));
-      } catch(e) {
-        ko++;
-        console.error('[Firebase Archives] ❌ Erreur:', eq + '_' + mois, e.code, e.message);
-        showFirebaseBadge('\u26a0\ufe0f Erreur sauvegarde archives: ' + e.code, true);
-      }
-    }
-    if (ok > 0 && ko === 0) {
-      showFirebaseBadge('\u2705 Archive ' + eq + ' sauvegardée dans le cloud');
-    }
+      });
+    });
   };
 
   // ──────────────────────────────────────────────
@@ -910,7 +872,6 @@ mark.hl { background: rgba(56,189,248,.25); color: var(--acc); border-radius: 3p
   <button class="tab-btn" onclick="switchTab('perf',this)">📦 Perf Camions <span class="tab-count" id="cnt-perf" style="background:#fbbf24">—</span></button>
   <button class="tab-btn" onclick="switchTab('archives',this)">🗄️ Archives</button>
   <button class="tab-btn" id="tab-blacklist" onclick="if(typeof switchTab==='function')switchTab('blacklist',this)">🚫 Blacklist <span class="tab-count" id="cnt-blacklist" style="background:#f87171">—</span></button>
-  <button class="tab-btn" onclick="ouvrirHistoriqueAnomalies()" style="color:#fbbf24;border-color:rgba(251,191,36,.3)">📊 Historique Anomalies</button>
 </div>
 
 <!-- ══════════════ DISPO ══════════════ -->
@@ -1352,7 +1313,6 @@ mark.hl { background: rgba(56,189,248,.25); color: var(--acc); border-radius: 3p
     <input type="date" class="filter-input" id="archive-filter-date" onchange="renderArchives()">
     <button class="btn btn-reset" onclick="document.getElementById('archive-filter-date').value='';renderArchives()">↺ Reset</button>
     <button class="btn btn-danger" onclick="clearAllArchives()">🗑 Vider éq. active</button>
-    <button class="btn" id="btn-load-all-archives" style="background:rgba(167,139,250,.15);border-color:rgba(167,139,250,.4);color:var(--pur);margin-left:8px" onclick="loadAllArchives(this)">☁️ Charger tout l'historique</button>
   </div>
   <div style="padding-top:20px">
     <div class="stats-row" id="archive-stats"></div>
@@ -2013,13 +1973,8 @@ function loadDB() {
 // Fonction exposée au module Firebase pour sync propre sans casser la référence
 // data = { A: { '2025-01-01': {dispo,pannes,...}, ... }, B: {...}, ... }
 window._syncArchives = function(data) {
-  ['A','B','C','D'].forEach(function(eq) {
-    if (!data[eq]) return;
-    if (!ARCHIVES[eq]) ARCHIVES[eq] = {};
-    Object.keys(data[eq]).forEach(function(dateKey) {
-      ARCHIVES[eq][dateKey] = data[eq][dateKey];
-    });
-  });
+  Object.keys(ARCHIVES).forEach(k => delete ARCHIVES[k]);
+  Object.assign(ARCHIVES, data);
   window.ARCHIVES = ARCHIVES;
   try { localStorage.setItem('numiplan_archives_v2', JSON.stringify(ARCHIVES)); } catch(e) {}
 };
@@ -2333,17 +2288,17 @@ function saveDispo() {
     assuranceTrFin: document.getElementById('f-dispo-assurance-tr-fin').value,
     assuranceRmFin: document.getElementById('f-dispo-assurance-rm-fin').value,
   };
-  // ── VERROU : Lieu Jour ET Lieu J+1 obligatoires pour tout état sauf "Manque chauffeur" ──
-  if (obj.etat !== 'Manque chauffeur') {
+  // ── VERROU : En mission exige Lieu Jour ET Lieu J+1 ──
+  if (obj.etat === 'En mission') {
     const lieuJval  = document.getElementById('f-dispo-lieuJ').value.trim();
     const lieuJ1val = document.getElementById('f-dispo-lieuJ1').value.trim();
     if (!lieuJval || lieuJval === '—') {
-      showToast('⚠️ Lieu Jour obligatoire — veuillez le renseigner', true);
+      showToast('⚠️ "En mission" requiert un Lieu Jour', true);
       document.getElementById('f-dispo-lieuJ').focus();
       return;
     }
     if (!lieuJ1val || lieuJ1val === '—') {
-      showToast('⚠️ Lieu J+1 obligatoire — veuillez le renseigner', true);
+      showToast('⚠️ "En mission" requiert un Lieu J+1', true);
       document.getElementById('f-dispo-lieuJ1').focus();
       return;
     }
@@ -3029,23 +2984,6 @@ function clearAllArchives() {
   if (!confirm(`Supprimer toutes les archives de l'Équipe ${eq} ? Cette action est irréversible.`)) return;
   ARCHIVES[eq] = {};
   saveArchives(); renderArchives(); showToast(`🗑 Archives Équipe ${eq} vidées`);
-}
-
-function loadAllArchives(btn) {
-  if (typeof window._loadAllArchivesFromFirebase !== 'function') {
-    showToast('⚠️ Firebase non prêt, réessaie dans un instant', true);
-    return;
-  }
-  if (btn) {
-    btn.disabled = true;
-    btn.textContent = '⏳ Chargement…';
-  }
-  window._loadAllArchivesFromFirebase().finally(function() {
-    if (btn) {
-      btn.disabled = false;
-      btn.textContent = '☁️ Charger tout l\'historique';
-    }
-  });
 }
 
 let _arcEq = 'A'; // équipe affichée dans les archives
@@ -4444,68 +4382,25 @@ function saveInline(el) {
 }
 
 function setEtat(idx, nouvelEtat) {
-  // ── VERROU : Lieu Jour ET Lieu J+1 obligatoires pour tout état sauf "Manque chauffeur" ──
-  if (nouvelEtat !== 'Manque chauffeur') {
+  // ── VERROU : En mission exige Lieu Jour ET Lieu J+1 ──
+  if (nouvelEtat === 'En mission') {
     const r = DB.dispo[idx];
     const lieuJ  = (r.lieuJ  || '').trim();
     const lieuJ1 = (r.lieuJ1 || '').trim();
-    const manqueJ  = !lieuJ  || lieuJ  === '—';
-    const manqueJ1 = !lieuJ1 || lieuJ1 === '—';
-    if (manqueJ || manqueJ1) {
-      // Mini popup : saisie rapide Lieu Jour / Lieu J+1 sans ouvrir la fiche complète
-      const existing = document.getElementById('mini-lieu-popup');
-      if (existing) existing.remove();
-      const popup = document.createElement('div');
-      popup.id = 'mini-lieu-popup';
-      popup.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:99999;display:flex;align-items:center;justify-content:center';
-      popup.innerHTML = `
-        <div style="background:#1e293b;border:1px solid rgba(251,191,36,.4);border-radius:14px;padding:28px 32px;min-width:340px;max-width:420px;box-shadow:0 16px 48px rgba(0,0,0,.6)">
-          <div style="color:#fbbf24;font-weight:700;font-size:13px;letter-spacing:1px;margin-bottom:6px">⚠️ LIEUX MANQUANTS</div>
-          <div style="color:#94a3b8;font-size:12px;margin-bottom:20px">${r.v} · ${r.chauffeur || '—'}</div>
-          <label style="font-size:11px;color:#94a3b8;letter-spacing:1px;display:block;margin-bottom:4px">LIEU JOUR</label>
-          <input id="mini-lieuJ" type="text" value="${manqueJ ? '' : lieuJ}" placeholder="Ex: ALGER"
-            style="width:100%;box-sizing:border-box;background:#0f172a;border:1px solid ${manqueJ ? '#f87171' : 'rgba(255,255,255,.1)'};border-radius:8px;padding:9px 12px;color:#f1f5f9;font-size:13px;margin-bottom:14px;outline:none">
-          <label style="font-size:11px;color:#94a3b8;letter-spacing:1px;display:block;margin-bottom:4px">LIEU J+1</label>
-          <input id="mini-lieuJ1" type="text" value="${manqueJ1 ? '' : lieuJ1}" placeholder="Ex: ORAN"
-            style="width:100%;box-sizing:border-box;background:#0f172a;border:1px solid ${manqueJ1 ? '#f87171' : 'rgba(255,255,255,.1)'};border-radius:8px;padding:9px 12px;color:#f1f5f9;font-size:13px;margin-bottom:20px;outline:none">
-          <div style="display:flex;gap:10px;justify-content:flex-end">
-            <button onclick="document.getElementById('mini-lieu-popup').remove()"
-              style="background:rgba(248,113,113,.15);color:#f87171;border:1px solid rgba(248,113,113,.3);padding:8px 16px;border-radius:8px;cursor:pointer;font-size:12px;font-weight:700">Annuler</button>
-            <button onclick="validerMiniLieu(${idx},'${nouvelEtat}')"
-              style="background:rgba(34,197,94,.2);color:#4ade80;border:1px solid rgba(34,197,94,.3);padding:8px 16px;border-radius:8px;cursor:pointer;font-size:12px;font-weight:700">✅ Valider et changer l\'état</button>
-          </div>
-        </div>`;
-      document.body.appendChild(popup);
-      setTimeout(() => {
-        const inp = document.getElementById(manqueJ ? 'mini-lieuJ' : 'mini-lieuJ1');
-        if (inp) inp.focus();
-      }, 50);
+    if (!lieuJ || lieuJ === '—') {
+      showToast('⚠️ Impossible — veuillez d\'abord renseigner le Lieu Jour pour ' + r.v, true);
+      openModal('modal-dispo', idx);
+      setTimeout(() => document.getElementById('f-dispo-lieuJ') && document.getElementById('f-dispo-lieuJ').focus(), 300);
+      return;
+    }
+    if (!lieuJ1 || lieuJ1 === '—') {
+      showToast('⚠️ Impossible — veuillez d\'abord renseigner le Lieu J+1 pour ' + r.v, true);
+      openModal('modal-dispo', idx);
+      setTimeout(() => document.getElementById('f-dispo-lieuJ1') && document.getElementById('f-dispo-lieuJ1').focus(), 300);
       return;
     }
   }
   DB.dispo[idx].etat = nouvelEtat;
-  saveDB();
-  renderDispo();
-  showToast('✅ ' + DB.dispo[idx].v + ' → ' + nouvelEtat);
-}
-
-function validerMiniLieu(idx, nouvelEtat) {
-  const lieuJ  = (document.getElementById('mini-lieuJ')  || {}).value.trim();
-  const lieuJ1 = (document.getElementById('mini-lieuJ1') || {}).value.trim();
-  if (!lieuJ) {
-    document.getElementById('mini-lieuJ').style.borderColor = '#f87171';
-    document.getElementById('mini-lieuJ').focus();
-    return;
-  }
-  if (!lieuJ1) {
-    document.getElementById('mini-lieuJ1').style.borderColor = '#f87171';
-    document.getElementById('mini-lieuJ1').focus();
-    return;
-  }
-  DB.dispo[idx].lieuJ  = lieuJ;
-  DB.dispo[idx].lieuJ1 = lieuJ1;
-  DB.dispo[idx].etat   = nouvelEtat;
-  document.getElementById('mini-lieu-popup').remove();
   saveDB();
   renderDispo();
   showToast('✅ ' + DB.dispo[idx].v + ' → ' + nouvelEtat);
