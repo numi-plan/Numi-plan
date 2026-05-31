@@ -1,0 +1,909 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mode Opératoire — Gestion des Quais</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:ital,wght@0,400;0,600;0,700;0,800;1,400&family=Cairo:wght@400;600;700;900&display=swap');
+
+:root {
+  --bg: #0a0e14;
+  --surface: #111820;
+  --surface2: #1a2330;
+  --border: #263040;
+  --accent: #f0a500;
+  --green: #2ea043;
+  --blue: #1f6feb;
+  --red: #e63946;
+  --text: #dde7f0;
+  --muted: #7a8fa0;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: 'DM Sans', sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  line-height: 1.6;
+}
+
+/* ---- COVER ---- */
+.cover {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 60px 24px;
+  background: 
+    radial-gradient(ellipse 80% 60% at 50% -10%, rgba(31,111,235,.22), transparent),
+    radial-gradient(ellipse 60% 40% at 80% 100%, rgba(240,165,0,.12), transparent),
+    var(--bg);
+  position: relative;
+  overflow: hidden;
+}
+
+.cover::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image: 
+    linear-gradient(rgba(38,48,64,.4) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(38,48,64,.4) 1px, transparent 1px);
+  background-size: 48px 48px;
+  pointer-events: none;
+}
+
+.cover-badge {
+  display: inline-block;
+  background: rgba(31,111,235,.18);
+  border: 1px solid rgba(31,111,235,.5);
+  color: #58a6ff;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 2px;
+  padding: 6px 18px;
+  border-radius: 20px;
+  margin-bottom: 24px;
+  text-transform: uppercase;
+}
+
+.cover h1 {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: clamp(48px, 8vw, 96px);
+  color: var(--accent);
+  letter-spacing: 4px;
+  line-height: 1;
+  margin-bottom: 8px;
+}
+
+.cover h2 {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: clamp(24px, 4vw, 48px);
+  color: #58a6ff;
+  letter-spacing: 3px;
+  margin-bottom: 16px;
+}
+
+.cover-ar {
+  font-family: 'Cairo', sans-serif;
+  font-size: 20px;
+  color: var(--muted);
+  direction: rtl;
+  margin-bottom: 32px;
+}
+
+.cover-desc {
+  font-size: 16px;
+  color: var(--muted);
+  max-width: 540px;
+  margin-bottom: 48px;
+  line-height: 1.7;
+}
+
+.cover-roles {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.role-pill {
+  padding: 10px 22px;
+  border-radius: 24px;
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  text-decoration: none;
+  transition: all .2s;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.role-pill:hover { transform: translateY(-3px); box-shadow: 0 8px 24px rgba(0,0,0,.4); }
+.pill-guard  { background: #f0a500; color: #000; }
+.pill-chef   { background: #1f6feb; color: #fff; }
+.pill-admin  { background: #9c27b0; color: #fff; }
+.pill-flux   { background: #2ea043; color: #fff; }
+
+/* ---- SECTIONS ---- */
+.section {
+  max-width: 860px;
+  margin: 0 auto;
+  padding: 60px 24px;
+}
+
+.section + .section {
+  border-top: 1px solid var(--border);
+}
+
+.role-header {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 32px;
+  padding-bottom: 20px;
+  border-bottom: 2px solid;
+}
+
+.role-header .rh-icon {
+  font-size: 48px;
+  flex-shrink: 0;
+}
+
+.role-header .rh-num {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 72px;
+  line-height: 1;
+  opacity: .12;
+  position: absolute;
+  right: 24px;
+  font-weight: 400;
+}
+
+.role-header h3 {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 36px;
+  letter-spacing: 2px;
+  line-height: 1;
+}
+
+.role-header .rh-ar {
+  font-family: 'Cairo', sans-serif;
+  font-size: 16px;
+  direction: rtl;
+  opacity: .7;
+  margin-top: 4px;
+}
+
+.role-header .rh-desc {
+  font-size: 13px;
+  color: var(--muted);
+  margin-top: 6px;
+}
+
+/* COLOR VARIANTS */
+.guard-header  { border-color: #f0a500; }
+.guard-header h3 { color: #f0a500; }
+.chef-header   { border-color: #58a6ff; }
+.chef-header h3 { color: #58a6ff; }
+.admin-header  { border-color: #bf8cf0; }
+.admin-header h3 { color: #bf8cf0; }
+.flux-header   { border-color: #56d364; }
+.flux-header h3 { color: #56d364; }
+
+/* ---- STEP CARDS ---- */
+.steps { display: flex; flex-direction: column; gap: 0; }
+
+.step {
+  display: flex;
+  gap: 0;
+  position: relative;
+}
+
+.step-line-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 48px;
+  flex-shrink: 0;
+}
+
+.step-dot {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 800;
+  font-size: 16px;
+  flex-shrink: 0;
+  z-index: 1;
+  position: relative;
+  border: 3px solid;
+}
+
+.step-connector {
+  flex: 1;
+  width: 3px;
+  min-height: 20px;
+  margin: 4px 0;
+}
+
+.step:last-child .step-connector { display: none; }
+
+.step-body {
+  flex: 1;
+  padding: 0 0 28px 16px;
+}
+
+.step-body h4 {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 20px;
+  letter-spacing: 1px;
+  margin-bottom: 6px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.step-body h4 .step-ar {
+  font-family: 'Cairo', sans-serif;
+  font-size: 13px;
+  direction: rtl;
+  font-weight: 700;
+  opacity: .7;
+  letter-spacing: 0;
+}
+
+.step-body p {
+  font-size: 14px;
+  color: var(--muted);
+  line-height: 1.7;
+  margin-bottom: 10px;
+}
+
+.step-tip {
+  background: var(--surface2);
+  border-left: 3px solid;
+  border-radius: 0 8px 8px 0;
+  padding: 10px 14px;
+  font-size: 13px;
+  color: var(--text);
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.step-tip .tip-icon { flex-shrink: 0; font-size: 16px; }
+
+.step-warn {
+  background: rgba(230,57,70,.1);
+  border: 1px solid rgba(230,57,70,.35);
+  border-radius: 8px;
+  padding: 10px 14px;
+  font-size: 13px;
+  color: #e63946;
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+/* guard colors */
+.guard .step-dot { background: rgba(240,165,0,.15); border-color: #f0a500; color: #f0a500; }
+.guard .step-connector { background: linear-gradient(#f0a500, rgba(240,165,0,.2)); }
+.guard .step-body h4 { color: #f0a500; }
+.guard .step-tip { border-color: #f0a500; }
+
+/* chef colors */
+.chef .step-dot { background: rgba(88,166,255,.15); border-color: #58a6ff; color: #58a6ff; }
+.chef .step-connector { background: linear-gradient(#58a6ff, rgba(88,166,255,.2)); }
+.chef .step-body h4 { color: #58a6ff; }
+.chef .step-tip { border-color: #58a6ff; }
+
+/* admin colors */
+.admin .step-dot { background: rgba(191,140,240,.15); border-color: #bf8cf0; color: #bf8cf0; }
+.admin .step-connector { background: linear-gradient(#bf8cf0, rgba(191,140,240,.2)); }
+.admin .step-body h4 { color: #bf8cf0; }
+.admin .step-tip { border-color: #bf8cf0; }
+
+/* flux colors */
+.flux .step-dot { background: rgba(86,211,100,.15); border-color: #56d364; color: #56d364; }
+.flux .step-connector { background: linear-gradient(#56d364, rgba(86,211,100,.2)); }
+.flux .step-body h4 { color: #56d364; }
+.flux .step-tip { border-color: #56d364; }
+
+/* ---- SUMMARY TABLE ---- */
+.summary-section {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 28px;
+  margin: 0 24px 60px;
+  max-width: 860px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.summary-section h3 {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 24px;
+  letter-spacing: 2px;
+  color: var(--accent);
+  margin-bottom: 20px;
+  text-align: center;
+}
+
+.flow-timeline {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 2px;
+}
+
+@media(max-width: 600px) {
+  .flow-timeline { grid-template-columns: 1fr 1fr; }
+}
+
+.flow-step {
+  background: var(--surface2);
+  padding: 16px 12px;
+  text-align: center;
+  position: relative;
+}
+
+.flow-step:not(:last-child)::after {
+  content: '▶';
+  position: absolute;
+  right: -10px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--muted);
+  font-size: 12px;
+  z-index: 2;
+}
+
+@media(max-width: 600px) {
+  .flow-step:nth-child(2)::after, .flow-step:nth-child(4)::after { display: none; }
+}
+
+.flow-step:first-child { border-radius: 8px 0 0 8px; }
+.flow-step:last-child  { border-radius: 0 8px 8px 0; }
+
+.flow-step .fs-icon { font-size: 28px; margin-bottom: 6px; }
+.flow-step .fs-num  { font-family: 'Bebas Neue', sans-serif; font-size: 11px; color: var(--muted); letter-spacing: 1px; }
+.flow-step .fs-title { font-size: 12px; font-weight: 700; margin: 4px 0 2px; }
+.flow-step .fs-who  { font-size: 11px; color: var(--muted); }
+.flow-step .fs-ar   { font-family: 'Cairo', sans-serif; font-size: 11px; color: var(--muted); direction: rtl; }
+
+.flow-step.fs-guard  { border-top: 3px solid #f0a500; }
+.flow-step.fs-chef   { border-top: 3px solid #58a6ff; }
+.flow-step.fs-green  { border-top: 3px solid #56d364; }
+
+/* ---- SCREEN PREVIEW ---- */
+.screen-preview {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 16px;
+  margin-top: 14px;
+  font-size: 13px;
+}
+
+.screen-preview .sp-header {
+  font-size: 11px;
+  color: var(--muted);
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  margin-bottom: 10px;
+  font-weight: 700;
+}
+
+.sp-field {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border);
+  font-size: 13px;
+}
+
+.sp-field:last-child { border: none; }
+.sp-field .sp-label { color: var(--muted); min-width: 130px; font-size: 12px; }
+.sp-field .sp-val { font-weight: 600; }
+.sp-field .sp-required { font-size: 10px; color: #e63946; font-weight: 700; margin-left: auto; }
+.sp-field .sp-opt { font-size: 10px; color: var(--muted); font-weight: 400; margin-left: auto; }
+
+/* ---- IMPORTANT BOX ---- */
+.important-box {
+  background: rgba(240,165,0,.08);
+  border: 2px solid rgba(240,165,0,.4);
+  border-radius: 10px;
+  padding: 18px 20px;
+  margin-bottom: 24px;
+  display: flex;
+  gap: 14px;
+  align-items: flex-start;
+}
+
+.important-box .ib-icon { font-size: 28px; flex-shrink: 0; }
+.important-box .ib-title { font-weight: 800; color: var(--accent); margin-bottom: 4px; }
+.important-box .ib-text { font-size: 13px; color: var(--muted); line-height: 1.7; }
+
+/* ---- FOOTER ---- */
+footer {
+  text-align: center;
+  padding: 32px 24px;
+  border-top: 1px solid var(--border);
+  color: var(--muted);
+  font-size: 12px;
+}
+
+/* ---- PRINT ---- */
+@media print {
+  .cover { min-height: auto; padding: 40px 24px; }
+  .section { padding: 32px 24px; }
+  body { background: #fff; color: #000; }
+}
+</style>
+</head>
+<body>
+
+<!-- COVER -->
+<div class="cover">
+  <div class="cover-badge">📋 DOCUMENT OFFICIEL · VERSION 1.0</div>
+  <h1>MODE OPÉRATOIRE</h1>
+  <h2>GESTION DES QUAIS</h2>
+  <div class="cover-ar">دليل الاستخدام — إدارة الأرصفة</div>
+  <p class="cover-desc">
+    Ce guide explique étape par étape comment utiliser le système de gestion des quais. 
+    Chaque rôle a ses propres actions à effectuer dans un ordre précis.
+  </p>
+  <div class="cover-roles">
+    <a href="#guard" class="role-pill pill-guard">🛡️ GARDE</a>
+    <a href="#chef" class="role-pill pill-chef">👷 CHEF D'ÉQUIPE</a>
+    <a href="#admin" class="role-pill pill-admin">📊 ADMIN</a>
+    <a href="#flux" class="role-pill pill-flux">🔄 FLUX</a>
+  </div>
+</div>
+
+<!-- CIRCUIT GLOBAL -->
+<div class="summary-section">
+  <h3>🔄 CIRCUIT COMPLET D'UN CAMION</h3>
+  <div class="flow-timeline">
+    <div class="flow-step fs-guard">
+      <div class="fs-icon">📋</div>
+      <div class="fs-num">ÉTAPE 1</div>
+      <div class="fs-title">PRÉSENTATION</div>
+      <div class="fs-who">👮 Garde</div>
+      <div class="fs-ar">تسجيل الحضور</div>
+    </div>
+    <div class="flow-step fs-chef">
+      <div class="fs-icon">🏭</div>
+      <div class="fs-num">ÉTAPE 2</div>
+      <div class="fs-title">QUAI ASSIGNÉ</div>
+      <div class="fs-who">👷 Chef d'équipe</div>
+      <div class="fs-ar">تخصيص رصيف</div>
+    </div>
+    <div class="flow-step fs-guard">
+      <div class="fs-icon">🟢</div>
+      <div class="fs-num">ÉTAPE 3</div>
+      <div class="fs-title">ENTRÉE SITE</div>
+      <div class="fs-who">👮 Garde</div>
+      <div class="fs-ar">الدخول للموقع</div>
+    </div>
+    <div class="flow-step fs-green">
+      <div class="fs-icon">🚪</div>
+      <div class="fs-num">ÉTAPE 4</div>
+      <div class="fs-title">SORTIE</div>
+      <div class="fs-who">👮 Garde</div>
+      <div class="fs-ar">المغادرة</div>
+    </div>
+  </div>
+</div>
+
+<!-- ==================== GARDE ==================== -->
+<div class="section" id="guard">
+  <div class="role-header guard-header">
+    <div class="rh-icon">🛡️</div>
+    <div>
+      <h3>POSTE DE GARDE</h3>
+      <div class="rh-ar">حارس البوابة</div>
+      <div class="rh-desc">S'occupe des arrivées, des entrées et des sorties de camions. C'est le rôle le plus actif.</div>
+    </div>
+  </div>
+
+  <div class="important-box">
+    <div class="ib-icon">⚠️</div>
+    <div>
+      <div class="ib-title">À RETENIR</div>
+      <div class="ib-text">
+        Le poste de garde comporte <strong>3 onglets</strong> en haut de l'écran :<br>
+        🟡 <strong>EN ATTENTE</strong> — Camions signalés mais pas encore entrés<br>
+        🟢 <strong>ENTRÉE</strong> — Pour autoriser l'entrée des camions dont le quai est assigné<br>
+        🔴 <strong>SORTIE</strong> — Pour enregistrer la sortie d'un camion
+      </div>
+    </div>
+  </div>
+
+  <div class="steps guard">
+
+    <div class="step">
+      <div class="step-line-wrap">
+        <div class="step-dot">1</div>
+        <div class="step-connector"></div>
+      </div>
+      <div class="step-body">
+        <h4>📋 SIGNALER L'ARRIVÉE D'UN CAMION <span class="step-ar">تسجيل حضور الشاحنة</span></h4>
+        <p>Quand un camion se présente à la porte, vous devez l'enregistrer dans le système.</p>
+        <div class="screen-preview">
+          <div class="sp-header">📝 Remplir le formulaire de présentation</div>
+          <div class="sp-field">
+            <span class="sp-label">🚛 Immatriculation</span>
+            <span class="sp-val">Tapez le numéro du camion (ex: 000057-524-16)</span>
+            <span class="sp-required">OBLIGATOIRE</span>
+          </div>
+          <div class="sp-field">
+            <span class="sp-label">📍 Agence</span>
+            <span class="sp-val">Tapez les premières lettres → sélectionnez dans la liste</span>
+            <span class="sp-required">OBLIGATOIRE</span>
+          </div>
+          <div class="sp-field">
+            <span class="sp-label">📦 Objet</span>
+            <span class="sp-val">CHARGEMENT, DÉCHARGEMENT ou MAINTENANCE</span>
+            <span class="sp-required">OBLIGATOIRE</span>
+          </div>
+          <div class="sp-field">
+            <span class="sp-label">🏢 Client</span>
+            <span class="sp-val">Cliquer sur le logo du client (Cevital, Hamoud…)</span>
+            <span class="sp-required">OBLIGATOIRE</span>
+          </div>
+          <div class="sp-field">
+            <span class="sp-label">📞 Téléphone</span>
+            <span class="sp-val">Numéro du chauffeur</span>
+            <span class="sp-opt">OPTIONNEL</span>
+          </div>
+          <div class="sp-field">
+            <span class="sp-label">📄 Réf. commande</span>
+            <span class="sp-val">Numéro de bon de commande si disponible</span>
+            <span class="sp-opt">OPTIONNEL</span>
+          </div>
+        </div>
+        <div class="step-tip">
+          <span class="tip-icon">💡</span>
+          <span>Après avoir rempli le formulaire, appuyez sur le bouton bleu <strong>« ENREGISTRER LA PRÉSENTATION »</strong> puis confirmez dans la fenêtre qui s'ouvre.</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-line-wrap">
+        <div class="step-dot">2</div>
+        <div class="step-connector"></div>
+      </div>
+      <div class="step-body">
+        <h4>⏳ ATTENDRE L'ATTRIBUTION DU QUAI <span class="step-ar">انتظار تخصيص الرصيف</span></h4>
+        <p>Après le signalement, le camion apparaît dans l'onglet <strong>EN ATTENTE</strong>. Il faut attendre que le Chef d'équipe lui attribue un quai.</p>
+        <div class="step-tip">
+          <span class="tip-icon">🔔</span>
+          <span>Quand un quai est assigné, une <strong>bannière verte clignotante</strong> apparaît dans l'onglet <strong>ENTRÉE</strong>. C'est le signal pour autoriser le camion à rentrer.</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-line-wrap">
+        <div class="step-dot">3</div>
+        <div class="step-connector"></div>
+      </div>
+      <div class="step-body">
+        <h4>🟢 AUTORISER L'ENTRÉE DU CAMION <span class="step-ar">تفويض دخول الشاحنة</span></h4>
+        <p>Allez sur l'onglet <strong>ENTRÉE</strong>. Vous voyez les camions avec leur quai assigné.</p>
+        <div class="step-tip">
+          <span class="tip-icon">👆</span>
+          <span>Cliquer sur la fiche du camion → une fenêtre de confirmation s'ouvre → cliquer sur <strong>« AUTORISER »</strong>. L'heure d'entrée est automatiquement enregistrée.</span>
+        </div>
+        <div class="step-warn">
+          ⚠️ <span>N'autorisez l'entrée qu'après avoir vérifié que le quai est effectivement disponible et que le camion est bien en face de la bonne porte.</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-line-wrap">
+        <div class="step-dot">4</div>
+        <div class="step-connector"></div>
+      </div>
+      <div class="step-body">
+        <h4>🚪 ENREGISTRER LA SORTIE <span class="step-ar">تسجيل الخروج</span></h4>
+        <p>Quand un camion quitte le site, allez sur l'onglet <strong>SORTIE</strong>.</p>
+        <div class="screen-preview">
+          <div class="sp-header">📝 Procédure de sortie</div>
+          <div class="sp-field">
+            <span class="sp-label">🚛 Immatriculation</span>
+            <span class="sp-val">Tapez les premières lettres → sélectionnez le camion</span>
+            <span class="sp-required">OBLIGATOIRE</span>
+          </div>
+        </div>
+        <div class="step-tip">
+          <span class="tip-icon">✅</span>
+          <span>Appuyer sur le bouton rouge <strong>« ENREGISTRER LA SORTIE »</strong> → confirmer dans la fenêtre. L'heure de sortie et la durée totale sont calculées automatiquement.</span>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ==================== CHEF ==================== -->
+<div class="section" id="chef">
+  <div class="role-header chef-header">
+    <div class="rh-icon">👷</div>
+    <div>
+      <h3>CHEF D'ÉQUIPE</h3>
+      <div class="rh-ar">رئيس الفريق</div>
+      <div class="rh-desc">Gère l'attribution des 30 quais aux camions en attente. Rôle central de l'organisation.</div>
+    </div>
+  </div>
+
+  <div class="important-box">
+    <div class="ib-icon">ℹ️</div>
+    <div>
+      <div class="ib-title">VOTRE ÉCRAN</div>
+      <div class="ib-text">
+        Vous avez <strong>2 éléments</strong> sur votre écran :<br>
+        📋 <strong>LISTE D'ATTENTE</strong> (en haut) — les camions qui attendent un quai<br>
+        🏭 <strong>TABLEAU DES 30 QUAIS</strong> (en bas) — l'état de chaque quai (libre ou occupé)
+      </div>
+    </div>
+  </div>
+
+  <div class="steps chef">
+
+    <div class="step">
+      <div class="step-line-wrap">
+        <div class="step-dot">1</div>
+        <div class="step-connector"></div>
+      </div>
+      <div class="step-body">
+        <h4>🚨 VOIR LES CAMIONS EN ATTENTE <span class="step-ar">رؤية الشاحنات المنتظرة</span></h4>
+        <p>Quand un nouveau camion est signalé par le garde, une <strong>alerte orange</strong> apparaît en haut de votre écran. Les camions en attente sont affichés sous forme de fiches dans la liste.</p>
+        <div class="step-tip">
+          <span class="tip-icon">👁️</span>
+          <span>Chaque fiche affiche : le numéro du camion, le client, l'objet (chargement/déchargement) et le temps d'attente en cours.</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-line-wrap">
+        <div class="step-dot">2</div>
+        <div class="step-connector"></div>
+      </div>
+      <div class="step-body">
+        <h4>🏭 CHOISIR UN QUAI LIBRE <span class="step-ar">اختيار رصيف متاح</span></h4>
+        <p>Regardez le tableau des 30 quais. Les quais <strong>bleus</strong> sont occupés, les quais <strong>gris</strong> sont libres.</p>
+        <div class="step-tip">
+          <span class="tip-icon">💡</span>
+          <span>Choisissez un quai libre adapté au type d'opération (chargement ou déchargement) selon votre organisation interne.</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-line-wrap">
+        <div class="step-dot">3</div>
+        <div class="step-connector"></div>
+      </div>
+      <div class="step-body">
+        <h4>📌 AFFECTER LE QUAI AU CAMION <span class="step-ar">تخصيص الرصيف للشاحنة</span></h4>
+        <p>Deux façons de faire :</p>
+        <div class="screen-preview">
+          <div class="sp-header">Méthode 1 — Via la liste d'attente</div>
+          <div class="sp-field">
+            <span class="sp-label" style="min-width:0">Cliquez sur le camion dans la liste d'attente → une fenêtre s'ouvre → choisissez le numéro de quai → cliquez <strong>AFFECTER</strong></span>
+          </div>
+        </div>
+        <div class="screen-preview" style="margin-top:8px">
+          <div class="sp-header">Méthode 2 — Via le tableau des quais</div>
+          <div class="sp-field">
+            <span class="sp-label" style="min-width:0">Cliquez sur un quai occupé dans le tableau pour voir les informations du camion qui s'y trouve.</span>
+          </div>
+        </div>
+        <div class="step-tip">
+          <span class="tip-icon">🔔</span>
+          <span>Dès que vous affectez un quai, le garde reçoit automatiquement une notification pour autoriser l'entrée du camion.</span>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ==================== ADMIN ==================== -->
+<div class="section" id="admin">
+  <div class="role-header admin-header">
+    <div class="rh-icon">📊</div>
+    <div>
+      <h3>ADMINISTRATEUR</h3>
+      <div class="rh-ar">المسؤول / الإداري</div>
+      <div class="rh-desc">Supervision globale, statistiques et historique de tous les mouvements. Rôle de consultation et d'analyse.</div>
+    </div>
+  </div>
+
+  <div class="important-box">
+    <div class="ib-icon">📈</div>
+    <div>
+      <div class="ib-title">VUE D'ENSEMBLE</div>
+      <div class="ib-text">
+        En haut de votre écran, 5 compteurs en temps réel :<br>
+        🟡 <strong>En attente</strong> · 🔵 <strong>Sur quai</strong> · 🟢 <strong>Sortis aujourd'hui</strong> · 🔧 <strong>Maintenance</strong> · ⏱ <strong>Durée moyenne</strong>
+      </div>
+    </div>
+  </div>
+
+  <div class="steps admin">
+
+    <div class="step">
+      <div class="step-line-wrap">
+        <div class="step-dot">1</div>
+        <div class="step-connector"></div>
+      </div>
+      <div class="step-body">
+        <h4>🔴 ONGLET « EN COURS » <span class="step-ar">النشاطات الجارية</span></h4>
+        <p>Affiche tous les camions actuellement sur le site ou en attente. Vous pouvez :</p>
+        <div class="step-tip">
+          <span class="tip-icon">🔍</span>
+          <span><strong>Rechercher</strong> par immatriculation, client ou agence dans la barre de recherche. <strong>Filtrer</strong> par wilaya avec le menu déroulant. <strong>Exporter</strong> en Excel avec le bouton 📥.</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-line-wrap">
+        <div class="step-dot">2</div>
+        <div class="step-connector"></div>
+      </div>
+      <div class="step-body">
+        <h4>👥 ONGLET « PAR CLIENT » <span class="step-ar">حسب العميل</span></h4>
+        <p>Vue résumée des mouvements regroupés par client (Cevital, Hamoud Boualem, etc.). Utile pour le reporting client.</p>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-line-wrap">
+        <div class="step-dot">3</div>
+        <div class="step-connector"></div>
+      </div>
+      <div class="step-body">
+        <h4>📦 ONGLET « PAR OBJET » <span class="step-ar">حسب النوع</span></h4>
+        <p>Statistiques par type d'opération : chargement, déchargement, maintenance. Compteurs du jour et totaux cumulés.</p>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-line-wrap">
+        <div class="step-dot">4</div>
+        <div class="step-connector"></div>
+      </div>
+      <div class="step-body">
+        <h4>📋 ONGLET « HISTORIQUE » <span class="step-ar">السجل التاريخي</span></h4>
+        <p>Tous les mouvements passés avec tous les horodatages. Filtrable par date, client, objet.</p>
+        <div class="step-tip">
+          <span class="tip-icon">📥</span>
+          <span>Utilisez le bouton <strong>« Exporter Excel »</strong> pour télécharger les données et les partager ou les archiver.</span>
+        </div>
+        <div class="screen-preview">
+          <div class="sp-header">📊 Colonnes de l'historique</div>
+          <div class="sp-field"><span class="sp-label">Présentation</span><span class="sp-val">Heure où le camion s'est signalé</span></div>
+          <div class="sp-field"><span class="sp-label">Entrée site</span><span class="sp-val">Heure d'entrée autorisée par la garde</span></div>
+          <div class="sp-field"><span class="sp-label">Quai assigné</span><span class="sp-val">Heure d'attribution du quai</span></div>
+          <div class="sp-field"><span class="sp-label">Sortie</span><span class="sp-val">Heure de départ du site</span></div>
+          <div class="sp-field"><span class="sp-label">⏱ Att. ext.</span><span class="sp-val">Temps d'attente à l'extérieur</span></div>
+          <div class="sp-field"><span class="sp-label">⏱ Total</span><span class="sp-val">Durée totale sur site</span></div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ==================== FLUX ==================== -->
+<div class="section" id="flux">
+  <div class="role-header flux-header">
+    <div class="rh-icon">🔄</div>
+    <div>
+      <h3>FLUX CIRCULATION</h3>
+      <div class="rh-ar">تدفق الحركة</div>
+      <div class="rh-desc">Vue temps réel de toutes les 4 étapes pour chaque camion actif. Rôle de supervision et de suivi.</div>
+    </div>
+  </div>
+
+  <div class="important-box">
+    <div class="ib-icon">👁️</div>
+    <div>
+      <div class="ib-title">RÔLE PASSIF — LECTURE SEULE</div>
+      <div class="ib-text">
+        Ce rôle ne permet pas de modifier les données. Il sert uniquement à <strong>visualiser en temps réel</strong> l'avancement de chaque camion dans les 4 étapes.
+      </div>
+    </div>
+  </div>
+
+  <div class="steps flux">
+
+    <div class="step">
+      <div class="step-line-wrap">
+        <div class="step-dot">1</div>
+        <div class="step-connector"></div>
+      </div>
+      <div class="step-body">
+        <h4>🃏 LIRE LES FICHES CAMION <span class="step-ar">قراءة بطاقات الشاحنات</span></h4>
+        <p>Chaque camion actif apparaît sous forme d'une fiche accordéon. Cliquez sur une fiche pour l'ouvrir et voir le détail des 4 étapes.</p>
+        <div class="screen-preview">
+          <div class="sp-header">Signification des badges de statut</div>
+          <div class="sp-field"><span class="sp-label">⏳ EN ATTENTE</span><span class="sp-val">Signalé, quai pas encore assigné</span></div>
+          <div class="sp-field"><span class="sp-label">🔔 EN ATTENTE GARDE</span><span class="sp-val">Quai assigné, sonnerie envoyée</span></div>
+          <div class="sp-field"><span class="sp-label">🏭 SUR SITE</span><span class="sp-val">Camion entré, opération en cours</span></div>
+          <div class="sp-field"><span class="sp-label">✅ SORTI</span><span class="sp-val">Mouvement terminé</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-line-wrap">
+        <div class="step-dot">2</div>
+        <div class="step-connector"></div>
+      </div>
+      <div class="step-body">
+        <h4>🔍 RECHERCHER UN CAMION <span class="step-ar">البحث عن شاحنة</span></h4>
+        <p>Utilisez la barre de recherche en haut pour trouver rapidement un camion par son immatriculation.</p>
+        <div class="step-tip">
+          <span class="tip-icon">⚡</span>
+          <span>La vue Flux se rafraîchit automatiquement toutes les 30 secondes. Pas besoin de recharger la page.</span>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ERREURS COURANTES -->
+<div class="summary-section" style="margin-bottom: 60px;">
+  <h3>❌ ERREURS À ÉVITER</h3>
+  <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 4px;">
+    <div style="background:rgba(230,57,70,.08);border:1px solid rgba(230,57,70,.3);border-radius:8px;padding:14px 16px;">
+      <div style="color:#e63946;font-weight:700;margin-bottom:6px;font-size:13px;">🚛 GARDE</div>
+      <div style="font-size:12px;color:var(--muted);line-height:1.7;">
+        ✗ Ne pas saisir l'immatriculation exacte<br>
+        ✗ Oublier de sélectionner le client<br>
+        ✗ Autoriser l'entrée avant l'attribution du quai<br>
+        ✗ Oublier d'enregistrer la sortie
+      </div>
+    </div>
+    <div style="background:rgba(230,57,70,.08);border:1px solid rgba(230,57,70,.3);border-radius:8px;padding:14px 16px;">
+      <div style="color:#e63946;font-weight:700;margin-bottom:6px;font-size:13px;">👷 CHEF D'ÉQUIPE</div>
+      <div style="font-size:12px;color:var(--muted);line-height:1.7;">
+        ✗ Attribuer un quai déjà occupé<br>
+        ✗ Ignorer la bannière d'alerte orange<br>
+        ✗ Ne pas affecter de quai dans les temps
+      </div>
+    </div>
+  </div>
+</div>
+
+<footer>
+  <div style="font-family:'Bebas Neue',sans-serif;font-size:18px;letter-spacing:2px;color:var(--accent);margin-bottom:6px;">
+    GESTION DES QUAIS — MODE OPÉRATOIRE
+  </div>
+  <div>Document à usage interne · Toute modification doit être validée par l'administration</div>
+  <div style="font-family:'Cairo',sans-serif;direction:rtl;margin-top:4px;">وثيقة للاستخدام الداخلي فقط</div>
+</footer>
+
+</body>
+</html>
