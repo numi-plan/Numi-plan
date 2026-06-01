@@ -7,9 +7,8 @@
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600;700&family=IBM+Plex+Sans:wght@300;400;600;700&display=swap" rel="stylesheet">
 
 <!-- ═══════════════════════════════════════════════════════════════
-     FIREBASE REALTIME DATABASE — SYNC TEMPS RÉEL
-     ▸ Remplacez les valeurs ci-dessous par votre propre firebaseConfig
-       (Firebase Console → Paramètres du projet → Vos applications)
+     FIREBASE — SYNC TEMPS RÉEL (1 document : numiplan/data → A/B/C/D)
+     Migration auto depuis l'ancien format data_A … data_D si besoin
      ═══════════════════════════════════════════════════════════════ -->
 <script type="module">
   import { initializeApp }                          from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
@@ -26,53 +25,191 @@
     measurementId:     "G-DQEEKXEFHN"
   };
 
-  // ──────────────────────────────────────────────
-  // Initialisation Firebase
-  // ──────────────────────────────────────────────
   const app    = initializeApp(firebaseConfig);
   const fbDB   = getFirestore(app);
-  // ── Références aux 4 documents séparés par équipe ──
-  const dbRefA = doc(fbDB, 'numiplan', 'data_A');
-  const dbRefB = doc(fbDB, 'numiplan', 'data_B');
-  const dbRefC = doc(fbDB, 'numiplan', 'data_C');
-  const dbRefD = doc(fbDB, 'numiplan', 'data_D');
+  
+  // ── Config des documents par équipe ──
+  const dbRef  = doc(fbDB, 'numiplan', 'data'); // Gardé pour la migration
+  const dbRefs = {
+    'A': doc(fbDB, 'numiplan', 'data_A'),
+    'B': doc(fbDB, 'numiplan', 'data_B'),
+    'C': doc(fbDB, 'numiplan', 'data_C'),
+    'D': doc(fbDB, 'numiplan', 'data_D')
+  };
 
-  let _fbReady     = false; // true dès que l'équipe active est chargée
-  let _fbLoaded    = {};    // { A: true, B: true, ... } par équipe chargée
-  let _lastSaveTime = 0;    // timestamp de la dernière sauvegarde (ms)
-  let _lastSaveEq   = null; // équipe active au moment de la sauvegarde
-  const SAVE_GUARD_MS = 15000;
+  let _fbReady      = false;
+  let _fbLoaded     = {};
+  let _migrating    = false;
+  const EQUIPES = ['A', 'B', 'C', 'D'];
 
   function getCurrentEquipe() {
     return (typeof window.CURRENT_EQUIPE !== 'undefined') ? window.CURRENT_EQUIPE : 'A';
   }
 
+  function cloneEquipePayload(src) {
+    return JSON.parse(JSON.stringify(src));
+  }
+
+  // ── FUSION INTELLIGENTE (Smart Merge) des listes entre local et distant ──
+  function mergeTeamData(local, remote) {
+    if (!local) return remote;
+    if (!remote) return local;
+
+    const merged = cloneEquipePayload(remote); // Utiliser les données distantes comme base
+
+    // Helper pour savoir si un enregistrement spécifique est en cours d'édition dans un modal ouvert
+    function isRecordBeingEdited(key, listName) {
+      if (listName === 'dispo' && document.getElementById('modal-dispo')?.classList.contains('open')) {
+        const idx = parseInt(document.getElementById('dispo-edit-idx')?.value);
+        if (idx >= 0 && local.dispo[idx]) return local.dispo[idx].v === key;
+      }
+      if (listName === 'pannes' && document.getElementById('modal-panne')?.classList.contains('open')) {
+        const idx = parseInt(document.getElementById('panne-edit-idx')?.value);
+        if (idx >= 0 && local.pannes[idx]) {
+          const r = local.pannes[idx];
+          return (r.immat + '|' + r.date + '|' + r.desc) === key;
+        }
+      }
+      if (listName === 'nc' && document.getElementById('modal-nc')?.classList.contains('open')) {
+        const idx = parseInt(document.getElementById('nc-edit-idx')?.value);
+        if (idx >= 0 && local.nc[idx]) return local.nc[idx].n === key;
+      }
+      if (listName === 'gasoil' && document.getElementById('modal-gasoil')?.classList.contains('open')) {
+        const idx = parseInt(document.getElementById('gasoil-edit-idx')?.value);
+        if (idx >= 0 && local.gasoil[idx]) {
+          const r = local.gasoil[idx];
+          return (r.vehicule + '|' + r.date + '|' + r.operation) === key;
+        }
+      }
+      if (listName === 'equip' && document.getElementById('modal-equip')?.classList.contains('open')) {
+        const idx = parseInt(document.getElementById('equip-edit-idx')?.value);
+        if (idx >= 0 && local.equip[idx]) return local.equip[idx].tr === key;
+      }
+      if (listName === 'activite' && document.getElementById('modal-activite')?.classList.contains('open')) {
+        const idx = parseInt(document.getElementById('activite-edit-idx')?.value);
+        if (idx >= 0 && local.activite[idx]) return local.activite[idx].tr === key;
+      }
+      return false;
+    }
+
+    // Fusionne deux tableaux d'objets sur la base d'une clé unique
+    function mergeList(listName, getKey) {
+      const localList = local[listName] || [];
+      const remoteList = remote[listName] || [];
+      
+      const localMap = new Map();
+      localList.forEach(item => {
+        const k = getKey(item);
+        if (k) localMap.set(k, item);
+      });
+      
+      const remoteMap = new Map();
+      remoteList.forEach(item => {
+        const k = getKey(item);
+        if (k) remoteMap.set(k, item);
+      });
+      
+      const allKeys = new Set([...localMap.keys(), ...remoteMap.keys()]);
+      const mergedList = [];
+      
+      for (const key of allKeys) {
+        const localItem = localMap.get(key);
+        const remoteItem = remoteMap.get(key);
+        
+        if (localItem && remoteItem) {
+          if (isRecordBeingEdited(key, listName)) {
+            // L'utilisateur est en cours d'édition locale dans un modal -> préserver l'état local
+            mergedList.push(localItem);
+          } else {
+            // Fusionner les champs des deux, la version distante fait autorité
+            mergedList.push(Object.assign({}, localItem, remoteItem));
+          }
+        } else if (localItem) {
+          mergedList.push(localItem);
+        } else if (remoteItem) {
+          mergedList.push(remoteItem);
+        }
+      }
+      merged[listName] = mergedList;
+    }
+
+    mergeList('dispo',     item => item.v);
+    mergeList('pannes',    item => item.immat && item.date ? `${item.immat}|${item.date}|${item.desc||''}` : null);
+    mergeList('nc',        item => item.n);
+    mergeList('gasoil',    item => item.vehicule && item.date ? `${item.vehicule}|${item.date}|${item.operation||''}` : null);
+    mergeList('equip',     item => item.tr);
+    mergeList('activite',  item => item.tr);
+    mergeList('bl',        item => item.chauffeur);
+    mergeList('odo',       item => item.v);
+    mergeList('cspc',      item => item.v);
+    mergeList('blacklist', item => item.chauffeur && item.destination ? `${item.chauffeur}|${item.destination}` : null);
+    
+    merged._localTs = Math.max(local._localTs || 0, remote._localTs || 0);
+    return merged;
+  }
+
+  // ── RENDU DE TABLEAU SÉCURISÉ (évite le vol de focus pendant que l'utilisateur tape) ──
+  let _needsRenderAfterEdit = false;
+
+  function safeRenderActiveTeam(eq) {
+    const activeEl = document.activeElement;
+    const isTyping = activeEl && (
+      activeEl.classList.contains('cell-edit') || 
+      activeEl.classList.contains('cell-input') || 
+      activeEl.tagName === 'INPUT' || 
+      activeEl.tagName === 'TEXTAREA' ||
+      activeEl.getAttribute('contenteditable') === 'true'
+    );
+    
+    if (isTyping) {
+      // Différer le rendu graphique pour ne pas gêner la saisie active
+      _needsRenderAfterEdit = true;
+      if (!activeEl._hasBlurRenderListener) {
+        activeEl._hasBlurRenderListener = true;
+        activeEl.addEventListener('blur', () => {
+          if (_needsRenderAfterEdit) {
+            _needsRenderAfterEdit = false;
+            _doRender(eq);
+          }
+        }, { once: true });
+      }
+      return;
+    }
+    
+    _doRender(eq);
+  }
+
   // ── Applique les données d'une équipe dans DB et re-render ──
   function applyEquipeData(eq, src) {
     if (!src || !src.dispo) return;
-    window['DB_' + eq] = src;
-    if (eq === getCurrentEquipe()) {
+    
+    const currentEq = getCurrentEquipe();
+    
+    // Si c'est l'équipe active affichée à l'écran
+    if (eq === currentEq && typeof window.DB !== 'undefined') {
       const localTs  = window.DB._localTs || 0;
       const remoteTs = src._localTs || 0;
-      if (localTs > remoteTs + 2000) {
-        window['DB_' + eq] = Object.assign({}, src, {
-          dispo: window.DB.dispo, pannes: window.DB.pannes, nc: window.DB.nc,
-          gasoil: window.DB.gasoil, equip: window.DB.equip, activite: window.DB.activite,
-          bl: window.DB.bl, odo: window.DB.odo, odo_weeks: window.DB.odo_weeks,
-          cspc: window.DB.cspc, blacklist: window.DB.blacklist, _localTs: localTs
-        });
-        return;
+      
+      // Si la version distante contient de nouvelles modifications (timestamps distincts)
+      if (remoteTs !== localTs) {
+        const merged = mergeTeamData(window.DB, src);
+        Object.assign(window.DB, merged);
+        window['DB_' + eq] = cloneEquipePayload(merged);
+        
+        safeRenderActiveTeam(eq);
       }
-      Object.assign(window.DB, {
-        dispo: src.dispo, pannes: src.pannes || [], nc: src.nc || [],
-        gasoil: src.gasoil || [], equip: src.equip || [], activite: src.activite || [],
-        bl: src.bl || [], odo: src.odo || [], odo_weeks: src.odo_weeks || [], cspc: src.cspc || [],
-        blacklist: src.blacklist || [], _localTs: remoteTs
-      });
+    } else {
+      // Pour les équipes inactives, aucun risque de perte de focus ou de modal local
+      window['DB_' + eq] = cloneEquipePayload(src);
+      
+      // Si nous initialisons ou réactivons
+      if (eq === currentEq && typeof window.DB !== 'undefined') {
+        Object.assign(window.DB, cloneEquipePayload(src));
+        safeRenderActiveTeam(eq);
+      }
     }
   }
 
-  // ── Re-render après chargement ──
   function _doRender(eq) {
     const _prevPerfTs = DB.perfImportTs || null;
     try {
@@ -96,33 +233,87 @@
         showFirebaseBadge('🔄 Mis à jour depuis le cloud');
       }
     } catch(e) { console.warn('Firebase render error', e); }
+
+    // Rétablir le verrouillage de l'interface après réaffichage de la table
+    if (typeof window.applyTeamLockUI === 'function') {
+      window.applyTeamLockUI(eq);
+    }
   }
 
-  // ── onSnapshot par équipe ──
-  function _makeSnapshot(eq, dbRef) {
-    onSnapshot(dbRef, (snapshot) => {
-      const now = Date.now();
-      const currentEq = getCurrentEquipe();
-      // Protection : ignorer nos propres écritures sur l'équipe active pendant SAVE_GUARD_MS
-      if (now - _lastSaveTime < SAVE_GUARD_MS && _lastSaveEq === eq && eq === currentEq) return;
-      const data = snapshot.data();
-      _fbLoaded[eq] = true;
-      // _fbReady = true dès que l'équipe active a répondu → écriture autorisée sans attendre les 4
-      if (_fbLoaded[getCurrentEquipe()]) _fbReady = true;
+  window.refreshActiveEquipeFromCache = function(showBadge = true) {
+    const eq = getCurrentEquipe();
+    const src = window['DB_' + eq];
+    if (!src || !src.dispo || !src.dispo.length || typeof window.DB === 'undefined') return;
+    
+    // Fusionner pour éviter de perdre d'éventuelles modifications locales
+    const merged = mergeTeamData(window.DB, src);
+    Object.assign(window.DB, merged);
+    
+    if (!showBadge) {
+      safeRenderActiveTeam(eq);
+      return;
+    }
+    _doRender(eq);
+  };
+
+  // ── MIGRATION : numiplan/data -> documents individuels data_A ... data_D ──
+  async function migrateToIndividualDocs() {
+    if (_migrating) return;
+    _migrating = true;
+    try {
+      const globalSnap = await getDoc(dbRef);
+      if (globalSnap.exists()) {
+        const globalData = globalSnap.data();
+        let migratedCount = 0;
+        for (const eq of EQUIPES) {
+          const teamDocRef = dbRefs[eq];
+          const teamSnap = await getDoc(teamDocRef);
+          // Si le document d'équipe n'existe pas ou n'a pas de dispo
+          if (!teamSnap.exists() || !teamSnap.data()?.dispo) {
+            if (globalData[eq] && globalData[eq].dispo && globalData[eq].dispo.length) {
+              await setDoc(teamDocRef, globalData[eq]);
+              migratedCount++;
+              console.log(`[Firebase Migration] ✅ Équipe ${eq} migrée vers son document individuel.`);
+            }
+          }
+        }
+        if (migratedCount > 0) {
+          showFirebaseBadge(`☁️ ${migratedCount} équipe(s) migrée(s) vers le stockage isolé`);
+        }
+      }
+    } catch (e) {
+      console.warn('[Firebase Migration] Erreur lors de la migration descendante :', e);
+    }
+    _migrating = false;
+    _fbReady = true;
+  }
+
+  // Écoutes temps réel sur chacun des 4 documents d'équipe isolés
+  EQUIPES.forEach(eq => {
+    onSnapshot(dbRefs[eq], async (snapshot) => {
+      // 1. Filtrer les écritures locales en cours de transaction (latence compensée)
+      if (snapshot.metadata.hasPendingWrites) {
+        return;
+      }
+
+      let data = snapshot.data();
       if (!data) return;
-      applyEquipeData(eq, data);
-      if (_fbReady && eq === getCurrentEquipe()) _doRender(eq);
-    }, (err) => {
-      console.error('Firebase onSnapshot error (' + eq + '):', err);
-      showFirebaseBadge('⚠️ Connexion cloud perdue (' + eq + ')', true);
-    });
-  }
 
-  // ── Lancer les 4 listeners en parallèle ──
-  _makeSnapshot('A', dbRefA);
-  _makeSnapshot('B', dbRefB);
-  _makeSnapshot('C', dbRefC);
-  _makeSnapshot('D', dbRefD);
+      applyEquipeData(eq, data);
+      _fbLoaded[eq] = true;
+      
+      const currentEq = getCurrentEquipe();
+      if (eq === currentEq) {
+        _fbReady = true;
+      }
+    }, (err) => {
+      console.error(`Firebase onSnapshot error for Team ${eq}:`, err);
+      showFirebaseBadge(`⚠️ Connexion cloud perdue (${eq})`, true);
+    });
+  });
+
+  // Lancer la migration des données globales au démarrage
+  setTimeout(migrateToIndividualDocs, 1000);
 
   // ──────────────────────────────────────────────
   // ARCHIVES — collection 'arc' avec 1 document par équipe/mois
@@ -192,29 +383,20 @@
   };
 
   // ──────────────────────────────────────────────
-  // ÉCRITURE — MERGE sur la clé de l'équipe active uniquement
-  // ⚠️  N'écrase JAMAIS les données des autres équipes
+  // ÉCRITURE — écriture directe sur le document d'équipe correspondant (A|B|C|D)
   // ──────────────────────────────────────────────
   window._firebaseSaveDB = function(dbData) {
-    // ── VERROU SÉCURITÉ : ne jamais écrire dans Firebase avant le 1er chargement ──
     if (!_fbReady) {
       console.warn('[Firebase] saveDB bloqué — Firebase pas encore prêt');
       return;
     }
-    // Marquer le timestamp de sauvegarde + équipe active
-    // → le onSnapshot ignorera les snapshots pendant 5s pour éviter d'écraser nos saisies
-    _lastSaveTime = Date.now();
-    _lastSaveEq   = getCurrentEquipe();
     const eq = getCurrentEquipe();
-    // Met à jour le cache local de l'équipe
-    window['DB_' + eq] = window['DB_' + eq] || {};
-    Object.assign(window['DB_' + eq], dbData);
-    // Sauvegarde dans le document dédié à l'équipe : numiplan/data_A, data_B, etc.
-    const dbRefEq = doc(fbDB, 'numiplan', 'data_' + eq);
-    setDoc(dbRefEq, dbData, { merge: true }).catch(err => {
-      _lastSaveTime = 0;
-      console.error('Firebase write error:', err);
-      showFirebaseBadge('\u26a0\ufe0f Erreur cloud \u2014 sauvegarde locale uniquement', true);
+    const payload = cloneEquipePayload(dbData);
+    window['DB_' + eq] = payload;
+
+    setDoc(dbRefs[eq], payload).catch(err => {
+      console.error(`Firebase write error for Team ${eq}:`, err);
+      showFirebaseBadge('⚠️ Erreur cloud — sauvegarde locale uniquement', true);
     });
   };
 
@@ -295,10 +477,6 @@
 @keyframes fadeIn {
   from { opacity: 0; }
   to   { opacity: 1; }
-}
-@keyframes blBannerPulse {
-  0%,100% { border-color: rgba(248,113,113,.5); box-shadow: none; }
-  50%      { border-color: rgba(248,113,113,.9); box-shadow: 0 0 18px rgba(248,113,113,.25); }
 }
 * { margin:0; padding:0; box-sizing:border-box; }
 body { font-family:'IBM Plex Sans',sans-serif; background:var(--bg); color:var(--txt); min-height:100vh; overflow-x:hidden; }
@@ -555,17 +733,92 @@ tbody td { padding:6px 8px; font-size:11px; vertical-align:middle; }
   // ⚠️  Déclaré ICI (avant tout appel) pour éviter le ReferenceError "Cannot access before initialization"
   const INACTIVITY_MS = 1 * 60 * 60 * 1000; // 1 heure
 
+  const TEAM_PASSWORDS = {
+    'SharikA@2026': 'A',
+    'SharikB@2026': 'B',
+    'SharikC@2026': 'C',
+    'SharikD@2026': 'D'
+  };
+
+  // Fonction globale pour verrouiller l'interface en lecture seule
+  function applyTeamLockUI(eq) {
+    const lock = sessionStorage.getItem('numiplan_team_lock');
+    const isReadOnly = lock && lock !== eq;
+    
+    // 1. Masquer les boutons d'action de modification
+    document.querySelectorAll('.btn-add, .btn-save, [onclick*="basculerJournee"], [onclick*="archiveToday"], .btn-danger, .del-btn, .btn-archive, .btn-perf, #perf-drop').forEach(btn => {
+      if (isReadOnly) {
+        btn.style.setProperty('display', 'none', 'important');
+      } else {
+        btn.style.removeProperty('display');
+      }
+    });
+
+    // 2. Rendre les cellules d'édition en ligne non-éditables
+    document.querySelectorAll('.cell-edit').forEach(el => {
+      if (isReadOnly) {
+        el.removeAttribute('contenteditable');
+        el.style.setProperty('pointer-events', 'none', 'important');
+        el.style.outline = 'none';
+      } else {
+        el.setAttribute('contenteditable', 'true');
+        el.style.removeProperty('pointer-events');
+      }
+    });
+
+    // 3. Désactiver les champs d'entrée éditables de la table (ex: Wilaya / Lieu Jour)
+    document.querySelectorAll('.cell-input').forEach(el => {
+      if (isReadOnly) {
+        el.disabled = true;
+        el.style.setProperty('pointer-events', 'none', 'important');
+        el.style.borderBottomColor = 'transparent';
+      } else {
+        el.disabled = false;
+        el.style.removeProperty('pointer-events');
+        el.style.borderBottomColor = '';
+      }
+    });
+  }
+  window.applyTeamLockUI = applyTeamLockUI;
+
   // Vérifier si déjà connecté (session active)
   if (sessionStorage.getItem('numiplan_auth') === 'ok') {
     document.getElementById('login-screen').style.display = 'none';
     startSessionTimers();
+    // Appliquer le verrou de l'équipe active au démarrage
+    setTimeout(() => {
+      const lock = sessionStorage.getItem('numiplan_team_lock');
+      if (lock && typeof window.switchEquipe === 'function') {
+        window.switchEquipe(lock);
+      } else {
+        applyTeamLockUI(typeof window.CURRENT_EQUIPE !== 'undefined' ? window.CURRENT_EQUIPE : 'A');
+      }
+    }, 200);
   }
 
   function checkPassword() {
     const val = document.getElementById('pwd-input').value;
     if (val === 'Sharik@2026') {
       sessionStorage.setItem('numiplan_auth', 'ok');
+      sessionStorage.removeItem('numiplan_team_lock'); // Admin : pas de verrou d'équipe
       document.getElementById('login-screen').style.display = 'none';
+      startSessionTimers();
+      
+      const current = (typeof window.CURRENT_EQUIPE !== 'undefined') ? window.CURRENT_EQUIPE : 'A';
+      applyTeamLockUI(current);
+    } else if (TEAM_PASSWORDS[val]) {
+      const eq = TEAM_PASSWORDS[val];
+      sessionStorage.setItem('numiplan_auth', 'ok');
+      sessionStorage.setItem('numiplan_team_lock', eq); // Verrouillé sur l'équipe eq
+      document.getElementById('login-screen').style.display = 'none';
+      startSessionTimers();
+      
+      // Forcer l'application active à basculer sur l'équipe affectée
+      if (typeof window.switchEquipe === 'function') {
+        window.switchEquipe(eq);
+      } else {
+        applyTeamLockUI(eq);
+      }
     } else {
       document.getElementById('pwd-error').textContent = '⚠️ Mot de passe incorrect';
       document.getElementById('pwd-input').value = '';
@@ -578,6 +831,7 @@ tbody td { padding:6px 8px; font-size:11px; vertical-align:middle; }
 
   function doLogout() {
     sessionStorage.removeItem('numiplan_auth');
+    sessionStorage.removeItem('numiplan_team_lock');
     document.getElementById('login-screen').style.display = '';
     document.getElementById('pwd-input').value = '';
     document.getElementById('pwd-input').focus();
@@ -1188,21 +1442,6 @@ mark.hl { background: rgba(56,189,248,.25); color: var(--acc); border-radius: 3p
 
 <!-- ══════════════ SUIVI BL ══════════════ -->
 <div id="page-bl" class="page">
-  <!-- Bannière alerte période retour BL -->
-  <div id="bl-alerte-banner" style="display:none;margin-bottom:14px;border-radius:10px;padding:14px 18px;background:rgba(248,113,113,.12);border:1px solid rgba(248,113,113,.5);animation:blBannerPulse 2s ease-in-out infinite">
-    <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
-      <span style="font-size:22px">📄</span>
-      <div style="flex:1">
-        <div style="font-size:13px;font-weight:700;color:#f87171;letter-spacing:.5px" id="bl-alerte-titre">⚠️ PÉRIODE DE RETOUR BL EN COURS</div>
-        <div style="font-size:11px;color:var(--txt2);margin-top:3px" id="bl-alerte-sous-titre"></div>
-      </div>
-      <div style="display:flex;gap:8px;align-items:center">
-        <span id="bl-alerte-compteur" style="font-family:'IBM Plex Mono',monospace;font-size:22px;font-weight:700;color:#f87171"></span>
-        <span style="font-size:10px;color:var(--txt2);text-align:center;line-height:1.3">chauffeurs<br>en attente</span>
-      </div>
-    </div>
-  </div>
-
   <div class="filter-bar">
     <label>Filtre</label>
     <input type="text" class="filter-input" id="bl-search" placeholder="Chauffeur…" oninput="renderBL()">
@@ -1210,11 +1449,10 @@ mark.hl { background: rgba(56,189,248,.25); color: var(--acc); border-radius: 3p
     <button class="btn btn-add" onclick="openModal('modal-bl')">＋ Ajouter</button>
   </div>
   <div style="padding-top:20px">
-    <div class="stats-row" id="bl-stats"></div>
     <div class="sec-title">Suivi des bons de livraison par chauffeur</div>
     <div class="table-wrap">
       <table>
-        <thead><tr><th>Chauffeur</th><th>Mars</th><th>Avril</th><th>Mai</th><th>Juin</th><th>Juillet</th><th>Août</th><th>Sep.</th><th>Oct.</th><th>Nov.</th><th>Déc.</th><th style="color:#f87171;min-width:140px">📄 Restitution</th><th>Action</th></tr></thead>
+        <thead><tr><th>Chauffeur</th><th>Mars</th><th>Avril</th><th>Mai</th><th>Juin</th><th>Juillet</th><th>Août</th><th>Sep.</th><th>Oct.</th><th>Nov.</th><th>Déc.</th><th>Action</th></tr></thead>
         <tbody id="bl-body"></tbody>
       </table>
     </div>
@@ -1736,11 +1974,267 @@ mark.hl { background: rgba(56,189,248,.25); color: var(--acc); border-radius: 3p
 const STORAGE_KEY = 'numiplan_data_v2';
 const ARCHIVE_KEY = 'numiplan_archives_v2';
 
-// Données initiales (depuis fiche_dispo_EQ_A.html original)
 const INITIAL_DATA = {
-  dispo: [], pannes: [], nc: [], gasoil: [], equip: [],
-  activite: [], bl: [], odo: [], odo_weeks: [], cspc: [], blacklist: []
+  blacklist: [],
+  dispo: [
+    {v:'000791-524-16',etat:'En mission',type:'TRACTEUR',chauffeur:'BELAHDJER TOUFIK',hor:0.625,lieuJ:'TUNISIE',lieuJ1:'TUNISIE',equip:'OK',prog:''},
+    {v:'000914-514-16',etat:'En mission',type:'TRACTEUR',chauffeur:'BELAHDJER TOUFIK',hor:0,lieuJ:'—',lieuJ1:'—',equip:'OK',prog:'SBA'},
+    {v:'000848-514-16',etat:'En mission',type:'TRACTEUR',chauffeur:'BELAHDJER TOUFIK',hor:0.5,lieuJ:'—',lieuJ1:'ALGER',equip:'OK',prog:''},
+    {v:'001060-514-16',etat:'En mission',type:'TRACTEUR',chauffeur:'BELSKEM MOUHAMED',hor:0.583,lieuJ:'—',lieuJ1:'ORAN',equip:'ok',prog:''},
+    {v:'001006-514-16',etat:'DISPONIBLE',type:'TRACTEUR',chauffeur:'BENMASSAOUD ADEL',hor:0.542,lieuJ:'BEJAIA',lieuJ1:'AFLOU',equip:'OK',prog:''},
+    {v:'000692-524-16',etat:'En mission',type:'TRACTEUR',chauffeur:'BOUDRISSA RABAH',hor:0.75,lieuJ:'—',lieuJ1:'TUNISIE',equip:'OK',prog:''},
+    {v:'001076-524-16',etat:'En mission',type:'TRACTEUR',chauffeur:'BOUDRISSA RABAH',hor:0.75,lieuJ:'—',lieuJ1:'TUNISIE',equip:'OK',prog:''},
+    {v:'000900-514-16',etat:'En panne',type:'TRACTEUR',chauffeur:'BOUDRISSA RABAH',hor:0,lieuJ:'—',lieuJ1:'KHENCHELA',equip:'OK',prog:''},
+    {v:'000313-516-16',etat:'DISPONIBLE',type:'TRACTEUR',chauffeur:'BOUDRISSA RABAH',hor:0.583,lieuJ:'—',lieuJ1:'TIRET',equip:'OK',prog:''},
+    {v:'000422-523-16',etat:'DISPONIBLE',type:'TRACTEUR',chauffeur:'BOUDRISSA RABAH',hor:0.458,lieuJ:'—',lieuJ1:'TLEMCEN',equip:'OK',prog:''},
+    {v:'000870-523-16',etat:'DISPONIBLE',type:'TRACTEUR',chauffeur:'BOUDRISSA RABAH',hor:0.417,lieuJ:'—',lieuJ1:'EL BAYADH',equip:'OK',prog:''},
+    {v:'001417-513-16',etat:'En panne',type:'TRACTEUR',chauffeur:'DACHIR MUSTAPHA',hor:0.708,lieuJ:'BEJAI',lieuJ1:'BEJAIA',equip:'OK',prog:''},
+    {v:'000816-524-16',etat:'DISPONIBLE',type:'TRACTEUR',chauffeur:'DACHIR MUSTAPHA',hor:0.667,lieuJ:'ORAN',lieuJ1:'TIZI OUZOU',equip:'OK',prog:''},
+    {v:'001059-524-16',etat:'En mission',type:'TRACTEUR',chauffeur:'DACHIR MUSTAPHA',hor:0.417,lieuJ:'—',lieuJ1:'TUNISIE',equip:'OK',prog:''},
+    {v:'000974-514-16',etat:'En mission',type:'TRACTEUR',chauffeur:'DACHIR MUSTAPHA',hor:0.5,lieuJ:'—',lieuJ1:'SETIF',equip:'OK',prog:''},
+    {v:'001032-523-16',etat:'DISPONIBLE',type:'TRACTEUR',chauffeur:'DACHIR MUSTAPHA',hor:0.667,lieuJ:'—',lieuJ1:'TIZI OUZOU',equip:'OK',prog:''},
+    {v:'000718-524-16',etat:'DISPONIBLE',type:'TRACTEUR',chauffeur:'DJOUAD ABDELHAFID',hor:0.5,lieuJ:'—',lieuJ1:'SETIF',equip:'',prog:''},
+    {v:'001224-514-16',etat:'En panne',type:'TRACTEUR',chauffeur:'DJOUAD ABDELHAFID',hor:0.417,lieuJ:'—',lieuJ1:'TEBESSA',equip:'',prog:''},
+    {v:'000988-514-16',etat:'En mission',type:'TRACTEUR',chauffeur:'DJOUAD ABDELHAFID',hor:0.5,lieuJ:'—',lieuJ1:'SETIF',equip:'',prog:''},
+    {v:'001273-514-16',etat:'En panne',type:'TRACTEUR',chauffeur:'FEROUDJ NABIL',hor:0.833,lieuJ:'',lieuJ1:'',equip:'OK',prog:''},
+    {v:'000372-516-16',etat:'DISPONIBLE',type:'TRACTEUR',chauffeur:'FERROUDJ NABIL',hor:0.5,lieuJ:'—',lieuJ1:'TOUGGOURT',equip:'OK',prog:''},
+    {v:'000772-515-16',etat:'En mission',type:'TRACTEUR',chauffeur:'HADJ MOUSSA',hor:0.667,lieuJ:'—',lieuJ1:'DJELFA',equip:'OK',prog:''},
+    {v:'000321-516-16',etat:'En panne',type:'TRACTEUR',chauffeur:'KEBIR DANI SAID',hor:0.917,lieuJ:'',lieuJ1:'',equip:'',prog:''},
+    {v:'001127-514-16',etat:'Manque chauffeur',type:'TRACTEUR',chauffeur:'LAAMARA REDHA',hor:0.458,lieuJ:'',lieuJ1:'',equip:'',prog:''},
+    {v:'000379-516-16',etat:'DISPONIBLE',type:'TRACTEUR',chauffeur:'LABDI HABIB 2',hor:0.458,lieuJ:'TIZI OUZOU',lieuJ1:'ORAN',equip:'OK',prog:''},
+    {v:'001075-514-16',etat:'En mission',type:'TRACTEUR',chauffeur:'LABDI HABIB 2',hor:1.625,lieuJ:'—',lieuJ1:'TLEMCEN',equip:'OK',prog:''},
+    {v:'001228-514-16',etat:'Manque chauffeur',type:'TRACTEUR',chauffeur:'MAAMAR IDIR',hor:0.5,lieuJ:'',lieuJ1:'',equip:'',prog:''},
+    {v:'000364-516-16',etat:'DISPONIBLE',type:'TRACTEUR',chauffeur:'NAGHZA AMAR',hor:0.542,lieuJ:'—',lieuJ1:'BEJAIA',equip:'OK',prog:''},
+    {v:'000788-524-16',etat:'En mission',type:'TRACTEUR',chauffeur:'NAGHZA AMAR',hor:0,lieuJ:'—',lieuJ1:'SAIDA',equip:'OK',prog:''},
+    {v:'001125-514-16',etat:'En panne',type:'TRACTEUR',chauffeur:'NAGHZA AMAR',hor:0.417,lieuJ:'—',lieuJ1:'BEJAIA',equip:'OK',prog:''},
+    {v:'000939-523-16',etat:'En mission',type:'TRACTEUR',chauffeur:'NAGHZA AMAR',hor:0.375,lieuJ:'—',lieuJ1:'TUNISIE',equip:'OK',prog:''},
+    {v:'000945-523-16',etat:'DISPONIBLE',type:'TRACTEUR',chauffeur:'NAGHZA AMAR',hor:0.667,lieuJ:'—',lieuJ1:'BORDJ BORIRIDJ',equip:'OK',prog:''},
+    {v:'000890-514-16',etat:'DISPONIBLE',type:'TRACTEUR',chauffeur:'RACHID KHELLIF',hor:0.667,lieuJ:'—',lieuJ1:'CHLEF',equip:'OK',prog:''},
+    {v:'000423-516-16',etat:'DISPONIBLE',type:'TRACTEUR',chauffeur:'RAHAL YAHIA',hor:0.667,lieuJ:'—',lieuJ1:'SETIF',equip:'OK',prog:''},
+    {v:'000926-514-16',etat:'Manque chauffeur',type:'TRACTEUR',chauffeur:'RHOUI HABIB',hor:0.5,lieuJ:'',lieuJ1:'',equip:'',prog:''},
+    {v:'000774-515-16',etat:'Manque chauffeur',type:'TRACTEUR',chauffeur:'ROUABHIA KHALED',hor:0.5,lieuJ:'',lieuJ1:'',equip:'',prog:''},
+    {v:'001079-514-16',etat:'DISPONIBLE',type:'TRACTEUR',chauffeur:'TABLI CHAFIK',hor:0.417,lieuJ:'—',lieuJ1:'TIZI OZOU',equip:'OK',prog:''},
+    {v:'000916-523-16',etat:'En mission',type:'TRACTEUR',chauffeur:'TABLI CHAFIK',hor:0.542,lieuJ:'—',lieuJ1:'BEJAIA',equip:'OK',prog:''},
+    {v:'000920-523-16',etat:'DISPONIBLE',type:'TRACTEUR',chauffeur:'TABLI CHAFIK',hor:0.5,lieuJ:'—',lieuJ1:'ALGER',equip:'OK',prog:''},
+    {v:'001047-524-16',etat:'DISPONIBLE',type:'TRACTEUR',chauffeur:'TABLI CHAFIK',hor:0.417,lieuJ:'—',lieuJ1:'ALGER',equip:'OK',prog:''},
+    {v:'001045-524-16',etat:'En mission',type:'TRACTEUR',chauffeur:'TABLI CHAFIK',hor:0.583,lieuJ:'—',lieuJ1:'TUNISIE',equip:'OK',prog:''},
+    {v:'001044-514-16',etat:'En mission',type:'TRACTEUR',chauffeur:'TOUMI NACER',hor:0.667,lieuJ:'—',lieuJ1:'ORAN',equip:'OK',prog:''},
+    {v:'000363-516-16',etat:'DISPONIBLE',type:'TRACTEUR',chauffeur:'YAHIAOUI DJAMEL',hor:0.708,lieuJ:'—',lieuJ1:'TEBESSA',equip:'OK',prog:''},
+    {v:'001234-514-16',etat:'En panne',type:'TRACTEUR',chauffeur:'YAHIAOUI DJAMEL',hor:0.708,lieuJ:'—',lieuJ1:'MAGHNIA',equip:'OK',prog:''},
+  ],
+  pannes: [
+    {date:'2026-04-08',chauffeur:'KEBIR DANI SAID',immat:'000321-516-16',type:'TRACTEUR',di:'DI2604003168',desc:"LES VAGUES TRIE TRACTEUR (remplacement d'un camion si c'est possible)",cet:'ABDO .D',rex:'SIDALI.D'},
+    {date:'2026-04-08',chauffeur:'FEROUDJ NABIL',immat:'001273-514-16',type:'TRACTEUR',di:'DI2603001390',desc:"façade avant (Doté d'un camion de remplacement 000372)",cet:'ABDO .D',rex:'SIDALI.D'},
+    {date:'2026-04-08',chauffeur:'DJOUAD ABDELHAFID',immat:'001397-813-16',type:'REMORQUE',di:'DI2604004518',desc:'vérification essieu',cet:'ABDO .D',rex:'SIDALI.D'},
+    {date:'2026-04-08',chauffeur:'BOUDRISSA RABAH',immat:'000900-514-16',type:'TRACTEUR',di:'DI2605005059',desc:"vérification fuite d'huile + vérification manque de pression",cet:'ABDO .D',rex:'SIDALI.D'},
+    {date:'2026-04-09',chauffeur:'YAHIAOUI DJAMEL',immat:'001234-514-16',type:'TRACTEUR',di:'DI2605005142',desc:"changement de 4 disc de frein + changement de plaque de frein + dotation de 2 batterie + changement de flexible d'huile",cet:'ABDO .D',rex:'SIDALI.D'},
+    {date:'2026-04-09',chauffeur:'TABLI CHAFIK',immat:'000091-823-16',type:'REMORQUE',di:'DI2605005143',desc:'vérification remorque inclinée + vérification ballon soir',cet:'ABDO .D',rex:'SIDALI.D'},
+  ],
+  nc: [
+    {n:1,sharik:'DJOUAD ABDELHAFID',fausse:'',chgt:'LES EUCALIPTUS-BBA',refus:'',date:'2026-02-22',mise:'',commission:''},
+    {n:2,sharik:'BEMASSAOUD ADEL',fausse:'',chgt:'BECHAR-HASSI MESSAOUD',refus:'',date:'2026-02-23',mise:'',commission:''},
+    {n:3,sharik:'FEROUDJ NABIL',fausse:'',chgt:'ORAN- MANSOURA',refus:'',date:'2026-02-27',mise:'',commission:''},
+    {n:4,sharik:'RAHAL YAHIA',fausse:'',chgt:'TEBESSA- SAIDA',refus:'',date:'2026-02-28',mise:'',commission:''},
+    {n:5,sharik:'HADJ MOUSSA NOURDDINE',fausse:'',chgt:'MANSOURA-ORAN',refus:'',date:'2026-03-01',mise:'',commission:''},
+    {n:6,sharik:'DJOUAD ABDELHAFID',fausse:'',chgt:'LAGHOUAT-ORAN',refus:'',date:'2026-02-28',mise:'',commission:''},
+    {n:7,sharik:'BEMASSAOUD ADEL',fausse:'',chgt:'',refus:'départ de LLK',date:'2024-12-28',mise:'',commission:''},
+    {n:8,sharik:'BELAHDJAR TOUFIK',fausse:'',chgt:'SAIDA-ALGER',refus:'',date:'2026-03-02',mise:'',commission:''},
+    {n:9,sharik:'DJOUAD ABDELHAFID',fausse:'',chgt:'',refus:'ORAN-TIARET',date:'2026-03-01',mise:'',commission:''},
+    {n:10,sharik:'RAHAL YAHIA',fausse:'',chgt:'FRUITAL-SAIDA',refus:'',date:'2026-03-05',mise:'',commission:''},
+    {n:11,sharik:'TABLI CHAFIK',fausse:'',chgt:'NAAMA - ALGER',refus:'',date:'2026-04-14',mise:'',commission:''},
+    {n:12,sharik:'DJOUAD ABDELHAFID',fausse:'',chgt:'LAFHOUAT - ALGER',refus:'',date:'2026-03-08',mise:'',commission:''},
+    {n:13,sharik:'DJOUAD ABDELHAFID',fausse:'',chgt:'EL BAYADH - ALGER',refus:'',date:'2026-03-08',mise:'',commission:''},
+    {n:14,sharik:'RAHAL YAHIA',fausse:'',chgt:'CONSTANTINE - DJELFA',refus:'',date:'2026-03-09',mise:'',commission:''},
+    {n:15,sharik:'NEGHZA AMAR',fausse:'',chgt:'DJELFA - BBA',refus:'',date:'2026-03-09',mise:'',commission:''},
+    {n:16,sharik:'NEGHZA AMAR',fausse:'',chgt:'BBA-RELIZANE',refus:'',date:'2026-04-17',mise:'',commission:''},
+    {n:17,sharik:'BELASKEM MOUHAMED',fausse:'',chgt:'ORAN-SETIF',refus:'',date:'2026-03-11',mise:'',commission:''},
+    {n:18,sharik:'FEROUDJ NABIL',fausse:'',chgt:'ORAN - HASSI MESSAOUD',refus:'',date:'2026-03-12',mise:'',commission:''},
+    {n:19,sharik:'KHELIF RACHID',fausse:'',chgt:'ORAN - AIN TEMOUCHENT',refus:'',date:'2026-03-12',mise:'',commission:''},
+    {n:20,sharik:'YAHIAOUI DJAMEL',fausse:'',chgt:'RELIZANE-KHEMIS EL KHECHNA',refus:'',date:'2026-03-14',mise:'',commission:''},
+    {n:21,sharik:'DJOUAD ABDELHAFID',fausse:'',chgt:'ADRAR-RELIZAN',refus:'',date:'2026-03-14',mise:'',commission:''},
+    {n:22,sharik:'NEGHZA AMAR',fausse:'',chgt:'MAGHNIA-BATNA',refus:'',date:'2026-03-15',mise:'',commission:''},
+    {n:23,sharik:'BELAHDJAR TOUFIK',fausse:'',chgt:'CONSTANTINE-SAIDA',refus:'',date:'2026-03-21',mise:'',commission:''},
+    {n:24,sharik:'BOUDRISSA RABAH',fausse:'',chgt:'DJELFA - ORAN',refus:'',date:'2026-03-21',mise:'',commission:''},
+    {n:25,sharik:'NEGHZA AMAR',fausse:'',chgt:'SETIF-CHLEF',refus:'',date:'2026-03-21',mise:'',commission:''},
+    {n:26,sharik:'DJOUAD ABDELHAFID',fausse:'',chgt:'LAGHOUAT-ORAN',refus:'',date:'2026-04-22',mise:'',commission:''},
+    {n:27,sharik:'TABLI CHAFIK',fausse:'',chgt:'ORAN - ALGER',refus:'',date:'2026-03-25',mise:'',commission:''},
+    {n:28,sharik:'TABLI CHAFIK',fausse:'',chgt:'MOSTAGANEM-BOUIRA',refus:'',date:'2026-03-25',mise:'',commission:''},
+    {n:29,sharik:'DJOUAD ABDELHAFID',fausse:'',chgt:'TLEMCEN-MOSTAGANEM',refus:'',date:'2026-03-25',mise:'',commission:''},
+    {n:30,sharik:'DJOUAD ABDELHAFID',fausse:'',chgt:'',refus:'départ de HASSI-AMEUR',date:'2026-03-25',mise:'',commission:''},
+    {n:31,sharik:'DJOUAD ABDELHAFID',fausse:'',chgt:'ORAN-BEJAIA',refus:'',date:'2026-03-26',mise:'',commission:''},
+    {n:32,sharik:'RAHAL YAHIA',fausse:'',chgt:'ORAN-BOUIRA',refus:'',date:'2026-04-08',mise:'',commission:''},
+  ],
+  gasoil: [
+    {date:'2026-04-09',vehicule:'001079-514-16',station:'PARTNER ALGER',chauffeur:'TABLI CHAFIK',type:'Interne',operation:'PLEIN',resp:'DAHOUMANE ABDESLEM'},
+    {date:'2026-04-09',vehicule:'000920-523-16',station:'PARTNER ALGER',chauffeur:'TABLI CHAFIK',type:'Interne',operation:'PLEIN',resp:'DAHOUMANE ABDESLEM'},
+    {date:'2026-04-09',vehicule:'001047-524-16',station:'PARTNER ALGER',chauffeur:'TABLI CHAFIK',type:'Interne',operation:'PLEIN',resp:'DAHOUMANE ABDESLEM'},
+    {date:'2026-04-09',vehicule:'000379-516-16',station:'PARTNER ALGER',chauffeur:'LABDI HABIB',type:'Interne',operation:'PLEIN',resp:'DAHOUMANE ABDESLEM'},
+    {date:'2026-04-09',vehicule:'001075-514-16',station:'PARTNER ALGER',chauffeur:'LABDI HABIB',type:'Interne',operation:'PLEIN',resp:'DAHOUMANE ABDESLEM'},
+    {date:'2026-04-09',vehicule:'000816-524-16',station:'PARTNER ALGER',chauffeur:'DECHIR MUSTAPHA',type:'Interne',operation:'PLEIN',resp:'DAHOUMANE ABDESLEM'},
+  ],
+  equip: [
+    {n:1,sharik:'BELAHDJER TOUFIK',tr:'000791-524-16',rm:'000551-824-16',barre:'OUI',cable:'OUI',tel:'770309257'},
+    {n:2,sharik:'BELAHDJER TOUFIK',tr:'000914-514-16',rm:'000256-816-16',barre:'OUI',cable:'OUI',tel:'770309257'},
+    {n:3,sharik:'BELAHDJER TOUFIK',tr:'000848-514-16',rm:'000731-814-16',barre:'OUI',cable:'OUI',tel:'770309257'},
+    {n:4,sharik:'BELSKEM MOUHAMED',tr:'001060-514-16',rm:'000469-816-16',barre:'OUI',cable:'NON',tel:'782399030'},
+    {n:5,sharik:'BENMASSAOUD ADEL',tr:'001006-514-16',rm:'000351-816-16',barre:'OUI',cable:'OUI',tel:'770143524'},
+    {n:6,sharik:'BOUDRISSA RABAH',tr:'000692-524-16',rm:'000655-824-16',barre:'NON',cable:'OUI',tel:'770999163'},
+    {n:7,sharik:'BOUDRISSA RABAH',tr:'001076-524-16',rm:'000633-824-16',barre:'NON',cable:'OUI',tel:'770999163'},
+    {n:8,sharik:'BOUDRISSA RABAH',tr:'000313-516-16',rm:'000377-816-16',barre:'NON',cable:'OUI',tel:'770999163'},
+    {n:9,sharik:'BOUDRISSA RABAH',tr:'000900-514-16',rm:'000488-814-16',barre:'NON',cable:'OUI',tel:'770999163'},
+    {n:10,sharik:'BOUDRISSA RABAH',tr:'000422-523-16',rm:'000777-823-16',barre:'NON',cable:'NON',tel:'780806418'},
+    {n:11,sharik:'BOUDRISSA RABAH',tr:'000870-523-16',rm:'000790-823-16',barre:'NON',cable:'NON',tel:'780806418'},
+    {n:12,sharik:'DACHIR MUSTAPHA',tr:'001417-513-16',rm:'001642-813-16',barre:'OUI',cable:'OUI',tel:'780806418'},
+    {n:13,sharik:'DACHIR MUSTAPHA',tr:'000974-514-16',rm:'000708-814-16',barre:'NON',cable:'OUI',tel:'780806418'},
+    {n:14,sharik:'DACHIR MUSTAPHA',tr:'000816-524-16',rm:'000697-824-16',barre:'OUI',cable:'OUI',tel:'782203059'},
+    {n:15,sharik:'DACHIR MUSTAPHA',tr:'001059-524-16',rm:'000668-824-16',barre:'OUI',cable:'OUI',tel:'782203059'},
+    {n:16,sharik:'DECHIR MUSTAPHA',tr:'001032-523-16',rm:'000378-823-16',barre:'NON',cable:'NON',tel:'782203059'},
+    {n:17,sharik:'DJOUAD ABDELHAFID',tr:'000718-524-16',rm:'000587-824-16',barre:'OUI',cable:'OUI',tel:'770140663'},
+    {n:18,sharik:'DJOUAD ABDELHAFID',tr:'001224-514-16',rm:'001397-813-16',barre:'OUI',cable:'OUI',tel:'770140663'},
+    {n:19,sharik:'DJOUAD ABDELHAFID',tr:'000988-514-16',rm:'000795-814-16',barre:'OUI',cable:'OUI',tel:'782547991'},
+    {n:20,sharik:'FEROUDJ NABIL',tr:'001273-514-16',rm:'',barre:'NON',cable:'NON',tel:'770142867'},
+    {n:21,sharik:'FERROUDJ NABIL',tr:'000372-516-16',rm:'000656-814-16',barre:'OUI',cable:'OUI',tel:'770141236'},
+    {n:22,sharik:'KEBIR DANI SAID',tr:'000321-516-16',rm:'000287-816-16',barre:'NON',cable:'NON',tel:'770141236'},
+    {n:23,sharik:'LAAMARA REDHA',tr:'001127-514-16',rm:'001259-814-16',barre:'NON',cable:'NON',tel:'656201321'},
+    {n:24,sharik:'LABDI HABIB 2',tr:'001075-514-16',rm:'000388-816-16',barre:'OUI',cable:'OUI',tel:'656201321'},
+    {n:25,sharik:'LABDI HABIB 2',tr:'000379-516-16',rm:'000783-814-16',barre:'OUI',cable:'OUI',tel:'656201321'},
+    {n:26,sharik:'MAAMAR IDIR',tr:'001228-514-16',rm:'000718-814-16',barre:'NON',cable:'NON',tel:'662290097'},
+    {n:27,sharik:'NAGHZA AMAR',tr:'000788-524-16',rm:'000553-824-16',barre:'NON',cable:'OUI',tel:'780806414'},
+    {n:28,sharik:'NAGHZA AMAR',tr:'000364-516-16',rm:'000565-814-16',barre:'OUI',cable:'OUI',tel:'770429581'},
+    {n:29,sharik:'NAGHZA AMAR',tr:'001125-514-16',rm:'000658-814-16',barre:'NON',cable:'NON',tel:'770429581'},
+    {n:41,sharik:'NAGHZA AMAR',tr:'000939-523-16',rm:'000382-823-16',barre:'NON',cable:'NON',tel:'770429581'},
+    {n:42,sharik:'NAGHZA AMAR',tr:'000945-523-16',rm:'000819-823-16',barre:'NON',cable:'NON',tel:'770437136'},
+    {n:30,sharik:'NOURREDINE HADJ MOUSSA',tr:'000772-515-16',rm:'000660-814-16',barre:'NON',cable:'NON',tel:'770437136'},
+    {n:31,sharik:'RACHID KHELLIF',tr:'000890-514-16',rm:'000531-814-16',barre:'NON',cable:'NON',tel:'770747191'},
+    {n:32,sharik:'RAHAL YAHIA',tr:'000423-516-16',rm:'000216-816-16',barre:'OUI',cable:'OUI',tel:'770813925'},
+    {n:33,sharik:'RHOUI HABIB',tr:'000926-514-16',rm:'001261-814-16',barre:'NON',cable:'NON',tel:'782203133'},
+    {n:34,sharik:'ROUABHIA KHALED',tr:'000774-515-16',rm:'000340-816-16',barre:'NON',cable:'NON',tel:'696964682'},
+    {n:35,sharik:'TABLI CHAFIK',tr:'001079-514-16',rm:'000525-814-16',barre:'NON',cable:'OUI',tel:'770143705'},
+    {n:'',sharik:'TABLI CHAFIK',tr:'000916-523-16',rm:'000086-823-16',barre:'NON',cable:'NON',tel:'770429581'},
+    {n:'',sharik:'TABLI CHAFIK',tr:'000920-523-16',rm:'000091-823-16',barre:'NON',cable:'NON',tel:'770429581'},
+    {n:36,sharik:'TABLI CHAFIK',tr:'001047-524-16',rm:'000642-824-16',barre:'NON',cable:'OUI',tel:'770429581'},
+    {n:37,sharik:'TABLI CHAFIK',tr:'001045-524-16',rm:'000647-824-16',barre:'NON',cable:'OUI',tel:'770429581'},
+    {n:38,sharik:'TOUMI NACER',tr:'001044-514-16',rm:'000215-816-16',barre:'NON',cable:'NON',tel:'770429581'},
+    {n:39,sharik:'YAHIAOUI DJAMEL',tr:'001234-514-16',rm:'000773-814-16',barre:'OUI',cable:'OUI',tel:'799240954'},
+    {n:40,sharik:'YAHIAOUI DJAMEL',tr:'000363-516-16',rm:'000627-814-16',barre:'OUI',cable:'OUI',tel:'799240954'},
+  ],
+  activite: [
+    {sharik:'BELAHDJER TOUFIK',tr:'000848-514-16',rm:'000256-816-16',debut:'2025-08-02',fin:'',ext:'EXTENSION',site:'BEJAIA',etatTR:'opérationnel',actif:'actif',obs:''},
+    {sharik:'BELAHDJER TOUFIK',tr:'000791-524-16',rm:'000551-824-16',debut:'2025-08-24',fin:'',ext:'',site:'BEJAIA',etatTR:'opérationnel',actif:'actif',obs:''},
+    {sharik:'BELAHDJER TOUFIK',tr:'000914-514-16',rm:'000731-814-16',debut:'',fin:'',ext:'',site:'BEJAIA',etatTR:'opérationnel',actif:'actif',obs:''},
+    {sharik:'BELESKAM MOHAMED',tr:'001060-514-16',rm:'000469-816-16',debut:'',fin:'',ext:'',site:'BOUIRA',etatTR:'opérationnel',actif:'actif',obs:''},
+    {sharik:'BELKACEMI MED',tr:'',rm:'',debut:'2026-01-12',fin:'2026-04-26',ext:'',site:'BEJAIA',etatTR:'',actif:'actif',obs:''},
+    {sharik:'BEN MESSAOUD ADEL',tr:'001066-514-16',rm:'000666-814-16',debut:'',fin:'',ext:'',site:'BEJAIA',etatTR:'opérationnel',actif:'actif',obs:''},
+    {sharik:'BOUDRISSA RABAH',tr:'001076-524-16',rm:'000655-824-16',debut:'2025-05-06',fin:'',ext:'EXTENSION',site:'BEJAIA',etatTR:'opérationnel',actif:'actif',obs:''},
+    {sharik:'BOUDRISSA RABAH',tr:'000900-514-16',rm:'000488-814-16',debut:'',fin:'',ext:'',site:'BEJAIA',etatTR:'opérationnel',actif:'actif',obs:''},
+    {sharik:'BOUDRISSA RABAH',tr:'000692-524-16',rm:'000633-824-16',debut:'2025-08-21',fin:'',ext:'',site:'BEJAIA',etatTR:'opérationnel',actif:'actif',obs:''},
+    {sharik:'BOUDRISSA RABAH',tr:'000313-516-16',rm:'000377-816-16',debut:'2026-04-05',fin:'',ext:'',site:'BEJAIA',etatTR:'opérationnel',actif:'actif',obs:''},
+    {sharik:'BOUKHEDIMI MOHAMED',tr:'000890-514-16',rm:'000531-814-16',debut:'',fin:'',ext:'',site:'SETIF',etatTR:'opérationnel',actif:'actif',obs:''},
+    {sharik:'DECHIR MUSTAPHA',tr:'001417-513-16',rm:'001642-813-16',debut:'2025-08-22',fin:'',ext:'EXTENSION',site:'BEJAIA',etatTR:'opérationnel',actif:'actif',obs:''},
+    {sharik:'DECHIR MUSTAPHA',tr:'000974-514-16',rm:'000708-814-16',debut:'',fin:'',ext:'',site:'BEJAIA',etatTR:'opérationnel',actif:'actif',obs:''},
+    {sharik:'DECHIR MUSTAPHA',tr:'001059-524-16',rm:'000688-824-16',debut:'2025-05-06',fin:'',ext:'',site:'BEJAIA',etatTR:'opérationnel',actif:'actif',obs:''},
+    {sharik:'DECHIR MUSTAPHA',tr:'000816-524-16',rm:'000697-824-16',debut:'2025-10-07',fin:'',ext:'',site:'BEJAIA',etatTR:'opérationnel',actif:'actif',obs:''},
+    {sharik:'DJOUAD ABDELHAFID',tr:'001224-514-16',rm:'001397-813-16',debut:'2025-08-20',fin:'',ext:'EXTENSION',site:'BOUIRA',etatTR:'opérationnel',actif:'actif',obs:''},
+    {sharik:'DJOUAD ABDELHAFID',tr:'000718-524-16',rm:'000587-824-16',debut:'2025-08-30',fin:'',ext:'',site:'BOUIRA',etatTR:'opérationnel',actif:'actif',obs:''},
+    {sharik:'DJOUAD ABDELHAFID',tr:'000988-514-16',rm:'000795-814-16',debut:'',fin:'',ext:'',site:'BOUIRA',etatTR:'opérationnel',actif:'actif',obs:''},
+    {sharik:'FERROUDJ NABIL',tr:'000772-516-16',rm:'',debut:'2026-02-19',fin:'',ext:'',site:'BEJAIA',etatTR:'opérationnel',actif:'actif',obs:''},
+    {sharik:'HADJ MOUSSA NOURREDINE',tr:'000772-516-16',rm:'000467-816-16',debut:'',fin:'',ext:'',site:'',etatTR:'opérationnel',actif:'actif',obs:''},
+    {sharik:'LABDI HABIB',tr:'000379-516-16',rm:'000388-816-16',debut:'2025-11-25',fin:'',ext:'EXTENSION',site:'BOUIRA',etatTR:'opérationnel',actif:'actif',obs:''},
+    {sharik:'LABDI HABIB',tr:'001075-514-16',rm:'000783-814-16',debut:'',fin:'',ext:'',site:'BOUIRA',etatTR:'opérationnel',actif:'actif',obs:''},
+    {sharik:'NEGHZA AMAR',tr:'000788-524-16',rm:'000553-824-16',debut:'2025-08-21',fin:'',ext:'EXTENSION',site:'SETIF',etatTR:'opérationnel',actif:'actif',obs:''},
+    {sharik:'NEGHZA AMAR',tr:'000364-516-16',rm:'000565-814-16',debut:'2025-09-19',fin:'',ext:'',site:'SETIF',etatTR:'opérationnel',actif:'actif',obs:''},
+    {sharik:'NEGHZA AMAR',tr:'001125-514-16',rm:'000658-814-16',debut:'',fin:'',ext:'',site:'SETIF',etatTR:'opérationnel',actif:'actif',obs:''},
+    {sharik:'RAHAL YAHIA',tr:'000423-516-16',rm:'000216-816-16',debut:'2025-12-29',fin:'',ext:'',site:'BOUIRA',etatTR:'opérationnel',actif:'actif',obs:''},
+    {sharik:'TABLI CHAFIK',tr:'001079-514-16',rm:'000525-814-16',debut:'2026-01-12',fin:'',ext:'EXTENSION',site:'BEJAIA',etatTR:'opérationnel',actif:'actif',obs:''},
+    {sharik:'TABLI CHAFIK',tr:'001045-524-16',rm:'000647-824-16',debut:'2025-05-06',fin:'',ext:'',site:'BEJAIA',etatTR:'opérationnel',actif:'actif',obs:''},
+    {sharik:'TABLI CHAFIK',tr:'001047-524-16',rm:'000642-824-16',debut:'2026-01-12',fin:'',ext:'',site:'BEJAIA',etatTR:'opérationnel',actif:'actif',obs:''},
+    {sharik:'DANI KEBIR SAID',tr:'000321-516-16',rm:'001259-814-16',debut:'2026-02-08',fin:'',ext:'',site:'BOUIRA',etatTR:'opérationnel',actif:'',obs:''},
+    {sharik:'YAHIAOUI DJAMAL',tr:'000363-516-16',rm:'000226-816-16',debut:'2025-11-18',fin:'',ext:'EXTENSION',site:'BOUIRA',etatTR:'opérationnel',actif:'actif',obs:''},
+    {sharik:'YAHIAOUI DJAMAL',tr:'001234-514-16',rm:'000627-814-16',debut:'',fin:'',ext:'',site:'BOUIRA',etatTR:'opérationnel',actif:'actif',obs:''},
+    {sharik:'TOUMI NACER',tr:'001044-514-16',rm:'000215-816-16',debut:'',fin:'',ext:'Réintégration',site:'SETIF',etatTR:'opérationnel',actif:'affecté à la flotte propre',obs:''},
+    {sharik:'',tr:'001228-514-16',rm:'',debut:'',fin:'',ext:'',site:'',etatTR:'opérationnel',actif:'',obs:''},
+    {sharik:'RHOUI HABIB',tr:'000926-514-16',rm:'001261-814-16',debut:'',fin:'',ext:'Réintégration',site:'',etatTR:'opérationnel',actif:'',obs:''},
+    {sharik:'LAMARA REDHA',tr:'001127-514-16',rm:'001259-814-16',debut:'',fin:'',ext:'extension',site:'',etatTR:'opérationnel',actif:'',obs:''},
+  ],
+  bl: [
+    {chauffeur:'BELAHDJER TOUFIK',mars:'',avril:'déposer',mai:'',juin:'',juil:'',aout:'',sep:'',oct:'',nov:'',dec:''},
+    {chauffeur:'BOUKHDEMMI',mars:'',avril:'',mai:'',juin:'',juil:'',aout:'',sep:'',oct:'',nov:'',dec:''},
+    {chauffeur:'BENMASSAOUD ADEL',mars:'',avril:'déposer',mai:'',juin:'',juil:'',aout:'',sep:'',oct:'',nov:'',dec:''},
+    {chauffeur:'BOUDRISSA',mars:'',avril:'déposer',mai:'',juin:'',juil:'',aout:'',sep:'',oct:'',nov:'',dec:''},
+    {chauffeur:'DACHIR MUSTAPHA',mars:'',avril:'déposer',mai:'',juin:'',juil:'',aout:'',sep:'',oct:'',nov:'',dec:''},
+    {chauffeur:'DJOUAD ABDELHAFID',mars:'',avril:'déposer',mai:'',juin:'',juil:'',aout:'',sep:'',oct:'',nov:'',dec:''},
+    {chauffeur:'HADJ MOUSSA',mars:'',avril:'déposer',mai:'',juin:'',juil:'',aout:'',sep:'',oct:'',nov:'',dec:''},
+    {chauffeur:'KEBIR DANI SAID',mars:'',avril:'camion en panne',mai:'',juin:'',juil:'',aout:'',sep:'',oct:'',nov:'',dec:''},
+    {chauffeur:'KHALIF RASHID',mars:'',avril:'déposer',mai:'',juin:'',juil:'',aout:'',sep:'',oct:'',nov:'',dec:''},
+    {chauffeur:'MOHAMED BELESKAM',mars:'',avril:'',mai:'',juin:'',juil:'',aout:'',sep:'',oct:'',nov:'',dec:''},
+    {chauffeur:'NAGHZA AMAR',mars:'',avril:'déposer',mai:'',juin:'',juil:'',aout:'',sep:'',oct:'',nov:'',dec:''},
+    {chauffeur:'TABLI',mars:'',avril:'déposer',mai:'',juin:'',juil:'',aout:'',sep:'',oct:'',nov:'',dec:''},
+    {chauffeur:'LABDI HABIB 2',mars:'',avril:'déposer',mai:'',juin:'',juil:'',aout:'',sep:'',oct:'',nov:'',dec:''},
+    {chauffeur:'YAHIAOUI DJAMEL',mars:'',avril:'déposer',mai:'',juin:'',juil:'',aout:'',sep:'',oct:'',nov:'',dec:''},
+    {chauffeur:'RAHAL YAHIA',mars:'',avril:'déposer',mai:'',juin:'',juil:'',aout:'',sep:'',oct:'',nov:'',dec:''},
+    {chauffeur:'FERROUDJ NABIL',mars:'',avril:'déposer',mai:'',juin:'',juil:'',aout:'',sep:'',oct:'',nov:'',dec:''},
+    {chauffeur:'LAAMARA REDHA',mars:'',avril:'',mai:'',juin:'',juil:'',aout:'',sep:'',oct:'',nov:'',dec:''},
+    {chauffeur:'MAAMAR IDIR',mars:'',avril:'',mai:'',juin:'',juil:'',aout:'',sep:'',oct:'',nov:'',dec:''},
+    {chauffeur:'RHOUI HABIB',mars:'',avril:'',mai:'',juin:'',juil:'',aout:'',sep:'',oct:'',nov:'',dec:''},
+    {chauffeur:'ROUABHIA KHALED',mars:'',avril:'',mai:'',juin:'',juil:'',aout:'',sep:'',oct:'',nov:'',dec:''},
+    {chauffeur:'TOUMI NACER',mars:'',avril:'',mai:'',juin:'',juil:'',aout:'',sep:'',oct:'',nov:'',dec:''},
+  ],
+  odo_weeks: ['2026-01-21','2026-01-31','2026-02-07','2026-02-14','2026-02-19','2026-02-28','2026-03-07','2026-03-14','2026-03-22'],
+  odo: [
+    {v:'000791-524-16',chauffeur:'BELAHDJER TOUFIK',vals:[175229,181313,184627,187762,190594,194270,null,null,null]},
+    {v:'000914-514-16',chauffeur:'BELAHDJER TOUFIK',vals:[1242816,1247712,1250385,1252328,1254429,1256199,null,null,null]},
+    {v:'000848-514-16',chauffeur:'BELAHDJER TOUFIK',vals:[995718,1000602,1003733,1006044,1009103,1012529,null,null,null]},
+    {v:'001006-514-16',chauffeur:'BENMASSAOUD ADEL',vals:[1099945,1105340,1107354,1107354,1108416,1111545,null,null,null]},
+    {v:'000692-524-16',chauffeur:'BOUDRISSA',vals:[161361,166644,168555,171168,174662,177579,null,null,null]},
+    {v:'001076-524-16',chauffeur:'BOUDRISSA',vals:[164249,169282,172951,176500,179947,182948,null,null,null]},
+    {v:'000313-516-16',chauffeur:'BOUDRISSA',vals:[1005508,1009026,1011692,1014760,1017837,1021280,null,null,null]},
+    {v:'000900-514-16',chauffeur:'BOUDRISSA',vals:[1280289,1281639,1282515,1284782,1288131,1290512,null,null,null]},
+    {v:'000422-523-16',chauffeur:'BOUDRISSA',vals:[null,null,null,null,247000,249864,null,null,null]},
+    {v:'000870-523-16',chauffeur:'BOUDRISSA',vals:[null,null,null,null,261000,263453,null,null,null]},
+    {v:'000890-514-16',chauffeur:'RASHID KHELIF',vals:[1198252,1198494,1199147,1200428,1202580,1205012,null,null,null]},
+    {v:'001417-513-16',chauffeur:'DACHIR',vals:[1111176,1116893,1119617,1123528,1126559,1129689,null,null,null]},
+    {v:'000974-514-16',chauffeur:'DACHIR',vals:[1274048,1280101,1283790,1284827,1288215,1291926,null,null,null]},
+    {v:'000816-524-16',chauffeur:'DACHIR',vals:[168882,174436,177423,180973,183770,187558,null,null,null]},
+    {v:'001059-524-16',chauffeur:'DACHIR',vals:[163183,168693,171244,173919,176633,179283,null,null,null]},
+    {v:'001032-523-16',chauffeur:'DACHIR',vals:[null,null,null,null,236104,238006,null,null,null]},
+    {v:'000718-524-16',chauffeur:'DJOUAD ABDELHAFID',vals:[201025,209729,212770,217668,219409,223365,null,null,null]},
+    {v:'001224-514-16',chauffeur:'DJOUAD ABDELHAFID',vals:[932601,937671,940368,945276,946639,944974,null,null,null]},
+    {v:'000988-514-16',chauffeur:'DJOUAD ABDELHAFID',vals:[857696,857696,857696,857676,857696,957696,null,null,null]},
+    {v:'000372-516-16',chauffeur:'FEROUDJ NABIL',vals:[1112847,1117487,1117642,null,1123709,1129670,null,null,null]},
+    {v:'000772-515-16',chauffeur:'HADJ MOUSSA',vals:[1107513,1112581,1114816,1116291,1118441,1122077,null,null,null]},
+    {v:'000321-516-16',chauffeur:'KEBIR DANI SAID',vals:[1079105,1081435,1081435,1081434,1081435,1081435,null,null,null]},
+    {v:'001044-514-16',chauffeur:'TOUMI NACER',vals:[0,null,null,1137831,1137925,1140214,null,null,null]},
+    {v:'001075-514-16',chauffeur:'LABDI HABIB 2',vals:[1268459,1261301,1272525,1275255,1277093,1280396,null,null,null]},
+    {v:'000379-516-16',chauffeur:'LABDI HABIB 2',vals:[971119,975929,977752,979006,981789,985442,null,null,null]},
+    {v:'001060-514-16',chauffeur:'MOHAMED BELESKAM',vals:[1239151,1241580,1244667,1247330,1249300,1251784,null,null,null]},
+    {v:'000788-524-16',chauffeur:'NAGHZA AMAR',vals:[168323,173327,null,null,180947,184824,null,null,null]},
+    {v:'000364-516-16',chauffeur:'NAGHZA AMAR',vals:[1055073,1057497,null,1063897,1065959,1069264,null,null,null]},
+    {v:'001125-514-16',chauffeur:'NAGHZA AMAR',vals:[0,null,null,0,0,null,null,null,null]},
+    {v:'000939-523-16',chauffeur:'NAGHZA AMAR',vals:[null,null,null,null,220148,223089,null,null,null]},
+    {v:'000945-523-16',chauffeur:'NAGHZA AMAR',vals:[null,null,null,null,250484,252752,null,null,null]},
+    {v:'000423-516-16',chauffeur:'RAHAL YAHIA',vals:[1067085,1073373,1076239,1078494,1081643,1085357,null,null,null]},
+    {v:'001047-524-16',chauffeur:'TABLI',vals:[137280,143218,146128,146128,148894,152680,null,null,null]},
+    {v:'001045-524-16',chauffeur:'TABLI',vals:[167568,172762,174804,177450,181604,183237,null,null,null]},
+    {v:'001079-514-16',chauffeur:'TABLI',vals:[1428038,1433318,1437982,1439748,1443228,1446789,null,null,null]},
+    {v:'000916-523-16',chauffeur:'TABLI',vals:[0,null,null,null,258639,259384,null,null,null]},
+    {v:'000920-523-16',chauffeur:'TABLI',vals:[0,null,null,null,247626,250097,null,null,null]},
+    {v:'000774-515-16',chauffeur:'YAHIAOUI DJAMEL',vals:[1198700,null,null,1202698,1202698,0,null,null,null]},
+    {v:'000363-516-16',chauffeur:'YAHIAOUI DJAMEL 2',vals:[1038657,1011374,1011374,1051406,1053692,1059741,null,null,null]},
+    {v:'001234-514-16',chauffeur:'YAHIAOUI DJAMEL 3',vals:[1234217,1149234,1149234,1234217,1235244,1237518,null,null,null]},
+    {v:'001273-514-16',chauffeur:'',vals:[0,null,null,1184070,1184070,0,null,null,null]},
+    {v:'001228-514-16',chauffeur:'MAAMAR IDIR',vals:[0,null,null,0,0,0,null,null,null]},
+    {v:'000926-514-16',chauffeur:'RHOUI HABIB',vals:[0,null,null,0,0,0,null,null,null]},
+    {v:'001127-514-16',chauffeur:'LAAMARA REDHA',vals:[0,null,null,0,0,0,null,null,null]},
+  ],
+  cspc: [
+    {v:'000422-523-16',etat:'DISPONIBLE',chauffeur:'BOUDRISSA RABAH',hor:0.458,lieuJ:'TIZI OUZOU',lieuJ1:'TLEMCEN',equip:'OK',prog:'CSPC'},
+    {v:'000816-524-16',etat:'DISPONIBLE',chauffeur:'DACHIR MUSTAPHA',hor:0.458,lieuJ:'BOUIRA',lieuJ1:'MAGHNIA',equip:'OK',prog:'CSPC'},
+    {v:'001032-523-16',etat:'DISPONIBLE',chauffeur:'DACHIR MUSTAPHA',hor:0.542,lieuJ:'TIZI OUZOU',lieuJ1:'ORAN',equip:'OK',prog:'CSPC'},
+    {v:'000364-516-16',etat:'DISPONIBLE',chauffeur:'NAGHZA AMAR',hor:0.75,lieuJ:'BOUIRA',lieuJ1:'GUELMA',equip:'OK',prog:'CSPC'},
+    {v:'000945-523-16',etat:'DISPONIBLE',chauffeur:'NAGHZA AMAR',hor:0.5,lieuJ:'BORDJ BOU ARRERIDJ',lieuJ1:'SKIKDA',equip:'OK',prog:'CSPC'},
+  ],
 };
+
 
 // ═══════════════════════════════════════════════════════════════
 // STATE
@@ -1751,19 +2245,58 @@ let ARCHIVES = {};
 window.DB = DB;
 window.ARCHIVES = ARCHIVES;
 
+function emptyTeamData() {
+  return { dispo: [], pannes: [], nc: [], gasoil: [], equip: [], activite: [], bl: [], odo: [], odo_weeks: [], cspc: [], blacklist: [] };
+}
+
+function cloneTeamData(src) {
+  return JSON.parse(JSON.stringify(src || emptyTeamData()));
+}
+
+function ensureTeamCaches() {
+  if (!window.DB_A || !window.DB_A.dispo) window.DB_A = cloneTeamData(INITIAL_DATA);
+  if (!window.DB_B) window.DB_B = emptyTeamData();
+  if (!window.DB_C) window.DB_C = emptyTeamData();
+  if (!window.DB_D) window.DB_D = emptyTeamData();
+}
+
 function loadDB() {
+  ensureTeamCaches();
+  let active = (typeof CURRENT_EQUIPE !== 'undefined' && CURRENT_EQUIPE) ? CURRENT_EQUIPE : 'A';
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    DB = raw ? JSON.parse(raw) : JSON.parse(JSON.stringify(INITIAL_DATA));
-  } catch(e) { DB = JSON.parse(JSON.stringify(INITIAL_DATA)); }
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (parsed && parsed.teams && typeof parsed.teams === 'object') {
+        ['A', 'B', 'C', 'D'].forEach(eq => {
+          if (parsed.teams[eq] && parsed.teams[eq].dispo) window['DB_' + eq] = parsed.teams[eq];
+        });
+        if (parsed.active && ['A', 'B', 'C', 'D'].includes(parsed.active)) active = parsed.active;
+      } else if (parsed && parsed.dispo) {
+        // Ancien format (1 seul blob) : en pratique = dernière équipe sauvegardée (souvent D)
+        const legacyEq = (parsed._savedEquipe && ['A', 'B', 'C', 'D'].includes(parsed._savedEquipe))
+          ? parsed._savedEquipe : 'D';
+        window['DB_' + legacyEq] = parsed;
+        active = 'A'; // au démarrage on affiche toujours l'équipe A
+      }
+    }
+  } catch (e) {
+    console.warn('loadDB', e);
+  }
+  if (!window.DB_A.dispo || !window.DB_A.dispo.length) {
+    window.DB_A = cloneTeamData(INITIAL_DATA);
+  }
+  if (typeof CURRENT_EQUIPE !== 'undefined') {
+    CURRENT_EQUIPE = active;
+    window.CURRENT_EQUIPE = active;
+  }
+  DB = cloneTeamData(window['DB_' + active] || window.DB_A);
   try {
     const raw2 = localStorage.getItem(ARCHIVE_KEY);
     const localArc = raw2 ? JSON.parse(raw2) : {};
-    // Remplir ARCHIVES sans recréer l'objet (garde la référence window.ARCHIVES)
     Object.keys(ARCHIVES).forEach(k => delete ARCHIVES[k]);
     Object.assign(ARCHIVES, localArc);
-  } catch(e) { Object.keys(ARCHIVES).forEach(k => delete ARCHIVES[k]); }
-  // Garder window.DB synchronisé
+  } catch (e) { Object.keys(ARCHIVES).forEach(k => delete ARCHIVES[k]); }
   window.DB = DB;
   window.ARCHIVES = ARCHIVES;
 }
@@ -1783,9 +2316,23 @@ window._syncArchives = function(data) {
 };
 
 function saveDB() {
-  // 1. Sauvegarde locale COMPLÈTE — on horodate pour détecter les conflits
-  DB._localTs = Date.now(); // timestamp de la dernière saisie utilisateur
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(DB));
+  const eq = CURRENT_EQUIPE || 'A';
+  const lock = sessionStorage.getItem('numiplan_team_lock');
+  if (lock && lock !== eq) {
+    if (typeof showToast === 'function') {
+      showToast('⚠️ Lecture seule — modifications de l\'Équipe ' + lock + ' autorisées uniquement', true);
+    }
+    return;
+  }
+
+  // 1. Sauvegarde locale par équipe (évite qu'un F5 sur A affiche les données de D)
+  DB._localTs = Date.now();
+  window['DB_' + eq] = cloneTeamData(DB);
+  localStorage.setItem(STORAGE_KEY, JSON.stringify({
+    version: 3,
+    active: eq,
+    teams: { A: window.DB_A, B: window.DB_B, C: window.DB_C, D: window.DB_D }
+  }));
   // 2. Sauvegarde cloud Firebase — on RETIRE les fichiers base64 (trop volumineux)
   //    Firestore limite les documents à 1 Mo. Les PDF/images d'assurance restent en local uniquement.
   if (typeof window._firebaseSaveDB === 'function') {
@@ -1808,6 +2355,14 @@ function saveDB() {
 
 function saveArchives() {
   const eq = CURRENT_EQUIPE || 'A';
+  const lock = sessionStorage.getItem('numiplan_team_lock');
+  if (lock && lock !== eq) {
+    if (typeof showToast === 'function') {
+      showToast('⚠️ Lecture seule — archivage bloqué', true);
+    }
+    return;
+  }
+
   // 1. Sauvegarde locale complète
   localStorage.setItem(ARCHIVE_KEY, JSON.stringify(ARCHIVES));
   // 2. Sauvegarde cloud Firebase — uniquement la clé équipe active (merge)
@@ -1925,7 +2480,6 @@ function switchTab(name, btn) {
   if (name==='archives') renderArchives();
   if (name==='vehicule') updateDataLists();
   if (name==='blacklist') renderBlacklist();
-  if (name==='bl') { renderBL(); checkBLAlertePopup(); }
 checkBascule();
 }
 
@@ -3188,80 +3742,14 @@ function saveActivite() {
 // ═══════════════════════════════════════════════════════════════
 // RENDER: SUIVI BL
 // ═══════════════════════════════════════════════════════════════
-function isBLAlertePeriode() {
-  const now = new Date();
-  const d = now.getDate();
-  return d >= 25 || d <= 5;
-}
-
-function getBLAlerteInfo() {
-  const now = new Date();
-  const d = now.getDate();
-  const moisNoms = ['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre'];
-  if (d >= 25) {
-    const moisCourant = moisNoms[now.getMonth()];
-    const moisSuiv = moisNoms[(now.getMonth()+1)%12];
-    return { titre: `⚠️ PÉRIODE DE RETOUR BL — ${moisCourant.toUpperCase()} → ${moisSuiv.toUpperCase()}`, sousTitre: `Du 25 ${moisCourant} au 5 ${moisSuiv} — Les chauffeurs doivent restituer la totalité de leurs BL` };
-  } else {
-    const moisCourant = moisNoms[now.getMonth()];
-    const moisPrec = moisNoms[(now.getMonth()+11)%12];
-    return { titre: `⚠️ CLÔTURE RETOUR BL — JUSQU'AU 5 ${moisCourant.toUpperCase()}`, sousTitre: `Période ouverte depuis le 25 ${moisPrec} — Pointez les chauffeurs ayant restitué leurs BL` };
-  }
-}
-
-function getCurrentBLMoisKey() {
-  const now = new Date();
-  const d = now.getDate();
-  // Si on est entre le 25 et le 31, le mois de référence est le mois courant
-  // Si on est entre le 1 et le 5, le mois de référence est le mois précédent
-  const moisKeys = ['jan','fev','mars','avril','mai','juin','juil','aout','sep','oct','nov','dec'];
-  if (d >= 25) return moisKeys[now.getMonth()];
-  else return moisKeys[(now.getMonth()+11)%12];
-}
-
 function renderBL() {
   const q = document.getElementById('bl-search').value;
   let data = DB.bl.filter(r => !q || r.chauffeur.toLowerCase().includes(q.toLowerCase()));
   const months = ['mars','avril','mai','juin','juil','aout','sep','oct','nov','dec'];
   const body = document.getElementById('bl-body');
-
-  // ── Bannière alerte ──
-  const banner = document.getElementById('bl-alerte-banner');
-  const isPeriode = isBLAlertePeriode();
-  if (banner) {
-    if (isPeriode) {
-      const info = getBLAlerteInfo();
-      document.getElementById('bl-alerte-titre').textContent = info.titre;
-      document.getElementById('bl-alerte-sous-titre').textContent = info.sousTitre;
-      const enAttente = data.filter(r => !r.restitution_date).length;
-      document.getElementById('bl-alerte-compteur').textContent = enAttente;
-      banner.style.display = '';
-    } else {
-      banner.style.display = 'none';
-    }
-  }
-
-  // ── Stats ──
-  const statsEl = document.getElementById('bl-stats');
-  if (statsEl) {
-    const total = DB.bl.length;
-    const rendus = DB.bl.filter(r => r.restitution_date).length;
-    const enAttente = total - rendus;
-    statsEl.innerHTML = `
-      <div class="stat-card" style="cursor:pointer" onclick="resetFilters('bl-search');renderBL()" title="Tous"><div class="stat-num">${total}</div><div class="stat-lbl">Total ↺</div></div>
-      <div class="stat-card green" style="cursor:pointer" onclick="document.getElementById('bl-search').value='__rendu__';renderBL()" title="BL restitués"><div class="stat-num">${rendus}</div><div class="stat-lbl">✅ Restitués</div></div>
-      <div class="stat-card red" style="cursor:pointer" onclick="document.getElementById('bl-search').value='__attente__';renderBL()" title="En attente"><div class="stat-num">${enAttente}</div><div class="stat-lbl">⏳ En attente</div></div>`;
-  }
-
-  // ── Filtre spécial restitution ──
-  if (q === '__rendu__') data = DB.bl.filter(r => !!r.restitution_date);
-  else if (q === '__attente__') data = DB.bl.filter(r => !r.restitution_date);
-
-  if (!data.length) { body.innerHTML = `<tr><td colspan="13"><div class="empty-state"><div class="icon">📄</div>Aucun résultat</div></td></tr>`; return; }
+  if (!data.length) { body.innerHTML = `<tr><td colspan="12"><div class="empty-state"><div class="icon">📄</div>Aucun résultat</div></td></tr>`; return; }
   body.innerHTML = data.map(r => {
     const realIdx = DB.bl.indexOf(r);
-    const isRendu = !!r.restitution_date;
-    const rowStyle = isRendu ? 'background:rgba(52,211,153,.07);border-left:3px solid #34d399' : (isPeriode ? 'background:rgba(248,113,113,.05);border-left:3px solid rgba(248,113,113,.3)' : '');
     const cells = months.map(m => {
       const v = r[m] || '';
       if (!v) return `<td style="color:var(--txt3)">—</td>`;
@@ -3269,96 +3757,8 @@ function renderBL() {
       if (v === 'déposer') return `<td><span class="badge badge-dispo">✓ Déposé</span></td>`;
       return `<td style="font-size:11px">${v}</td>`;
     }).join('');
-
-    // Colonne restitution
-    let restitCell = '';
-    if (isRendu) {
-      restitCell = `<td style="white-space:nowrap">
-        <div style="display:flex;flex-direction:column;gap:4px">
-          <span style="color:#34d399;font-weight:700;font-size:11px">✅ Restitué</span>
-          <span style="color:var(--txt2);font-size:10px;font-family:'IBM Plex Mono',monospace">${r.restitution_date}</span>
-          <button onclick="annulerRestitution(${realIdx})" style="background:none;border:1px solid rgba(248,113,113,.4);color:var(--txt3);border-radius:4px;padding:1px 6px;font-size:9px;cursor:pointer;margin-top:2px">↺ Annuler</button>
-        </div>
-      </td>`;
-    } else if (isPeriode) {
-      restitCell = `<td style="white-space:nowrap">
-        <button onclick="pointerRestitution(${realIdx})" style="background:rgba(52,211,153,.15);color:#34d399;border:1px solid rgba(52,211,153,.4);border-radius:6px;padding:5px 10px;font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap">
-          ✅ Pointer rendu
-        </button>
-      </td>`;
-    } else {
-      restitCell = `<td style="color:var(--txt3);font-size:10px">—</td>`;
-    }
-
-    return `<tr style="${rowStyle}"><td style="font-weight:600">${r.chauffeur}</td>${cells}${restitCell}<td><button class="del-btn" onclick="editBL(${realIdx})">✏️</button><button class="del-btn" onclick="deleteBL(${realIdx})">🗑</button></td></tr>`;
+    return `<tr><td style="font-weight:600">${r.chauffeur}</td>${cells}<td><button class="del-btn" onclick="editBL(${realIdx})">✏️</button><button class="del-btn" onclick="deleteBL(${realIdx})">🗑</button></td></tr>`;
   }).join('');
-}
-
-function pointerRestitution(idx) {
-  const r = DB.bl[idx];
-  if (!r) return;
-  const now = new Date();
-  const dateStr = now.toLocaleDateString('fr-FR', {day:'2-digit', month:'2-digit', year:'numeric'});
-  if (!confirm(`Confirmer la restitution totale des BL de :\n\n${r.chauffeur}\n\nDate : ${dateStr}`)) return;
-  r.restitution_date = dateStr;
-  saveDB(); renderBL(); showToast(`✅ BL restitués — ${r.chauffeur} — ${dateStr}`);
-}
-
-function annulerRestitution(idx) {
-  const r = DB.bl[idx];
-  if (!r) return;
-  if (!confirm(`Annuler le pointage restitution de ${r.chauffeur} ?`)) return;
-  delete r.restitution_date;
-  saveDB(); renderBL(); showToast(`↺ Restitution annulée — ${r.chauffeur}`);
-}
-
-function checkBLAlertePopup() {
-  if (!isBLAlertePeriode()) return;
-  // Afficher seulement une fois par session
-  if (sessionStorage.getItem('bl_alerte_shown')) return;
-  sessionStorage.setItem('bl_alerte_shown', '1');
-
-  const total = DB.bl.length;
-  const rendus = DB.bl.filter(r => r.restitution_date).length;
-  const enAttente = total - rendus;
-  if (enAttente === 0) return; // Tout le monde a restitué
-
-  const info = getBLAlerteInfo();
-  const overlay = document.createElement('div');
-  overlay.id = 'bl-popup-alerte';
-  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.8);z-index:99990;display:flex;align-items:center;justify-content:center;animation:fadeIn .3s ease';
-  overlay.innerHTML = `
-    <div style="background:var(--bg2);border:2px solid rgba(248,113,113,.6);border-radius:16px;padding:32px 36px;width:460px;max-width:95vw;box-shadow:0 20px 60px rgba(0,0,0,.9);text-align:center">
-      <div style="font-size:48px;margin-bottom:12px">📄</div>
-      <div style="font-size:15px;font-weight:700;color:#f87171;letter-spacing:.5px;margin-bottom:6px">${info.titre}</div>
-      <div style="font-size:12px;color:var(--txt2);margin-bottom:20px;line-height:1.6">${info.sousTitre}</div>
-      <div style="display:flex;gap:16px;justify-content:center;margin-bottom:24px">
-        <div style="background:var(--bg3);border-radius:10px;padding:14px 24px">
-          <div style="font-size:28px;font-weight:700;color:#f87171">${enAttente}</div>
-          <div style="font-size:10px;color:var(--txt2);margin-top:2px">en attente</div>
-        </div>
-        <div style="background:var(--bg3);border-radius:10px;padding:14px 24px">
-          <div style="font-size:28px;font-weight:700;color:#34d399">${rendus}</div>
-          <div style="font-size:10px;color:var(--txt2);margin-top:2px">restitués</div>
-        </div>
-        <div style="background:var(--bg3);border-radius:10px;padding:14px 24px">
-          <div style="font-size:28px;font-weight:700;color:var(--acc)">${total}</div>
-          <div style="font-size:10px;color:var(--txt2);margin-top:2px">total</div>
-        </div>
-      </div>
-      <div style="display:flex;gap:10px;justify-content:center">
-        <button onclick="document.getElementById('bl-popup-alerte').remove();switchTab('bl',document.querySelector('[onclick*=\\'bl\\']'))"
-          style="background:#f87171;color:#000;border:none;padding:11px 24px;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;letter-spacing:.5px">
-          📄 Aller au Suivi BL
-        </button>
-        <button onclick="document.getElementById('bl-popup-alerte').remove()"
-          style="background:var(--surf);color:var(--txt2);border:1px solid var(--border);padding:11px 20px;border-radius:8px;font-size:12px;cursor:pointer">
-          Plus tard
-        </button>
-      </div>
-    </div>`;
-  document.body.appendChild(overlay);
-  overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
 }
 
 function editBL(idx) {
@@ -4592,56 +4992,33 @@ function declBL(idx) {
 const _origSavePanne = savePanne;
 
 
-// ═══════════════════════════════════════════════════════════════
-// INIT
-// ═══════════════════════════════════════════════════════════════
-loadDB();
-updateDataLists();
-
-// Set today date on modal date inputs
-document.querySelectorAll('input[type=date]').forEach(el=>{
-  if (!el.id.includes('filter') && !el.id.includes('from') && !el.id.includes('to')) el.value=today();
-});
-
-document.getElementById('todayBadge').textContent = new Date().toLocaleDateString('fr-FR',{weekday:'short',day:'2-digit',month:'long',year:'numeric'});
-
-renderDispo();
-renderPannes();
-renderNC();
-renderGasoil();
-renderEquip();
-renderActivite();
-checkAssuranceAlerts();
-initPerfFromDB();
-renderBL();
-// Vérifier alerte BL au chargement (après 2s pour laisser Firebase charger)
-setTimeout(() => { if (typeof checkBLAlertePopup === 'function') checkBLAlertePopup(); }, 2000);
-renderOdo();
-renderCSPC();
-
 // ════════════════════════════════════════════════════════════
-// DONNÉES ÉQUIPE B
+// DONNÉES PAR ÉQUIPE (caches locaux)
 // ════════════════════════════════════════════════════════════
-const DB_B = {dispo:[],pannes:[],nc:[],gasoil:[],equip:[],activite:[],bl:[],odo:[],odo_weeks:[],cspc:[],blacklist:[]};
-
-// ── Switch équipe ──────────────────────────────────────────────────────────
-// Figer lieuJ_initial pour détecter les anomalies de lieu
-DB.dispo.forEach(r => { if (!r.lieuJ_initial) r.lieuJ_initial = r.lieuJ || '—'; });
-const DB_A = {dispo:[],pannes:[],nc:[],gasoil:[],equip:[],activite:[],bl:[],odo:[],odo_weeks:[],cspc:[],blacklist:[]}; // sera rempli par Firebase
-const DB_C = {dispo:[],pannes:[],nc:[],gasoil:[],equip:[],activite:[],bl:[],odo:[],odo_weeks:[],cspc:[],blacklist:[]};
-const DB_D = {dispo:[],pannes:[],nc:[],gasoil:[],equip:[],activite:[],bl:[],odo:[],odo_weeks:[],cspc:[],blacklist:[]};
-// Figer lieuJ_initial pour C et D
-DB_C.dispo.forEach(r => { if (!r.lieuJ_initial) r.lieuJ_initial = r.lieuJ || '—'; });
-DB_D.dispo.forEach(r => { if (!r.lieuJ_initial) r.lieuJ_initial = r.lieuJ || '—'; });
+const DB_B = emptyTeamData();
+const DB_A = cloneTeamData(INITIAL_DATA);
+window.DB_A = DB_A;
+const DB_C = emptyTeamData();
+const DB_D = emptyTeamData();
 
 let CURRENT_EQUIPE = 'A';
 window.CURRENT_EQUIPE = 'A';
 
 function switchEquipe(eq) {
   if (eq === CURRENT_EQUIPE) return;
+  // Sauvegarder le cache de l'équipe quittée (évite perte au changement A↔B↔C↔D)
+  const prev = CURRENT_EQUIPE;
+  if (prev && typeof DB !== 'undefined') {
+    window['DB_' + prev] = JSON.parse(JSON.stringify({
+      dispo: DB.dispo, pannes: DB.pannes, nc: DB.nc,
+      gasoil: DB.gasoil, equip: DB.equip, activite: DB.activite || [],
+      bl: DB.bl, odo: DB.odo, odo_weeks: DB.odo_weeks || [], cspc: DB.cspc || [],
+      blacklist: DB.blacklist || [], _localTs: DB._localTs
+    }));
+  }
   CURRENT_EQUIPE = eq;
   window.CURRENT_EQUIPE = eq;
-  // Swap DB — utilise le cache cloud (window.DB_X) si disponible, sinon données locales
+  // Swap DB — cache cloud (window.DB_X) ou données locales par défaut
   const src = window['DB_' + eq] ||
               (eq==='B' ? DB_B : eq==='C' ? DB_C : eq==='D' ? DB_D : DB_A);
   Object.assign(DB, {
@@ -4668,7 +5045,37 @@ function switchEquipe(eq) {
   renderDispo(); renderPannes(); renderNC(); renderGasoil();
   renderEquip(); renderActivite(); renderBL(); renderOdo(); renderCSPC();
   if (typeof renderAnalytics === 'function') renderAnalytics();
+
+  // Appliquer le verrouillage d'interface si en mode lecture seule
+  if (typeof window.applyTeamLockUI === 'function') {
+    window.applyTeamLockUI(eq);
+  }
 }
+
+// ═══════════════════════════════════════════════════════════════
+// INIT (après définition des équipes + switchEquipe)
+// ═══════════════════════════════════════════════════════════════
+loadDB();
+switchEquipe(CURRENT_EQUIPE || 'A');
+updateDataLists();
+
+document.querySelectorAll('input[type=date]').forEach(el => {
+  if (!el.id.includes('filter') && !el.id.includes('from') && !el.id.includes('to')) el.value = today();
+});
+document.getElementById('todayBadge').textContent = new Date().toLocaleDateString('fr-FR', { weekday: 'short', day: '2-digit', month: 'long', year: 'numeric' });
+
+DB.dispo.forEach(r => { if (!r.lieuJ_initial) r.lieuJ_initial = r.lieuJ || '—'; });
+renderDispo();
+renderPannes();
+renderNC();
+renderGasoil();
+renderEquip();
+renderActivite();
+checkAssuranceAlerts();
+initPerfFromDB();
+renderBL();
+renderOdo();
+renderCSPC();
 
 // ════════════════════════════════════════════════════════════════════════════
 // EXPORT NUMIFLOW — canvas DISPO.xlsx (lettre à lettre)
