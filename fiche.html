@@ -2520,6 +2520,7 @@ function renderBLAlerts() {
     const tagText = isLate ? '🚨 RETARD CRITIQUE' : '⏳ PÉRIODE RESTITUTION';
     const blinkStyle = isLate ? 'animation: pulse-eye 0.8s ease-in-out infinite alternate;' : '';
 
+    const escapedChauffeur = al.chauffeur.replace(/'/g, "\\'");
     return `
       <div style="display: flex; align-items: center; justify-content: space-between; padding: 10px 14px; border-radius: 8px; border: 1px solid; ${borderStyle} ${bgStyle} margin-bottom: 8px;">
         <div style="display: flex; align-items: center; gap: 12px;">
@@ -2528,7 +2529,7 @@ function renderBLAlerts() {
             Chauffeur : <b style="color: var(--acc);">${al.chauffeur}</b> — BL <b style="text-transform: uppercase;">${al.month}</b> manquant !
           </div>
         </div>
-        <button onclick="validerBLRapide('${al.chauffeur}', '${al.month}')" class="btn btn-save" style="padding: 4px 10px; font-size: 10px;">✓ Reçu</button>
+        <button onclick="validerBLRapide('${escapedChauffeur}', '${al.month}')" class="btn btn-save" style="padding: 4px 10px; font-size: 10px;">✓ Reçu</button>
       </div>
     `;
   }).join('');
