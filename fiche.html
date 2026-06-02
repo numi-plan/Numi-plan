@@ -2425,6 +2425,58 @@ function checkBLMonthStatus(mKey, currentDate) {
   return 'late';
 }
 
+function fuzzyMatchChauffeur(nameA, nameB) {
+  if (!nameA || !nameB) return false;
+  
+  const clean = (s) => s.toUpperCase()
+    .normalize("NFD").replace(/[\u0300-\u036f]/g, "") // Supprime accents
+    .replace(/[^A-Z0-9]/g, " ")                      // Garde uniquement alphanumérique
+    .replace(/\s+/g, " ").trim();
+    
+  const a = clean(nameA);
+  const b = clean(nameB);
+  
+  if (a === b) return true;
+  
+  // Si l'un est inclus dans l'autre (ex: "BOUDRISSA" et "BOUDRISSA RABAH")
+  if (a.includes(b) || b.includes(a)) return true;
+  
+  // Normalisation phonétique / orthographique simplifiée des mots pour tolérer les variations de frappe
+  const normalizePhonetic = (str) => {
+    return str.split(" ").map(w => {
+      if (w.length < 3) return w;
+      return w
+        .replace(/OU/g, "O")
+        .replace(/MM/g, "M")
+        .replace(/LL/g, "L")
+        .replace(/RR/g, "R")
+        .replace(/FF/g, "F")
+        .replace(/DJ/g, "J")
+        .replace(/EA/g, "E")
+        .replace(/EI/g, "E")
+        .replace(/AI/g, "E")
+        .replace(/PH/g, "F")
+        .replace(/K/g, "Q")
+        .replace(/S/g, "C")
+        .replace(/Z/g, "C")
+        .replace(/CH/g, "C")
+        .replace(/T/g, "D")
+        .replace(/[AEIOUY]/g, ""); // Ne conserve que l'ossature consonantique
+    }).filter(Boolean);
+  };
+  
+  const wordsA = normalizePhonetic(a);
+  const wordsB = normalizePhonetic(b);
+  
+  for (let wa of wordsA) {
+    if (wa.length >= 2 && wordsB.includes(wa)) {
+      return true;
+    }
+  }
+  
+  return false;
+}
+
 function renderBLAlerts() {
   const containerDispo = document.getElementById('bl-alerts-container-dispo');
   const containerBl = document.getElementById('bl-alerts-container-bl');
@@ -2857,7 +2909,7 @@ function renderDispo() {
     let worstStatus = '';
     let tooltipText = '';
     if (r.chauffeur && r.chauffeur !== '—') {
-      const blRow = (DB.bl || []).find(x => x.chauffeur.toUpperCase() === r.chauffeur.toUpperCase());
+      const blRow = (DB.bl || []).find(x => fuzzyMatchChauffeur(x.chauffeur, r.chauffeur));
       if (blRow) {
         const months = ['mars','avril','mai','juin','juil','aout','sep','oct','nov','dec'];
         const now = new Date();
