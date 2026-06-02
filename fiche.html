@@ -768,6 +768,10 @@ tbody td { padding:6px 8px; font-size:11px; vertical-align:middle; }
   // ⚠️  Déclaré ICI (avant tout appel) pour éviter le ReferenceError "Cannot access before initialization"
   const INACTIVITY_MS = 1 * 60 * 60 * 1000; // 1 heure
 
+  // ⚠️ Déclaré ICI (avant tout appel) pour éviter le ReferenceError "Cannot access before initialization"
+  let PERF_ROWS = [];
+  let PERF_RAW  = [];
+
   const TEAM_PASSWORDS = {
     'SharikA@2026': 'A',
     'SharikB@2026': 'B',
@@ -5606,8 +5610,6 @@ async function runOdoExport() {
 // ══════════════════════════════════════════════════════════════════
 // PERF CAMIONS v2 — filtre ÉQUIPE dominant + filtre date/semaine
 // ══════════════════════════════════════════════════════════════════
-let PERF_ROWS = [];
-let PERF_RAW  = [];
 
 function normStr(s) { return String(s||'').trim().replace(/\s+/g,' '); }
 
