@@ -93,9 +93,6 @@
     }
 
     // Fusionne deux tableaux d'objets sur la base d'une clé unique
-    // Règle : si local est plus récent (localTs > remoteTs), les suppressions locales sont respectées
-    const localIsNewer = (local._localTs || 0) > (remote._localTs || 0);
-
     function mergeList(listName, getKey) {
       const localList = local[listName] || [];
       const remoteList = remote[listName] || [];
@@ -112,23 +109,19 @@
         if (k) remoteMap.set(k, item);
       });
       
-      // Si local est plus récent : on part des clés locales uniquement
-      // → les suppressions locales ne sont PAS réintroduites depuis remote
-      // Si remote est plus récent : union des deux (un autre utilisateur a peut-être ajouté des entrées)
-      const baseKeys = localIsNewer
-        ? new Set(localMap.keys())
-        : new Set([...localMap.keys(), ...remoteMap.keys()]);
-
+      const allKeys = new Set([...localMap.keys(), ...remoteMap.keys()]);
       const mergedList = [];
       
-      for (const key of baseKeys) {
+      for (const key of allKeys) {
         const localItem = localMap.get(key);
         const remoteItem = remoteMap.get(key);
         
         if (localItem && remoteItem) {
           if (isRecordBeingEdited(key, listName)) {
+            // L'utilisateur est en cours d'édition locale dans un modal -> préserver l'état local
             mergedList.push(localItem);
           } else {
+            // Fusionner les champs des deux, la version distante fait autorité
             mergedList.push(Object.assign({}, localItem, remoteItem));
           }
         } else if (localItem) {
@@ -197,14 +190,20 @@
       const localTs  = window.DB._localTs || 0;
       const remoteTs = src._localTs || 0;
       
-      // Si la version distante contient de nouvelles modifications (timestamps distincts)
-      if (remoteTs !== localTs) {
-        const merged = mergeTeamData(window.DB, src);
-        Object.assign(window.DB, merged);
-        window['DB_' + eq] = cloneEquipePayload(merged);
-        
-        safeRenderActiveTeam(eq);
+      // ── CORRECTIF : ignorer le snapshot si c'est l'écho de notre propre écriture
+      // (même timestamp) ou une version plus ancienne que ce qu'on a en local.
+      // On n'applique que si la version distante est STRICTEMENT plus récente
+      // (modification faite par un autre utilisateur/onglet).
+      if (remoteTs <= localTs) {
+        // C'est notre propre écho — on ne touche à rien
+        return;
       }
+      
+      const merged = mergeTeamData(window.DB, src);
+      Object.assign(window.DB, merged);
+      window['DB_' + eq] = cloneEquipePayload(merged);
+      
+      safeRenderActiveTeam(eq);
     } else {
       // Pour les équipes inactives, aucun risque de perte de focus ou de modal local
       window['DB_' + eq] = cloneEquipePayload(src);
@@ -398,7 +397,13 @@
       return;
     }
     const eq = getCurrentEquipe();
+    // ── CORRECTIF : horodater l'écriture AVANT l'envoi à Firestore
+    // Sans ça, quand le onSnapshot revient, remoteTs === localTs et le merge
+    // peut écraser les modifications locales avec l'ancien état distant.
+    const writeTs = Date.now();
+    dbData._localTs = writeTs;
     const payload = cloneEquipePayload(dbData);
+    payload._localTs = writeTs;
     window['DB_' + eq] = payload;
 
     setDoc(dbRefs[eq], payload).catch(err => {
