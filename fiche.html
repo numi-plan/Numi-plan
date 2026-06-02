@@ -89,6 +89,25 @@
         const idx = parseInt(document.getElementById('activite-edit-idx')?.value);
         if (idx >= 0 && local.activite[idx]) return local.activite[idx].tr === key;
       }
+      if (listName === 'bl' && document.getElementById('modal-bl')?.classList.contains('open')) {
+        const idx = parseInt(document.getElementById('bl-edit-idx')?.value);
+        if (idx >= 0 && local.bl[idx]) return local.bl[idx].chauffeur === key;
+      }
+      if (listName === 'odo' && document.getElementById('modal-odo')?.classList.contains('open')) {
+        const idx = parseInt(document.getElementById('odo-edit-idx')?.value);
+        if (idx >= 0 && local.odo[idx]) return local.odo[idx].v === key;
+      }
+      if (listName === 'cspc' && document.getElementById('modal-cspc')?.classList.contains('open')) {
+        const idx = parseInt(document.getElementById('cspc-edit-idx')?.value);
+        if (idx >= 0 && local.cspc[idx]) return local.cspc[idx].v === key;
+      }
+      if (listName === 'blacklist' && document.getElementById('modal-blacklist')?.classList.contains('open')) {
+        const idx = parseInt(document.getElementById('blacklist-edit-idx')?.value);
+        if (idx >= 0 && local.blacklist[idx]) {
+          const r = local.blacklist[idx];
+          return (r.chauffeur + '|' + r.destination) === key;
+        }
+      }
       return false;
     }
 
@@ -125,7 +144,11 @@
             mergedList.push(Object.assign({}, localItem, remoteItem));
           }
         } else if (localItem) {
-          mergedList.push(localItem);
+          // Si l'élément est uniquement en local, c'est qu'il a été supprimé à distance.
+          // On ne le garde que si l'utilisateur est en train de l'éditer localement dans un modal.
+          if (isRecordBeingEdited(key, listName)) {
+            mergedList.push(localItem);
+          }
         } else if (remoteItem) {
           mergedList.push(remoteItem);
         }
