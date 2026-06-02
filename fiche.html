@@ -93,6 +93,9 @@
     }
 
     // Fusionne deux tableaux d'objets sur la base d'une clé unique
+    // Règle : si local est plus récent (localTs > remoteTs), les suppressions locales sont respectées
+    const localIsNewer = (local._localTs || 0) > (remote._localTs || 0);
+
     function mergeList(listName, getKey) {
       const localList = local[listName] || [];
       const remoteList = remote[listName] || [];
@@ -109,19 +112,23 @@
         if (k) remoteMap.set(k, item);
       });
       
-      const allKeys = new Set([...localMap.keys(), ...remoteMap.keys()]);
+      // Si local est plus récent : on part des clés locales uniquement
+      // → les suppressions locales ne sont PAS réintroduites depuis remote
+      // Si remote est plus récent : union des deux (un autre utilisateur a peut-être ajouté des entrées)
+      const baseKeys = localIsNewer
+        ? new Set(localMap.keys())
+        : new Set([...localMap.keys(), ...remoteMap.keys()]);
+
       const mergedList = [];
       
-      for (const key of allKeys) {
+      for (const key of baseKeys) {
         const localItem = localMap.get(key);
         const remoteItem = remoteMap.get(key);
         
         if (localItem && remoteItem) {
           if (isRecordBeingEdited(key, listName)) {
-            // L'utilisateur est en cours d'édition locale dans un modal -> préserver l'état local
             mergedList.push(localItem);
           } else {
-            // Fusionner les champs des deux, la version distante fait autorité
             mergedList.push(Object.assign({}, localItem, remoteItem));
           }
         } else if (localItem) {
