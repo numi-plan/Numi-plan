@@ -1215,7 +1215,13 @@ mark.hl { background: rgba(56,189,248,.25); color: var(--acc); border-radius: 3p
 
 <div class="app-layout">
 <div class="tabs-bar">
-  <button class="tab-btn active" onclick="switchTab('dispo',this)">🚛 Disponibilité <span class="tab-count" id="cnt-dispo">—</span></button>
+  <button class="tab-btn active" onclick="switchTab('dispo',this)">
+    <span>🚛 Disponibilité</span>
+    <span style="display:flex;gap:4px;align-items:center">
+      <span class="tab-count" id="cnt-dispo" title="Nombre de camions (camions filtrés)">—</span>
+      <span class="tab-count" id="cnt-dispo-chauffeurs" style="background:var(--pur);color:#000" title="Nombre de chauffeurs uniques (sans doublons)">—</span>
+    </span>
+  </button>
   <button class="tab-btn" onclick="switchTab('pannes',this)">🔧 Pannes <span class="tab-count red" id="cnt-pannes">—</span></button>
   <button class="tab-btn" onclick="switchTab('nc',this)">⚠️ Non-conformités <span class="tab-count" id="cnt-nc">—</span></button>
   <button class="tab-btn" onclick="switchTab('gasoil',this)">⛽ Gasoil <span class="tab-count" id="cnt-gasoil">—</span></button>
@@ -2901,6 +2907,17 @@ function renderDispo() {
     <div class="stat-card" style="cursor:pointer;transition:opacity .2s" onclick="filterByEtat('')" title="Afficher tout"><div class="stat-num">${DB.dispo.length}</div><div class="stat-lbl">Total ↺</div></div>
     <div class="stat-card" style="cursor:pointer;transition:opacity .2s;border-left-color:#a78bfa" onclick="showAnomaliesLieu()" title="Voir les anomalies de lieu jour"><div class="stat-num" style="color:#a78bfa">${DB.dispo.filter(r=>r.lieuJ_initial&&r.lieuJ&&r.lieuJ!=='—'&&r.lieuJ_initial!=='—'&&r.lieuJ.trim().toUpperCase()!==r.lieuJ_initial.trim().toUpperCase()).length}</div><div class="stat-lbl" style="color:#a78bfa">⚠️ Anomalies lieu</div></div>`;
   document.getElementById('cnt-dispo').textContent = data.length;
+  
+  // Compter le nombre de chauffeurs uniques dans la liste filtrée
+  const uniqueChauffeurs = new Set();
+  data.forEach(r => {
+    const ch = (r.chauffeur || '').trim().toUpperCase();
+    if (ch && ch !== '—' && ch !== '' && !ch.includes('MANQUE CHAUFFEUR')) {
+      uniqueChauffeurs.add(ch);
+    }
+  });
+  const cntChauffeursEl = document.getElementById('cnt-dispo-chauffeurs');
+  if (cntChauffeursEl) cntChauffeursEl.textContent = uniqueChauffeurs.size;
   const body = document.getElementById('dispo-body');
   if (!data.length) { body.innerHTML = `<tr><td colspan="15"><div class="empty-state"><div class="icon">🔍</div>Aucun résultat</div></td></tr>`; return; }
   body.innerHTML = data.map((r,i) => {
