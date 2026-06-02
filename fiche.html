@@ -114,7 +114,12 @@
     // Fusionne deux tableaux d'objets sur la base d'une clé unique
     function mergeList(listName, getKey) {
       const localList = local[listName] || [];
-      const remoteList = remote[listName] || [];
+      const remoteList = remote[listName];
+      if (remoteList === undefined) {
+        merged[listName] = localList;
+        return;
+      }
+      const remoteListArray = remoteList || [];
       
       const localMap = new Map();
       localList.forEach(item => {
@@ -206,6 +211,11 @@
   // ── Applique les données d'une équipe dans DB et re-render ──
   function applyEquipeData(eq, src) {
     if (!src || !src.dispo) return;
+    
+    // Auto-heal si le Suivi BL est manquant ou vide pour l'équipe A (migration cloud)
+    if (eq === 'A' && (!src.bl || !src.bl.length)) {
+      src.bl = cloneEquipePayload(window.INITIAL_DATA ? window.INITIAL_DATA.bl : []);
+    }
     
     const currentEq = getCurrentEquipe();
     
@@ -2326,6 +2336,7 @@ const INITIAL_DATA = {
 // ═══════════════════════════════════════════════════════════════
 // STATE
 // ═══════════════════════════════════════════════════════════════
+window.INITIAL_DATA = INITIAL_DATA;
 let DB = {};
 let ARCHIVES = {};
 // Exposer DB et ARCHIVES globalement pour le module Firebase
@@ -2546,14 +2557,18 @@ function loadDB() {
       const parsed = JSON.parse(raw);
       if (parsed && parsed.teams && typeof parsed.teams === 'object') {
         ['A', 'B', 'C', 'D'].forEach(eq => {
-          if (parsed.teams[eq] && parsed.teams[eq].dispo) window['DB_' + eq] = parsed.teams[eq];
+          if (parsed.teams[eq] && parsed.teams[eq].dispo) {
+            const base = eq === 'A' ? cloneTeamData(INITIAL_DATA) : emptyTeamData();
+            window['DB_' + eq] = Object.assign(base, parsed.teams[eq]);
+          }
         });
         if (parsed.active && ['A', 'B', 'C', 'D'].includes(parsed.active)) active = parsed.active;
       } else if (parsed && parsed.dispo) {
         // Ancien format (1 seul blob) : en pratique = dernière équipe sauvegardée (souvent D)
         const legacyEq = (parsed._savedEquipe && ['A', 'B', 'C', 'D'].includes(parsed._savedEquipe))
           ? parsed._savedEquipe : 'D';
-        window['DB_' + legacyEq] = parsed;
+        const base = legacyEq === 'A' ? cloneTeamData(INITIAL_DATA) : emptyTeamData();
+        window['DB_' + legacyEq] = Object.assign(base, parsed);
         active = 'A'; // au démarrage on affiche toujours l'équipe A
       }
     }
@@ -2562,6 +2577,9 @@ function loadDB() {
   }
   if (!window.DB_A.dispo || !window.DB_A.dispo.length) {
     window.DB_A = cloneTeamData(INITIAL_DATA);
+  }
+  if (!window.DB_A.bl || !window.DB_A.bl.length) {
+    window.DB_A.bl = cloneTeamData(INITIAL_DATA).bl;
   }
   if (typeof CURRENT_EQUIPE !== 'undefined') {
     CURRENT_EQUIPE = active;
@@ -2836,10 +2854,42 @@ function renderDispo() {
     const realIdx = DB.dispo.indexOf(r);
     const isSurveille = !!r.surveillance;
     const rowBg = isSurveille ? 'background:rgba(248,113,113,0.13);border-left:3px solid #f87171;' : '';
+    
+    let blAlertHtml = '';
+    if (r.chauffeur && r.chauffeur !== '—') {
+      const blRow = (DB.bl || []).find(x => x.chauffeur.toUpperCase() === r.chauffeur.toUpperCase());
+      if (blRow) {
+        const months = ['mars','avril','mai','juin','juil','aout','sep','oct','nov','dec'];
+        const now = new Date();
+        const missingMonths = [];
+        let worstStatus = '';
+        months.forEach(m => {
+          if ((blRow[m] || '').trim().toLowerCase() !== 'déposer') {
+            const status = checkBLMonthStatus(m, now);
+            if (status === 'late') {
+              worstStatus = 'late';
+              missingMonths.push(m.toUpperCase());
+            } else if (status === 'due') {
+              if (worstStatus !== 'late') worstStatus = 'due';
+              missingMonths.push(m.toUpperCase());
+            }
+          }
+        });
+        if (missingMonths.length > 0) {
+          const tooltipText = `BL manquants : ${missingMonths.join(', ')}`;
+          if (worstStatus === 'late') {
+            blAlertHtml = `<span style="font-size:12px;margin-left:4px;cursor:pointer;animation:pulse-eye .8s ease-in-out infinite alternate;display:inline-block;vertical-align:middle;" title="${tooltipText}">🚨</span>`;
+          } else if (worstStatus === 'due') {
+            blAlertHtml = `<span style="font-size:12px;margin-left:4px;cursor:pointer;display:inline-block;vertical-align:middle;" title="${tooltipText}">⏳</span>`;
+          }
+        }
+      }
+    }
+
     return `<tr style="${rowBg}">
       <td class="mono" style="color:var(--acc);font-size:10px;white-space:nowrap">${r.v}</td>
       <td>${stateBadge(r.etat)}</td>
-      <td style="font-weight:600;white-space:nowrap;max-width:110px;overflow:hidden;text-overflow:ellipsis" title="${r.chauffeur}">${r.chauffeur}</td>
+      <td style="font-weight:600;white-space:nowrap;" title="${r.chauffeur}"><span style="max-width:110px;overflow:hidden;text-overflow:ellipsis;display:inline-block;vertical-align:middle;">${r.chauffeur}</span>${blAlertHtml}</td>
       <td class="mono" style="white-space:nowrap"><span class="cell-edit" contenteditable="true" data-field="hor" data-idx="${realIdx}" onblur="saveInline(this)" onkeydown="if(event.key==='Enter'){event.preventDefault();this.blur()}">${horaire(r.hor)||'—'}</span></td>
       <td style="white-space:nowrap;min-width:90px"><input class="cell-input" list="dl-wilayas" autocomplete="off" data-field="lieuJ" data-idx="${realIdx}" value="${r.lieuJ==='—'||!r.lieuJ?'':r.lieuJ}" placeholder="Lieu Jour" onchange="saveInlineInput(this)" style="background:transparent;border:none;border-bottom:1px solid ${(!r.lieuJ||r.lieuJ==='—')?'#f87171':'transparent'};color:inherit;width:100%;font-size:inherit;padding:2px 4px;outline:none;cursor:pointer"></td>
       <td style="white-space:nowrap;min-width:90px"><input class="cell-input" list="dl-wilayas" autocomplete="off" data-field="lieuJ1" data-idx="${realIdx}" value="${r.lieuJ1==='—'||!r.lieuJ1?'':r.lieuJ1}" placeholder="Lieu J+1" onchange="saveInlineInput(this)" style="background:transparent;border:none;border-bottom:1px solid ${(!r.lieuJ1||r.lieuJ1==='—')?'#f87171':'transparent'};color:inherit;width:100%;font-size:inherit;padding:2px 4px;outline:none;cursor:pointer"></td>
