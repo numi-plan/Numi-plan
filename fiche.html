@@ -537,7 +537,7 @@ body { font-family:'IBM Plex Sans',sans-serif; background:var(--bg); color:var(-
 .date-badge { background:var(--bg3); border:1px solid var(--border); border-radius:8px; padding:7px 14px; font-family:'IBM Plex Mono',monospace; font-size:12px; color:var(--acc); }
 
 /* TABS */
-.tabs-bar { background:var(--bg2); border-right:1px solid var(--border); display:flex; flex-direction:column; width:200px; min-width:200px; overflow-y:auto; flex-shrink:0; }
+.tabs-bar { background:var(--bg2); border-right:1px solid var(--border); display:flex; flex-direction:column; width:225px; min-width:225px; overflow-y:auto; flex-shrink:0; }
 .tab-btn { padding:11px 16px; font-size:11px; font-weight:700; letter-spacing:1px; text-transform:uppercase; border:none; background:none; color:var(--txt2); cursor:pointer; border-left:3px solid transparent; text-align:left; white-space:nowrap; transition:all .2s; font-family:'IBM Plex Sans',sans-serif; display:flex; align-items:center; justify-content:space-between; gap:8px; }
 .tab-btn:hover { color:var(--txt); background:rgba(255,255,255,.04); }
 .tab-btn.active { color:var(--acc); border-left-color:var(--acc); background:rgba(56,189,248,.07); border-bottom-color:transparent; }
@@ -1071,7 +1071,6 @@ mark.hl { background: rgba(56,189,248,.25); color: var(--acc); border-radius: 3p
   <div style="display:flex;gap:6px;align-items:center;margin-left:auto;flex-wrap:wrap">
     <button class="btn btn-save" onclick="basculerJournee()" title="Basculer Lieu J+1 → Lieu Jour">⏭ Nouvelle journée</button>
     <button class="btn btn-archive" onclick="archiveToday()">📦 Archiver aujourd'hui</button>
-    <button class="btn btn-perf" onclick="switchTab('perf',document.querySelector('[onclick*=perf]'))" title="Performance camions">📦 Perf Camions</button>
     <button class="btn btn-numiflow" onclick="exportNumiflow()">📊 Export Numiflow</button>
     <button class="btn btn-extract" onclick="exportAllData()">⬇ Extraction Données</button>
   </div>
@@ -1226,13 +1225,11 @@ mark.hl { background: rgba(56,189,248,.25); color: var(--acc); border-radius: 3p
   <button class="tab-btn" onclick="switchTab('nc',this)">⚠️ Non-conformités <span class="tab-count" id="cnt-nc">—</span></button>
   <button class="tab-btn" onclick="switchTab('gasoil',this)">⛽ Gasoil <span class="tab-count" id="cnt-gasoil">—</span></button>
   <button class="tab-btn" onclick="switchTab('equip',this)">🔩 Équipements <span class="tab-count" id="cnt-equip">—</span></button>
-  <button class="tab-btn" onclick="switchTab('activite',this)">📋 Activité Sharik <span class="tab-count" id="cnt-act">—</span></button>
   <button class="tab-btn" onclick="switchTab('bl',this)">📄 Suivi BL</button>
   <button class="tab-btn" onclick="switchTab('odo',this)">🛣️ Odomètre <span class="tab-count" id="cnt-odo">—</span></button>
   <button class="tab-btn" onclick="switchTab('cspc',this)">🔷 CSPC <span class="tab-count" id="cnt-cspc">—</span></button>
   <button class="tab-btn" onclick="switchTab('vehicule',this)">🔍 Fiche Véhicule</button>
   <button class="tab-btn" onclick="switchTab('analytics',this)">📊 Analyses</button>
-  <button class="tab-btn" onclick="switchTab('perf',this)">📦 Perf Camions <span class="tab-count" id="cnt-perf" style="background:#fbbf24">—</span></button>
   <button class="tab-btn" onclick="switchTab('archives',this)">🗄️ Archives</button>
   <button class="tab-btn" id="tab-blacklist" onclick="if(typeof switchTab==='function')switchTab('blacklist',this)">🚫 Blacklist <span class="tab-count" id="cnt-blacklist" style="background:#f87171">—</span></button>
   <button class="tab-btn" onclick="switchTab('tracabilite',this)">📜 Traçabilité <span class="tab-count" id="cnt-tracabilite">—</span></button>
@@ -2918,6 +2915,16 @@ function renderDispo() {
   });
   const cntChauffeursEl = document.getElementById('cnt-dispo-chauffeurs');
   if (cntChauffeursEl) cntChauffeursEl.textContent = uniqueChauffeurs.size;
+
+  // Compter le nombre d'occurrences globales de chaque chauffeur dans DB.dispo pour identifier les extensions
+  const driverCounts = {};
+  DB.dispo.forEach(row => {
+    const ch = (row.chauffeur || '').trim().toUpperCase();
+    if (ch && ch !== '—' && ch !== '' && !ch.includes('MANQUE CHAUFFEUR')) {
+      driverCounts[ch] = (driverCounts[ch] || 0) + 1;
+    }
+  });
+
   const body = document.getElementById('dispo-body');
   if (!data.length) { body.innerHTML = `<tr><td colspan="15"><div class="empty-state"><div class="icon">🔍</div>Aucun résultat</div></td></tr>`; return; }
   body.innerHTML = data.map((r,i) => {
@@ -2950,6 +2957,10 @@ function renderDispo() {
       }
     }
 
+    const chKey = (r.chauffeur || '').trim().toUpperCase();
+    const isExtension = chKey && chKey !== '—' && !chKey.includes('MANQUE CHAUFFEUR') && (driverCounts[chKey] >= 2);
+    const extPill = isExtension ? '<span class="badge badge-pur" style="font-size: 9px; padding: 1px 5px; vertical-align: middle; margin-left: 4px;">extension</span>' : '';
+
     // Styles de ligne et du badge chauffeur (Percutant & Premium)
     let rowBg = '';
     let chauffeurCellContent = '';
@@ -2959,7 +2970,7 @@ function renderDispo() {
         <div style="display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 6px; background: rgba(239, 68, 68, 0.25); border: 1px solid rgba(239, 68, 68, 0.5); box-shadow: 0 0 10px rgba(239, 68, 68, 0.3); vertical-align: middle;">
           <span style="font-weight: 700; color: #f87171; font-size: 11px; max-width: 100px; overflow: hidden; text-overflow: ellipsis; display: inline-block; vertical-align: middle;" title="${r.chauffeur}">${r.chauffeur}</span>
           <span style="font-size: 13px; animation: pulse-eye 0.8s ease-in-out infinite alternate; display: inline-block; vertical-align: middle;" title="${tooltipText}">🚨</span>
-        </div>
+        </div>${extPill}
       `;
     } else if (worstStatus === 'due') {
       rowBg = 'background: linear-gradient(90deg, rgba(245, 158, 11, 0.1) 0%, rgba(245, 158, 11, 0.02) 40%, rgba(0, 0, 0, 0) 100%); border-left: 4px solid #f59e0b;';
@@ -2967,13 +2978,13 @@ function renderDispo() {
         <div style="display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 6px; background: rgba(245, 158, 11, 0.15); border: 1px solid rgba(245, 158, 11, 0.4); box-shadow: 0 0 6px rgba(245, 158, 11, 0.15); vertical-align: middle;">
           <span style="font-weight: 700; color: #fbbf24; font-size: 11px; max-width: 100px; overflow: hidden; text-overflow: ellipsis; display: inline-block; vertical-align: middle;" title="${r.chauffeur}">${r.chauffeur}</span>
           <span style="font-size: 13px; display: inline-block; vertical-align: middle;" title="${tooltipText}">⏳</span>
-        </div>
+        </div>${extPill}
       `;
     } else if (isSurveille) {
       rowBg = 'background: rgba(248, 113, 113, 0.13); border-left: 3px solid #f87171;';
-      chauffeurCellContent = `<span style="font-weight: 600; font-size: 12px; max-width: 110px; overflow: hidden; text-overflow: ellipsis; display: inline-block; vertical-align: middle;" title="${r.chauffeur}">${r.chauffeur}</span>`;
+      chauffeurCellContent = `<span style="font-weight: 600; font-size: 12px; max-width: 110px; overflow: hidden; text-overflow: ellipsis; display: inline-block; vertical-align: middle;" title="${r.chauffeur}">${r.chauffeur}</span>${extPill}`;
     } else {
-      chauffeurCellContent = `<span style="font-weight: 600; font-size: 12px; max-width: 110px; overflow: hidden; text-overflow: ellipsis; display: inline-block; vertical-align: middle;" title="${r.chauffeur}">${r.chauffeur}</span>`;
+      chauffeurCellContent = `<span style="font-weight: 600; font-size: 12px; max-width: 110px; overflow: hidden; text-overflow: ellipsis; display: inline-block; vertical-align: middle;" title="${r.chauffeur}">${r.chauffeur}</span>${extPill}`;
     }
 
     return `<tr style="${rowBg}">
