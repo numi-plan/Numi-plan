@@ -166,6 +166,7 @@
     mergeList('odo',       item => item.v);
     mergeList('cspc',      item => item.v);
     mergeList('blacklist', item => item.chauffeur && item.destination ? `${item.chauffeur}|${item.destination}` : null);
+    mergeList('tracabilite', item => item.timestamp && item.type ? `${item.timestamp}|${item.type}|${item.target||''}` : null);
     
     merged._localTs = Math.max(local._localTs || 0, remote._localTs || 0);
     return merged;
@@ -252,6 +253,8 @@
       if (typeof renderOdo       === 'function') renderOdo();
       if (typeof renderCSPC      === 'function') renderCSPC();
       if (typeof renderBlacklist === 'function') renderBlacklist();
+      if (typeof renderBLAlerts  === 'function') renderBLAlerts();
+      if (typeof renderTracabilite === 'function') renderTracabilite();
       if (typeof updateDataLists === 'function') updateDataLists();
       if (DB.perfRaw && DB.perfRaw.length && DB.perfImportTs !== _prevPerfTs) {
         PERF_RAW = DB.perfRaw.map(r => ({ ...r, date: r.date ? new Date(r.date) : null }));
@@ -817,6 +820,19 @@ tbody td { padding:6px 8px; font-size:11px; vertical-align:middle; }
         el.style.borderBottomColor = '';
       }
     });
+
+    // 4. Masquer les autres équipes dans le header et archives si verrouillé
+    ['A', 'B', 'C', 'D'].forEach(team => {
+      const btnHeader = document.getElementById('btn-eq' + team);
+      const btnArchive = document.getElementById('arc-btn-' + team);
+      if (lock && lock !== team) {
+        if (btnHeader) btnHeader.style.setProperty('display', 'none', 'important');
+        if (btnArchive) btnArchive.style.setProperty('display', 'none', 'important');
+      } else {
+        if (btnHeader) btnHeader.style.removeProperty('display');
+        if (btnArchive) btnArchive.style.removeProperty('display');
+      }
+    });
   }
   window.applyTeamLockUI = applyTeamLockUI;
 
@@ -1073,7 +1089,9 @@ mark.hl { background: rgba(56,189,248,.25); color: var(--acc); border-radius: 3p
 
   function collectResults(q) {
     const results = [];
+    const lock = sessionStorage.getItem('numiplan_team_lock');
     ['A','B','C','D'].forEach(eq => {
+      if (lock && lock !== eq) return;
       const src = window['DB_' + eq] || (window.CURRENT_EQUIPE === eq ? window.DB : null);
       if (!src) return;
       (src.dispo||[]).forEach(r => {
@@ -1201,6 +1219,7 @@ mark.hl { background: rgba(56,189,248,.25); color: var(--acc); border-radius: 3p
   <button class="tab-btn" onclick="switchTab('perf',this)">📦 Perf Camions <span class="tab-count" id="cnt-perf" style="background:#fbbf24">—</span></button>
   <button class="tab-btn" onclick="switchTab('archives',this)">🗄️ Archives</button>
   <button class="tab-btn" id="tab-blacklist" onclick="if(typeof switchTab==='function')switchTab('blacklist',this)">🚫 Blacklist <span class="tab-count" id="cnt-blacklist" style="background:#f87171">—</span></button>
+  <button class="tab-btn" onclick="switchTab('tracabilite',this)">📜 Traçabilité <span class="tab-count" id="cnt-tracabilite">—</span></button>
   <button class="tab-btn" onclick="ouvrirHistoriqueAnomalies()" style="color:#fbbf24;border-color:rgba(251,191,36,.3)">📊 Historique Anomalies</button>
 </div>
 
@@ -1332,6 +1351,7 @@ mark.hl { background: rgba(56,189,248,.25); color: var(--acc); border-radius: 3p
     <button class="btn btn-add" onclick="openModal('modal-dispo')">＋ Ajouter</button>
   </div>
   <div style="padding-top:20px">
+    <div id="bl-alerts-container-dispo"></div>
     <div class="stats-row" id="dispo-stats"></div>
     <div class="sec-title">État du parc véhicules</div>
     <div class="table-wrap">
@@ -1488,6 +1508,7 @@ mark.hl { background: rgba(56,189,248,.25); color: var(--acc); border-radius: 3p
     <button class="btn btn-add" onclick="openModal('modal-bl')">＋ Ajouter</button>
   </div>
   <div style="padding-top:20px">
+    <div id="bl-alerts-container-bl"></div>
     <div class="sec-title">Suivi des bons de livraison par chauffeur</div>
     <div class="table-wrap">
       <table>
@@ -1663,6 +1684,33 @@ mark.hl { background: rgba(56,189,248,.25); color: var(--acc); border-radius: 3p
       Une règle blacklist bloque un chauffeur sur une destination précise. Après bascule journée, toute affectation non conforme génère une anomalie à pointer obligatoirement.
     </div>
     <div id="blacklist-body"></div>
+  </div>
+</div>
+
+<!-- ══════════════ TRAÇABILITÉ ══════════════ -->
+<div id="page-tracabilite" class="page">
+  <div class="filter-bar">
+    <label>Filtre</label>
+    <input type="text" class="filter-input" id="tracabilite-search" placeholder="Rechercher camion, chauffeur, motif, rôle…" oninput="renderTracabilite()">
+    <button class="btn btn-reset" onclick="resetFilters('tracabilite-search');renderTracabilite()">↺ Reset</button>
+  </div>
+  <div style="padding-top:20px">
+    <div class="sec-title">Historique des Entrées / Sorties (Traçabilité)</div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Date / Heure</th>
+            <th>Événement</th>
+            <th>Type</th>
+            <th>Cible</th>
+            <th>Opérateur / Rôle</th>
+            <th>Justification / Motif</th>
+          </tr>
+        </thead>
+        <tbody id="tracabilite-body"></tbody>
+      </table>
+    </div>
   </div>
 </div>
 </div><!-- /page-area -->
@@ -2285,7 +2333,7 @@ window.DB = DB;
 window.ARCHIVES = ARCHIVES;
 
 function emptyTeamData() {
-  return { dispo: [], pannes: [], nc: [], gasoil: [], equip: [], activite: [], bl: [], odo: [], odo_weeks: [], cspc: [], blacklist: [] };
+  return { dispo: [], pannes: [], nc: [], gasoil: [], equip: [], activite: [], bl: [], odo: [], odo_weeks: [], cspc: [], blacklist: [], tracabilite: [] };
 }
 
 function cloneTeamData(src) {
@@ -2298,6 +2346,196 @@ function ensureTeamCaches() {
   if (!window.DB_C) window.DB_C = emptyTeamData();
   if (!window.DB_D) window.DB_D = emptyTeamData();
 }
+
+function getOperatorRole() {
+  const lock = sessionStorage.getItem('numiplan_team_lock');
+  return lock ? `Chef d'équipe ${lock}` : 'Superviseur Admin';
+}
+
+function logMouvement(type, targetType, target, motif) {
+  if (!DB.tracabilite) DB.tracabilite = [];
+  const now = new Date();
+  
+  const dateStr = now.getFullYear() + '-' + 
+    String(now.getMonth()+1).padStart(2,'0') + '-' + 
+    String(now.getDate()).padStart(2,'0') + ' ' + 
+    String(now.getHours()).padStart(2,'0') + ':' + 
+    String(now.getMinutes()).padStart(2,'0') + ':' + 
+    String(now.getSeconds()).padStart(2,'0');
+
+  const operator = getOperatorRole();
+
+  DB.tracabilite.push({
+    timestamp: Date.now(),
+    date: dateStr,
+    type: type,
+    targetType: targetType,
+    target: target,
+    operator: operator,
+    motif: motif || ''
+  });
+  
+  saveDB();
+}
+window.logMouvement = logMouvement;
+
+function checkBLMonthStatus(mKey, currentDate) {
+  const monthIndexMap = {
+    'mars': 2, 'avril': 3, 'mai': 4, 'juin': 5,
+    'juil': 6, 'aout': 7, 'sep': 8, 'oct': 9,
+    'nov': 10, 'dec': 11
+  };
+  
+  const targetMonth = monthIndexMap[mKey];
+  if (targetMonth === undefined) return 'future';
+
+  const currentYear = currentDate.getFullYear();
+  const currentMonth = currentDate.getMonth(); 
+  const currentDay = currentDate.getDate(); 
+
+  if (currentMonth < targetMonth) {
+    return 'future';
+  }
+
+  if (currentMonth === targetMonth) {
+    if (currentDay >= 25) {
+      return 'due';
+    }
+    return 'future';
+  }
+
+  if (currentMonth === targetMonth + 1) {
+    if (currentDay <= 5) {
+      return 'due';
+    }
+    return 'late';
+  }
+
+  return 'late';
+}
+
+function renderBLAlerts() {
+  const containerDispo = document.getElementById('bl-alerts-container-dispo');
+  const containerBl = document.getElementById('bl-alerts-container-bl');
+  if (!containerDispo && !containerBl) return;
+
+  const now = new Date();
+  const months = ['mars','avril','mai','juin','juil','aout','sep','oct','nov','dec'];
+  const alerts = [];
+
+  (DB.bl || []).forEach(r => {
+    months.forEach(m => {
+      if ((r[m] || '').trim().toLowerCase() === 'déposer') return;
+      
+      const status = checkBLMonthStatus(m, now);
+      if (status === 'due' || status === 'late') {
+        alerts.push({
+          chauffeur: r.chauffeur,
+          month: m,
+          status: status
+        });
+      }
+    });
+  });
+
+  if (!alerts.length) {
+    if (containerDispo) containerDispo.innerHTML = '';
+    if (containerBl) containerBl.innerHTML = '';
+    return;
+  }
+
+  alerts.sort((a, b) => {
+    if (a.status === b.status) return a.chauffeur.localeCompare(b.chauffeur);
+    return a.status === 'late' ? -1 : 1;
+  });
+
+  const alertItemsHtml = alerts.map((al, idx) => {
+    const isLate = al.status === 'late';
+    const borderStyle = isLate ? 'border-color: rgba(239, 68, 68, 0.4);' : 'border-color: rgba(245, 158, 11, 0.4);';
+    const bgStyle = isLate ? 'background: rgba(239, 68, 68, 0.08);' : 'background: rgba(245, 158, 11, 0.08);';
+    const tagClass = isLate ? 'badge-panne' : 'badge-manque';
+    const tagText = isLate ? '🚨 RETARD CRITIQUE' : '⏳ PÉRIODE RESTITUTION';
+    const blinkStyle = isLate ? 'animation: pulse-eye 0.8s ease-in-out infinite alternate;' : '';
+
+    return `
+      <div style="display: flex; align-items: center; justify-content: space-between; padding: 10px 14px; border-radius: 8px; border: 1px solid; ${borderStyle} ${bgStyle} margin-bottom: 8px;">
+        <div style="display: flex; align-items: center; gap: 12px;">
+          <span class="badge ${tagClass}" style="font-size: 10px; ${blinkStyle}">${tagText}</span>
+          <div style="font-size: 12px; color: var(--txt);">
+            Chauffeur : <b style="color: var(--acc);">${al.chauffeur}</b> — BL <b style="text-transform: uppercase;">${al.month}</b> manquant !
+          </div>
+        </div>
+        <button onclick="validerBLRapide('${al.chauffeur}', '${al.month}')" class="btn btn-save" style="padding: 4px 10px; font-size: 10px;">✓ Reçu</button>
+      </div>
+    `;
+  }).join('');
+
+  const fullHtml = `
+    <div style="background: var(--bg2); border: 1px solid var(--border); border-radius: 12px; padding: 16px 20px; margin-bottom: 20px;">
+      <div style="font-size: 11px; font-weight: 700; color: var(--txt2); letter-spacing: 2px; text-transform: uppercase; margin-bottom: 12px; display: flex; align-items: center; gap: 8px;">
+        <span>📄 ALERTE RETOURS BL</span>
+        <span class="tab-count red" style="background: var(--red); color: white; font-size: 10px; padding: 2px 8px; border-radius: 10px;">${alerts.length}</span>
+      </div>
+      <div style="max-height: 220px; overflow-y: auto; padding-right: 4px;">
+        ${alertItemsHtml}
+      </div>
+    </div>
+  `;
+
+  if (containerDispo) containerDispo.innerHTML = fullHtml;
+  if (containerBl) containerBl.innerHTML = fullHtml;
+}
+
+function validerBLRapide(chauffeur, month) {
+  const row = (DB.bl || []).find(r => r.chauffeur.toUpperCase() === chauffeur.toUpperCase());
+  if (row) {
+    row[month] = 'déposer';
+    saveDB();
+    renderBLAlerts();
+    if (typeof renderBL === 'function') renderBL();
+    showToast(`📄 BL ${month.toUpperCase()} pour ${chauffeur} marqué Déposé`);
+  }
+}
+window.validerBLRapide = validerBLRapide;
+
+function renderTracabilite() {
+  if (!DB.tracabilite) DB.tracabilite = [];
+  const q = document.getElementById('tracabilite-search')?.value || '';
+  const filtered = DB.tracabilite.filter(r => {
+    if (!q) return true;
+    const searchStr = `${r.date} ${r.type} ${r.v || ''} ${r.chauffeur || ''} ${r.operator || ''} ${r.motif || ''}`.toLowerCase();
+    return searchStr.includes(q.toLowerCase());
+  });
+
+  filtered.sort((a,b) => b.timestamp - a.timestamp);
+
+  const cnt = document.getElementById('cnt-tracabilite');
+  if (cnt) cnt.textContent = DB.tracabilite.length;
+
+  const body = document.getElementById('tracabilite-body');
+  if (!body) return;
+
+  if (!filtered.length) {
+    body.innerHTML = `<tr><td colspan="6"><div class="empty-state"><div class="icon">📜</div>Aucun mouvement trouvé</div></td></tr>`;
+    return;
+  }
+
+  body.innerHTML = filtered.map(r => {
+    let typeClass = '';
+    if (r.type.includes('Entrée')) typeClass = 'color: var(--grn); font-weight: 700;';
+    else if (r.type.includes('Sortie')) typeClass = 'color: var(--red); font-weight: 700;';
+
+    return `<tr>
+      <td class="mono" style="color: var(--txt2); white-space: nowrap;">${r.date}</td>
+      <td style="${typeClass}">${r.type}</td>
+      <td>${r.targetType || '—'}</td>
+      <td class="mono" style="color: var(--acc); font-weight: 600;">${r.target || '—'}</td>
+      <td style="color: var(--txt);">${r.operator || '—'}</td>
+      <td style="color: var(--txt2); font-style: italic; max-width: 300px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${r.motif || ''}">${r.motif || '—'}</td>
+    </tr>`;
+  }).join('');
+}
+window.renderTracabilite = renderTracabilite;
 
 function loadDB() {
   ensureTeamCaches();
@@ -2519,6 +2757,7 @@ function switchTab(name, btn) {
   if (name==='archives') renderArchives();
   if (name==='vehicule') updateDataLists();
   if (name==='blacklist') renderBlacklist();
+  if (name==='tracabilite') renderTracabilite();
 checkBascule();
 }
 
@@ -2665,7 +2904,24 @@ function deleteDispo(idx) {
     showToast('⛔ Mot de passe incorrect — suppression annulée', true);
     return;
   }
-  if (!confirm('✅ Mot de passe correct.\n\nConfirmer la suppression de :\n' + label + ' ?')) return;
+  // Demander justification obligatoire
+  const justification = prompt('Justification obligatoire pour la suppression du camion ' + r.v + ' :');
+  if (justification === null) return; // Annulé
+  const finalJustif = justification.trim();
+  if (!finalJustif) {
+    showToast('⚠️ Suppression annulée — motif obligatoire', true);
+    return;
+  }
+  if (!confirm('✅ Mot de passe et motif saisis.\n\nConfirmer la suppression de :\n' + label + ' ?')) return;
+
+  // Log Sortie Camion
+  logMouvement('Sortie Camion', 'Camion', r.v, finalJustif);
+
+  // If a driver was assigned, log Sortie Chauffeur as well
+  if (r.chauffeur && r.chauffeur !== '—') {
+    logMouvement('Sortie Chauffeur', 'Chauffeur', r.chauffeur, 'Supprimé avec le camion | ' + finalJustif);
+  }
+
   DB.dispo.splice(idx,1); saveDB(); renderDispo(); showToast('🗑 ' + label + ' supprimé');
 }
 
@@ -2718,7 +2974,49 @@ function saveDispo() {
       else { obj.assuranceTrFile = prev.assuranceTrFile||null; obj.assuranceTrFileName = prev.assuranceTrFileName||null; obj.assuranceTrFileType = prev.assuranceTrFileType||null; }
       if (resRm) { obj.assuranceRmFile = resRm.data; obj.assuranceRmFileName = resRm.name; obj.assuranceRmFileType = resRm.type; }
       else { obj.assuranceRmFile = prev.assuranceRmFile||null; obj.assuranceRmFileName = prev.assuranceRmFileName||null; obj.assuranceRmFileType = prev.assuranceRmFileType||null; }
-      if (idx >= 0) DB.dispo[idx] = obj; else DB.dispo.push(obj);
+      
+      // ── LOGS TRACABILITÉ ──
+      if (idx >= 0) {
+        // Mode édition
+        if (prev.v && prev.v !== obj.v) {
+          const motif = prompt('Veuillez justifier le changement d\'immatriculation du camion de ' + prev.v + ' à ' + obj.v + ' :');
+          if (motif === null || !motif.trim()) {
+            showToast('⚠️ Justification obligatoire — modification annulée', true);
+            return;
+          }
+          logMouvement('Sortie Camion', 'Camion', prev.v, 'Remplacé par ' + obj.v + ' | ' + motif.trim());
+          logMouvement('Entrée Camion', 'Camion', obj.v, 'Remplace ' + prev.v);
+        }
+        
+        if (prev.chauffeur !== obj.chauffeur) {
+          if (prev.chauffeur && prev.chauffeur !== '—') {
+            const motif = prompt('Veuillez justifier le retrait/remplacement du chauffeur ' + prev.chauffeur + ' :');
+            if (motif === null) {
+              showToast('⚠️ Justification requise — modification annulée', true);
+              return;
+            }
+            const finalMotif = motif.trim();
+            if (!finalMotif) {
+              showToast('⚠️ Justification obligatoire — modification annulée', true);
+              return;
+            }
+            logMouvement('Sortie Chauffeur', 'Chauffeur', prev.chauffeur, finalMotif);
+          }
+          if (obj.chauffeur && obj.chauffeur !== '—') {
+            logMouvement('Entrée Chauffeur', 'Chauffeur', obj.chauffeur, 'Nouvelle affectation');
+          }
+        }
+        
+        DB.dispo[idx] = obj;
+      } else {
+        // Mode création
+        logMouvement('Entrée Camion', 'Camion', obj.v, 'Création initiale');
+        if (obj.chauffeur && obj.chauffeur !== '—') {
+          logMouvement('Entrée Chauffeur', 'Chauffeur', obj.chauffeur, 'Affectation initiale');
+        }
+        DB.dispo.push(obj);
+      }
+      
       saveDB(); closeModal('modal-dispo'); renderDispo(); showToast('✅ Disponibilité enregistrée');
     });
   });
@@ -5052,7 +5350,7 @@ function switchEquipe(eq) {
       dispo: DB.dispo, pannes: DB.pannes, nc: DB.nc,
       gasoil: DB.gasoil, equip: DB.equip, activite: DB.activite || [],
       bl: DB.bl, odo: DB.odo, odo_weeks: DB.odo_weeks || [], cspc: DB.cspc || [],
-      blacklist: DB.blacklist || [], _localTs: DB._localTs
+      blacklist: DB.blacklist || [], tracabilite: DB.tracabilite || [], _localTs: DB._localTs
     }));
   }
   CURRENT_EQUIPE = eq;
@@ -5063,7 +5361,8 @@ function switchEquipe(eq) {
   Object.assign(DB, {
     dispo: src.dispo, pannes: src.pannes, nc: src.nc,
     gasoil: src.gasoil, equip: src.equip, activite: src.activite||[],
-    bl: src.bl, odo: src.odo, odo_weeks: src.odo_weeks, cspc: src.cspc||[]
+    bl: src.bl, odo: src.odo, odo_weeks: src.odo_weeks, cspc: src.cspc||[],
+    tracabilite: src.tracabilite||[]
   });
   // Recalcul perf camions si données importées
   if (PERF_RAW && PERF_RAW.length > 0) setTimeout(buildPerfRows, 50);
@@ -5083,6 +5382,7 @@ function switchEquipe(eq) {
   // Re-render all tabs
   renderDispo(); renderPannes(); renderNC(); renderGasoil();
   renderEquip(); renderActivite(); renderBL(); renderOdo(); renderCSPC();
+  renderBLAlerts(); renderTracabilite();
   if (typeof renderAnalytics === 'function') renderAnalytics();
 
   // Appliquer le verrouillage d'interface si en mode lecture seule
@@ -5115,6 +5415,8 @@ initPerfFromDB();
 renderBL();
 renderOdo();
 renderCSPC();
+renderBLAlerts();
+renderTracabilite();
 
 // ════════════════════════════════════════════════════════════════════════════
 // EXPORT NUMIFLOW — canvas DISPO.xlsx (lettre à lettre)
