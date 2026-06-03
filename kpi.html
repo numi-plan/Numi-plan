@@ -1,0 +1,1542 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>NUMILOG · Tableau de Bord Analytique & Leaderboard</title>
+  <!-- Google Fonts -->
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Montserrat:wght@600;700;800&display=swap" rel="stylesheet">
+  <!-- FontAwesome Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <!-- SheetJS (XLSX) CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+
+  <style>
+    :root {
+      --bg1: #090e1a;
+      --bg2: #111827;
+      --bg3: #1f2937;
+      --txt: #f3f4f6;
+      --txt2: #9ca3af;
+      --txt3: #4b5563;
+      --border: rgba(255, 255, 255, 0.08);
+      --cyan: #06b6d4;
+      --green: #10b981;
+      --orange: #f59e0b;
+      --red: #ef4444;
+      --purple: #8b5cf6;
+      --gold: #fbbf24;
+      --silver: #cbd5e1;
+      --bronze: #d97706;
+      --font-main: 'Inter', sans-serif;
+      --font-title: 'Montserrat', sans-serif;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      background-color: var(--bg1);
+      color: var(--txt);
+      font-family: var(--font-main);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow-x: hidden;
+    }
+
+    /* Scrollbar Styling */
+    ::-webkit-scrollbar {
+      width: 8px;
+      height: 8px;
+    }
+    ::-webkit-scrollbar-track {
+      background: var(--bg1);
+    }
+    ::-webkit-scrollbar-thumb {
+      background: var(--bg3);
+      border-radius: 4px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: var(--txt3);
+    }
+
+    header {
+      background: linear-gradient(to bottom, #111c30 0%, var(--bg1) 100%);
+      border-bottom: 1px solid var(--border);
+      padding: 20px 40px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 20px;
+    }
+
+    .header-logo-section {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+
+    .header-logo-icon {
+      font-size: 28px;
+      background: linear-gradient(135deg, var(--cyan), var(--purple));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      animation: pulse-icon 2s infinite alternate;
+    }
+
+    .header-title-wrap h1 {
+      font-family: var(--font-title);
+      font-size: 20px;
+      font-weight: 800;
+      letter-spacing: 1px;
+      background: linear-gradient(to right, #ffffff, var(--txt2));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .header-title-wrap p {
+      font-size: 11px;
+      color: var(--cyan);
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      font-weight: 600;
+      margin-top: 2px;
+    }
+
+    .cache-status-badge {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      background: rgba(16, 185, 129, 0.1);
+      border: 1px solid rgba(16, 185, 129, 0.3);
+      border-radius: 30px;
+      padding: 6px 16px;
+      font-size: 12px;
+      color: var(--green);
+      font-weight: 500;
+      box-shadow: 0 4px 12px rgba(16, 185, 129, 0.1);
+    }
+
+    .main-container {
+      flex: 1;
+      padding: 30px 40px;
+      max-width: 1600px;
+      width: 100%;
+      margin: 0 auto;
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 30px;
+    }
+
+    @media (min-width: 1200px) {
+      .main-container {
+        grid-template-columns: 350px 1fr;
+      }
+    }
+
+    /* Left Sidebar: Imports & Settings */
+    .sidebar-panel {
+      display: flex;
+      flex-direction: column;
+      gap: 24px;
+    }
+
+    .card {
+      background: var(--bg2);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 24px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .card-title {
+      font-family: var(--font-title);
+      font-size: 14px;
+      font-weight: 700;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      color: var(--txt);
+      margin-bottom: 20px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .card-title i {
+      color: var(--cyan);
+    }
+
+    /* Drag & Drop uploader zone */
+    .upload-zone {
+      border: 2px dashed var(--border);
+      border-radius: 12px;
+      padding: 20px;
+      text-align: center;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      background: rgba(255, 255, 255, 0.01);
+      margin-bottom: 16px;
+      position: relative;
+    }
+
+    .upload-zone:hover {
+      border-color: var(--cyan);
+      background: rgba(6, 182, 212, 0.05);
+    }
+
+    .upload-zone.active {
+      border-color: var(--green);
+      background: rgba(16, 185, 129, 0.05);
+    }
+
+    .upload-zone i {
+      font-size: 32px;
+      color: var(--txt3);
+      margin-bottom: 12px;
+      transition: color 0.3s;
+    }
+
+    .upload-zone:hover i {
+      color: var(--cyan);
+    }
+
+    .upload-zone p {
+      font-size: 12px;
+      color: var(--txt2);
+      line-height: 1.5;
+    }
+
+    .upload-zone b {
+      color: var(--txt);
+      display: block;
+      font-size: 13px;
+      margin-bottom: 4px;
+    }
+
+    .upload-input {
+      position: absolute;
+      inset: 0;
+      opacity: 0;
+      cursor: pointer;
+    }
+
+    .import-status {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 11px;
+      color: var(--txt3);
+      background: var(--bg1);
+      border-radius: 6px;
+      padding: 6px 12px;
+      margin-top: 8px;
+    }
+
+    .import-status.success {
+      color: var(--green);
+      background: rgba(16, 185, 129, 0.05);
+      border: 1px solid rgba(16, 185, 129, 0.15);
+    }
+
+    /* Podium Leaderboard Styling */
+    .podium-container {
+      display: flex;
+      justify-content: space-around;
+      align-items: flex-end;
+      height: 240px;
+      margin-top: 20px;
+      padding-bottom: 10px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .podium-step {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      width: 75px;
+      position: relative;
+    }
+
+    .podium-avatar {
+      width: 48px;
+      height: 48px;
+      border-radius: 50%;
+      background: var(--bg3);
+      border: 2.5px solid;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: var(--font-title);
+      font-size: 20px;
+      font-weight: 800;
+      color: var(--txt);
+      box-shadow: 0 10px 20px rgba(0,0,0,0.5);
+      z-index: 2;
+    }
+
+    .podium-step.first .podium-avatar {
+      border-color: var(--gold);
+      box-shadow: 0 0 15px rgba(251, 191, 36, 0.4);
+      width: 56px;
+      height: 56px;
+      font-size: 24px;
+    }
+
+    .podium-step.second .podium-avatar {
+      border-color: var(--silver);
+    }
+
+    .podium-step.third .podium-avatar {
+      border-color: var(--bronze);
+    }
+
+    .podium-column {
+      width: 100%;
+      border-radius: 8px 8px 0 0;
+      margin-top: 10px;
+      display: flex;
+      flex-direction: column;
+      justify-content: flex-end;
+      align-items: center;
+      padding: 10px 0;
+      z-index: 1;
+      transition: height 1s ease-out;
+      height: 0; /* Animated dynamically */
+    }
+
+    .podium-step.first .podium-column {
+      background: linear-gradient(to top, rgba(251, 191, 36, 0.05), rgba(251, 191, 36, 0.25));
+      border: 1px solid rgba(251, 191, 36, 0.4);
+      border-bottom: none;
+    }
+
+    .podium-step.second .podium-column {
+      background: linear-gradient(to top, rgba(203, 213, 225, 0.05), rgba(203, 213, 225, 0.2));
+      border: 1px solid rgba(203, 213, 225, 0.3);
+      border-bottom: none;
+    }
+
+    .podium-step.third .podium-column {
+      background: linear-gradient(to top, rgba(217, 119, 6, 0.05), rgba(217, 119, 6, 0.2));
+      border: 1px solid rgba(217, 119, 6, 0.3);
+      border-bottom: none;
+    }
+
+    .podium-rank-badge {
+      font-size: 12px;
+      font-weight: 700;
+      border-radius: 12px;
+      padding: 2px 8px;
+      color: #000;
+      margin-bottom: 6px;
+    }
+
+    .podium-step.first .podium-rank-badge { background: var(--gold); }
+    .podium-step.second .podium-rank-badge { background: var(--silver); }
+    .podium-step.third .podium-rank-badge { background: var(--bronze); color: white; }
+
+    .podium-score {
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--txt2);
+    }
+
+    .leaderboard-list {
+      margin-top: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .leaderboard-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 14px;
+      background: var(--bg3);
+      border-radius: 8px;
+      border-left: 4px solid var(--txt3);
+      transition: transform 0.2s;
+    }
+
+    .leaderboard-row:hover {
+      transform: translateX(4px);
+    }
+
+    .leaderboard-row.rank-1 { border-left-color: var(--gold); }
+    .leaderboard-row.rank-2 { border-left-color: var(--silver); }
+    .leaderboard-row.rank-3 { border-left-color: var(--bronze); }
+
+    .leaderboard-team-info {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .leaderboard-rank-num {
+      width: 20px;
+      font-weight: 700;
+      font-size: 13px;
+      color: var(--txt2);
+    }
+
+    .leaderboard-team-name {
+      font-family: var(--font-title);
+      font-weight: 700;
+      font-size: 13px;
+    }
+
+    .leaderboard-score-value {
+      font-family: monospace;
+      font-weight: 700;
+      color: var(--cyan);
+      font-size: 13px;
+    }
+
+    /* Main Panel Container */
+    .dashboard-panel {
+      display: flex;
+      flex-direction: column;
+      gap: 30px;
+    }
+
+    /* Tabs Filter Menu */
+    .team-tabs {
+      display: flex;
+      background: var(--bg2);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 4px;
+      gap: 4px;
+    }
+
+    .team-tab-btn {
+      flex: 1;
+      padding: 12px;
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      border: none;
+      background: transparent;
+      color: var(--txt2);
+      cursor: pointer;
+      border-radius: 8px;
+      transition: all 0.2s ease;
+    }
+
+    .team-tab-btn:hover {
+      color: var(--txt);
+      background: rgba(255, 255, 255, 0.03);
+    }
+
+    .team-tab-btn.active {
+      color: #000;
+      background: var(--cyan);
+      box-shadow: 0 4px 15px rgba(6, 182, 212, 0.3);
+    }
+
+    /* KPI Cards Grid */
+    .kpi-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 20px;
+    }
+
+    .kpi-card {
+      background: var(--bg2);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      min-height: 120px;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.2);
+      position: relative;
+    }
+
+    .kpi-card-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 12px;
+    }
+
+    .kpi-title {
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--txt2);
+      text-transform: uppercase;
+      letter-spacing: 1.5px;
+    }
+
+    .kpi-icon {
+      font-size: 16px;
+      color: var(--txt3);
+    }
+
+    .kpi-value {
+      font-family: var(--font-title);
+      font-size: 22px;
+      font-weight: 800;
+      color: var(--txt);
+    }
+
+    .kpi-subtext {
+      font-size: 11px;
+      color: var(--txt3);
+      margin-top: 6px;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    /* Circular SVG Gauge for Billed mileage */
+    .gauge-card {
+      grid-column: span 1;
+      display: flex;
+      flex-direction: row;
+      align-items: center;
+      gap: 20px;
+    }
+
+    @media (min-width: 600px) {
+      .kpi-grid-expanded {
+        grid-template-columns: 2fr 1fr 1fr;
+      }
+    }
+
+    .gauge-wrapper {
+      position: relative;
+      width: 72px;
+      height: 72px;
+    }
+
+    .gauge-svg {
+      transform: rotate(-90deg);
+      width: 72px;
+      height: 72px;
+    }
+
+    .gauge-track {
+      fill: none;
+      stroke: var(--bg3);
+      stroke-width: 8px;
+    }
+
+    .gauge-fill {
+      fill: none;
+      stroke: var(--cyan);
+      stroke-width: 8px;
+      stroke-linecap: round;
+      transition: stroke-dashoffset 1s ease-out;
+    }
+
+    .gauge-text {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: monospace;
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--cyan);
+    }
+
+    /* Table Section styling */
+    .detail-card {
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+    }
+
+    .detail-filters-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 16px;
+    }
+
+    .search-input-wrap {
+      position: relative;
+      width: 300px;
+      max-width: 100%;
+    }
+
+    .search-input-wrap input {
+      width: 100%;
+      padding: 10px 16px 10px 38px;
+      background: var(--bg3);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: var(--txt);
+      font-size: 13px;
+      outline: none;
+      transition: all 0.2s;
+    }
+
+    .search-input-wrap input:focus {
+      border-color: var(--cyan);
+      box-shadow: 0 0 10px rgba(6, 182, 212, 0.2);
+    }
+
+    .search-input-wrap i {
+      position: absolute;
+      left: 14px;
+      top: 50%;
+      transform: translateY(-50%);
+      color: var(--txt3);
+      font-size: 14px;
+    }
+
+    /* Table Styling */
+    .table-wrap {
+      width: 100%;
+      overflow-x: auto;
+      border-radius: 12px;
+      border: 1px solid var(--border);
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      text-align: left;
+    }
+
+    th {
+      background: var(--bg3);
+      padding: 14px 18px;
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: var(--txt2);
+      border-bottom: 1px solid var(--border);
+    }
+
+    td {
+      padding: 14px 18px;
+      font-size: 13px;
+      color: var(--txt);
+      border-bottom: 1px solid var(--border);
+      background: var(--bg2);
+    }
+
+    tr:last-child td {
+      border-bottom: none;
+    }
+
+    tr:hover td {
+      background: rgba(255, 255, 255, 0.015);
+    }
+
+    .mono {
+      font-family: monospace;
+      font-weight: 600;
+    }
+
+    /* Driver Badge Styles */
+    .badge {
+      display: inline-block;
+      padding: 3px 8px;
+      border-radius: 20px;
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .badge-success { background: rgba(16, 185, 129, 0.15); color: var(--green); border: 1px solid rgba(16, 185, 129, 0.3); }
+    .badge-warning { background: rgba(245, 158, 11, 0.15); color: var(--orange); border: 1px solid rgba(245, 158, 11, 0.3); }
+    .badge-danger { background: rgba(239, 68, 68, 0.15); color: var(--red); border: 1px solid rgba(239, 68, 68, 0.3); }
+
+    .btn-profile {
+      background: transparent;
+      border: 1px solid var(--border);
+      color: var(--txt2);
+      border-radius: 6px;
+      padding: 4px 10px;
+      font-size: 11px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .btn-profile:hover {
+      border-color: var(--cyan);
+      color: var(--cyan);
+      background: rgba(6, 182, 212, 0.05);
+    }
+
+    /* Modal dialog driver detail profile */
+    .modal-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.7);
+      backdrop-filter: blur(4px);
+      z-index: 10000;
+      display: none; /* JS triggers show */
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+
+    .modal-card {
+      background: var(--bg2);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      width: 100%;
+      max-width: 600px;
+      box-shadow: 0 20px 50px rgba(0,0,0,0.6);
+      animation: modal-enter 0.3s ease-out;
+      overflow: hidden;
+    }
+
+    .modal-header {
+      padding: 24px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: linear-gradient(to right, #111c30, var(--bg2));
+    }
+
+    .modal-header h2 {
+      font-family: var(--font-title);
+      font-size: 18px;
+      font-weight: 700;
+      color: var(--txt);
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .modal-close-btn {
+      background: transparent;
+      border: none;
+      color: var(--txt3);
+      font-size: 20px;
+      cursor: pointer;
+      transition: color 0.2s;
+    }
+
+    .modal-close-btn:hover {
+      color: var(--red);
+    }
+
+    .modal-body {
+      padding: 24px;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+    }
+
+    .modal-section-title {
+      grid-column: span 2;
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--cyan);
+      text-transform: uppercase;
+      letter-spacing: 1.5px;
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 6px;
+      margin-top: 10px;
+    }
+
+    .modal-field {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .modal-field-lbl {
+      font-size: 11px;
+      color: var(--txt2);
+      text-transform: uppercase;
+    }
+
+    .modal-field-val {
+      font-size: 15px;
+      font-weight: 600;
+      color: var(--txt);
+    }
+
+    /* Keyframe Animations */
+    @keyframes pulse-icon {
+      0% { transform: scale(1); filter: drop-shadow(0 0 2px rgba(6, 182, 212, 0.4)); }
+      100% { transform: scale(1.05); filter: drop-shadow(0 0 10px rgba(139, 92, 246, 0.6)); }
+    }
+
+    @keyframes pulse-eye {
+      0% { opacity: 0.6; }
+      100% { opacity: 1; }
+    }
+
+    @keyframes modal-enter {
+      0% { transform: scale(0.9) translateY(20px); opacity: 0; }
+      100% { transform: scale(1) translateY(0); opacity: 1; }
+    }
+
+    .empty-placeholder {
+      padding: 40px;
+      text-align: center;
+      color: var(--txt3);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 16px;
+    }
+
+    .empty-placeholder i {
+      font-size: 48px;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- HEADER -->
+  <header>
+    <div class="header-logo-section">
+      <i class="fa-solid fa-chart-line header-logo-icon"></i>
+      <div class="header-title-wrap">
+        <h1>NUMILOG PERFORMANCE</h1>
+        <p>Dashboard Analytique & Leaderboard Équipes</p>
+      </div>
+    </div>
+    <!-- Integrates with fiche.html LocalStorage -->
+    <div class="cache-status-badge" id="cache-status">
+      <i class="fa-solid fa-cloud-arrow-down"></i>
+      <span>Synchronisé avec fiche.html (Mode lecture seule)</span>
+    </div>
+  </header>
+
+  <!-- MAIN VIEW -->
+  <div class="main-container">
+
+    <!-- LEFT COLUMN: FILE IMPORTER & LEADERBOARD -->
+    <div class="sidebar-panel">
+
+      <!-- FILE UPLOADER CARD -->
+      <div class="card">
+        <div class="card-title">
+          <i class="fa-solid fa-file-excel"></i>
+          <span>Importation Rapports Excel</span>
+        </div>
+        
+        <!-- Dropzone 1: Commandes -->
+        <div class="upload-zone" id="dropzone-commandes">
+          <i class="fa-solid fa-truck-loading"></i>
+          <p>
+            <b>1. Commandes Exploitation</b>
+            Faites glisser ou cliquez pour importer le rapport d'exploitation
+          </p>
+          <input type="file" class="upload-input" id="input-commandes" accept=".xlsx, .xls">
+        </div>
+        <div class="import-status" id="status-commandes">Aucun fichier importé</div>
+
+        <div style="height: 10px;"></div>
+
+        <!-- Dropzone 2: Segments -->
+        <div class="upload-zone" id="dropzone-segments">
+          <i class="fa-solid fa-route"></i>
+          <p>
+            <b>2. Segments & Délais</b>
+            Faites glisser ou cliquez pour importer le rapport de ponctualité
+          </p>
+          <input type="file" class="upload-input" id="input-segments" accept=".xlsx, .xls">
+        </div>
+        <div class="import-status" id="status-segments">Aucun fichier importé</div>
+      </div>
+
+      <!-- LEADERBOARD CARD -->
+      <div class="card" style="flex: 1;">
+        <div class="card-title">
+          <i class="fa-solid fa-trophy" style="color: var(--gold);"></i>
+          <span>Classement Général (Podium)</span>
+        </div>
+
+        <div class="podium-container" id="podium-area">
+          <!-- Second Step -->
+          <div class="podium-step second">
+            <div class="podium-avatar" id="podium-eq2">—</div>
+            <div class="podium-column" id="podium-col2" style="height: 0%;">
+              <span class="podium-rank-badge">2e</span>
+              <span class="podium-score" id="podium-score2">— pts</span>
+            </div>
+          </div>
+          <!-- First Step -->
+          <div class="podium-step first">
+            <div class="podium-avatar" id="podium-eq1">—</div>
+            <div class="podium-column" id="podium-col1" style="height: 0%;">
+              <span class="podium-rank-badge">1er</span>
+              <span class="podium-score" id="podium-score1">— pts</span>
+            </div>
+          </div>
+          <!-- Third Step -->
+          <div class="podium-step third">
+            <div class="podium-avatar" id="podium-eq3">—</div>
+            <div class="podium-column" id="podium-col3" style="height: 0%;">
+              <span class="podium-rank-badge">3e</span>
+              <span class="podium-score" id="podium-score3">— pts</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="leaderboard-list" id="leaderboard-list-area">
+          <div class="leaderboard-row">
+            <div class="leaderboard-team-info">
+              <span class="leaderboard-rank-num">1.</span>
+              <span class="leaderboard-team-name">Équipe A</span>
+            </div>
+            <span class="leaderboard-score-value">— pts</span>
+          </div>
+          <div class="leaderboard-row">
+            <div class="leaderboard-team-info">
+              <span class="leaderboard-rank-num">2.</span>
+              <span class="leaderboard-team-name">Équipe B</span>
+            </div>
+            <span class="leaderboard-score-value">— pts</span>
+          </div>
+          <div class="leaderboard-row">
+            <div class="leaderboard-team-info">
+              <span class="leaderboard-rank-num">3.</span>
+              <span class="leaderboard-team-name">Équipe C</span>
+            </div>
+            <span class="leaderboard-score-value">— pts</span>
+          </div>
+          <div class="leaderboard-row">
+            <div class="leaderboard-team-info">
+              <span class="leaderboard-rank-num">4.</span>
+              <span class="leaderboard-team-name">Équipe D</span>
+            </div>
+            <span class="leaderboard-score-value">— pts</span>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- RIGHT PANEL: DETAILED METRICS & DRIVER KPIs -->
+    <div class="dashboard-panel">
+
+      <!-- TEAM SELECTOR TAB-BAR -->
+      <div class="team-tabs">
+        <button class="team-tab-btn active" onclick="selectTeamTab('A')">Équipe A</button>
+        <button class="team-tab-btn" onclick="selectTeamTab('B')">Équipe B</button>
+        <button class="team-tab-btn" onclick="selectTeamTab('C')">Équipe C</button>
+        <button class="team-tab-btn" onclick="selectTeamTab('D')">Équipe D</button>
+      </div>
+
+      <!-- DYNAMIC SCREEN CONTAINER (Empty state or Metrics layout) -->
+      <div id="dashboard-content">
+        <div class="empty-placeholder card">
+          <i class="fa-solid fa-chart-bar"></i>
+          <h3>En attente des données d'exploitation</h3>
+          <p style="max-width: 500px; margin-top: 10px; font-size: 13px; line-height: 1.6;">
+            Pour afficher les statistiques et lancer le défi entre les équipes, importez vos deux rapports d'exploitation Excel (Commandes et Segments) à l'aide des modules d'import à gauche.
+          </p>
+        </div>
+      </div>
+
+    </div>
+
+  </div>
+
+  <!-- DRIVER DETAIL MODAL -->
+  <div class="modal-overlay" id="driver-modal">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h2 id="modal-driver-name">
+          <i class="fa-solid fa-user-circle"></i>
+          <span>Nom du Chauffeur</span>
+        </h2>
+        <button class="modal-close-btn" onclick="closeDriverModal()">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="modal-section-title">Informations Générales</div>
+        <div class="modal-field">
+          <span class="modal-field-lbl">Équipe / Agence</span>
+          <span class="modal-field-val" id="modal-team-val">—</span>
+        </div>
+        <div class="modal-field">
+          <span class="modal-field-lbl">Tracteur Principal</span>
+          <span class="modal-field-val mono" id="modal-tracteur-val">—</span>
+        </div>
+
+        <div class="modal-section-title">Performances d'Exploitation</div>
+        <div class="modal-field">
+          <span class="modal-field-lbl">Volume d'Activité</span>
+          <span class="modal-field-val" id="modal-orders-val">— commandes</span>
+        </div>
+        <div class="modal-field">
+          <span class="modal-field-lbl">Chiffre d'Affaires Généré</span>
+          <span class="modal-field-val mono" id="modal-ca-val" style="color: var(--cyan);">— €</span>
+        </div>
+        <div class="modal-field">
+          <span class="modal-field-lbl">KM Facturés (Billed)</span>
+          <span class="modal-field-val mono" id="modal-km-billed-val">— km</span>
+        </div>
+        <div class="modal-field">
+          <span class="modal-field-lbl">KM Parcourus (Exploitation)</span>
+          <span class="modal-field-val mono" id="modal-km-exploitation-val">— km</span>
+        </div>
+        <div class="modal-field">
+          <span class="modal-field-lbl">Taux de Roulage Facturé</span>
+          <span class="modal-field-val mono" id="modal-useful-pct-val" style="color: var(--green);">— %</span>
+        </div>
+        <div class="modal-field">
+          <span class="modal-field-lbl">Pertes de kilométrage (Vide)</span>
+          <span class="modal-field-val mono" id="modal-loss-pct-val" style="color: var(--red);">— %</span>
+        </div>
+
+        <div class="modal-section-title">Qualité & Maintenance (fiche.html)</div>
+        <div class="modal-field">
+          <span class="modal-field-lbl">Pannes signalées</span>
+          <span class="modal-field-val" id="modal-pannes-val">—</span>
+        </div>
+        <div class="modal-field">
+          <span class="modal-field-lbl">Non-conformités</span>
+          <span class="modal-field-val" id="modal-nc-val">—</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // --- STATE MANAGEMENT ---
+    let ACTIVE_TEAM = 'A';
+    let EXCEL_COMMANDES = null;
+    let EXCEL_SEGMENTS = null;
+    let LOCAL_DB = null;
+
+    // Load LocalStorage from fiche.html
+    function loadLocalStorageDB() {
+      try {
+        const raw = localStorage.getItem('numiplan_data_v2');
+        if (raw) {
+          LOCAL_DB = JSON.parse(raw);
+          console.log("[LocalStorage Integration] Cache loaded successfully.");
+          document.getElementById('cache-status').innerHTML = `
+            <i class="fa-solid fa-cloud-arrow-down" style="color: var(--green);"></i>
+            <span>Données de fiche.html chargées (${Object.keys(LOCAL_DB.teams || {}).length} équipes actives)</span>
+          `;
+        } else {
+          console.warn("[LocalStorage Integration] Cache is empty.");
+          document.getElementById('cache-status').innerHTML = `
+            <i class="fa-solid fa-cloud-arrow-down" style="color: var(--orange);"></i>
+            <span>Aucune donnée de fiche.html trouvée (données démo utilisées)</span>
+          `;
+        }
+      } catch (e) {
+        console.error("Error reading localStorage:", e);
+      }
+    }
+    loadLocalStorageDB();
+
+    // Map EXCEL agencies (PART A, B, C, D) only
+    function getTeamFromAgency(agency) {
+      if (!agency) return null;
+      const val = agency.toUpperCase().trim();
+      if (val.includes('PART A')) return 'A';
+      if (val.includes('PART B')) return 'B';
+      if (val.includes('PART C')) return 'C';
+      if (val.includes('PART D')) return 'D';
+      return null;
+    }
+
+    // --- UPLOADER LOGIC ---
+    function setupDragAndDrop(zoneId, inputId, statusId, fileType) {
+      const zone = document.getElementById(zoneId);
+      const input = document.getElementById(inputId);
+      const status = document.getElementById(statusId);
+
+      zone.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        zone.classList.add('active');
+      });
+
+      zone.addEventListener('dragleave', () => {
+        zone.classList.remove('active');
+      });
+
+      zone.addEventListener('drop', (e) => {
+        e.preventDefault();
+        zone.classList.remove('active');
+        const file = e.dataTransfer.files[0];
+        if (file) {
+          input.files = e.dataTransfer.files;
+          handleExcelImport(file, fileType, status);
+        }
+      });
+
+      input.addEventListener('change', (e) => {
+        const file = e.target.files[0];
+        if (file) {
+          handleExcelImport(file, fileType, status);
+        }
+      });
+    }
+
+    setupDragAndDrop('dropzone-commandes', 'input-commandes', 'status-commandes', 'commandes');
+    setupDragAndDrop('dropzone-segments', 'input-segments', 'status-segments', 'segments');
+
+    function handleExcelImport(file, fileType, statusEl) {
+      statusEl.textContent = "⏳ Lecture en cours...";
+      statusEl.className = "import-status";
+      
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        try {
+          const data = new Uint8Array(e.target.result);
+          const workbook = XLSX.read(data, { type: 'array' });
+          const sheetName = workbook.SheetNames[0];
+          const worksheet = workbook.Sheets[sheetName];
+          const json = XLSX.utils.sheet_to_json(worksheet);
+
+          if (fileType === 'commandes') {
+            EXCEL_COMMANDES = json;
+            statusEl.textContent = `✅ ${json.length} commandes importées`;
+          } else {
+            EXCEL_SEGMENTS = json;
+            statusEl.textContent = `✅ ${json.length} segments importés`;
+          }
+          statusEl.classList.add('success');
+
+          // Re-compute KPIs and refresh
+          computeAndRenderDashboard();
+        } catch (err) {
+          console.error("Error reading file:", err);
+          statusEl.textContent = `❌ Erreur : fichier invalide`;
+        }
+      };
+      reader.readAsArrayBuffer(file);
+    }
+
+    // --- KPI ENGINE ---
+    let TEAMS_STATS = {};
+    let DRIVERS_STATS = {};
+
+    function computeAndRenderDashboard() {
+      // Clear stats
+      TEAMS_STATS = {
+        A: { id: 'A', ca: 0, kmBilled: 0, kmExploitation: 0, orders: 0, delayCount: 0, delaySum: 0, totalSegments: 0, trucks: new Set(), pannes: 0, nc: 0, score: 0 },
+        B: { id: 'B', ca: 0, kmBilled: 0, kmExploitation: 0, orders: 0, delayCount: 0, delaySum: 0, totalSegments: 0, trucks: new Set(), pannes: 0, nc: 0, score: 0 },
+        C: { id: 'C', ca: 0, kmBilled: 0, kmExploitation: 0, orders: 0, delayCount: 0, delaySum: 0, totalSegments: 0, trucks: new Set(), pannes: 0, nc: 0, score: 0 },
+        D: { id: 'D', ca: 0, kmBilled: 0, kmExploitation: 0, orders: 0, delayCount: 0, delaySum: 0, totalSegments: 0, trucks: new Set(), pannes: 0, nc: 0, score: 0 }
+      };
+      DRIVERS_STATS = {};
+
+      // 1. Process local database counts (pannes, non-conformites) from LocalStorage
+      if (LOCAL_DB && LOCAL_DB.teams) {
+        ['A', 'B', 'C', 'D'].forEach(eq => {
+          const teamCache = LOCAL_DB.teams[eq];
+          if (teamCache) {
+            TEAMS_STATS[eq].pannes = (teamCache.pannes || []).length;
+            TEAMS_STATS[eq].nc = (teamCache.nc || []).length;
+          }
+        });
+      }
+
+      // 2. Process File 1 (Commandes Exploitation)
+      if (EXCEL_COMMANDES) {
+        EXCEL_COMMANDES.forEach(row => {
+          const team = getTeamFromAgency(row.AGENCE);
+          if (!team) return; // Ignore non PART A/B/C/D agencies
+
+          const ca = parseFloat(row['CA']) || 0;
+          const kmBilled = parseFloat(row['KM']) || 0;
+          const kmExploitation = parseFloat(row['KM EXPLOITATION']) || 0;
+          const tracteur = (row['TRACTEUR'] || '').trim();
+          const driver = (row['COND 1'] || '').trim().toUpperCase();
+
+          TEAMS_STATS[team].ca += ca;
+          TEAMS_STATS[team].kmBilled += kmBilled;
+          TEAMS_STATS[team].kmExploitation += kmExploitation;
+          TEAMS_STATS[team].orders += 1;
+          if (tracteur) TEAMS_STATS[team].trucks.add(tracteur);
+
+          // Drivers stats
+          if (driver && driver !== '—' && driver !== '') {
+            if (!DRIVERS_STATS[driver]) {
+              DRIVERS_STATS[driver] = { name: driver, team: team, ca: 0, kmBilled: 0, kmExploitation: 0, orders: 0, tracteurs: new Set(), pannes: 0, nc: 0 };
+            }
+            DRIVERS_STATS[driver].ca += ca;
+            DRIVERS_STATS[driver].kmBilled += kmBilled;
+            DRIVERS_STATS[driver].kmExploitation += kmExploitation;
+            DRIVERS_STATS[driver].orders += 1;
+            if (tracteur) DRIVERS_STATS[driver].tracteurs.add(tracteur);
+          }
+        });
+      }
+
+      // 3. Process File 2 (Segments & Ponctualité)
+      if (EXCEL_SEGMENTS) {
+        EXCEL_SEGMENTS.forEach(row => {
+          const team = getTeamFromAgency(row.AGENCE);
+          if (!team) return;
+
+          const delay = parseFloat(row['DIF. (Min)']) || 0;
+          const driver = (row['COND 1'] || '').trim().toUpperCase();
+          const tracteur = (row['TRACTEUR'] || '').trim();
+
+          TEAMS_STATS[team].totalSegments += 1;
+          if (delay > 0) {
+            TEAMS_STATS[team].delayCount += 1;
+            TEAMS_STATS[team].delaySum += delay;
+          }
+
+          if (driver && driver !== '—' && driver !== '') {
+            if (!DRIVERS_STATS[driver]) {
+              DRIVERS_STATS[driver] = { name: driver, team: team, ca: 0, kmBilled: 0, kmExploitation: 0, orders: 0, tracteurs: new Set(), pannes: 0, nc: 0 };
+            }
+            if (tracteur) DRIVERS_STATS[driver].tracteurs.add(tracteur);
+          }
+        });
+      }
+
+      // Inject driver quality issues (pannes & non-conformites) from LocalStorage
+      if (LOCAL_DB && LOCAL_DB.teams) {
+        ['A', 'B', 'C', 'D'].forEach(eq => {
+          const teamCache = LOCAL_DB.teams[eq];
+          if (teamCache) {
+            (teamCache.pannes || []).forEach(p => {
+              const driver = (p.chauffeur || '').trim().toUpperCase();
+              if (driver && DRIVERS_STATS[driver]) {
+                DRIVERS_STATS[driver].pannes += 1;
+              }
+            });
+            (teamCache.nc || []).forEach(nc => {
+              const driver = (nc.chauffeur || '').trim().toUpperCase();
+              if (driver && DRIVERS_STATS[driver]) {
+                DRIVERS_STATS[driver].nc += 1;
+              }
+            });
+          }
+        });
+      }
+
+      // 4. Calculate Scores and Rankings
+      let maxCA = 0;
+      let maxOrders = 0;
+      ['A','B','C','D'].forEach(eq => {
+        if (TEAMS_STATS[eq].ca > maxCA) maxCA = TEAMS_STATS[eq].ca;
+        if (TEAMS_STATS[eq].orders > maxOrders) maxOrders = TEAMS_STATS[eq].orders;
+      });
+
+      ['A','B','C','D'].forEach(eq => {
+        const t = TEAMS_STATS[eq];
+        const roulagePct = t.kmExploitation > 0 ? (t.kmBilled / t.kmExploitation) * 100 : 0;
+        
+        const caIndex = maxCA > 0 ? (t.ca / maxCA) * 100 : 0;
+        const volumeIndex = maxOrders > 0 ? (t.orders / maxOrders) * 100 : 0;
+        
+        // Penalties
+        const penalty = (t.pannes * 2) + (t.nc * 1);
+
+        // Core score calculation
+        let score = (roulagePct * 0.45) + (caIndex * 0.35) + (volumeIndex * 0.20) - penalty;
+        t.score = Math.max(0, Math.min(100, Math.round(score)));
+      });
+
+      renderLeaderboard();
+      renderDashboardContent();
+    }
+
+    // --- LEADERBOARD & PODIUM RENDER ---
+    function renderLeaderboard() {
+      const sortedTeams = ['A','B','C','D'].map(eq => TEAMS_STATS[eq]).sort((a,b) => b.score - a.score);
+
+      // Render podium heights and avatar letters
+      const setPodium = (stepClass, teamData, index) => {
+        const step = document.querySelector(`.podium-step.${stepClass}`);
+        const avatar = step.querySelector('.podium-avatar');
+        const col = step.querySelector('.podium-column');
+        const scoreVal = step.querySelector('.podium-score');
+
+        if (teamData && (EXCEL_COMMANDES || EXCEL_SEGMENTS)) {
+          avatar.textContent = teamData.id;
+          scoreVal.textContent = `${teamData.score} pts`;
+          // Height mapping
+          let pctHeight = 100 - (index * 20); // 1st=100%, 2nd=80%, 3rd=60%
+          col.style.height = `${pctHeight}%`;
+        } else {
+          avatar.textContent = '—';
+          scoreVal.textContent = '— pts';
+          col.style.height = '0%';
+        }
+      };
+
+      setPodium('first', sortedTeams[0], 0);
+      setPodium('second', sortedTeams[1], 1);
+      setPodium('third', sortedTeams[2], 2);
+
+      // Render list rows below
+      const listArea = document.getElementById('leaderboard-list-area');
+      listArea.innerHTML = sortedTeams.map((t, idx) => {
+        let rankClass = `rank-${idx+1}`;
+        let scoreDisplay = (EXCEL_COMMANDES || EXCEL_SEGMENTS) ? `${t.score} pts` : '— pts';
+        return `
+          <div class="leaderboard-row ${rankClass}">
+            <div class="leaderboard-team-info">
+              <span class="leaderboard-rank-num">${idx+1}.</span>
+              <span class="leaderboard-team-name">Équipe ${t.id}</span>
+            </div>
+            <span class="leaderboard-score-value">${scoreDisplay}</span>
+          </div>
+        `;
+      }).join('');
+    }
+
+    // --- MAIN ANALYTICS SCREEN RENDER ---
+    function renderDashboardContent() {
+      const content = document.getElementById('dashboard-content');
+      if (!EXCEL_COMMANDES && !EXCEL_SEGMENTS) {
+        return; // Keep initial empty state
+      }
+
+      const t = TEAMS_STATS[ACTIVE_TEAM];
+      const roulagePct = t.kmExploitation > 0 ? (t.kmBilled / t.kmExploitation) * 100 : 0;
+      const lossPct = Math.max(0, 100 - roulagePct);
+      const avgProductivity = t.trucks.size > 0 ? t.ca / t.trucks.size : 0;
+
+      // SVG Gauge dashoffset
+      const radius = 28;
+      const circumference = 2 * Math.PI * radius; // ~175.9
+      const strokeDashoffset = circumference - (roulagePct / 100) * circumference;
+
+      // Generate HTML
+      let html = `
+        <div class="kpi-grid kpi-grid-expanded">
+          <!-- Billed vs Loss Gauge card -->
+          <div class="kpi-card gauge-card">
+            <div class="gauge-wrapper">
+              <svg class="gauge-svg">
+                <circle class="gauge-track" cx="36" cy="36" r="${radius}"></circle>
+                <circle class="gauge-fill" cx="36" cy="36" r="${radius}" 
+                  stroke-dasharray="${circumference}" 
+                  stroke-dashoffset="${strokeDashoffset}"></circle>
+              </svg>
+              <div class="gauge-text">${Math.round(roulagePct)}%</div>
+            </div>
+            <div>
+              <div class="kpi-title">Roulage Facturé (Utile)</div>
+              <div class="kpi-value">${Math.round(roulagePct)}%</div>
+              <div class="kpi-subtext" style="color: var(--red);">
+                <i class="fa-solid fa-arrow-trend-down"></i>
+                <span>${Math.round(lossPct)}% kilomètres perdus (vide)</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Total CA -->
+          <div class="kpi-card">
+            <div class="kpi-card-header">
+              <span class="kpi-title">Chiffre d'Affaires (CA)</span>
+              <i class="fa-solid fa-coins kpi-icon" style="color: var(--gold);"></i>
+            </div>
+            <div class="kpi-value mono" style="color: var(--gold);">${t.ca.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €</div>
+            <div class="kpi-subtext">
+              <i class="fa-solid fa-truck"></i>
+              <span>Prod. Moyenne : <b>${Math.round(avgProductivity).toLocaleString('fr-FR')} € / camion</b></span>
+            </div>
+          </div>
+
+          <!-- Total Commande / Kilomètres -->
+          <div class="kpi-card">
+            <div class="kpi-card-header">
+              <span class="kpi-title">Activité & Volumes</span>
+              <i class="fa-solid fa-route kpi-icon"></i>
+            </div>
+            <div class="kpi-value">${t.orders} <span style="font-size: 14px; font-weight: 500; color: var(--txt2);">cmd</span></div>
+            <div class="kpi-subtext">
+              <i class="fa-solid fa-road"></i>
+              <span>${Math.round(t.kmExploitation).toLocaleString('fr-FR')} km parcourus au total</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="kpi-grid" style="margin-top: 20px;">
+          <!-- Quality indicators from local storage + segments -->
+          <div class="kpi-card">
+            <div class="kpi-card-header">
+              <span class="kpi-title">Pannes & Anomalies</span>
+              <i class="fa-solid fa-screwdriver-wrench kpi-icon" style="color: var(--red);"></i>
+            </div>
+            <div class="kpi-value" style="color: var(--red);">${t.pannes} <span style="font-size: 14px; font-weight: 500; color: var(--txt2);">pannes</span></div>
+            <div class="kpi-subtext">
+              <i class="fa-solid fa-triangle-exclamation"></i>
+              <span>${t.nc} non-conformités relevées dans fiche.html</span>
+            </div>
+          </div>
+
+          <!-- Respect des délais -->
+          <div class="kpi-card">
+            <div class="kpi-card-header">
+              <span class="kpi-title">Respect des Délais</span>
+              <i class="fa-solid fa-clock kpi-icon" style="color: var(--green);"></i>
+            </div>
+            <div class="kpi-value" style="color: var(--green);">${t.totalSegments > 0 ? Math.round((1 - t.delayCount / t.totalSegments) * 100) : 100}%</div>
+            <div class="kpi-subtext">
+              <i class="fa-solid fa-history"></i>
+              <span>${t.delayCount} segments avec retard sur ${t.totalSegments} totaux</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- DETAILS CARD: FILTERABLE DRIVER TABLE -->
+        <div class="card detail-card" style="margin-top: 20px;">
+          <div class="detail-filters-row">
+            <div class="card-title" style="margin-bottom: 0;">
+              <i class="fa-solid fa-users"></i>
+              <span>Performance par Chauffeur - Équipe ${ACTIVE_TEAM}</span>
+            </div>
+            <!-- Search field -->
+            <div class="search-input-wrap">
+              <i class="fa-solid fa-search"></i>
+              <input type="text" id="driver-search-field" placeholder="Rechercher un chauffeur..." oninput="filterDriversTable()">
+            </div>
+          </div>
+
+          <!-- Drivers table -->
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Chauffeur</th>
+                  <th>CA Généré</th>
+                  <th>KM Facturés</th>
+                  <th>KM Parcourus</th>
+                  <th>Efficacité (Facturé)</th>
+                  <th>Commandes</th>
+                  <th>Statut</th>
+                  <th>Fiche</th>
+                </tr>
+              </thead>
+              <tbody id="drivers-table-body">
+                ${generateDriversTableRows()}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      `;
+
+      content.innerHTML = html;
+    }
+
+    // --- TAB SWITCH ENGINE ---
+    function selectTeamTab(team) {
+      ACTIVE_TEAM = team;
+      // Update active btn classes
+      document.querySelectorAll('.team-tab-btn').forEach(btn => {
+        if (btn.textContent.includes(team)) {
+          btn.classList.add('active');
+        } else {
+          btn.classList.remove('active');
+        }
+      });
+      // Re-render
+      renderDashboardContent();
+    }
+
+    // --- DRIVERS TABLE GENERATION ---
+    function generateDriversTableRows() {
+      const searchVal = (document.getElementById('driver-search-field')?.value || '').trim().toUpperCase();
+      
+      const teamDrivers = Object.values(DRIVERS_STATS).filter(d => {
+        if (d.team !== ACTIVE_TEAM) return false;
+        if (searchVal && !d.name.includes(searchVal)) return false;
+        return true;
+      });
+
+      if (!teamDrivers.length) {
+        return `<tr><td colspan="8" style="text-align:center;color:var(--txt3);padding:24px;">Aucun chauffeur trouvé dans cette équipe</td></tr>`;
+      }
+
+      // Sort by CA descending
+      teamDrivers.sort((a, b) => b.ca - a.ca);
+
+      return teamDrivers.map(d => {
+        const eff = d.kmExploitation > 0 ? (d.kmBilled / d.kmExploitation) * 100 : 0;
+        
+        let badgeHtml = '';
+        if (eff >= 85) {
+          badgeHtml = `<span class="badge badge-success">Top Efficace</span>`;
+        } else if (eff >= 65) {
+          badgeHtml = `<span class="badge badge-warning">Moyen</span>`;
+        } else {
+          badgeHtml = `<span class="badge badge-danger">Perte Élevée</span>`;
+        }
+
+        const nameEscaped = d.name.replace(/'/g, "\\'");
+        return `
+          <tr>
+            <td style="font-weight: 600;">${d.name}</td>
+            <td class="mono" style="color: var(--gold);">${d.ca.toFixed(2)} €</td>
+            <td class="mono">${Math.round(d.kmBilled)} km</td>
+            <td class="mono">${Math.round(d.kmExploitation)} km</td>
+            <td class="mono" style="font-weight: 700; color: ${eff >= 85 ? 'var(--green)' : eff >= 65 ? 'var(--orange)' : 'var(--red)'};">${Math.round(eff)}%</td>
+            <td class="mono">${d.orders}</td>
+            <td>${badgeHtml}</td>
+            <td>
+              <button class="btn-profile" onclick="openDriverModal('${nameEscaped}')">Détail</button>
+            </td>
+          </tr>
+        `;
+      }).join('');
+    }
+
+    function filterDriversTable() {
+      const tbody = document.getElementById('drivers-table-body');
+      if (tbody) {
+        tbody.innerHTML = generateDriversTableRows();
+      }
+    }
+
+    // --- PROFILE MODAL DIALOG ENGINE ---
+    function openDriverModal(driverName) {
+      const d = DRIVERS_STATS[driverName];
+      if (!d) return;
+
+      const eff = d.kmExploitation > 0 ? (d.kmBilled / d.kmExploitation) * 100 : 0;
+      const loss = Math.max(0, 100 - eff);
+      const tracteurs = Array.from(d.tracteurs).join(', ') || '—';
+
+      document.getElementById('modal-driver-name').querySelector('span').textContent = d.name;
+      document.getElementById('modal-team-val').textContent = `Équipe ${d.team}`;
+      document.getElementById('modal-tracteur-val').textContent = tracteurs;
+      document.getElementById('modal-orders-val').textContent = `${d.orders} commandes`;
+      document.getElementById('modal-ca-val').textContent = `${d.ca.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`;
+      document.getElementById('modal-km-billed-val').textContent = `${Math.round(d.kmBilled).toLocaleString('fr-FR')} km`;
+      document.getElementById('modal-km-exploitation-val').textContent = `${Math.round(d.kmExploitation).toLocaleString('fr-FR')} km`;
+      document.getElementById('modal-useful-pct-val').textContent = `${Math.round(eff)}%`;
+      document.getElementById('modal-loss-pct-val').textContent = `${Math.round(loss)}%`;
+      document.getElementById('modal-pannes-val').textContent = `${d.pannes} pannes enregistrées`;
+      document.getElementById('modal-nc-val').textContent = `${d.nc} non-conformités enregistrées`;
+
+      document.getElementById('driver-modal').style.display = 'flex';
+    }
+
+    function closeDriverModal() {
+      document.getElementById('driver-modal').style.display = 'none';
+    }
+
+    // Close on click outside modal content
+    window.addEventListener('click', (e) => {
+      const modal = document.getElementById('driver-modal');
+      if (e.target === modal) {
+        closeDriverModal();
+      }
+    });
+  </script>
+</body>
+</html>
