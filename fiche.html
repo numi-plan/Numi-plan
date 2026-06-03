@@ -6282,8 +6282,6 @@ function renderPerfTable() {
   const thead = document.getElementById('perf-thead');
   if (thead) thead.innerHTML = ['Tracteur','Chauffeur','EQ','Activités','Cmd','KM Facturés','KM Parcourus','Roulage à charge','🔧 Pannes'].map(h=>`<th>${h}</th>`).join('');
 
-  const tbody = document.getElementById('perf-tbody');
-  if (!tbody) return;
   if (!rows.length) {
     const curEq = (typeof window.CURRENT_EQUIPE!=='undefined')?window.CURRENT_EQUIPE:'A';
     tbody.innerHTML = `<tr><td colspan="8" style="text-align:center;padding:40px;color:var(--txt3)">Aucun camion de l'Équipe ${curEq} trouvé dans les commandes</td></tr>`;
