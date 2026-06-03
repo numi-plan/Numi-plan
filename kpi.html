@@ -128,78 +128,105 @@
       max-width: 1600px;
       width: 100%;
       margin: 0 auto;
-      display: grid;
-      grid-template-columns: 1fr;
-      gap: 30px;
-    }
-
-    @media (min-width: 1200px) {
-      .main-container {
-        grid-template-columns: 350px 1fr;
-      }
-    }
-
-    /* Left Sidebar: Imports & Settings */
-    .sidebar-panel {
       display: flex;
       flex-direction: column;
       gap: 24px;
+    }
+
+    /* Top Control Bar: Imports & Leaderboard side-by-side */
+    .sidebar-panel {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 20px;
+      width: 100%;
+    }
+
+    @media (min-width: 1024px) {
+      .sidebar-panel {
+        grid-template-columns: 1.35fr 1fr;
+        align-items: stretch;
+      }
     }
 
     .card {
       background: var(--bg2);
       border: 1px solid var(--border);
       border-radius: 16px;
-      padding: 24px;
+      padding: 20px;
       box-shadow: 0 10px 30px rgba(0,0,0,0.3);
       position: relative;
       overflow: hidden;
+      display: flex;
+      flex-direction: column;
     }
 
     .card-title {
       font-family: var(--font-title);
-      font-size: 14px;
+      font-size: 13px;
       font-weight: 700;
       letter-spacing: 1px;
       text-transform: uppercase;
       color: var(--txt);
-      margin-bottom: 20px;
+      margin-bottom: 14px;
       display: flex;
       align-items: center;
-      gap: 10px;
+      gap: 8px;
     }
 
     .card-title i {
       color: var(--cyan);
     }
 
-    /* Drag & Drop uploader zone */
+    /* Importers layout side-by-side */
+    .importers-container {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      flex: 1;
+    }
+
+    @media (min-width: 640px) {
+      .importers-container {
+        flex-direction: row;
+      }
+    }
+
+    .importer-col {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    /* Drag & Drop uploader zone (Compact) */
     .upload-zone {
-      border: 2px dashed var(--border);
-      border-radius: 12px;
-      padding: 20px;
-      text-align: center;
+      border: 1.5px dashed var(--border);
+      border-radius: 10px;
+      padding: 12px 16px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
       cursor: pointer;
       transition: all 0.3s ease;
-      background: rgba(255, 255, 255, 0.01);
-      margin-bottom: 16px;
+      background: rgba(255, 255, 255, 0.005);
       position: relative;
+      text-align: left;
+      flex: 1;
     }
 
     .upload-zone:hover {
       border-color: var(--cyan);
-      background: rgba(6, 182, 212, 0.05);
+      background: rgba(6, 182, 212, 0.04);
     }
 
     .upload-zone.active {
       border-color: var(--green);
-      background: rgba(16, 185, 129, 0.05);
+      background: rgba(16, 185, 129, 0.04);
     }
 
     .upload-zone i {
-      font-size: 32px;
+      font-size: 20px;
       color: var(--txt3);
-      margin-bottom: 12px;
       transition: color 0.3s;
     }
 
@@ -207,17 +234,21 @@
       color: var(--cyan);
     }
 
-    .upload-zone p {
-      font-size: 12px;
-      color: var(--txt2);
-      line-height: 1.5;
+    .upload-zone .zone-text {
+      flex: 1;
     }
 
     .upload-zone b {
       color: var(--txt);
       display: block;
-      font-size: 13px;
-      margin-bottom: 4px;
+      font-size: 12px;
+      margin-bottom: 1px;
+    }
+
+    .upload-zone p {
+      font-size: 10.5px;
+      color: var(--txt2);
+      line-height: 1.3;
     }
 
     .upload-input {
@@ -231,12 +262,11 @@
       display: flex;
       align-items: center;
       justify-content: space-between;
-      font-size: 11px;
+      font-size: 10.5px;
       color: var(--txt3);
       background: var(--bg1);
       border-radius: 6px;
-      padding: 6px 12px;
-      margin-top: 8px;
+      padding: 4px 10px;
     }
 
     .import-status.success {
@@ -245,15 +275,30 @@
       border: 1px solid rgba(16, 185, 129, 0.15);
     }
 
-    /* Podium Leaderboard Styling */
+    /* Leaderboard container inside card */
+    .leaderboard-flex {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      flex: 1;
+    }
+
+    @media (min-width: 640px) {
+      .leaderboard-flex {
+        flex-direction: row;
+        align-items: center;
+        justify-content: space-around;
+      }
+    }
+
+    /* Podium Leaderboard Styling (Compact) */
     .podium-container {
       display: flex;
       justify-content: space-around;
       align-items: flex-end;
-      height: 240px;
-      margin-top: 20px;
-      padding-bottom: 10px;
-      border-bottom: 1px solid var(--border);
+      height: 160px;
+      padding-bottom: 5px;
+      flex: 1.1;
     }
 
     .podium-step {
@@ -349,17 +394,25 @@
     }
 
     .leaderboard-list {
-      margin-top: 20px;
+      margin-top: 15px;
       display: flex;
       flex-direction: column;
-      gap: 10px;
+      gap: 6px;
+      flex: 1;
+      width: 100%;
+    }
+
+    @media (min-width: 640px) {
+      .leaderboard-list {
+        margin-top: 0;
+      }
     }
 
     .leaderboard-row {
       display: flex;
       align-items: center;
       justify-content: space-between;
-      padding: 10px 14px;
+      padding: 7px 12px;
       background: var(--bg3);
       border-radius: 8px;
       border-left: 4px solid var(--txt3);
@@ -824,6 +877,7 @@
   <div class="main-container">
 
     <!-- LEFT COLUMN: FILE IMPORTER & LEADERBOARD -->
+    <!-- TOP CONTROL PANEL: FILE IMPORTER & LEADERBOARD -->
     <div class="sidebar-panel">
 
       <!-- FILE UPLOADER CARD -->
@@ -833,93 +887,99 @@
           <span>Importation Rapports Excel</span>
         </div>
         
-        <!-- Dropzone 1: Commandes -->
-        <div class="upload-zone" id="dropzone-commandes">
-          <i class="fa-solid fa-truck-loading"></i>
-          <p>
-            <b>1. Commandes Exploitation</b>
-            Faites glisser ou cliquez pour importer le rapport d'exploitation
-          </p>
-          <input type="file" class="upload-input" id="input-commandes" accept=".xlsx, .xls">
-        </div>
-        <div class="import-status" id="status-commandes">Aucun fichier importé</div>
+        <div class="importers-container">
+          <!-- Column 1: Commandes -->
+          <div class="importer-col">
+            <div class="upload-zone" id="dropzone-commandes">
+              <i class="fa-solid fa-truck-loading"></i>
+              <div class="zone-text">
+                <b>1. Commandes Exploitation</b>
+                <p>Glissez-déposez ou cliquez pour importer</p>
+              </div>
+              <input type="file" class="upload-input" id="input-commandes" accept=".xlsx, .xls">
+            </div>
+            <div class="import-status" id="status-commandes">Aucun fichier importé</div>
+          </div>
 
-        <div style="height: 10px;"></div>
-
-        <!-- Dropzone 2: Segments -->
-        <div class="upload-zone" id="dropzone-segments">
-          <i class="fa-solid fa-route"></i>
-          <p>
-            <b>2. Segments & Délais</b>
-            Faites glisser ou cliquez pour importer le rapport de ponctualité
-          </p>
-          <input type="file" class="upload-input" id="input-segments" accept=".xlsx, .xls">
+          <!-- Column 2: Segments -->
+          <div class="importer-col">
+            <div class="upload-zone" id="dropzone-segments">
+              <i class="fa-solid fa-route"></i>
+              <div class="zone-text">
+                <b>2. Segments & Délais</b>
+                <p>Glissez-déposez ou cliquez pour importer</p>
+              </div>
+              <input type="file" class="upload-input" id="input-segments" accept=".xlsx, .xls">
+            </div>
+            <div class="import-status" id="status-segments">Aucun fichier importé</div>
+          </div>
         </div>
-        <div class="import-status" id="status-segments">Aucun fichier importé</div>
       </div>
 
       <!-- LEADERBOARD CARD -->
-      <div class="card" style="flex: 1;">
+      <div class="card">
         <div class="card-title">
           <i class="fa-solid fa-trophy" style="color: var(--gold);"></i>
           <span>Classement Général (Podium)</span>
         </div>
 
-        <div class="podium-container" id="podium-area">
-          <!-- Second Step -->
-          <div class="podium-step second">
-            <div class="podium-avatar" id="podium-eq2">—</div>
-            <div class="podium-column" id="podium-col2" style="height: 0%;">
-              <span class="podium-rank-badge">2e</span>
-              <span class="podium-score" id="podium-score2">— pts</span>
+        <div class="leaderboard-flex">
+          <div class="podium-container" id="podium-area">
+            <!-- Second Step -->
+            <div class="podium-step second">
+              <div class="podium-avatar" id="podium-eq2">—</div>
+              <div class="podium-column" id="podium-col2" style="height: 0%;">
+                <span class="podium-rank-badge">2e</span>
+                <span class="podium-score" id="podium-score2">— pts</span>
+              </div>
+            </div>
+            <!-- First Step -->
+            <div class="podium-step first">
+              <div class="podium-avatar" id="podium-eq1">—</div>
+              <div class="podium-column" id="podium-col1" style="height: 0%;">
+                <span class="podium-rank-badge">1er</span>
+                <span class="podium-score" id="podium-score1">— pts</span>
+              </div>
+            </div>
+            <!-- Third Step -->
+            <div class="podium-step third">
+              <div class="podium-avatar" id="podium-eq3">—</div>
+              <div class="podium-column" id="podium-col3" style="height: 0%;">
+                <span class="podium-rank-badge">3e</span>
+                <span class="podium-score" id="podium-score3">— pts</span>
+              </div>
             </div>
           </div>
-          <!-- First Step -->
-          <div class="podium-step first">
-            <div class="podium-avatar" id="podium-eq1">—</div>
-            <div class="podium-column" id="podium-col1" style="height: 0%;">
-              <span class="podium-rank-badge">1er</span>
-              <span class="podium-score" id="podium-score1">— pts</span>
-            </div>
-          </div>
-          <!-- Third Step -->
-          <div class="podium-step third">
-            <div class="podium-avatar" id="podium-eq3">—</div>
-            <div class="podium-column" id="podium-col3" style="height: 0%;">
-              <span class="podium-rank-badge">3e</span>
-              <span class="podium-score" id="podium-score3">— pts</span>
-            </div>
-          </div>
-        </div>
 
-        <div class="leaderboard-list" id="leaderboard-list-area">
-          <div class="leaderboard-row">
-            <div class="leaderboard-team-info">
-              <span class="leaderboard-rank-num">1.</span>
-              <span class="leaderboard-team-name">Équipe A</span>
+          <div class="leaderboard-list" id="leaderboard-list-area">
+            <div class="leaderboard-row">
+              <div class="leaderboard-team-info">
+                <span class="leaderboard-rank-num">1.</span>
+                <span class="leaderboard-team-name">Équipe A</span>
+              </div>
+              <span class="leaderboard-score-value">— pts</span>
             </div>
-            <span class="leaderboard-score-value">— pts</span>
-          </div>
-          <div class="leaderboard-row">
-            <div class="leaderboard-team-info">
-              <span class="leaderboard-rank-num">2.</span>
-              <span class="leaderboard-team-name">Équipe B</span>
+            <div class="leaderboard-row">
+              <div class="leaderboard-team-info">
+                <span class="leaderboard-rank-num">2.</span>
+                <span class="leaderboard-team-name">Équipe B</span>
+              </div>
+              <span class="leaderboard-score-value">— pts</span>
             </div>
-            <span class="leaderboard-score-value">— pts</span>
-          </div>
-          <div class="leaderboard-row">
-            <div class="leaderboard-team-info">
-              <span class="leaderboard-rank-num">3.</span>
-              <span class="leaderboard-team-name">Équipe C</span>
+            <div class="leaderboard-row">
+              <div class="leaderboard-team-info">
+                <span class="leaderboard-rank-num">3.</span>
+                <span class="leaderboard-team-name">Équipe C</span>
+              </div>
+              <span class="leaderboard-score-value">— pts</span>
             </div>
-            <span class="leaderboard-score-value">— pts</span>
-          </div>
-          <div class="leaderboard-row">
-            <div class="leaderboard-team-info">
-              <span class="leaderboard-rank-num">4.</span>
-              <span class="leaderboard-team-name">Équipe D</span>
+            <div class="leaderboard-row">
+              <div class="leaderboard-team-info">
+                <span class="leaderboard-rank-num">4.</span>
+                <span class="leaderboard-team-name">Équipe D</span>
+              </div>
+              <span class="leaderboard-score-value">— pts</span>
             </div>
-            <span class="leaderboard-score-value">— pts</span>
           </div>
         </div>
       </div>
