@@ -781,6 +781,23 @@ tbody td { padding:6px 8px; font-size:11px; vertical-align:middle; }
   </div>
 </div>
 
+<!-- ══════════════ RETOUR BL ADMINISTRATIF (ADMINISTRATIF ONLY) ══════════════ -->
+<div id="page-admin-bl" style="display: none; position: fixed; inset: 0; background: #0a0e1a; z-index: 9999; overflow-y: auto; font-family: 'IBM Plex Sans', sans-serif;">
+  <div style="padding: 40px; max-width: 1200px; margin: 0 auto;">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; border-bottom: 1px solid var(--border); padding-bottom: 20px;">
+      <div style="display: flex; align-items: center; gap: 16px;">
+        <img id="admin-bl-logo" style="height: 48px; border-radius: 6px;" alt="NUMILOG">
+        <div>
+          <h1 style="font-size: 20px; color: var(--txt); font-weight: 700; letter-spacing: 1px; margin: 0;">SUIVI DES RETOURS BL</h1>
+          <div style="font-size: 11px; color: var(--txt2); letter-spacing: 2px; text-transform: uppercase; margin-top: 4px;">Accès Personnel Administratif</div>
+        </div>
+      </div>
+      <button class="btn btn-danger" onclick="doLogout()" style="padding: 10px 20px; font-size: 12px; font-weight: 700; border-radius: 8px; cursor: pointer;">Déconnexion 🚪</button>
+    </div>
+    <div id="admin-bl-alerts-container"></div>
+  </div>
+</div>
+
 <script>
   // ─── DÉCONNEXION AUTOMATIQUE ───────────────────────────────────────────────
   // Règle : 1h d'inactivité continue → retour écran login
@@ -795,12 +812,51 @@ tbody td { padding:6px 8px; font-size:11px; vertical-align:middle; }
     'SharikA@2026': 'A',
     'SharikB@2026': 'B',
     'SharikC@2026': 'C',
-    'SharikD@2026': 'D'
+    'SharikD@2026': 'D',
+    'SharikBL@2026': 'BL'
   };
 
   // Fonction globale pour verrouiller l'interface en lecture seule
   function applyTeamLockUI(eq) {
     const lock = sessionStorage.getItem('numiplan_team_lock');
+    
+    if (lock === 'BL') {
+      // Masquer toute l'interface normale
+      document.querySelector('.header').style.setProperty('display', 'none', 'important');
+      const searchBar = document.querySelector('.global-search-bar');
+      if (searchBar) searchBar.style.setProperty('display', 'none', 'important');
+      document.querySelector('.app-layout').style.setProperty('display', 'none', 'important');
+      
+      // Afficher la page BL administrative
+      const pageAdminBL = document.getElementById('page-admin-bl');
+      if (pageAdminBL) {
+        pageAdminBL.style.display = 'block';
+        // Charger le logo dynamiquement
+        const mainLogo = document.querySelector('#login-screen img');
+        const blLogo = document.getElementById('admin-bl-logo');
+        if (mainLogo && blLogo) {
+          blLogo.src = mainLogo.src;
+        }
+      }
+      
+      // Générer le pointage global des BLs
+      if (typeof renderGlobalBLAlerts === 'function') {
+        renderGlobalBLAlerts();
+      }
+      return;
+    } else {
+      // S'assurer de cacher la page BL administrative et afficher l'interface normale
+      const pageAdminBL = document.getElementById('page-admin-bl');
+      if (pageAdminBL) pageAdminBL.style.display = 'none';
+      
+      const header = document.querySelector('.header');
+      if (header) header.style.removeProperty('display');
+      const searchBar = document.querySelector('.global-search-bar');
+      if (searchBar) searchBar.style.removeProperty('display');
+      const appLayout = document.querySelector('.app-layout');
+      if (appLayout) appLayout.style.removeProperty('display');
+    }
+    
     const isReadOnly = lock && lock !== eq;
     
     // 1. Masquer les boutons d'action de modification
@@ -868,7 +924,7 @@ tbody td { padding:6px 8px; font-size:11px; vertical-align:middle; }
     // Appliquer le verrou de l'équipe active au démarrage
     setTimeout(() => {
       const lock = sessionStorage.getItem('numiplan_team_lock');
-      if (lock && typeof window.switchEquipe === 'function') {
+      if (lock && lock !== 'BL' && typeof window.switchEquipe === 'function') {
         window.switchEquipe(lock);
       } else {
         applyTeamLockUI(typeof window.CURRENT_EQUIPE !== 'undefined' ? window.CURRENT_EQUIPE : 'A');
@@ -894,7 +950,9 @@ tbody td { padding:6px 8px; font-size:11px; vertical-align:middle; }
       startSessionTimers();
       
       // Forcer l'application active à basculer sur l'équipe affectée
-      if (typeof window.switchEquipe === 'function') {
+      if (eq === 'BL') {
+        applyTeamLockUI('BL');
+      } else if (typeof window.switchEquipe === 'function') {
         window.switchEquipe(eq);
       } else {
         applyTeamLockUI(eq);
@@ -917,6 +975,16 @@ tbody td { padding:6px 8px; font-size:11px; vertical-align:middle; }
     document.getElementById('pwd-input').focus();
     const err = document.getElementById('pwd-error');
     if (err) { err.textContent = '🔒 Session expirée — veuillez vous reconnecter.'; }
+    
+    // Rétablir l'affichage normal
+    const header = document.querySelector('.header');
+    if (header) header.style.removeProperty('display');
+    const searchBar = document.querySelector('.global-search-bar');
+    if (searchBar) searchBar.style.removeProperty('display');
+    const appLayout = document.querySelector('.app-layout');
+    if (appLayout) appLayout.style.removeProperty('display');
+    const pageAdminBL = document.getElementById('page-admin-bl');
+    if (pageAdminBL) pageAdminBL.style.display = 'none';
   }
 
   var _inactivityTimer = null;
@@ -2570,6 +2638,144 @@ function validerBLRapide(chauffeur, month) {
   }
 }
 window.validerBLRapide = validerBLRapide;
+
+function saveTeamDB(eq, dbData) {
+  dbData._localTs = Date.now();
+  window['DB_' + eq] = cloneTeamData(dbData);
+  localStorage.setItem(STORAGE_KEY, JSON.stringify({
+    version: 3,
+    active: CURRENT_EQUIPE || 'A',
+    teams: { A: window.DB_A, B: window.DB_B, C: window.DB_C, D: window.DB_D }
+  }));
+
+  if (typeof window._firebaseSaveDB === 'function') {
+    const FILE_KEYS = ['assuranceTrFile','assuranceRmFile','assuranceTrFileType','assuranceRmFileType'];
+    const stripFiles = (arr) => (arr || []).map(item => {
+      const clean = Object.assign({}, item);
+      FILE_KEYS.forEach(k => delete clean[k]);
+      return clean;
+    });
+    const dbCloud = Object.assign({}, dbData, {
+      dispo:    stripFiles(dbData.dispo),
+      activite: stripFiles(dbData.activite),
+    });
+    
+    const prevEq = window.CURRENT_EQUIPE;
+    window.CURRENT_EQUIPE = eq;
+    try {
+      window._firebaseSaveDB(dbCloud);
+    } catch(e) {
+      console.error("Firebase write error for team", eq, e);
+    }
+    window.CURRENT_EQUIPE = prevEq;
+  }
+}
+window.saveTeamDB = saveTeamDB;
+
+function validerBLRapideGlobal(chauffeur, month, team) {
+  const db = window['DB_' + team];
+  if (db && db.bl) {
+    const row = db.bl.find(r => r.chauffeur.toUpperCase() === chauffeur.toUpperCase());
+    if (row) {
+      row[month] = 'déposer';
+      saveTeamDB(team, db);
+      
+      if (team === CURRENT_EQUIPE) {
+        DB.bl = db.bl;
+      }
+      
+      renderGlobalBLAlerts();
+      showToast(`📄 BL ${month.toUpperCase()} pour ${chauffeur} (EQ ${team}) marqué Déposé`);
+    }
+  }
+}
+window.validerBLRapideGlobal = validerBLRapideGlobal;
+
+function renderGlobalBLAlerts() {
+  const container = document.getElementById('admin-bl-alerts-container');
+  if (!container) return;
+
+  const now = new Date();
+  const months = ['mars','avril','mai','juin','juil','aout','sep','oct','nov','dec'];
+  const alerts = [];
+
+  ['A', 'B', 'C', 'D'].forEach(eq => {
+    const db = window['DB_' + eq];
+    if (db && db.bl) {
+      db.bl.forEach(r => {
+        months.forEach(m => {
+          if ((r[m] || '').trim().toLowerCase() === 'déposer') return;
+          
+          const status = checkBLMonthStatus(m, now);
+          if (status === 'due' || status === 'late') {
+            alerts.push({
+              chauffeur: r.chauffeur,
+              month: m,
+              status: status,
+              team: eq
+            });
+          }
+        });
+      });
+    }
+  });
+
+  if (!alerts.length) {
+    container.innerHTML = `
+      <div style="background: var(--bg2); border: 1px solid var(--border); border-radius: 12px; padding: 40px; text-align: center; color: var(--txt3);">
+        <div style="font-size: 40px; margin-bottom: 12px;">🎉</div>
+        Aucun retour de BL manquant pour le moment ! Tout est à jour.
+      </div>
+    `;
+    return;
+  }
+
+  alerts.sort((a, b) => {
+    if (a.status === b.status) {
+      if (a.team === b.team) {
+        return a.chauffeur.localeCompare(b.chauffeur);
+      }
+      return a.team.localeCompare(b.team);
+    }
+    return a.status === 'late' ? -1 : 1;
+  });
+
+  const alertItemsHtml = alerts.map((al, idx) => {
+    const isLate = al.status === 'late';
+    const borderStyle = isLate ? 'border-color: rgba(239, 68, 68, 0.4);' : 'border-color: rgba(245, 158, 11, 0.4);';
+    const bgStyle = isLate ? 'background: rgba(239, 68, 68, 0.08);' : 'background: rgba(245, 158, 11, 0.08);';
+    const tagClass = isLate ? 'badge-panne' : 'badge-manque';
+    const tagText = isLate ? '🚨 RETARD CRITIQUE' : '⏳ PÉRIODE RESTITUTION';
+    const blinkStyle = isLate ? 'animation: pulse-eye 0.8s ease-in-out infinite alternate;' : '';
+
+    const escapedChauffeur = al.chauffeur.split("'").join("\\'");
+    return `
+      <div style="display: flex; align-items: center; justify-content: space-between; padding: 12px 18px; border-radius: 8px; border: 1px solid; ${borderStyle} ${bgStyle} margin-bottom: 10px;">
+        <div style="display: flex; align-items: center; gap: 14px;">
+          <span class="badge ${tagClass}" style="font-size: 10px; ${blinkStyle}">${tagText}</span>
+          <span class="badge" style="background: var(--bg3); border: 1px solid var(--border); color: var(--acc); font-size: 10px; font-weight: 700;">EQ ${al.team}</span>
+          <div style="font-size: 13px; color: var(--txt);">
+            Chauffeur : <b style="color: var(--txt);">${al.chauffeur}</b> — BL <b style="text-transform: uppercase; color: var(--acc);">${al.month}</b> manquant !
+          </div>
+        </div>
+        <button onclick="validerBLRapideGlobal('${escapedChauffeur}', '${al.month}', '${al.team}')" class="btn btn-save" style="padding: 6px 14px; font-size: 11px; font-weight: 700; border-radius: 6px; cursor: pointer; transition: background .2s;">✓ Reçu</button>
+      </div>
+    `;
+  }).join('');
+
+  container.innerHTML = `
+    <div style="background: var(--bg2); border: 1px solid var(--border); border-radius: 12px; padding: 24px 30px; box-shadow: 0 10px 30px rgba(0,0,0,0.5);">
+      <div style="font-size: 13px; font-weight: 700; color: var(--txt2); letter-spacing: 2px; text-transform: uppercase; margin-bottom: 20px; display: flex; align-items: center; gap: 10px;">
+        <span>📄 ALERTES RETOURS BL GLOBALES</span>
+        <span class="tab-count red" style="background: var(--red); color: white; font-size: 11px; padding: 3px 10px; border-radius: 12px; font-weight: 700;">${alerts.length}</span>
+      </div>
+      <div style="max-height: calc(100vh - 220px); overflow-y: auto; padding-right: 8px;">
+        ${alertItemsHtml}
+      </div>
+    </div>
+  `;
+}
+window.renderGlobalBLAlerts = renderGlobalBLAlerts;
 
 function renderTracabilite() {
   if (!DB.tracabilite) DB.tracabilite = [];
