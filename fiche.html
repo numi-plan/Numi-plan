@@ -213,9 +213,11 @@
   function applyEquipeData(eq, src) {
     if (!src || !src.dispo) return;
     
+    const cleanSrc = window.cloneTeamData ? window.cloneTeamData(src, eq === 'A' ? window.INITIAL_DATA : undefined) : src;
+    
     // Auto-heal si le Suivi BL est manquant ou vide pour l'équipe A (migration cloud)
-    if (eq === 'A' && (!src.bl || !src.bl.length)) {
-      src.bl = cloneEquipePayload(window.INITIAL_DATA ? window.INITIAL_DATA.bl : []);
+    if (eq === 'A' && (!cleanSrc.bl || !cleanSrc.bl.length)) {
+      cleanSrc.bl = cloneEquipePayload(window.INITIAL_DATA ? window.INITIAL_DATA.bl : []);
     }
     
     const currentEq = getCurrentEquipe();
@@ -223,7 +225,7 @@
     // Si c'est l'équipe active affichée à l'écran
     if (eq === currentEq && typeof window.DB !== 'undefined') {
       const localTs  = window.DB._localTs || 0;
-      const remoteTs = src._localTs || 0;
+      const remoteTs = cleanSrc._localTs || 0;
       
       // ── CORRECTIF : ignorer le snapshot si c'est l'écho de notre propre écriture
       // (même timestamp) ou une version plus ancienne que ce qu'on a en local.
@@ -234,18 +236,18 @@
         return;
       }
       
-      const merged = mergeTeamData(window.DB, src);
+      const merged = mergeTeamData(window.DB, cleanSrc);
       Object.assign(window.DB, merged);
       window['DB_' + eq] = cloneEquipePayload(merged);
       
       safeRenderActiveTeam(eq);
     } else {
       // Pour les équipes inactives, aucun risque de perte de focus ou de modal local
-      window['DB_' + eq] = cloneEquipePayload(src);
+      window['DB_' + eq] = cloneEquipePayload(cleanSrc);
       
       // Si nous initialisons ou réactivons
       if (eq === currentEq && typeof window.DB !== 'undefined') {
-        Object.assign(window.DB, cloneEquipePayload(src));
+        Object.assign(window.DB, cloneEquipePayload(cleanSrc));
         safeRenderActiveTeam(eq);
       }
     }
@@ -278,9 +280,13 @@
       }
     } catch(e) { console.warn('Firebase render error', e); }
 
-    // Rétablir le verrouillage de l'interface après réaffichage de la table
+        // Rétablir le verrouillage de l'interface après réaffichage de la table
     if (typeof window.applyTeamLockUI === 'function') {
       window.applyTeamLockUI(eq);
+    }
+    // Vérifier et appliquer le pointage obligatoire
+    if (typeof window.checkPointageRequired === 'function') {
+      window.checkPointageRequired();
     }
   }
 
@@ -552,6 +558,13 @@
   window._showFirebaseBadge = showFirebaseBadge;
 </script>
 <style>
+@keyframes blink-kpi {
+  0%, 100% { background: rgba(248,113,113,.06); border-color: rgba(248,113,113,.2); box-shadow: 0 0 4px rgba(248,113,113,.1); }
+  50% { background: rgba(248,113,113,.2); border-color: #f87171; box-shadow: 0 0 12px rgba(248,113,113,.4); }
+}
+.blink-kpi-card {
+  animation: blink-kpi 1.2s infinite alternate ease-in-out !important;
+}
 :root {
   --bg: #0a0e1a; --bg2: #111827; --bg3: #1a2236; --surf: #243050;
   --border: #2d3f65; --txt: #e2e8f0; --txt2: #94a3b8; --txt3: #475569;
@@ -794,6 +807,28 @@ tbody td { padding:6px 8px; font-size:11px; vertical-align:middle; }
       </div>
       <button class="btn btn-danger" onclick="doLogout()" style="padding: 10px 20px; font-size: 12px; font-weight: 700; border-radius: 8px; cursor: pointer;">Déconnexion 🚪</button>
     </div>
+    
+    <!-- Filtres de Recherche -->
+    <div style="display: flex; gap: 16px; margin-bottom: 24px; align-items: center; background: var(--bg2); border: 1px solid var(--border); border-radius: 12px; padding: 14px 20px;">
+      <div style="flex: 1; display: flex; flex-direction: column; gap: 6px;">
+        <label style="font-size: 10px; font-weight: 700; color: var(--txt2); letter-spacing: 1px; text-transform: uppercase;">Rechercher Chauffeur</label>
+        <input type="text" id="admin-bl-search-chauffeur" placeholder="Nom du chauffeur..." oninput="renderGlobalBLAlerts()" style="background: var(--bg3); border: 1px solid var(--border); border-radius: 8px; padding: 10px 14px; color: var(--txt); font-size: 13px; outline: none; box-sizing: border-box; width: 100%;">
+      </div>
+      <div style="width: 200px; display: flex; flex-direction: column; gap: 6px;">
+        <label style="font-size: 10px; font-weight: 700; color: var(--txt2); letter-spacing: 1px; text-transform: uppercase;">Filtrer par Équipe</label>
+        <select id="admin-bl-search-team" onchange="renderGlobalBLAlerts()" style="background: var(--bg3); border: 1px solid var(--border); border-radius: 8px; padding: 10px 14px; color: var(--txt); font-size: 13px; outline: none; box-sizing: border-box; width: 100%;">
+          <option value="">Toutes les équipes</option>
+          <option value="A">Équipe A</option>
+          <option value="B">Équipe B</option>
+          <option value="C">Équipe C</option>
+          <option value="D">Équipe D</option>
+        </select>
+      </div>
+      <button class="btn" onclick="resetAdminBLFilters()" style="margin-top: 18px; padding: 10px 18px; font-size: 12px; font-weight: 700; border-radius: 8px; cursor: pointer; display: flex; align-items: center; gap: 6px;">
+        <span>↺ Réinitialiser</span>
+      </button>
+    </div>
+
     <div id="admin-bl-alerts-container"></div>
   </div>
 </div>
@@ -868,6 +903,15 @@ tbody td { padding:6px 8px; font-size:11px; vertical-align:middle; }
       }
     });
 
+    // Masquer les boutons de modification et d'ajout de BL si un verrou d'équipe est actif
+    document.querySelectorAll('#page-bl .btn-add, #bl-body .del-btn').forEach(btn => {
+      if (lock) {
+        btn.style.setProperty('display', 'none', 'important');
+      } else {
+        btn.style.removeProperty('display');
+      }
+    });
+
     // 2. Rendre les cellules d'édition en ligne non-éditables
     document.querySelectorAll('.cell-edit').forEach(el => {
       if (isReadOnly) {
@@ -929,7 +973,10 @@ tbody td { padding:6px 8px; font-size:11px; vertical-align:middle; }
       } else {
         applyTeamLockUI(typeof window.CURRENT_EQUIPE !== 'undefined' ? window.CURRENT_EQUIPE : 'A');
       }
-    }, 200);
+      if (typeof window.checkPointageRequired === 'function') {
+        window.checkPointageRequired();
+      }
+    }, 250);
   }
 
   function checkPassword() {
@@ -942,6 +989,9 @@ tbody td { padding:6px 8px; font-size:11px; vertical-align:middle; }
       
       const current = (typeof window.CURRENT_EQUIPE !== 'undefined') ? window.CURRENT_EQUIPE : 'A';
       applyTeamLockUI(current);
+      if (typeof window.checkPointageRequired === 'function') {
+        window.checkPointageRequired();
+      }
     } else if (TEAM_PASSWORDS[val]) {
       const eq = TEAM_PASSWORDS[val];
       sessionStorage.setItem('numiplan_auth', 'ok');
@@ -956,6 +1006,9 @@ tbody td { padding:6px 8px; font-size:11px; vertical-align:middle; }
         window.switchEquipe(eq);
       } else {
         applyTeamLockUI(eq);
+      }
+      if (typeof window.checkPointageRequired === 'function') {
+        window.checkPointageRequired();
       }
     } else {
       document.getElementById('pwd-error').textContent = '⚠️ Mot de passe incorrect';
@@ -985,6 +1038,12 @@ tbody td { padding:6px 8px; font-size:11px; vertical-align:middle; }
     if (appLayout) appLayout.style.removeProperty('display');
     const pageAdminBL = document.getElementById('page-admin-bl');
     if (pageAdminBL) pageAdminBL.style.display = 'none';
+    
+    // Réinitialiser les filtres
+    const ch = document.getElementById('admin-bl-search-chauffeur');
+    if (ch) ch.value = '';
+    const tm = document.getElementById('admin-bl-search-team');
+    if (tm) tm.value = '';
   }
 
   var _inactivityTimer = null;
@@ -1893,6 +1952,40 @@ mark.hl { background: rgba(56,189,248,.25); color: var(--acc); border-radius: 3p
   </div>
 </div>
 
+<!-- Modal Pointage KPI Atelier (clignotant) -->
+<div id="modal-pointage-kpi-atelier" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.88);z-index:99997;align-items:center;justify-content:center">
+  <div style="background:#0f1623;border:2px solid #38bdf8;border-radius:18px;padding:0;width:740px;max-width:96vw;max-height:88vh;display:flex;flex-direction:column;box-shadow:0 24px 80px rgba(0,0,0,.9)">
+    <div style="padding:22px 28px 16px;border-bottom:1px solid rgba(56,189,248,.3);display:flex;align-items:center;justify-content:space-between;flex-shrink:0">
+      <div>
+        <div style="font-size:13px;font-weight:800;color:#38bdf8;letter-spacing:2px;text-transform:uppercase">⚙️ Pointage KPI Passage Atelier</div>
+        <div style="font-size:11px;color:#64748b;margin-top:3px">Confirmer le passage à l'atelier des camions en panne</div>
+      </div>
+      <div style="background:rgba(56,189,248,.15);border:1px solid rgba(56,189,248,.4);border-radius:10px;padding:6px 14px;text-align:center">
+        <div style="font-size:20px;font-weight:800;color:#38bdf8" id="kpi-remaining-count">0</div>
+        <div style="font-size:9px;color:#94a3b8;letter-spacing:1px">NON POINTÉ(S)</div>
+      </div>
+    </div>
+    <div id="kpi-pointage-list" style="overflow-y:auto;flex:1;padding:16px 28px"></div>
+    <div style="padding:16px 28px;border-top:1px solid rgba(56,189,248,.2);display:flex;justify-content:flex-end;align-items:center;flex-shrink:0">
+      <button onclick="document.getElementById('modal-pointage-kpi-atelier').style.display='none'" style="background:#1a2236;color:#94a3b8;border:1px solid #2d3f65;padding:10px 24px;border-radius:9px;cursor:pointer;font-size:12px;font-weight:700">✕ Fermer</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal Historique KPI Atelier -->
+<div id="modal-historique-kpi-atelier" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.88);z-index:99999;align-items:center;justify-content:center">
+  <div style="background:#0f1623;border:2px solid #a78bfa;border-radius:18px;padding:0;width:640px;max-width:96vw;max-height:80vh;display:flex;flex-direction:column;box-shadow:0 24px 80px rgba(0,0,0,.9)">
+    <div style="padding:20px 28px 14px;border-bottom:1px solid rgba(167,139,250,.25);display:flex;align-items:center;justify-content:space-between;flex-shrink:0">
+      <div>
+        <div style="font-size:13px;font-weight:800;color:#a78bfa;letter-spacing:2px;text-transform:uppercase" id="kpi-hist-title">📜 Historique KPI Atelier</div>
+        <div style="font-size:11px;color:#64748b;margin-top:2px">Traçabilité des passages en atelier pour ce véhicule</div>
+      </div>
+      <button onclick="document.getElementById('modal-historique-kpi-atelier').style.display='none'" style="background:rgba(248,113,113,.15);color:#f87171;border:1px solid rgba(248,113,113,.3);padding:6px 14px;border-radius:7px;font-size:11px;font-weight:700;cursor:pointer">✕ Fermer</button>
+    </div>
+    <div id="kpi-historique-body" style="overflow-y:auto;flex:1;padding:16px 28px"></div>
+  </div>
+</div>
+
 <!-- Modal Dispo -->
 <div class="modal-overlay" id="modal-dispo">
   <div class="modal">
@@ -2421,18 +2514,39 @@ window.DB = DB;
 window.ARCHIVES = ARCHIVES;
 
 function emptyTeamData() {
-  return { dispo: [], pannes: [], nc: [], gasoil: [], equip: [], activite: [], bl: [], odo: [], odo_weeks: [], cspc: [], blacklist: [], tracabilite: [], flashInfos: [] };
+  return {
+    dispo: [], pannes: [], nc: [], gasoil: [], equip: [], activite: [],
+    bl: [], odo: [], odo_weeks: [], cspc: [], blacklist: [],
+    tracabilite: [], flashInfos: [], anomaliesPointees: {}
+  };
 }
 
-function cloneTeamData(src) {
-  return JSON.parse(JSON.stringify(src || emptyTeamData()));
+function cloneTeamData(src, fallback = emptyTeamData()) {
+  const base = JSON.parse(JSON.stringify(fallback));
+  if (src) {
+    const merged = Object.assign({}, base, src);
+    Object.keys(base).forEach(k => {
+      if (k === 'anomaliesPointees') {
+        if (!merged[k] || typeof merged[k] !== 'object') {
+          merged[k] = {};
+        }
+      } else {
+        if (!merged[k] || !Array.isArray(merged[k])) {
+          merged[k] = [];
+        }
+      }
+    });
+    return JSON.parse(JSON.stringify(merged));
+  }
+  return JSON.parse(JSON.stringify(base));
 }
+window.cloneTeamData = cloneTeamData;
 
 function ensureTeamCaches() {
-  if (!window.DB_A || !window.DB_A.dispo) window.DB_A = cloneTeamData(INITIAL_DATA);
-  if (!window.DB_B) window.DB_B = emptyTeamData();
-  if (!window.DB_C) window.DB_C = emptyTeamData();
-  if (!window.DB_D) window.DB_D = emptyTeamData();
+  window.DB_A = cloneTeamData(window.DB_A, INITIAL_DATA);
+  window.DB_B = cloneTeamData(window.DB_B, emptyTeamData());
+  window.DB_C = cloneTeamData(window.DB_C, emptyTeamData());
+  window.DB_D = cloneTeamData(window.DB_D, emptyTeamData());
 }
 
 function getOperatorRole() {
@@ -2565,14 +2679,16 @@ function renderBLAlerts() {
 
   (DB.bl || []).forEach(r => {
     months.forEach(m => {
-      if ((r[m] || '').trim().toLowerCase() === 'déposer') return;
+      const val = (r[m] || '').trim().toLowerCase();
+      if (val === 'déposer' || val === 'depose') return;
       
       const status = checkBLMonthStatus(m, now);
       if (status === 'due' || status === 'late') {
         alerts.push({
           chauffeur: r.chauffeur,
           month: m,
-          status: status
+          status: status,
+          val: val
         });
       }
     });
@@ -2591,22 +2707,40 @@ function renderBLAlerts() {
 
   const alertItemsHtml = alerts.map((al, idx) => {
     const isLate = al.status === 'late';
-    const borderStyle = isLate ? 'border-color: rgba(239, 68, 68, 0.4);' : 'border-color: rgba(245, 158, 11, 0.4);';
-    const bgStyle = isLate ? 'background: rgba(239, 68, 68, 0.08);' : 'background: rgba(245, 158, 11, 0.08);';
-    const tagClass = isLate ? 'badge-panne' : 'badge-manque';
-    const tagText = isLate ? '🚨 RETARD CRITIQUE' : '⏳ PÉRIODE RESTITUTION';
-    const blinkStyle = isLate ? 'animation: pulse-eye 0.8s ease-in-out infinite alternate;' : '';
+    const val = al.val;
 
-    const escapedChauffeur = al.chauffeur.replace(/'/g, "\\'");
+    let borderStyle = isLate ? 'border-color: rgba(239, 68, 68, 0.4);' : 'border-color: rgba(245, 158, 11, 0.4);';
+    let bgStyle = isLate ? 'background: rgba(239, 68, 68, 0.08);' : 'background: rgba(245, 158, 11, 0.08);';
+    let tagClass = isLate ? 'badge-panne' : 'badge-manque';
+    let tagText = isLate ? '🚨 RETARD CRITIQUE' : '⏳ PÉRIODE RESTITUTION';
+    let blinkStyle = isLate ? 'animation: pulse-eye 0.8s ease-in-out infinite alternate;' : '';
+    let detailsText = `Chauffeur : <b style="color: var(--acc);">${al.chauffeur}</b> — BL <b style="text-transform: uppercase;">${al.month}</b> manquant !`;
+
+    if (val === 'restitue') {
+      borderStyle = 'border-color: rgba(56, 189, 248, 0.4);';
+      bgStyle = 'background: rgba(56, 189, 248, 0.08);';
+      tagClass = 'badge-dispo';
+      tagText = '⏳ RESTITUÉ (En attente de pointage)';
+      blinkStyle = '';
+      detailsText = `Chauffeur : <b style="color: var(--acc);">${al.chauffeur}</b> — BL <b style="text-transform: uppercase;">${al.month}</b> restitués, en attente de pointage.`;
+    } else if (val.startsWith('partiel_')) {
+      const missingCount = val.split('_')[1] || '?';
+      borderStyle = 'border-color: rgba(245, 158, 11, 0.4);';
+      bgStyle = 'background: rgba(245, 158, 11, 0.08);';
+      tagClass = 'badge-manque';
+      tagText = `⚠️ RENDU PARTIEL (${missingCount} manquants)`;
+      blinkStyle = 'animation: pulse-eye 0.8s ease-in-out infinite alternate;';
+      detailsText = `Chauffeur : <b style="color: var(--acc);">${al.chauffeur}</b> — BL <b style="text-transform: uppercase;">${al.month}</b> rendu partiellement (${missingCount} BL manquants).`;
+    }
+
     return `
       <div style="display: flex; align-items: center; justify-content: space-between; padding: 10px 14px; border-radius: 8px; border: 1px solid; ${borderStyle} ${bgStyle} margin-bottom: 8px;">
         <div style="display: flex; align-items: center; gap: 12px;">
           <span class="badge ${tagClass}" style="font-size: 10px; ${blinkStyle}">${tagText}</span>
           <div style="font-size: 12px; color: var(--txt);">
-            Chauffeur : <b style="color: var(--acc);">${al.chauffeur}</b> — BL <b style="text-transform: uppercase;">${al.month}</b> manquant !
+            ${detailsText}
           </div>
         </div>
-        <button onclick="validerBLRapide('${escapedChauffeur}', '${al.month}')" class="btn btn-save" style="padding: 4px 10px; font-size: 10px;">✓ Reçu</button>
       </div>
     `;
   }).join('');
@@ -2641,7 +2775,7 @@ window.validerBLRapide = validerBLRapide;
 
 function saveTeamDB(eq, dbData) {
   dbData._localTs = Date.now();
-  window['DB_' + eq] = cloneTeamData(dbData);
+  window['DB_' + eq] = cloneTeamData(dbData, eq === 'A' ? INITIAL_DATA : emptyTeamData());
   localStorage.setItem(STORAGE_KEY, JSON.stringify({
     version: 3,
     active: CURRENT_EQUIPE || 'A',
@@ -2672,39 +2806,77 @@ function saveTeamDB(eq, dbData) {
 }
 window.saveTeamDB = saveTeamDB;
 
-function validerBLRapideGlobal(chauffeur, month, team) {
+function validerBLRapideGlobal(chauffeur, month, team, action) {
   const db = window['DB_' + team];
   if (db && db.bl) {
     const row = db.bl.find(r => r.chauffeur.toUpperCase() === chauffeur.toUpperCase());
     if (row) {
-      row[month] = 'déposer';
-      saveTeamDB(team, db);
+      if (action === 'restitue') {
+        row[month] = 'restitue';
+        saveTeamDB(team, db);
+        showToast(`📄 BL ${month.toUpperCase()} pour ${chauffeur} (EQ ${team}) signalé Restitué`);
+      } else if (action === 'depose') {
+        row[month] = 'déposer';
+        saveTeamDB(team, db);
+        showToast(`✅ BL ${month.toUpperCase()} pour ${chauffeur} (EQ ${team}) marqué Déposé complet`);
+      } else if (action === 'partiel') {
+        const countStr = prompt(`Nombre de BL manquants pour ${chauffeur} (${month.toUpperCase()}) :`);
+        if (countStr === null) return; // Annulé
+        const count = parseInt(countStr.trim(), 10);
+        if (isNaN(count) || count < 1) {
+          showToast("⚠️ Nombre de BL manquants invalide", true);
+          return;
+        }
+        row[month] = 'partiel_' + count;
+        saveTeamDB(team, db);
+        showToast(`⚠️ BL ${month.toUpperCase()} pour ${chauffeur} (EQ ${team}) marqué Rendu Partiel (${count} manquants)`);
+      }
       
       if (team === CURRENT_EQUIPE) {
         DB.bl = db.bl;
       }
       
       renderGlobalBLAlerts();
-      showToast(`📄 BL ${month.toUpperCase()} pour ${chauffeur} (EQ ${team}) marqué Déposé`);
     }
   }
 }
 window.validerBLRapideGlobal = validerBLRapideGlobal;
 
+function resetAdminBLFilters() {
+  const ch = document.getElementById('admin-bl-search-chauffeur');
+  if (ch) ch.value = '';
+  const tm = document.getElementById('admin-bl-search-team');
+  if (tm) tm.value = '';
+  renderGlobalBLAlerts();
+}
+window.resetAdminBLFilters = resetAdminBLFilters;
+
 function renderGlobalBLAlerts() {
   const container = document.getElementById('admin-bl-alerts-container');
   if (!container) return;
+
+  const qChauffeurEl = document.getElementById('admin-bl-search-chauffeur');
+  const qTeamEl = document.getElementById('admin-bl-search-team');
+  const qChauffeur = qChauffeurEl ? qChauffeurEl.value.trim().toLowerCase() : '';
+  const qTeam = qTeamEl ? qTeamEl.value.trim() : '';
 
   const now = new Date();
   const months = ['mars','avril','mai','juin','juil','aout','sep','oct','nov','dec'];
   const alerts = [];
 
   ['A', 'B', 'C', 'D'].forEach(eq => {
+    // Appliquer le filtre par équipe dès le départ pour de meilleures performances
+    if (qTeam && eq !== qTeam) return;
+
     const db = window['DB_' + eq];
     if (db && db.bl) {
       db.bl.forEach(r => {
+        // Appliquer le filtre par nom de chauffeur
+        if (qChauffeur && !r.chauffeur.toLowerCase().includes(qChauffeur)) return;
+
         months.forEach(m => {
-          if ((r[m] || '').trim().toLowerCase() === 'déposer') return;
+          const val = (r[m] || '').trim().toLowerCase();
+          if (val === 'déposer' || val === 'depose') return;
           
           const status = checkBLMonthStatus(m, now);
           if (status === 'due' || status === 'late') {
@@ -2712,7 +2884,8 @@ function renderGlobalBLAlerts() {
               chauffeur: r.chauffeur,
               month: m,
               status: status,
-              team: eq
+              team: eq,
+              val: val
             });
           }
         });
@@ -2724,7 +2897,7 @@ function renderGlobalBLAlerts() {
     container.innerHTML = `
       <div style="background: var(--bg2); border: 1px solid var(--border); border-radius: 12px; padding: 40px; text-align: center; color: var(--txt3);">
         <div style="font-size: 40px; margin-bottom: 12px;">🎉</div>
-        Aucun retour de BL manquant pour le moment ! Tout est à jour.
+        Aucun retour de BL correspondant à vos filtres ! Tout est à jour.
       </div>
     `;
     return;
@@ -2742,23 +2915,62 @@ function renderGlobalBLAlerts() {
 
   const alertItemsHtml = alerts.map((al, idx) => {
     const isLate = al.status === 'late';
-    const borderStyle = isLate ? 'border-color: rgba(239, 68, 68, 0.4);' : 'border-color: rgba(245, 158, 11, 0.4);';
-    const bgStyle = isLate ? 'background: rgba(239, 68, 68, 0.08);' : 'background: rgba(245, 158, 11, 0.08);';
-    const tagClass = isLate ? 'badge-panne' : 'badge-manque';
-    const tagText = isLate ? '🚨 RETARD CRITIQUE' : '⏳ PÉRIODE RESTITUTION';
-    const blinkStyle = isLate ? 'animation: pulse-eye 0.8s ease-in-out infinite alternate;' : '';
+    const val = al.val;
 
-    const escapedChauffeur = al.chauffeur.split("'").join("\\'");
+    let borderStyle = isLate ? 'border-color: rgba(239, 68, 68, 0.4);' : 'border-color: rgba(245, 158, 11, 0.4);';
+    let bgStyle = isLate ? 'background: rgba(239, 68, 68, 0.08);' : 'background: rgba(245, 158, 11, 0.08);';
+    let tagClass = isLate ? 'badge-panne' : 'badge-manque';
+    let tagText = isLate ? '🚨 RETARD CRITIQUE' : '⏳ PÉRIODE RESTITUTION';
+    let blinkStyle = isLate ? 'animation: pulse-eye 0.8s ease-in-out infinite alternate;' : '';
+    let detailsText = `Chauffeur : <b style="color: var(--txt);">${al.chauffeur}</b> — BL <b style="text-transform: uppercase; color: var(--acc);">${al.month}</b> attendus.`;
+    
+    // Boutons d'actions dynamiques selon l'état actuel du BL
+    let actionButtonsHtml = '';
+
+    if (!val) {
+      // Non restitué -> Bouton "Signaler Rendu"
+      actionButtonsHtml = `<button onclick="validerBLRapideGlobal('${al.chauffeur.split("'").join("\\'")}', '${al.month}', '${al.team}', 'restitue')" class="btn btn-save" style="background:#38bdf8; border-color:#38bdf8; color:#000; padding: 6px 14px; font-size: 11px; font-weight: 700; border-radius: 6px; cursor: pointer;">✓ Signaler Rendu</button>`;
+    } else if (val === 'restitue') {
+      // Restitué -> Boutons "Pointé Complet" & "Rendu Partiel"
+      borderStyle = 'border-color: rgba(56, 189, 248, 0.4);';
+      bgStyle = 'background: rgba(56, 189, 248, 0.08);';
+      tagClass = 'badge-dispo';
+      tagText = '⏳ RESTITUÉ (En attente)';
+      blinkStyle = '';
+      detailsText = `Chauffeur : <b style="color: var(--txt);">${al.chauffeur}</b> — BL <b style="text-transform: uppercase; color: var(--acc);">${al.month}</b> restitués, en attente de vérification.`;
+      actionButtonsHtml = `
+        <div style="display:flex; gap:8px;">
+          <button onclick="validerBLRapideGlobal('${al.chauffeur.split("'").join("\\'")}', '${al.month}', '${al.team}', 'depose')" class="btn btn-save" style="padding: 6px 14px; font-size: 11px; font-weight: 700; border-radius: 6px; cursor: pointer;">✓ Pointé Complet</button>
+          <button onclick="validerBLRapideGlobal('${al.chauffeur.split("'").join("\\'")}', '${al.month}', '${al.team}', 'partiel')" class="btn" style="background:rgba(245,158,11,0.2); border-color:#f59e0b; color:#f59e0b; padding: 6px 14px; font-size: 11px; font-weight: 700; border-radius: 6px; cursor: pointer;">⚠️ Rendu Partiel</button>
+        </div>
+      `;
+    } else if (val.startsWith('partiel_')) {
+      // Rendu Partiel -> Boutons "Pointé Complet" & "Modifier Partiel"
+      const missingCount = val.split('_')[1] || '?';
+      borderStyle = 'border-color: rgba(245, 158, 11, 0.4);';
+      bgStyle = 'background: rgba(245, 158, 11, 0.08);';
+      tagClass = 'badge-manque';
+      tagText = `⚠️ RENDU PARTIEL (${missingCount} manquants)`;
+      blinkStyle = 'animation: pulse-eye 0.8s ease-in-out infinite alternate;';
+      detailsText = `Chauffeur : <b style="color: var(--txt);">${al.chauffeur}</b> — BL <b style="text-transform: uppercase; color: var(--acc);">${al.month}</b> rendu partiellement (<b>${missingCount}</b> BL manquants).`;
+      actionButtonsHtml = `
+        <div style="display:flex; gap:8px;">
+          <button onclick="validerBLRapideGlobal('${al.chauffeur.split("'").join("\\'")}', '${al.month}', '${al.team}', 'depose')" class="btn btn-save" style="padding: 6px 14px; font-size: 11px; font-weight: 700; border-radius: 6px; cursor: pointer;">✓ Pointé Complet</button>
+          <button onclick="validerBLRapideGlobal('${al.chauffeur.split("'").join("\\'")}', '${al.month}', '${al.team}', 'partiel')" class="btn" style="background:rgba(245,158,11,0.2); border-color:#f59e0b; color:#f59e0b; padding: 6px 14px; font-size: 11px; font-weight: 700; border-radius: 6px; cursor: pointer;">✏️ Modifier partiel</button>
+        </div>
+      `;
+    }
+
     return `
       <div style="display: flex; align-items: center; justify-content: space-between; padding: 12px 18px; border-radius: 8px; border: 1px solid; ${borderStyle} ${bgStyle} margin-bottom: 10px;">
         <div style="display: flex; align-items: center; gap: 14px;">
           <span class="badge ${tagClass}" style="font-size: 10px; ${blinkStyle}">${tagText}</span>
           <span class="badge" style="background: var(--bg3); border: 1px solid var(--border); color: var(--acc); font-size: 10px; font-weight: 700;">EQ ${al.team}</span>
           <div style="font-size: 13px; color: var(--txt);">
-            Chauffeur : <b style="color: var(--txt);">${al.chauffeur}</b> — BL <b style="text-transform: uppercase; color: var(--acc);">${al.month}</b> manquant !
+            ${detailsText}
           </div>
         </div>
-        <button onclick="validerBLRapideGlobal('${escapedChauffeur}', '${al.month}', '${al.team}')" class="btn btn-save" style="padding: 6px 14px; font-size: 11px; font-weight: 700; border-radius: 6px; cursor: pointer; transition: background .2s;">✓ Reçu</button>
+        ${actionButtonsHtml}
       </div>
     `;
   }).join('');
@@ -2826,8 +3038,7 @@ function loadDB() {
       if (parsed && parsed.teams && typeof parsed.teams === 'object') {
         ['A', 'B', 'C', 'D'].forEach(eq => {
           if (parsed.teams[eq] && parsed.teams[eq].dispo) {
-            const base = eq === 'A' ? cloneTeamData(INITIAL_DATA) : emptyTeamData();
-            window['DB_' + eq] = Object.assign(base, parsed.teams[eq]);
+            window['DB_' + eq] = cloneTeamData(parsed.teams[eq], eq === 'A' ? INITIAL_DATA : emptyTeamData());
           }
         });
         if (parsed.active && ['A', 'B', 'C', 'D'].includes(parsed.active)) active = parsed.active;
@@ -2835,8 +3046,7 @@ function loadDB() {
         // Ancien format (1 seul blob) : en pratique = dernière équipe sauvegardée (souvent D)
         const legacyEq = (parsed._savedEquipe && ['A', 'B', 'C', 'D'].includes(parsed._savedEquipe))
           ? parsed._savedEquipe : 'D';
-        const base = legacyEq === 'A' ? cloneTeamData(INITIAL_DATA) : emptyTeamData();
-        window['DB_' + legacyEq] = Object.assign(base, parsed);
+        window['DB_' + legacyEq] = cloneTeamData(parsed, legacyEq === 'A' ? INITIAL_DATA : emptyTeamData());
         active = 'A'; // au démarrage on affiche toujours l'équipe A
       }
     }
@@ -2844,21 +3054,23 @@ function loadDB() {
     console.warn('loadDB', e);
   }
   if (!window.DB_A.dispo || !window.DB_A.dispo.length) {
-    window.DB_A = cloneTeamData(INITIAL_DATA);
+    window.DB_A = cloneTeamData(INITIAL_DATA, INITIAL_DATA);
   }
   if (!window.DB_A.bl || !window.DB_A.bl.length) {
-    window.DB_A.bl = cloneTeamData(INITIAL_DATA).bl;
+    window.DB_A.bl = cloneTeamData(INITIAL_DATA, INITIAL_DATA).bl;
   }
   ['A', 'B', 'C', 'D'].forEach(eq => {
-    if (window['DB_' + eq] && !window['DB_' + eq].flashInfos) {
-      window['DB_' + eq].flashInfos = [];
-    }
+    window['DB_' + eq] = cloneTeamData(window['DB_' + eq], eq === 'A' ? INITIAL_DATA : emptyTeamData());
   });
   if (typeof CURRENT_EQUIPE !== 'undefined') {
     CURRENT_EQUIPE = active;
     window.CURRENT_EQUIPE = active;
   }
-  DB = cloneTeamData(window['DB_' + active] || window.DB_A);
+  
+  const targetData = cloneTeamData(window['DB_' + active] || window.DB_A, active === 'A' ? INITIAL_DATA : emptyTeamData());
+  Object.keys(DB).forEach(k => delete DB[k]);
+  Object.assign(DB, targetData);
+
   try {
     const raw2 = localStorage.getItem(ARCHIVE_KEY);
     const localArc = raw2 ? JSON.parse(raw2) : {};
@@ -2895,7 +3107,7 @@ function saveDB() {
 
   // 1. Sauvegarde locale par équipe (évite qu'un F5 sur A affiche les données de D)
   DB._localTs = Date.now();
-  window['DB_' + eq] = cloneTeamData(DB);
+  window['DB_' + eq] = cloneTeamData(DB, eq === 'A' ? INITIAL_DATA : emptyTeamData());
   localStorage.setItem(STORAGE_KEY, JSON.stringify({
     version: 3,
     active: eq,
@@ -2918,6 +3130,9 @@ function saveDB() {
   }
   if (typeof window._showFirebaseBadge === 'function') {
     window._showFirebaseBadge('\u2705 Sauvegard\u00e9 dans le cloud');
+  }
+  if (typeof checkPointageRequired === 'function') {
+    checkPointageRequired();
   }
 }
 
@@ -3021,6 +3236,9 @@ function openModal(id, editIdx=-1) {
   if (hi) hi.value = editIdx;
   if (id === 'modal-odo' && editIdx === -1) buildOdoWeekInputs();
   if (id === 'modal-odo-export') initOdoExportModal();
+  if (id === 'modal-panne' && editIdx === -1) {
+    document.getElementById('f-panne-kpi').value = 'NON';
+  }
 }
 
 function closeModal(id) {
@@ -3113,6 +3331,11 @@ function renderDispo() {
     else if (e.includes('panne')) c.panne++;
     else if (e.includes('manque')) c.manque++;
   });
+  const kpiCount = DB.pannes.filter(r => r.kpi === 'NON' && r.kpiLastPointageDate !== today()).length;
+  const kpiClass = kpiCount > 0 ? 'stat-card blink-kpi-card' : 'stat-card';
+  const kpiColor = kpiCount > 0 ? '#f87171' : 'var(--txt3)';
+  const kpiBorder = kpiCount > 0 ? '#f87171' : 'var(--border)';
+
   document.getElementById('dispo-stats').innerHTML = `
     <div class="stat-card blue" style="cursor:pointer;transition:opacity .2s" onclick="filterByEtat('En mission')" title="Filtrer En mission"><div class="stat-num">${c.mission}</div><div class="stat-lbl">En mission</div></div>
     <div class="stat-card green" style="cursor:pointer;transition:opacity .2s" onclick="filterByEtat('DISPONIBLE')" title="Filtrer Disponible"><div class="stat-num">${c.dispo}</div><div class="stat-lbl">Disponible</div></div>
@@ -3120,7 +3343,8 @@ function renderDispo() {
     <div class="stat-card org" style="cursor:pointer;transition:opacity .2s" onclick="filterByEtat('Manque chauffeur')" title="Filtrer Manque chauffeur"><div class="stat-num">${c.manque}</div><div class="stat-lbl">Manque chauffeur</div></div>
     <div class="stat-card pur" style="cursor:pointer;transition:opacity .2s" onclick="switchTab('cspc',document.querySelector('[onclick*=\\'cspc\\']'))" title="Voir les véhicules CSPC"><div class="stat-num">${DB.cspc.length}</div><div class="stat-lbl">CSPC</div></div>
     <div class="stat-card" style="cursor:pointer;transition:opacity .2s" onclick="filterByEtat('')" title="Afficher tout"><div class="stat-num">${DB.dispo.length}</div><div class="stat-lbl">Total ↺</div></div>
-    <div class="stat-card" style="cursor:pointer;transition:opacity .2s;border-left-color:#a78bfa" onclick="showAnomaliesLieu()" title="Voir les anomalies de lieu jour"><div class="stat-num" style="color:#a78bfa">${DB.dispo.filter(r=>r.lieuJ_initial&&r.lieuJ&&r.lieuJ!=='—'&&r.lieuJ_initial!=='—'&&r.lieuJ.trim().toUpperCase()!==r.lieuJ_initial.trim().toUpperCase()).length}</div><div class="stat-lbl" style="color:#a78bfa">⚠️ Anomalies lieu</div></div>`;
+    <div class="stat-card" style="cursor:pointer;transition:opacity .2s;border-left-color:#a78bfa" onclick="showAnomaliesLieu()" title="Voir les anomalies de lieu J+1"><div class="stat-num" style="color:#a78bfa">${DB.dispo.filter(r=>r.lieuJ1_initial&&r.lieuJ1&&r.lieuJ1!=='—'&&r.lieuJ1_initial!=='—'&&r.lieuJ1.trim().toUpperCase()!==r.lieuJ1_initial.trim().toUpperCase()).length}</div><div class="stat-lbl" style="color:#a78bfa">⚠️ Anomalies lieu</div></div>
+    <div class="${kpiClass}" style="cursor:pointer;transition:opacity .2s;border-left-color:${kpiBorder}" onclick="ouvrirPointageKpiAtelier()" title="Voir les pannes non pointées pour passage atelier"><div class="stat-num" style="color:${kpiColor}">${kpiCount}</div><div class="stat-lbl" style="color:${kpiColor}">🛠️ KPI Atelier</div></div>`;
   document.getElementById('cnt-dispo').textContent = data.length;
   
   // Compter le nombre de chauffeurs uniques dans la liste filtrée
@@ -3264,6 +3488,7 @@ function editDispo(idx) {
 }
 
 function deleteDispo(idx) {
+  if (!_checkActionsLibres('deleteDispo')) return;
   const r = DB.dispo[idx];
   const label = r ? (r.v + ' — ' + (r.chauffeur||'')) : 'cette entrée';
   // Demander le mot de passe admin
@@ -3295,6 +3520,7 @@ function deleteDispo(idx) {
 }
 
 function saveDispo() {
+  if (!_checkActionsLibres('saveDispo')) return;
   const v = document.getElementById('f-dispo-v').value.trim();
   if (!v) { showToast('⚠️ Immatriculation requise', true); return; }
   const hor_str = document.getElementById('f-dispo-hor').value;
@@ -3309,6 +3535,7 @@ function saveDispo() {
     lieuJ: document.getElementById('f-dispo-lieuJ').value.trim()||'—',
     lieuJ1: document.getElementById('f-dispo-lieuJ1').value.trim()||'—',
     lieuJ_initial: idx>=0 ? (DB.dispo[idx].lieuJ_initial || DB.dispo[idx].lieuJ || '—') : (document.getElementById('f-dispo-lieuJ').value.trim()||'—'),
+    lieuJ1_initial: idx>=0 ? (shouldUpdateLieuJ1Initial(DB.dispo[idx], document.getElementById('f-dispo-lieuJ1').value.trim()) ? (document.getElementById('f-dispo-lieuJ1').value.trim()||'—') : (DB.dispo[idx].lieuJ1_initial || '—')) : (document.getElementById('f-dispo-lieuJ1').value.trim()||'—'),
     prog: document.getElementById('f-dispo-prog').value.trim(),
     obs: document.getElementById('f-dispo-obs').value.trim(),
     assuranceTrFin: document.getElementById('f-dispo-assurance-tr-fin').value,
@@ -3392,6 +3619,7 @@ function saveDispo() {
 }
 
 function toggleAffecte(idx) {
+  if (!_checkActionsLibres('toggleAffecte')) return;
   const r = DB.dispo[idx];
   if (!r) return;
   if (!r.affecte || r.affecte === '') r.affecte = 'OUI';
@@ -3406,6 +3634,7 @@ function toggleAffecte(idx) {
 // SURVEILLANCE CHAUFFEUR
 // ═══════════════════════════════════════════════════════════════
 function toggleSurveillance(idx) {
+  if (!_checkActionsLibres('toggleSurveillance')) return;
   const r = DB.dispo[idx];
   if (!r) return;
 
@@ -3554,12 +3783,17 @@ function renderPannes() {
       <td class="mono" style="font-size:10px;color:var(--acc)">${r.di||'—'}</td>
       <td style="max-width:280px;font-size:11px;color:var(--txt2)">${r.desc}</td>
       <td style="font-size:11px">${r.cet}</td>
-      <td style="text-align:center">${(()=>{
-        const kv = r.kpi;
-        if (kv === 'OUI') return `<button onclick="toggleKpi(${realIdx})" style="background:rgba(34,197,94,.18);color:#22c55e;border:1px solid rgba(34,197,94,.4);border-radius:6px;padding:3px 12px;font-size:11px;font-weight:700;cursor:pointer;transition:all .2s" title="Cliquer pour basculer → NON">✅ OUI</button>`;
-        if (kv === 'NON') return `<button onclick="toggleKpi(${realIdx})" style="background:rgba(244,63,94,.15);color:#f87171;border:1px solid rgba(244,63,94,.4);border-radius:6px;padding:3px 12px;font-size:11px;font-weight:700;cursor:pointer;transition:all .2s" title="Cliquer pour basculer → OUI">✗ NON</button>`;
-        return `<button onclick="toggleKpi(${realIdx})" style="background:var(--surf);color:var(--txt3);border:1px solid var(--border);border-radius:6px;padding:3px 12px;font-size:11px;cursor:pointer;transition:all .2s" title="Cliquer pour définir KPI">— KPI</button>`;
-      })()}</td>
+      <td style="text-align:center">
+        <div style="display:flex;flex-direction:column;align-items:center;gap:3px">
+          ${(()=>{
+            const kv = r.kpi;
+            if (kv === 'OUI') return `<button onclick="toggleKpi(${realIdx})" style="background:rgba(34,197,94,.18);color:#22c55e;border:1px solid rgba(34,197,94,.4);border-radius:6px;padding:3px 12px;font-size:11px;font-weight:700;cursor:pointer;transition:all .2s" title="Cliquer pour basculer → NON">✅ OUI</button>`;
+            if (kv === 'NON') return `<button onclick="toggleKpi(${realIdx})" style="background:rgba(244,63,94,.15);color:#f87171;border:1px solid rgba(244,63,94,.4);border-radius:6px;padding:3px 12px;font-size:11px;font-weight:700;cursor:pointer;transition:all .2s" title="Cliquer pour basculer → OUI">✗ NON</button>`;
+            return `<button onclick="toggleKpi(${realIdx})" style="background:var(--surf);color:var(--txt3);border:1px solid var(--border);border-radius:6px;padding:3px 12px;font-size:11px;cursor:pointer;transition:all .2s" title="Cliquer pour définir KPI">— KPI</button>`;
+          })()}
+          <span onclick="voirHistoriqueKpi(${realIdx})" style="font-size:9px;color:#818cf8;cursor:pointer;text-decoration:underline" title="Voir l'historique de traçabilité">🕒 Historique</span>
+        </div>
+      </td>
       <td><button class="del-btn" onclick="editPanne(${realIdx})">✏️</button><button class="del-btn" onclick="deletePanne(${realIdx})">🗑</button></td>
     </tr>`;
   }).join('');
@@ -3579,13 +3813,40 @@ function editPanne(idx) {
 }
 
 function deletePanne(idx) {
+  if (!_checkActionsLibres('deletePanne')) return;
   if (!confirm('Supprimer cette panne ?')) return;
   DB.pannes.splice(idx,1); saveDB(); renderPannes(); showToast('✅ Supprimé');
 }
 
 function savePanne() {
+  if (!_checkActionsLibres('savePanne')) return;
   const immat = document.getElementById('f-panne-immat').value.trim();
   if (!immat) { showToast('⚠️ Immatriculation requise', true); return; }
+  
+  const idx = parseInt(document.getElementById('panne-edit-idx').value);
+  const newKpi = document.getElementById('f-panne-kpi').value || 'NON';
+  
+  let kpiHistory = idx >= 0 ? (DB.pannes[idx].kpiHistory || []) : [];
+  let kpiLastPointageDate = idx >= 0 ? (DB.pannes[idx].kpiLastPointageDate || '') : '';
+  
+  if (idx < 0) {
+    kpiHistory.push({
+      date: today(),
+      response: newKpi,
+      ts: new Date().toISOString(),
+      equipe: typeof window.CURRENT_EQUIPE !== 'undefined' ? window.CURRENT_EQUIPE : 'A'
+    });
+    kpiLastPointageDate = today();
+  } else if (DB.pannes[idx].kpi !== newKpi) {
+    kpiHistory.push({
+      date: today(),
+      response: newKpi,
+      ts: new Date().toISOString(),
+      equipe: typeof window.CURRENT_EQUIPE !== 'undefined' ? window.CURRENT_EQUIPE : 'A'
+    });
+    kpiLastPointageDate = today();
+  }
+
   const obj = {
     date: document.getElementById('f-panne-date').value||today(),
     chauffeur: document.getElementById('f-panne-chauffeur').value.trim().toUpperCase(),
@@ -3593,8 +3854,11 @@ function savePanne() {
     di: document.getElementById('f-panne-di').value.trim(),
     desc: document.getElementById('f-panne-desc').value.trim(),
     cet: document.getElementById('f-panne-cet').value.trim(),
-    kpi: document.getElementById('f-panne-kpi').value
+    kpi: newKpi,
+    kpiHistory,
+    kpiLastPointageDate
   };
+  
   // Sync dispo état si le véhicule est là
   const dispoMatch = DB.dispo.find(d => d.v === immat);
   if (dispoMatch && !dispoMatch.etat.toLowerCase().includes('panne')) {
@@ -3602,7 +3866,6 @@ function savePanne() {
       dispoMatch.etat = 'En panne';
     }
   }
-  const idx = parseInt(document.getElementById('panne-edit-idx').value);
   if (idx >= 0) DB.pannes[idx] = obj; else DB.pannes.push(obj);
   saveDB(); closeModal('modal-panne'); renderPannes();
   // Sync automatique état dispo → En panne
@@ -3617,15 +3880,23 @@ function savePanne() {
 }
 
 function toggleKpi(idx) {
+  if (!_checkActionsLibres('toggleKpi')) return;
   const r = DB.pannes[idx];
   if (!r) return;
-  // Cycle: vide → OUI → NON → OUI → NON …
-  if (!r.kpi || r.kpi === '') r.kpi = 'OUI';
-  else if (r.kpi === 'OUI') r.kpi = 'NON';
-  else r.kpi = 'OUI';
+  const newVal = r.kpi === 'OUI' ? 'NON' : 'OUI';
+  r.kpi = newVal;
+  r.kpiLastPointageDate = today();
+  if (!r.kpiHistory) r.kpiHistory = [];
+  r.kpiHistory.push({
+    date: today(),
+    response: newVal,
+    ts: new Date().toISOString(),
+    equipe: typeof window.CURRENT_EQUIPE !== 'undefined' ? window.CURRENT_EQUIPE : 'A'
+  });
   saveDB();
   renderPannes();
-  showToast(`KPI ${r.immat} → ${r.kpi}`);
+  renderDispo();
+  showToast(`KPI ${r.immat} → ${newVal}`);
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -3703,6 +3974,7 @@ function editNC(idx) {
 }
 
 function deleteNC(idx) {
+  if (!_checkActionsLibres('deleteNC')) return;
   if (!confirm('Supprimer cette NC ?')) return;
   DB.nc.splice(idx,1); saveDB(); renderNC(); showToast('✅ Supprimé');
 }
@@ -3713,6 +3985,7 @@ function toggleNcAutre(val) {
 }
 
 function saveNC() {
+  if (!_checkActionsLibres('saveNC')) return;
   const sharik = document.getElementById('f-nc-sharik').value.trim();
   if (!sharik) { showToast('⚠️ Chauffeur requis', true); return; }
   const maxN = DB.nc.reduce((m,r)=>Math.max(m,r.n||0),0);
@@ -3834,11 +4107,13 @@ function editGasoil(idx) {
 }
 
 function deleteGasoil(idx) {
+  if (!_checkActionsLibres('deleteGasoil')) return;
   if (!confirm('Supprimer ?')) return;
   DB.gasoil.splice(idx,1); saveDB(); renderGasoil(); showToast('✅ Supprimé');
 }
 
 function saveGasoil() {
+  if (!_checkActionsLibres('saveGasoil')) return;
   const vehicule = document.getElementById('f-gasoil-vehicule').value.trim();
   if (!vehicule) { showToast('⚠️ Véhicule requis', true); return; }
   const obj = {
@@ -3949,11 +4224,13 @@ function editEquip(idx) {
 }
 
 function deleteEquip(idx) {
+  if (!_checkActionsLibres('deleteEquip')) return;
   if (!confirm('Supprimer ?')) return;
   DB.equip.splice(idx,1); saveDB(); renderEquip(); showToast('✅ Supprimé');
 }
 
 function saveEquip() {
+  if (!_checkActionsLibres('saveEquip')) return;
   const tr = document.getElementById('f-equip-tr').value.trim();
   if (!tr) { showToast('⚠️ Tracteur requis', true); return; }
   const obj = {
@@ -4408,11 +4685,13 @@ function editActivite(idx) {
 }
 
 function deleteActivite(idx) {
+  if (!_checkActionsLibres('deleteActivite')) return;
   if (!confirm('Supprimer ?')) return;
   DB.activite.splice(idx,1); saveDB(); renderActivite(); showToast('✅ Supprimé');
 }
 
 function saveActivite() {
+  if (!_checkActionsLibres('saveActivite')) return;
   const tr = document.getElementById('f-act-tr').value.trim();
   const obj = {
     sharik: document.getElementById('f-act-sharik').value.trim().toUpperCase(),
@@ -4462,7 +4741,12 @@ function renderBL() {
       const v = r[m] || '';
       if (!v) return `<td style="color:var(--txt3)">—</td>`;
       if (v.toLowerCase().includes('panne')) return `<td style="color:var(--red);font-size:11px">🔧 ${v}</td>`;
-      if (v === 'déposer') return `<td><span class="badge badge-dispo">✓ Déposé</span></td>`;
+      if (v === 'déposer' || v === 'depose') return `<td><span class="badge badge-dispo">✓ Déposé</span></td>`;
+      if (v === 'restitue') return `<td><span class="badge badge-dispo" style="background:#38bdf8;color:#000;font-size:9px;padding:2px 6px;">Restitué (En attente)</span></td>`;
+      if (v.startsWith('partiel_')) {
+        const count = v.split('_')[1] || '?';
+        return `<td><span class="badge badge-manque" style="background:#fbbf24;color:#000;font-size:9px;padding:2px 6px;">Partiel (${count} mq)</span></td>`;
+      }
       return `<td style="font-size:11px">${v}</td>`;
     }).join('');
     return `<tr><td style="font-weight:600">${r.chauffeur}</td>${cells}<td><button class="del-btn" onclick="editBL(${realIdx})">✏️</button><button class="del-btn" onclick="deleteBL(${realIdx})">🗑</button></td></tr>`;
@@ -4479,11 +4763,13 @@ function editBL(idx) {
 }
 
 function deleteBL(idx) {
+  if (!_checkActionsLibres('deleteBL')) return;
   if (!confirm('Supprimer ?')) return;
   DB.bl.splice(idx,1); saveDB(); renderBL(); showToast('✅ Supprimé');
 }
 
 function saveBL() {
+  if (!_checkActionsLibres('saveBL')) return;
   const chauffeur = document.getElementById('f-bl-chauffeur').value.trim();
   if (!chauffeur) { showToast('⚠️ Chauffeur requis', true); return; }
   const obj = {chauffeur: chauffeur.toUpperCase()};
@@ -4597,11 +4883,13 @@ function editOdo(idx) {
 }
 
 function deleteOdo(idx) {
+  if (!_checkActionsLibres('deleteOdo')) return;
   if (!confirm('Supprimer ?')) return;
   DB.odo.splice(idx,1); saveDB(); renderOdo(); showToast('✅ Supprimé');
 }
 
 function saveOdo() {
+  if (!_checkActionsLibres('saveOdo')) return;
   const v = document.getElementById('f-odo-v').value.trim();
   if (!v) { showToast('⚠️ Véhicule requis', true); return; }
   const vals = (DB.odo_weeks||[]).map((_,i)=>{
@@ -4660,6 +4948,7 @@ function editCSPC(idx) {
 }
 
 function deleteCSPC(idx) {
+  if (!_checkActionsLibres('deleteCSPC')) return;
   if (!confirm('Supprimer ?')) return;
   const v = DB.cspc[idx] ? DB.cspc[idx].v : null;
   DB.cspc.splice(idx, 1);
@@ -4674,6 +4963,7 @@ function deleteCSPC(idx) {
 }
 
 function saveCSPC() {
+  if (!_checkActionsLibres('saveCSPC')) return;
   const v = document.getElementById('f-cspc-v').value.trim();
   if (!v) { showToast('⚠️ Véhicule requis', true); return; }
   const hor_str = document.getElementById('f-cspc-hor').value;
@@ -4832,6 +5122,7 @@ function openBlacklistModal(idx) {
 function editBlacklistEntry(idx) { openBlacklistModal(idx); }
 
 function saveBlacklist() {
+  if (!_checkActionsLibres('saveBlacklist')) return;
   const chauffeur   = (document.getElementById('f-bl-chauffeur').value   || '').trim().toUpperCase();
   const destination = (document.getElementById('f-bl-destination').value || '').trim().toUpperCase();
   const motif       = (document.getElementById('f-bl-motif').value       || '').trim();
@@ -4854,6 +5145,7 @@ function saveBlacklist() {
 }
 
 function deleteBlacklistEntry(idx) {
+  if (!_checkActionsLibres('deleteBlacklistEntry')) return;
   if (!confirm('Supprimer cette règle blacklist ?')) return;
   getBlacklist().splice(idx, 1);
   saveDB();
@@ -4866,6 +5158,7 @@ function getBlacklistViolations() {
   const bl = getBlacklist();
   if (!bl.length) return [];
   const violations = [];
+  const deja = DB.anomaliesPointees || {};
   DB.dispo.forEach(r => {
     bl.forEach(rule => {
       const chMatch = (r.chauffeur || '').trim().toUpperCase() === rule.chauffeur;
@@ -4873,10 +5166,16 @@ function getBlacklistViolations() {
       const lieuJ1  = (r.lieuJ1 || '').trim().toUpperCase();
       const dest    = rule.destination;
       if (chMatch && lieuJ && lieuJ !== '—' && lieuJ.includes(dest)) {
-        violations.push({ vehicule: r.v, chauffeur: r.chauffeur, lieu: r.lieuJ, champ: 'Lieu J', rule });
+        const pkey = 'viol_' + r.v + '_' + r.chauffeur + '_' + lieuJ + '_' + today();
+        if (!deja[pkey]) {
+          violations.push({ vehicule: r.v, chauffeur: r.chauffeur, lieu: r.lieuJ, champ: 'Lieu J', rule });
+        }
       }
       if (chMatch && lieuJ1 && lieuJ1 !== '—' && lieuJ1.includes(dest)) {
-        violations.push({ vehicule: r.v, chauffeur: r.chauffeur, lieu: r.lieuJ1, champ: 'Lieu J+1', rule });
+        const pkey = 'viol_' + r.v + '_' + r.chauffeur + '_' + lieuJ1 + '_' + today();
+        if (!deja[pkey]) {
+          violations.push({ vehicule: r.v, chauffeur: r.chauffeur, lieu: r.lieuJ1, champ: 'Lieu J+1', rule });
+        }
       }
     });
   });
@@ -4923,9 +5222,9 @@ function getAnomaliesAPointer() {
   // Filtre : anomalies déjà pointées (stockées dans DB)
   const deja = DB.anomaliesPointees || {};
   return DB.dispo.filter(r => {
-    if (!r.lieuJ_initial || !r.lieuJ) return false;
-    if (r.lieuJ === '—' || r.lieuJ_initial === '—') return false;
-    if (r.lieuJ.trim().toUpperCase() === r.lieuJ_initial.trim().toUpperCase()) return false;
+    if (!r.lieuJ1_initial || !r.lieuJ1) return false;
+    if (r.lieuJ1 === '—' || r.lieuJ1_initial === '—') return false;
+    if (r.lieuJ1.trim().toUpperCase() === r.lieuJ1_initial.trim().toUpperCase()) return false;
     const key = r.v + '_' + today();
     return !deja[key]; // pas encore pointé aujourd'hui
   });
@@ -4965,7 +5264,7 @@ function renderPointageList(anomalies, violations) {
   let html = '';
 
   if (anomalies.length) {
-    html += '<div style="font-size:10px;font-weight:700;color:#f59e0b;letter-spacing:2px;text-transform:uppercase;margin-bottom:10px;padding-bottom:6px;border-bottom:1px solid rgba(245,158,11,.2)">⚠️ Anomalies Lieu Jour (' + anomalies.length + ')</div>';
+    html += '<div style="font-size:10px;font-weight:700;color:#f59e0b;letter-spacing:2px;text-transform:uppercase;margin-bottom:10px;padding-bottom:6px;border-bottom:1px solid rgba(245,158,11,.2)">⚠️ Anomalies Lieu J+1 (' + anomalies.length + ')</div>';
     anomalies.forEach((r, i) => {
       const key = 'anom_' + i;
       const isDone = !!_pointageEnCours[key];
@@ -4977,8 +5276,8 @@ function renderPointageList(anomalies, violations) {
                 '<span style="font-family:monospace;color:var(--acc)">' + r.v + '</span> · ' + (r.chauffeur || '—') +
               '</div>' +
               '<div style="font-size:11px;color:var(--txt2)">' +
-                'Prévu : <span style="background:rgba(52,211,153,.15);color:#34d399;padding:1px 7px;border-radius:4px">' + r.lieuJ_initial + '</span>' +
-                ' → Actuel : <span style="background:rgba(248,113,113,.15);color:#f87171;padding:1px 7px;border-radius:4px">' + r.lieuJ + '</span>' +
+                'Prévu J+1 : <span style="background:rgba(52,211,153,.15);color:#34d399;padding:1px 7px;border-radius:4px">' + r.lieuJ1_initial + '</span>' +
+                ' → Actuel J+1 : <span style="background:rgba(248,113,113,.15);color:#f87171;padding:1px 7px;border-radius:4px">' + r.lieuJ1 + '</span>' +
               '</div>' +
               (isDone
                 ? '<div style="font-size:10px;color:#34d399;margin-top:6px">✅ ' + (_pointageEnCours[key].motif || '') + ((_pointageEnCours[key].detail) ? ' — ' + _pointageEnCours[key].detail : '') + '</div>'
@@ -4988,6 +5287,7 @@ function renderPointageList(anomalies, violations) {
                         '<option value="">— Motif obligatoire —</option>' +
                         '<option value="Orientation">🔀 Orientation</option>' +
                         '<option value="Chargement à son compte">⚠️ Chargement à son compte</option>' +
+                        '<option value="Refus de travail">🚫 Refus de travail</option>' +
                         '<option value="Retard">⏱ Retard</option>' +
                         '<option value="Panne en route">🔧 Panne en route</option>' +
                         '<option value="Changement client">📦 Changement client</option>' +
@@ -4995,7 +5295,7 @@ function renderPointageList(anomalies, violations) {
                         '<option value="Erreur planning">📋 Erreur planning</option>' +
                         '<option value="Autre">✏️ Autre</option>' +
                       '</select>' +
-                      '<button data-pkey="' + key + '" onclick="pointerAnomalieItem(this.dataset.pkey)" style="background:#f59e0b;color:#000;border:none;padding:7px 16px;border-radius:7px;font-weight:800;cursor:pointer;font-size:11px;white-space:nowrap">✅ Vu</button>' +
+                      '<button data-pkey="' + key + '" data-immat="' + r.v + '" onclick="pointerAnomalieItem(this.dataset.pkey, this.dataset.immat)" style="background:#f59e0b;color:#000;border:none;padding:7px 16px;border-radius:7px;font-weight:800;cursor:pointer;font-size:11px;white-space:nowrap">✅ Vu</button>' +
                     '</div>' +
                     '<div id="detail-wrap-' + key + '" style="display:none;margin-bottom:4px">' +
                       '<input id="justif-' + key + '" type="text" placeholder="Préciser…" style="width:100%;background:rgba(255,255,255,.06);border:1px solid rgba(245,158,11,.3);border-radius:7px;padding:7px 11px;color:var(--txt);font-size:11px;outline:none;box-sizing:border-box">' +
@@ -5027,7 +5327,7 @@ function renderPointageList(anomalies, violations) {
               ? '<div style="font-size:10px;color:#34d399;margin-top:6px">✅ Pointé : ' + (_pointageEnCours[key].justif || '') + '</div>'
               : '<div style="display:flex;gap:8px;margin-top:10px;align-items:center">' +
                   '<input id="justif-' + key + '" type="text" placeholder="Justification obligatoire…" style="flex:1;background:rgba(255,255,255,.06);border:1px solid rgba(248,113,113,.3);border-radius:7px;padding:7px 11px;color:var(--txt);font-size:11px;outline:none" onkeydown="if(event.key===\'Enter\')this.nextElementSibling.click()">' +
-                  '<button data-pkey="' + key + '" onclick="pointerAnomalieItem(this.dataset.pkey)" style="background:#f87171;color:#000;border:none;padding:7px 16px;border-radius:7px;font-weight:800;cursor:pointer;font-size:11px;white-space:nowrap">✅ Vu</button>' +
+                  '<button data-pkey="' + key + '" data-immat="' + v.vehicule + '" onclick="pointerAnomalieItem(this.dataset.pkey, this.dataset.immat)" style="background:#f87171;color:#000;border:none;padding:7px 16px;border-radius:7px;font-weight:800;cursor:pointer;font-size:11px;white-space:nowrap">✅ Vu</button>' +
                 '</div>'
             ) +
           '</div>' +
@@ -5054,35 +5354,37 @@ function onPointageMotifChange(key) {
   const val = sel.value;
   // Toujours afficher le champ détail
   if (detailWrap) detailWrap.style.display = val ? 'block' : 'none';
-  // Avertissement NC si chargement à son compte
-  if (ncWarn) ncWarn.style.display = (val === 'Chargement à son compte') ? 'block' : 'none';
+  // Avertissement NC si chargement à son compte ou refus de travail
+  if (ncWarn) ncWarn.style.display = (val === 'Chargement à son compte' || val === 'Refus de travail') ? 'block' : 'none';
   if (val) setTimeout(() => { const inp = document.getElementById('justif-' + key); if (inp) inp.focus(); }, 50);
 }
 
-function pointerAnomalieItem(key) {
+function pointerAnomalieItem(key, immat) {
   const sel   = document.getElementById('motif-' + key);
   const input = document.getElementById('justif-' + key);
   const motif = sel ? sel.value.trim() : '';
   const detail = input ? input.value.trim() : '';
 
-  if (!motif) {
-    showToast('⚠️ Sélectionnez un motif avant de valider', true);
-    if (sel) sel.focus();
-    return;
+  if (key.startsWith('anom_')) {
+    if (!motif) {
+      showToast('⚠️ Sélectionnez un motif avant de valider', true);
+      if (sel) sel.focus();
+      return;
+    }
+  } else if (key.startsWith('viol_')) {
+    if (!detail) {
+      showToast('⚠️ Saisissez une justification avant de valider', true);
+      if (input) input.focus();
+      return;
+    }
   }
 
-  const justif = motif + (detail ? ' — ' + detail : '');
+  const justif = key.startsWith('anom_') ? (motif + (detail ? ' — ' + detail : '')) : detail;
   _pointageEnCours[key] = { motif, detail, justif, ts: new Date().toISOString() };
 
   // Sauvegarder dans DB.anomaliesPointees si c'est une anomalie de lieu
   if (key.startsWith('anom_')) {
-    const idx = parseInt(key.replace('anom_', ''));
-    const anomalies = DB.dispo.filter(r => {
-      if (!r.lieuJ_initial || !r.lieuJ) return false;
-      if (r.lieuJ === '—' || r.lieuJ_initial === '—') return false;
-      return r.lieuJ.trim().toUpperCase() !== r.lieuJ_initial.trim().toUpperCase();
-    });
-    const r = anomalies[idx];
+    const r = DB.dispo.find(x => x.v === immat);
     if (r) {
       if (!DB.anomaliesPointees) DB.anomaliesPointees = {};
       const eq = typeof window.CURRENT_EQUIPE !== 'undefined' ? window.CURRENT_EQUIPE : 'A';
@@ -5092,23 +5394,44 @@ function pointerAnomalieItem(key) {
         date: today(),
         equipe: eq,
         chauffeur: r.chauffeur,
-        lieuInitial: r.lieuJ_initial,
-        lieuActuel: r.lieuJ
+        lieuInitial: r.lieuJ1_initial,
+        lieuActuel: r.lieuJ1
       };
 
-      // ── Auto-déclaration NC si "Chargement à son compte" ──
-      if (motif === 'Chargement à son compte') {
+      // ── Auto-déclaration NC si "Chargement à son compte" ou "Refus de travail" ──
+      if (motif === 'Chargement à son compte' || motif === 'Refus de travail') {
         if (!DB.nc) DB.nc = [];
         DB.nc.push({
           ref: '',
           date: today(),
           sharik: r.chauffeur || '',
           immat: r.v || '',
-          type: 'Chargement à son compte',
-          obs: 'Auto — Anomalie lieu : ' + r.lieuJ_initial + ' → ' + r.lieuJ + (detail ? ' | ' + detail : '')
+          type: motif,
+          obs: 'Auto — Anomalie lieu J+1 : ' + r.lieuJ1_initial + ' → ' + r.lieuJ1 + (detail ? ' | ' + detail : '')
         });
         showToast('📋 NC auto-créée pour ' + r.v + ' (' + r.chauffeur + ')');
       }
+    }
+  } else if (key.startsWith('viol_')) {
+    // Pointer une blacklist violation
+    const idx = parseInt(key.replace('viol_', ''));
+    const violations = getBlacklistViolations(); // already filtered unpointed ones
+    const v = violations[idx];
+    if (v) {
+      if (!DB.anomaliesPointees) DB.anomaliesPointees = {};
+      const eq = typeof window.CURRENT_EQUIPE !== 'undefined' ? window.CURRENT_EQUIPE : 'A';
+      const pkey = 'viol_' + v.vehicule + '_' + v.chauffeur + '_' + v.lieu.trim().toUpperCase() + '_' + today();
+      DB.anomaliesPointees[pkey] = {
+        motif: 'Blacklist',
+        detail: detail,
+        justif: detail,
+        ts: new Date().toISOString(),
+        date: today(),
+        equipe: eq,
+        chauffeur: v.chauffeur,
+        lieuInitial: 'Blacklist Règle',
+        lieuActuel: v.lieu
+      };
     }
   }
 
@@ -5231,6 +5554,21 @@ function renderHistoriqueAnomalies() {
 // Bloque / débloque les boutons d'action critiques pendant le pointage
 function _setActionsBloqueesPointage(bloquer) {
   window._actionsBloquees = bloquer;
+  let overlay = document.getElementById('pointage-block-overlay');
+  if (bloquer) {
+    if (!overlay) {
+      overlay = document.createElement('div');
+      overlay.id = 'pointage-block-overlay';
+      overlay.style.cssText = 'position:fixed;inset:0;background:rgba(10,14,26,.85);z-index:99990;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(6px);cursor:pointer';
+      overlay.innerHTML = '<div style="color:#f87171;font-family:\'IBM Plex Sans\',sans-serif;font-size:16px;font-weight:700;text-align:center;pointer-events:none">⚠️ POINTAGE OBLIGATOIRE DES ANOMALIES EN COURS<br><span style="font-size:12px;color:var(--txt2);font-weight:400">Cliquez n\'importe où pour ouvrir le formulaire de pointage</span></div>';
+      overlay.addEventListener('click', () => {
+        lancerPointageObligatoire();
+      });
+      document.body.appendChild(overlay);
+    }
+  } else {
+    if (overlay) overlay.remove();
+  }
 }
 
 // Intercepteur : vérifie si les actions sont bloquées
@@ -5248,11 +5586,32 @@ function _checkActionsLibres(nomAction) {
   return false;
 }
 
+function checkPointageRequired() {
+  const eq = typeof window.CURRENT_EQUIPE !== 'undefined' ? window.CURRENT_EQUIPE : 'A';
+  const lock = sessionStorage.getItem('numiplan_team_lock');
+  const isReadOnly = lock && lock !== eq;
+  if (isReadOnly) {
+    _setActionsBloqueesPointage(false);
+    return false;
+  }
+  if (typeof getAnomaliesAPointer !== 'function' || typeof getBlacklistViolations !== 'function') return false;
+  const anomalies = getAnomaliesAPointer();
+  const violations = getBlacklistViolations();
+  if (anomalies.length || violations.length) {
+    _setActionsBloqueesPointage(true);
+    return true;
+  } else {
+    _setActionsBloqueesPointage(false);
+    return false;
+  }
+}
+window.checkPointageRequired = checkPointageRequired;
+
 function showAnomaliesLieu() {
   const anomalies = DB.dispo.filter(r =>
-    r.lieuJ_initial && r.lieuJ &&
-    r.lieuJ !== '—' && r.lieuJ_initial !== '—' &&
-    r.lieuJ.trim().toUpperCase() !== r.lieuJ_initial.trim().toUpperCase()
+    r.lieuJ1_initial && r.lieuJ1 &&
+    r.lieuJ1 !== '—' && r.lieuJ1_initial !== '—' &&
+    r.lieuJ1.trim().toUpperCase() !== r.lieuJ1_initial.trim().toUpperCase()
   );
 
   if (anomalies.length === 0) {
@@ -5270,7 +5629,7 @@ function showAnomaliesLieu() {
   modal.innerHTML = `
     <div style="background:var(--bg2);border:1px solid var(--border);border-radius:14px;padding:24px;width:680px;max-width:95vw;max-height:80vh;overflow-y:auto">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
-        <h3 style="margin:0;font-size:14px;color:#a78bfa">⚠️ Anomalies Lieu Jour — ${anomalies.length} véhicule(s)</h3>
+        <h3 style="margin:0;font-size:14px;color:#a78bfa">⚠️ Anomalies Lieu J+1 — ${anomalies.length} véhicule(s)</h3>
         <button onclick="document.getElementById('modal-anomalies-lieu').remove()" style="background:none;border:none;color:var(--txt2);font-size:18px;cursor:pointer">✕</button>
       </div>
       <table style="width:100%;border-collapse:collapse;font-size:12px">
@@ -5278,8 +5637,8 @@ function showAnomaliesLieu() {
           <tr style="border-bottom:1px solid var(--border)">
             <th style="text-align:left;padding:6px 8px;color:var(--txt2);font-weight:500">Véhicule</th>
             <th style="text-align:left;padding:6px 8px;color:var(--txt2);font-weight:500">Chauffeur</th>
-            <th style="text-align:left;padding:6px 8px;color:var(--grn);font-weight:500">Lieu prévu</th>
-            <th style="text-align:left;padding:6px 8px;color:var(--red);font-weight:500">Lieu actuel</th>
+            <th style="text-align:left;padding:6px 8px;color:var(--grn);font-weight:500">Lieu J+1 prévu</th>
+            <th style="text-align:left;padding:6px 8px;color:var(--red);font-weight:500">Lieu J+1 actuel</th>
             <th style="text-align:left;padding:6px 8px;color:var(--txt2);font-weight:500">État</th>
           </tr>
         </thead>
@@ -5288,8 +5647,8 @@ function showAnomaliesLieu() {
             <tr style="border-bottom:1px solid rgba(255,255,255,.05)">
               <td style="padding:8px;font-family:monospace;font-size:11px">${r.v}</td>
               <td style="padding:8px">${r.chauffeur}</td>
-              <td style="padding:8px"><span style="background:rgba(52,211,153,.15);color:var(--grn);padding:2px 8px;border-radius:4px">${r.lieuJ_initial}</span></td>
-              <td style="padding:8px"><span style="background:rgba(248,113,113,.15);color:var(--red);padding:2px 8px;border-radius:4px">${r.lieuJ}</span></td>
+              <td style="padding:8px"><span style="background:rgba(52,211,153,.15);color:var(--grn);padding:2px 8px;border-radius:4px">${r.lieuJ1_initial}</span></td>
+              <td style="padding:8px"><span style="background:rgba(248,113,113,.15);color:var(--red);padding:2px 8px;border-radius:4px">${r.lieuJ1}</span></td>
               <td style="padding:8px">${r.etat}</td>
             </tr>
           `).join('')}
@@ -5325,6 +5684,7 @@ function filterByEtat(etat) {
 // RELEVÉ KM RAPIDE (inline prompt)
 // ═══════════════════════════════════════════════════════════════
 function declKm(idx) {
+  if (!_checkActionsLibres('declKm')) return;
   const r = DB.dispo[idx];
   const val = prompt('Relevé kilométrique pour ' + r.v + ' (' + r.chauffeur + ') :', r.km || '');
   if (val === null) return;
@@ -5356,6 +5716,7 @@ function declKm(idx) {
 // DÉCLARATION CSPC
 // ═══════════════════════════════════════════════════════════════
 function declCSPC(idx) {
+  if (!_checkActionsLibres('declCSPC')) return;
   const r = DB.dispo[idx];
   if (!confirm('Déclarer ' + r.v + ' en programme CSPC ?')) return;
   DB.dispo[idx].cspc = true;
@@ -5389,6 +5750,160 @@ function undeclCSPC(idx) {
   if (typeof renderCSPC === 'function') renderCSPC();
   showToast('✅ ' + r.v + ' retiré du programme CSPC');
 }
+
+function shouldUpdateLieuJ1Initial(r, newVal) {
+  if (!r.lieuJ1_initial || r.lieuJ1_initial === '—') return true;
+  if (!newVal || newVal === '—') return true;
+
+  const eq = typeof window.CURRENT_EQUIPE !== 'undefined' ? window.CURRENT_EQUIPE : 'A';
+  const basculeKey = 'numiplan_last_bascule_' + eq;
+  const lastBascule = DB.last_bascule || localStorage.getItem(basculeKey);
+  if (!lastBascule) return false;
+
+  const todayStr = today();
+  if (todayStr === lastBascule) return true;
+
+  const basculeDate = new Date(lastBascule + 'T00:00:00');
+  const currentDate = new Date();
+  const diffTime = currentDate.getTime() - basculeDate.getTime();
+  const diffDays = diffTime / (1000 * 3600 * 24);
+
+  if (diffDays >= 2) return false;
+  if (diffDays >= 1) return currentDate.getHours() < 1;
+
+  return false;
+}
+window.shouldUpdateLieuJ1Initial = shouldUpdateLieuJ1Initial;
+
+function ouvrirPointageKpiAtelier() {
+  const modal = document.getElementById('modal-pointage-kpi-atelier');
+  if (!modal) return;
+  modal.style.display = 'flex';
+  renderKpiPointageList();
+}
+window.ouvrirPointageKpiAtelier = ouvrirPointageKpiAtelier;
+
+function renderKpiPointageList() {
+  const listEl = document.getElementById('kpi-pointage-list');
+  const countEl = document.getElementById('kpi-remaining-count');
+  if (!listEl) return;
+  
+  const toPoint = DB.pannes.filter(r => r.kpi === 'NON' && r.kpiLastPointageDate !== today());
+  countEl.textContent = toPoint.length;
+  
+  if (!toPoint.length) {
+    listEl.innerHTML = '<div style="text-align:center;padding:40px;color:#64748b;font-size:13px">🎉 Tous les camions signalés ont été pointés aujourd\'hui !</div>';
+    setTimeout(() => {
+      const modal = document.getElementById('modal-pointage-kpi-atelier');
+      if (modal && modal.style.display === 'flex') modal.style.display = 'none';
+    }, 1500);
+    return;
+  }
+  
+  let html = '';
+  toPoint.forEach((r, i) => {
+    const globalIdx = DB.pannes.indexOf(r);
+    html += `
+      <div style="background:rgba(56,189,248,.04);border:1px solid rgba(56,189,248,.15);border-radius:10px;padding:14px 16px;margin-bottom:10px">
+        <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px">
+          <div style="flex:1">
+            <div style="font-size:12px;font-weight:700;color:var(--txt);margin-bottom:4px">
+              <span style="font-family:monospace;color:var(--acc)">${r.immat}</span> · Chauffeur : ${r.chauffeur || '—'}
+            </div>
+            <div style="font-size:11px;color:var(--txt2);margin-bottom:6px">
+              Panne déclarée le : <b>${fmtDate(r.date)}</b> | Description : <i>${r.desc || '—'}</i>
+            </div>
+            <div style="font-size:10px;color:#64748b">
+              KPI actuel : <span style="background:rgba(248,113,113,.15);color:#f87171;padding:1px 6px;border-radius:4px;font-weight:600">NON (Pas encore passé)</span>
+            </div>
+          </div>
+          <div style="display:flex;gap:8px;align-self:center">
+            <button onclick="pointerKpiAtelier(${globalIdx}, 'OUI')" style="background:#34d399;color:#000;border:none;padding:8px 14px;border-radius:7px;font-weight:800;cursor:pointer;font-size:11px;white-space:nowrap">✅ Passé à l'atelier</button>
+            <button onclick="pointerKpiAtelier(${globalIdx}, 'NON')" style="background:#f87171;color:#fff;border:none;padding:8px 14px;border-radius:7px;font-weight:800;cursor:pointer;font-size:11px;white-space:nowrap">❌ Non passé</button>
+          </div>
+        </div>
+      </div>
+    `;
+  });
+  listEl.innerHTML = html;
+}
+window.renderKpiPointageList = renderKpiPointageList;
+
+function pointerKpiAtelier(globalIdx, response) {
+  if (!_checkActionsLibres('pointerKpiAtelier')) return;
+  const r = DB.pannes[globalIdx];
+  if (!r) return;
+  
+  r.kpi = response;
+  r.kpiLastPointageDate = today();
+  
+  if (!r.kpiHistory) r.kpiHistory = [];
+  r.kpiHistory.push({
+    date: today(),
+    response: response,
+    ts: new Date().toISOString(),
+    equipe: typeof window.CURRENT_EQUIPE !== 'undefined' ? window.CURRENT_EQUIPE : 'A'
+  });
+  
+  saveDB();
+  showToast(`✅ Enregistré : ${r.immat} → ${response === 'OUI' ? 'Passé' : 'Non passé'}`);
+  
+  renderPannes();
+  renderDispo();
+  renderKpiPointageList();
+}
+window.pointerKpiAtelier = pointerKpiAtelier;
+
+function voirHistoriqueKpi(globalIdx) {
+  const r = DB.pannes[globalIdx];
+  if (!r) return;
+  
+  const modal = document.getElementById('modal-historique-kpi-atelier');
+  const title = document.getElementById('kpi-hist-title');
+  const body = document.getElementById('kpi-historique-body');
+  if (!modal || !body || !title) return;
+  
+  title.innerHTML = `📜 Historique KPI Atelier — <span style="font-family:monospace;color:var(--acc)">${r.immat}</span>`;
+  
+  const history = r.kpiHistory || [];
+  if (!history.length) {
+    body.innerHTML = '<div style="text-align:center;padding:40px;color:#64748b;font-size:13px">Aucun historique pour ce véhicule.</div>';
+  } else {
+    let html = `
+      <table style="width:100%;border-collapse:collapse;font-size:12px;text-align:left">
+        <thead>
+          <tr style="border-bottom:1px solid var(--border);color:var(--txt2)">
+            <th style="padding:8px">Date</th>
+            <th style="padding:8px">Équipe</th>
+            <th style="padding:8px">Réponse</th>
+            <th style="padding:8px">Horodatage</th>
+          </tr>
+        </thead>
+        <tbody>
+    `;
+    history.forEach((h, i) => {
+      const respStyle = h.response === 'OUI' ? 'background:rgba(34,197,94,.15);color:#34d399' : 'background:rgba(248,113,113,.15);color:#f87171';
+      const respText = h.response === 'OUI' ? '✅ Passé à l\'atelier' : '❌ Non passé';
+      const bg = i % 2 === 0 ? 'rgba(255,255,255,.01)' : 'transparent';
+      html += `
+        <tr style="background:${bg};border-bottom:1px solid rgba(255,255,255,.04)">
+          <td style="padding:8px">${fmtDate(h.date)}</td>
+          <td style="padding:8px;font-weight:700;color:var(--acc)">EQ ${h.equipe || '?'}</td>
+          <td style="padding:8px"><span style="padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600;${respStyle}">${respText}</span></td>
+          <td style="padding:8px;color:#64748b">${new Date(h.ts).toLocaleString('fr-FR')}</td>
+        </tr>
+      `;
+    });
+    html += `
+        </tbody>
+      </table>
+    `;
+    body.innerHTML = html;
+  }
+  
+  modal.style.display = 'flex';
+}
+window.voirHistoriqueKpi = voirHistoriqueKpi;
 
 // ═══════════════════════════════════════════════════════════════
 // BASCULE J+1 → JOUR (à appeler chaque matin)
@@ -5476,6 +5991,7 @@ function _doBascule() {
     r.lieuJ = r.lieuJ1 && r.lieuJ1 !== '—' ? r.lieuJ1 : '—';
     r.lieuJ_initial = r.lieuJ;
     r.lieuJ1 = '—';
+    r.lieuJ1_initial = '—';
     r.km = null;
   });
   DB.cspc.forEach(r => {
@@ -5517,6 +6033,7 @@ function checkBascule() {
 
 // Sauvegarde depuis input datalist (lieuJ / lieuJ1)
 function saveInlineInput(el) {
+  if (!_checkActionsLibres('saveInlineInput')) return;
   const idx   = parseInt(el.dataset.idx);
   const field = el.dataset.field;
   const val   = el.value.trim().toUpperCase();
@@ -5531,11 +6048,17 @@ function saveInlineInput(el) {
   el.value = val;
   el.style.borderBottomColor = 'transparent';
   DB.dispo[idx][field] = val;
+  if (field === 'lieuJ1') {
+    if (shouldUpdateLieuJ1Initial(DB.dispo[idx], val)) {
+      DB.dispo[idx].lieuJ1_initial = val;
+    }
+  }
   saveDB();
   showToast('✅ ' + (field === 'lieuJ' ? 'Lieu Jour' : 'Lieu J+1') + ' → ' + val);
 }
 
 function saveInline(el) {
+  if (!_checkActionsLibres('saveInline')) return;
   const idx = parseInt(el.dataset.idx);
   const field = el.dataset.field;
   const val = el.textContent.trim();
@@ -5560,12 +6083,19 @@ function saveInline(el) {
   } else {
     DB.dispo[idx][field] = (val === '—' || val === '') ? '—' : val;
     el.textContent = DB.dispo[idx][field];
+    if (field === 'lieuJ1') {
+      const upVal = DB.dispo[idx][field];
+      if (shouldUpdateLieuJ1Initial(DB.dispo[idx], upVal)) {
+        DB.dispo[idx].lieuJ1_initial = upVal;
+      }
+    }
   }
   saveDB();
   showToast('✅ Mis à jour');
 }
 
 function setEtat(idx, nouvelEtat) {
+  if (!_checkActionsLibres('setEtat')) return;
   // ── VERROU : Lieu Jour ET Lieu J+1 obligatoires pour tout état sauf "Manque chauffeur" ──
   if (nouvelEtat !== 'Manque chauffeur') {
     const r = DB.dispo[idx];
@@ -5634,6 +6164,7 @@ function validerMiniLieu(idx, nouvelEtat) {
 }
 
 function declPanne(idx) {
+  if (!_checkActionsLibres('declPanne')) return;
   const r = DB.dispo[idx];
   // Pré-remplir le modal panne sans quitter l'onglet Disponibilité
   document.getElementById('f-panne-date').value = today();
@@ -5649,6 +6180,7 @@ function declPanne(idx) {
 }
 
 function declNC(idx) {
+  if (!_checkActionsLibres('declNC')) return;
   const r = DB.dispo[idx];
   switchTab('nc', null);
   document.getElementById('f-nc-date').value = today();
@@ -5664,6 +6196,7 @@ function declNC(idx) {
 }
 
 function declGasoil(idx) {
+  if (!_checkActionsLibres('declGasoil')) return;
   const r = DB.dispo[idx];
   switchTab('gasoil', null);
   document.getElementById('f-gasoil-date').value = today();
@@ -5678,6 +6211,7 @@ function declGasoil(idx) {
 }
 
 function declBL(idx) {
+  if (!_checkActionsLibres('declBL')) return;
   const r = DB.dispo[idx];
   switchTab('bl', null);
   // Chercher si ce chauffeur a déjà une ligne BL
@@ -5717,24 +6251,18 @@ function switchEquipe(eq) {
   // Sauvegarder le cache de l'équipe quittée (évite perte au changement A↔B↔C↔D)
   const prev = CURRENT_EQUIPE;
   if (prev && typeof DB !== 'undefined') {
-    window['DB_' + prev] = JSON.parse(JSON.stringify({
-      dispo: DB.dispo, pannes: DB.pannes, nc: DB.nc,
-      gasoil: DB.gasoil, equip: DB.equip, activite: DB.activite || [],
-      bl: DB.bl, odo: DB.odo, odo_weeks: DB.odo_weeks || [], cspc: DB.cspc || [],
-      blacklist: DB.blacklist || [], tracabilite: DB.tracabilite || [], _localTs: DB._localTs
-    }));
+    window['DB_' + prev] = cloneTeamData(DB, prev === 'A' ? INITIAL_DATA : emptyTeamData());
   }
   CURRENT_EQUIPE = eq;
   window.CURRENT_EQUIPE = eq;
   // Swap DB — cache cloud (window.DB_X) ou données locales par défaut
-  const src = window['DB_' + eq] ||
-              (eq==='B' ? DB_B : eq==='C' ? DB_C : eq==='D' ? DB_D : DB_A);
-  Object.assign(DB, {
-    dispo: src.dispo, pannes: src.pannes, nc: src.nc,
-    gasoil: src.gasoil, equip: src.equip, activite: src.activite||[],
-    bl: src.bl, odo: src.odo, odo_weeks: src.odo_weeks, cspc: src.cspc||[],
-    tracabilite: src.tracabilite||[]
-  });
+  const rawSrc = window['DB_' + eq] || (eq==='B' ? DB_B : eq==='C' ? DB_C : eq==='D' ? DB_D : DB_A);
+  const src = cloneTeamData(rawSrc, eq === 'A' ? INITIAL_DATA : emptyTeamData());
+  
+  // Vider les anciennes clés de DB pour éviter de garder des restes d'autres équipes
+  Object.keys(DB).forEach(k => delete DB[k]);
+  
+  Object.assign(DB, src);
   // Recalcul perf camions si données importées
   if (PERF_RAW && PERF_RAW.length > 0) setTimeout(buildPerfRows, 50);
 
@@ -5760,6 +6288,10 @@ function switchEquipe(eq) {
   if (typeof window.applyTeamLockUI === 'function') {
     window.applyTeamLockUI(eq);
   }
+  // Vérifier et appliquer le pointage obligatoire
+  if (typeof window.checkPointageRequired === 'function') {
+    window.checkPointageRequired();
+  }
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -5774,7 +6306,10 @@ document.querySelectorAll('input[type=date]').forEach(el => {
 });
 document.getElementById('todayBadge').textContent = new Date().toLocaleDateString('fr-FR', { weekday: 'short', day: '2-digit', month: 'long', year: 'numeric' });
 
-DB.dispo.forEach(r => { if (!r.lieuJ_initial) r.lieuJ_initial = r.lieuJ || '—'; });
+DB.dispo.forEach(r => {
+  if (!r.lieuJ_initial) r.lieuJ_initial = r.lieuJ || '—';
+  if (!r.lieuJ1_initial) r.lieuJ1_initial = r.lieuJ1 || '—';
+});
 renderDispo();
 renderPannes();
 renderNC();
@@ -5788,6 +6323,7 @@ renderOdo();
 renderCSPC();
 renderBLAlerts();
 renderTracabilite();
+checkPointageRequired();
 
 // ════════════════════════════════════════════════════════════════════════════
 // EXPORT NUMIFLOW — canvas DISPO.xlsx (lettre à lettre)
@@ -6020,11 +6556,11 @@ async function exportAllData() {
     // ══════════════════════════════════════════════════════
     addSheet('Dispo_'+eq,
       ['Véhicule','État','Type','Chauffeur','Horaire','Lieu Jour','Lieu J+1',
-       'Lieu J Initial','Équipement','Affecté','Prog. Figé','Programme','KM',
+       'Lieu J Initial','Lieu J+1 Initial','Équipement','Affecté','Prog. Figé','Programme','KM',
        'CSPC','Observation','Prog. Départ','Repos'],
       (src.dispo||[]).map(r => [
         r.v||'', r.etat||'', r.type||'', r.chauffeur||'', fmtHor(r.hor),
-        r.lieuJ||'', r.lieuJ1||'', r.lieuJ_initial||'', r.equip||'',
+        r.lieuJ||'', r.lieuJ1||'', r.lieuJ_initial||'', r.lieuJ1_initial||'', r.equip||'',
         r.affecte||'', r.progFige||'', r.prog||'', r.km||'',
         r.cspc?'OUI':'', r.obs||'', r.progDepart||'', r.repos||''
       ])
