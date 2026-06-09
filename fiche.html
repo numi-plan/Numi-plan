@@ -219,19 +219,6 @@
     if (eq === 'A') {
       if (!cleanSrc.dispo || !cleanSrc.dispo.length) {
         cleanSrc.dispo = cloneEquipePayload(window.INITIAL_DATA ? window.INITIAL_DATA.dispo : []);
-      } else {
-        const existingImmat = new Set(cleanSrc.dispo.map(r => r.v));
-        const missingVehicles = (window.INITIAL_DATA ? window.INITIAL_DATA.dispo : []).filter(r => !existingImmat.has(r.v));
-        if (missingVehicles.length > 0) {
-          const healedVehicles = missingVehicles.map(v => {
-            if (v.v === '000926-514-16') {
-              return Object.assign({}, v, { etat: 'En mission', lieuJ: 'BOUIRA', lieuJ1: 'BOUIRA' });
-            }
-            return v;
-          });
-          cleanSrc.dispo = [...cleanSrc.dispo, ...cloneEquipePayload(healedVehicles)];
-          console.log(`[Auto-Heal] ${healedVehicles.length} véhicules manquants réintégrés pour l'Équipe A.`);
-        }
       }
     }
     
@@ -3401,19 +3388,6 @@ function loadDB() {
   }
   if (!window.DB_A.dispo || !window.DB_A.dispo.length) {
     window.DB_A = cloneTeamData(INITIAL_DATA, INITIAL_DATA);
-  } else {
-    // S'assurer que tous les véhicules par défaut sont présents dans l'équipe A (réintégration automatique)
-    const existing = new Set(window.DB_A.dispo.map(r => r.v));
-    const missing = INITIAL_DATA.dispo.filter(r => !existing.has(r.v));
-    if (missing.length > 0) {
-      const healed = missing.map(v => {
-        if (v.v === '000926-514-16') {
-          return Object.assign({}, v, { etat: 'En mission', lieuJ: 'BOUIRA', lieuJ1: 'BOUIRA' });
-        }
-        return v;
-      });
-      window.DB_A.dispo = [...window.DB_A.dispo, ...JSON.parse(JSON.stringify(healed))];
-    }
   }
   if (!window.DB_A.bl || !window.DB_A.bl.length) {
     window.DB_A.bl = cloneTeamData(INITIAL_DATA, INITIAL_DATA).bl;
