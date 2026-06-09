@@ -252,7 +252,9 @@
       // On n'applique que si la version distante est STRICTEMENT plus récente
       // (modification faite par un autre utilisateur/onglet).
       if (remoteTs <= localTs) {
-        // C'est notre propre écho — on ne touche à rien
+        if (typeof window.checkPointageRequired === 'function') {
+          window.checkPointageRequired();
+        }
         return;
       }
       
@@ -3080,6 +3082,11 @@ function renderBLAlerts() {
             ${detailsText}
           </div>
         </div>
+        ${val === 'restitue' ? `
+          <button onclick="validerBLRapide('${al.chauffeur.replace(/'/g, "\\'")}', '${al.month}')" style="padding: 4px 10px; font-size: 10px; font-weight: 700; border-radius: 5px; cursor: pointer; background: var(--grn); color: #000; border: none; transition: background .2s;" onmouseover="this.style.opacity='0.8'" onmouseout="this.style.opacity='1'">
+            ✅ Valider Réception
+          </button>
+        ` : ''}
       </div>
     `;
   }).join('');
@@ -3460,11 +3467,15 @@ function saveDB() {
   // 1. Sauvegarde locale par équipe (évite qu'un F5 sur A affiche les données de D)
   DB._localTs = Date.now();
   window['DB_' + eq] = cloneTeamData(DB, eq === 'A' ? INITIAL_DATA : emptyTeamData());
-  localStorage.setItem(STORAGE_KEY, JSON.stringify({
-    version: 3,
-    active: eq,
-    teams: { A: window.DB_A, B: window.DB_B, C: window.DB_C, D: window.DB_D }
-  }));
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({
+      version: 3,
+      active: eq,
+      teams: { A: window.DB_A, B: window.DB_B, C: window.DB_C, D: window.DB_D }
+    }));
+  } catch(e) {
+    console.warn('LocalStorage save error (likely quota exceeded):', e);
+  }
   // 2. Sauvegarde cloud Firebase — on RETIRE les fichiers base64 (trop volumineux)
   //    Firestore limite les documents à 1 Mo. Les PDF/images d'assurance restent en local uniquement.
   if (typeof window._firebaseSaveDB === 'function') {
@@ -3499,7 +3510,11 @@ function saveArchives() {
   }
 
   // 1. Sauvegarde locale complète
-  localStorage.setItem(ARCHIVE_KEY, JSON.stringify(ARCHIVES));
+  try {
+    localStorage.setItem(ARCHIVE_KEY, JSON.stringify(ARCHIVES));
+  } catch(e) {
+    console.warn('LocalStorage save error for archives (likely quota exceeded):', e);
+  }
   // 2. Sauvegarde cloud Firebase — uniquement la clé équipe active (merge)
   if (typeof window._firebaseSaveArchives === 'function') {
     window._firebaseSaveArchives(eq, ARCHIVES[eq] || {});
@@ -3695,7 +3710,7 @@ function renderDispo() {
     <div class="stat-card org" style="cursor:pointer;transition:opacity .2s" onclick="filterByEtat('Manque chauffeur')" title="Filtrer Manque chauffeur"><div class="stat-num">${c.manque}</div><div class="stat-lbl">Manque chauffeur</div></div>
     <div class="stat-card pur" style="cursor:pointer;transition:opacity .2s" onclick="switchTab('cspc',document.querySelector('[onclick*=\\'cspc\\']'))" title="Voir les véhicules CSPC"><div class="stat-num">${DB.cspc.length}</div><div class="stat-lbl">CSPC</div></div>
     <div class="stat-card" style="cursor:pointer;transition:opacity .2s" onclick="filterByEtat('')" title="Afficher tout"><div class="stat-num">${DB.dispo.length}</div><div class="stat-lbl">Total ↺</div></div>
-    <div class="stat-card" style="cursor:pointer;transition:opacity .2s;border-left-color:#a78bfa" onclick="showAnomaliesLieu()" title="Voir les anomalies de lieu J+1"><div class="stat-num" style="color:#a78bfa">${DB.dispo.filter(r=>r.lieuJ1_initial&&r.lieuJ1&&r.lieuJ1!=='—'&&r.lieuJ1_initial!=='—'&&r.lieuJ1.trim().toUpperCase()!==r.lieuJ1_initial.trim().toUpperCase()).length}</div><div class="stat-lbl" style="color:#a78bfa">⚠️ Anomalies lieu</div></div>
+    <div class="stat-card" style="cursor:pointer;transition:opacity .2s;border-left-color:#a78bfa" onclick="showAnomaliesLieu()" title="Voir les anomalies de lieu J+1"><div class="stat-num" style="color:#a78bfa">${typeof getAnomaliesAPointer === 'function' ? getAnomaliesAPointer().length : 0}</div><div class="stat-lbl" style="color:#a78bfa">⚠️ Anomalies lieu</div></div>
     <div class="${kpiClass}" style="cursor:pointer;transition:opacity .2s;border-left-color:${kpiBorder}" onclick="ouvrirPointageKpiAtelier()" title="Voir les pannes non pointées pour passage atelier"><div class="stat-num" style="color:${kpiColor}">${kpiCount}</div><div class="stat-lbl" style="color:${kpiColor}">🛠️ KPI Atelier</div></div>`;
   document.getElementById('cnt-dispo').textContent = data.length;
   
@@ -5393,226 +5408,188 @@ function renderAnalytics() {
     Object.entries(pm).sort().map(([label,val])=>({label,val})), 'var(--pur)');
 }
 
-// ═══════════════════════════════════════════════════════════════
-// FILTRE PAR ÉTAT (clic sur compteur)
-// ═══════════════════════════════════════════════════════════════
-
-// ═══════════════════════════════════════════════════════════════
-// ANOMALIES DE LIEU JOUR
-// ═══════════════════════════════════════════════════════════════
-
-// ═══════════════════════════════════════════════════════════════════════════════
-// BLACKLIST CHAUFFEUR / DESTINATION
-// ═══════════════════════════════════════════════════════════════════════════════
-
-function getBlacklist() {
-  if (!DB.blacklist) DB.blacklist = [];
-  return DB.blacklist;
-}
-
-function renderBlacklist() {
-  const bl = getBlacklist();
-  const q  = (document.getElementById('blacklist-search') || {}).value || '';
-  const norm = v => (v || '').toLowerCase();
-  const filtered = bl.filter(r =>
-    norm(r.chauffeur).includes(norm(q)) || norm(r.destination).includes(norm(q)) || norm(r.motif).includes(norm(q))
-  );
-  document.getElementById('cnt-blacklist').textContent = bl.length;
-
-  const body = document.getElementById('blacklist-body');
-  if (!body) return;
-
-  if (!filtered.length) {
-    body.innerHTML = '<div style="text-align:center;padding:60px 20px;color:var(--txt3);font-size:13px">' +
-      '<div style="font-size:36px;margin-bottom:12px">🚫</div>' +
-      (bl.length ? 'Aucun résultat pour cette recherche.' : 'Aucune règle de blacklist configurée.<br><br>' +
-      '<button class="btn btn-save" onclick="openBlacklistModal()" style="margin-top:8px">＋ Ajouter une règle</button>') +
-    '</div>';
-    return;
-  }
-
-  body.innerHTML =
-    '<table style="width:100%;border-collapse:collapse;font-size:12px">' +
-    '<thead><tr style="border-bottom:1px solid var(--border)">' +
-    '<th style="text-align:left;padding:8px 12px;color:var(--txt2);font-weight:600;font-size:10px;letter-spacing:1px">CHAUFFEUR</th>' +
-    '<th style="text-align:left;padding:8px 12px;color:var(--txt2);font-weight:600;font-size:10px;letter-spacing:1px">DESTINATION INTERDITE</th>' +
-    '<th style="text-align:left;padding:8px 12px;color:var(--txt2);font-weight:600;font-size:10px;letter-spacing:1px">MOTIF</th>' +
-    '<th style="text-align:left;padding:8px 12px;color:var(--txt2);font-weight:600;font-size:10px;letter-spacing:1px">CRÉÉ LE</th>' +
-    '<th style="padding:8px 12px"></th>' +
-    '</tr></thead><tbody>' +
-    filtered.map((r, i) => {
-      const realIdx = bl.indexOf(r);
-      return '<tr style="border-bottom:1px solid rgba(255,255,255,.04);transition:background .15s" onmouseover="this.style.background=\'rgba(56,189,248,.05)\'" onmouseout="this.style.background=\'\'">' +
-        '<td style="padding:10px 12px;font-weight:700;color:var(--txt)">' + (r.chauffeur || '—') + '</td>' +
-        '<td style="padding:10px 12px"><span style="background:rgba(248,113,113,.15);color:#f87171;border:1px solid rgba(248,113,113,.3);border-radius:6px;padding:3px 10px;font-family:monospace;font-size:11px;font-weight:700">' + (r.destination || '—') + '</span></td>' +
-        '<td style="padding:10px 12px;color:var(--txt2);font-size:11px;font-style:italic">' + (r.motif || '—') + '</td>' +
-        '<td style="padding:10px 12px;color:var(--txt3);font-size:10px;font-family:monospace">' + (r.createdAt ? new Date(r.createdAt).toLocaleDateString('fr-FR') : '—') + '</td>' +
-        '<td style="padding:10px 12px;text-align:right">' +
-          '<button class="del-btn" style="color:var(--acc)" onclick="editBlacklistEntry(' + realIdx + ')" title="Modifier">✏️</button>' +
-          '<button class="del-btn" style="color:var(--red)" onclick="deleteBlacklistEntry(' + realIdx + ')" title="Supprimer">🗑</button>' +
-        '</td>' +
-      '</tr>';
-    }).join('') +
-    '</tbody></table>';
-}
-
-function openBlacklistModal(idx) {
-  document.getElementById('f-bl-chauffeur').value    = '';
-  document.getElementById('f-bl-destination').value  = '';
-  document.getElementById('f-bl-motif').value        = '';
-  document.getElementById('blacklist-edit-idx').value = idx !== undefined ? idx : -1;
-  if (idx !== undefined) {
-    const r = getBlacklist()[idx];
-    if (r) {
-      document.getElementById('f-bl-chauffeur').value   = r.chauffeur   || '';
-      document.getElementById('f-bl-destination').value = r.destination || '';
-      document.getElementById('f-bl-motif').value       = r.motif       || '';
-    }
-  }
-  openModal('modal-blacklist');
-}
-
-function editBlacklistEntry(idx) { openBlacklistModal(idx); }
-
-function saveBlacklist() {
-  if (!_checkActionsLibres('saveBlacklist')) return;
-  const chauffeur   = (document.getElementById('f-bl-chauffeur').value   || '').trim().toUpperCase();
-  const destination = (document.getElementById('f-bl-destination').value || '').trim().toUpperCase();
-  const motif       = (document.getElementById('f-bl-motif').value       || '').trim();
-  if (!chauffeur)   { showToast('⚠️ Chauffeur requis', true); return; }
-  if (!destination) { showToast('⚠️ Destination requise', true); return; }
-  if (!motif)       { showToast('⚠️ Motif requis', true); return; }
-
-  const bl  = getBlacklist();
-  const idx = parseInt(document.getElementById('blacklist-edit-idx').value);
-  const entry = { chauffeur, destination, motif, createdAt: idx >= 0 ? (bl[idx].createdAt || new Date().toISOString()) : new Date().toISOString() };
-
-  if (idx >= 0) { bl[idx] = entry; }
-  else { bl.push(entry); }
-
-  DB.blacklist = bl;
-  saveDB();
-  closeModal('modal-blacklist');
-  renderBlacklist();
-  showToast('✅ Règle blacklist enregistrée');
-}
-
-function deleteBlacklistEntry(idx) {
-  if (!_checkActionsLibres('deleteBlacklistEntry')) return;
-  if (!confirm('Supprimer cette règle blacklist ?')) return;
-  getBlacklist().splice(idx, 1);
-  saveDB();
-  renderBlacklist();
-  showToast('🗑 Règle supprimée');
-}
-
-// Vérifie les violations blacklist dans DB.dispo (Lieu J et Lieu J+1)
-function getBlacklistViolations() {
-  const bl = getBlacklist();
-  if (!bl.length) return [];
-  const violations = [];
-  const deja = DB.anomaliesPointees || {};
-  DB.dispo.forEach(r => {
-    bl.forEach(rule => {
-      const chMatch = (r.chauffeur || '').trim().toUpperCase() === rule.chauffeur;
-      const lieuJ   = (r.lieuJ  || '').trim().toUpperCase();
-      const lieuJ1  = (r.lieuJ1 || '').trim().toUpperCase();
-      const dest    = rule.destination;
-      if (chMatch && lieuJ && lieuJ !== '—' && lieuJ.includes(dest)) {
-        const pkey = 'viol_' + r.v + '_' + r.chauffeur + '_' + lieuJ + '_' + today();
-        if (!deja[pkey]) {
-          violations.push({ vehicule: r.v, chauffeur: r.chauffeur, lieu: r.lieuJ, champ: 'Lieu J', rule });
-        }
-      }
-      if (chMatch && lieuJ1 && lieuJ1 !== '—' && lieuJ1.includes(dest)) {
-        const pkey = 'viol_' + r.v + '_' + r.chauffeur + '_' + lieuJ1 + '_' + today();
-        if (!deja[pkey]) {
-          violations.push({ vehicule: r.v, chauffeur: r.chauffeur, lieu: r.lieuJ1, champ: 'Lieu J+1', rule });
-        }
-      }
-    });
-  });
-  return violations;
-}
-
-// Affiche l'alerte blacklist (non bloquante, informationnelle)
-function checkAndAlertBlacklist() {
-  const violations = getBlacklistViolations();
-  if (!violations.length) return;
-  const alertEl  = document.getElementById('modal-blacklist-alerte');
-  const bodyEl   = document.getElementById('blacklist-alerte-body');
-  if (!alertEl || !bodyEl) return;
-  bodyEl.innerHTML =
-    '<b style="color:#f87171">' + violations.length + ' violation(s) détectée(s) :</b><br><br>' +
-    violations.map(v =>
-      '🚫 <b style="color:#e2e8f0">' + v.chauffeur + '</b> → <span style="color:#fbbf24">' + v.lieu + '</span> ' +
-      '<span style="font-size:10px;color:#64748b">(' + v.champ + ')</span><br>' +
-      '<span style="font-size:10px;color:#64748b;margin-left:16px">Motif blacklist : ' + v.rule.motif + '</span>'
-    ).join('<br>');
-  alertEl.style.display = 'flex';
-}
-
-// ═══════════════════════════════════════════════════════════════════════════════
-// POINTAGE OBLIGATOIRE DES ANOMALIES LIEU POST-BASCULE
-// ═══════════════════════════════════════════════════════════════════════════════
-
-// Clé localStorage pour savoir si le pointage du jour est fait (par équipe)
-function getPointageKey() {
-  const eq = typeof window.CURRENT_EQUIPE !== 'undefined' ? window.CURRENT_EQUIPE : 'A';
-  return 'numiplan_pointage_done_' + eq + '_' + today();
-}
-
-function isPointageDone() {
-  return localStorage.getItem(getPointageKey()) === '1';
-}
-
-function setPointageDone() {
-  localStorage.setItem(getPointageKey(), '1');
-}
-
-// Collecte toutes les anomalies à pointer : lieu prévu ≠ lieu actuel
-function getAnomaliesAPointer() {
-  // Filtre : anomalies déjà pointées (stockées dans DB)
-  const deja = DB.anomaliesPointees || {};
-  return DB.dispo.filter(r => {
-    if (!r.lieuJ1_initial || !r.lieuJ1) return false;
-    if (r.lieuJ1 === '—' || r.lieuJ1_initial === '—') return false;
-    if (r.lieuJ1.trim().toUpperCase() === r.lieuJ1_initial.trim().toUpperCase()) return false;
-    const key = r.v + '_' + today();
-    return !deja[key]; // pas encore pointé aujourd'hui
-  });
-}
-
-// État local du pointage en cours (justifications saisies, validation en attente)
-let _pointageEnCours = {};
-
-function lancerPointageObligatoire() {
-  const lock = sessionStorage.getItem('numiplan_team_lock');
-  if (!lock) return; // Session Admin : pas de pointage obligatoire !
-
-  const anomalies = getAnomaliesAPointer();
-  // Aussi vérifier les violations blacklist
-  const violations = getBlacklistViolations();
-
-  if (!anomalies.length && !violations.length) {
-    setPointageDone();
-    return;
-  }
-
-  _pointageEnCours = {};
-  const modal = document.getElementById('modal-pointage-anomalies');
-  if (!modal) return;
-
-  renderPointageList(anomalies, violations);
-  modal.style.setProperty('display', 'flex', 'important');
-
-  // Bloquer toutes les actions critiques
-  _setActionsBloqueesPointage(true);
-}
-
 function renderPointageList(anomalies, violations) {
   const list = document.getElementById('pointage-list');
   if (!list) return;
+
+  const totalItems = anomalies.length + violations.length;
+  document.getElementById('pointage-remaining-count').textContent = totalItems - Object.keys(_pointageEnCours).length;
+
+  let html = '';
+
+  if (anomalies.length) {
+    html += '<div style="font-size:10px;font-weight:700;color:#f59e0b;letter-spacing:2px;text-transform:uppercase;margin-bottom:10px;padding-bottom:6px;border-bottom:1px solid rgba(245,158,11,.2)">⚠️ Anomalies Lieu J+1 (' + anomalies.length + ')</div>';
+    anomalies.forEach((r) => {
+      const key = 'anom_' + r.v.replace(/\s+/g, '_');
+      const isDone = !!_pointageEnCours[key];
+      html +=
+        '<div id="pointage-item-' + key + '" style="background:' + (isDone ? 'rgba(52,211,153,.08)' : 'rgba(245,158,11,.06)') + ';border:1px solid ' + (isDone ? 'rgba(52,211,153,.3)' : 'rgba(245,158,11,.2)') + ';border-radius:10px;padding:14px 16px;margin-bottom:10px;transition:all .3s">' +
+          '<div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px">' +
+            '<div style="flex:1">' +
+              '<div style="font-size:12px;font-weight:700;color:var(--txt);margin-bottom:4px">' +
+                '<span style="font-family:monospace;color:var(--acc)">' + r.v + '</span> · ' + (r.chauffeur || '—') +
+              '</div>' +
+              '<div style="font-size:11px;color:var(--txt2)">' +
+                'Prévu J+1 : <span style="background:rgba(52,211,153,.15);color:#34d399;padding:1px 7px;border-radius:4px">' + r.lieuJ1_initial + '</span>' +
+                ' → Actuel J+1 : <span style="background:rgba(248,113,113,.15);color:#f87171;padding:1px 7px;border-radius:4px">' + r.lieuJ1 + '</span>' +
+              '</div>' +
+              (isDone
+                ? '<div style="font-size:10px;color:#34d399;margin-top:6px">✅ ' + (_pointageEnCours[key].motif || '') + ((_pointageEnCours[key].detail) ? ' — ' + _pointageEnCours[key].detail : '') + '</div>'
+                : '<div style="margin-top:10px">' +
+                    '<div style="display:flex;gap:8px;margin-bottom:6px;align-items:center">' +
+                      '<select id="motif-' + key + '" onchange="onPointageMotifChange(\'' + key + '\')" style="flex:1;background:rgba(255,255,255,.06);border:1px solid rgba(245,158,11,.4);border-radius:7px;padding:7px 11px;color:var(--txt);font-size:11px;outline:none">' +
+                        '<option value="">— Motif obligatoire —</option>' +
+                        '<option value="Orientation">🔀 Orientation</option>' +
+                        '<option value="Chargement à son compte">⚠️ Chargement à son compte</option>' +
+                        '<option value="Refus de travail">🚫 Refus de travail</option>' +
+                        '<option value="Retard">⏱ Retard</option>' +
+                        '<option value="Panne en route">🔧 Panne en route</option>' +
+                        '<option value="Changement client">📦 Changement client</option>' +
+                        '<option value="Embouteillage / Route coupée">🚧 Embouteillage / Route coupée</option>' +
+                        '<option value="Erreur planning">📋 Erreur planning</option>' +
+                        '<option value="Autre">✏️ Autre</option>' +
+                      '</select>' +
+                      '<button data-pkey="' + key + '" data-immat="' + r.v + '" onclick="pointerAnomalieItem(this.dataset.pkey, this.dataset.immat)" style="background:#f59e0b;color:#000;border:none;padding:7px 16px;border-radius:7px;font-weight:800;cursor:pointer;font-size:11px;white-space:nowrap">✅ Vu</button>' +
+                    '</div>' +
+                    '<div id="detail-wrap-' + key + '" style="display:none;margin-bottom:4px">' +
+                      '<input id="justif-' + key + '" type="text" placeholder="Préciser…" style="width:100%;background:rgba(255,255,255,.06);border:1px solid rgba(245,158,11,.3);border-radius:7px;padding:7px 11px;color:var(--txt);font-size:11px;outline:none;box-sizing:border-box">' +
+                    '</div>' +
+                    '<div id="nc-warn-' + key + '" style="display:none;font-size:10px;color:#f87171;margin-top:2px">⚠️ Une déclaration NC sera automatiquement créée.</div>' +
+                  '</div>'
+              ) +
+            '</div>' +
+          '</div>' +
+        '</div>';
+    });
+  }
+
+  if (violations.length) {
+    html += '<div style="font-size:10px;font-weight:700;color:#f87171;letter-spacing:2px;text-transform:uppercase;margin-bottom:10px;padding-bottom:6px;border-bottom:1px solid rgba(248,113,113,.2);margin-top:' + (anomalies.length ? '16px' : '0') + '">🚫 Violations Blacklist (' + violations.length + ')</div>';
+    violations.forEach((v) => {
+      const key = 'viol_' + v.vehicule.replace(/\s+/g, '_') + '_' + (v.chauffeur || '').replace(/\s+/g, '_');
+      const isDone = !!_pointageEnCours[key];
+      html +=
+        '<div id="pointage-item-' + key + '" style="background:' + (isDone ? 'rgba(52,211,153,.08)' : 'rgba(248,113,113,.06)') + ';border:1px solid ' + (isDone ? 'rgba(52,211,153,.3)' : 'rgba(248,113,113,.2)') + ';border-radius:10px;padding:14px 16px;margin-bottom:10px;transition:all .3s">' +
+          '<div style="flex:1">' +
+            '<div style="font-size:12px;font-weight:700;color:var(--txt);margin-bottom:4px">' +
+              '<span style="font-family:monospace;color:var(--acc)">' + v.vehicule + '</span> · ' + v.chauffeur +
+              ' <span style="background:rgba(248,113,113,.2);color:#f87171;border-radius:4px;padding:1px 7px;font-size:10px">🚫 BLACKLIST ' + v.champ + '</span>' +
+            '</div>' +
+            '<div style="font-size:11px;color:var(--txt2)">Destination interdite : <span style="color:#f87171;font-weight:700">' + v.lieu + '</span></div>' +
+            '<div style="font-size:10px;color:#64748b;margin-top:2px">Motif règle : ' + v.rule.motif + '</div>' +
+            (isDone
+              ? '<div style="font-size:10px;color:#34d399;margin-top:6px">✅ Pointé : ' + (_pointageEnCours[key].justif || '') + '</div>'
+              : '<div style="display:flex;gap:8px;margin-top:10px;align-items:center">' +
+                  '<input id="justif-' + key + '" type="text" placeholder="Justification obligatoire…" style="flex:1;background:rgba(255,255,255,.06);border:1px solid rgba(248,113,113,.3);border-radius:7px;padding:7px 11px;color:var(--txt);font-size:11px;outline:none" onkeydown="if(event.key===\'Enter\')this.nextElementSibling.click()">' +
+                  '<button data-pkey="' + key + '" data-immat="' + v.vehicule + '" data-chauffeur="' + v.chauffeur.replace(/'/g, "\\'") + '" data-lieu="' + v.lieu.replace(/'/g, "\\'") + '" onclick="pointerAnomalieItem(this.dataset.pkey, this.dataset.immat, this.dataset.chauffeur, this.dataset.lieu)" style="background:#f87171;color:#000;border:none;padding:7px 16px;border-radius:7px;font-weight:800;cursor:pointer;font-size:11px;white-space:nowrap">✅ Vu</button>' +
+                '</div>'
+            ) +
+          '</div>' +
+        '</div>';
+    });
+  }
+
+  list.innerHTML = html;
+
+  // Afficher/masquer le bouton valider tout
+  const total = anomalies.length + violations.length;
+  const done  = Object.keys(_pointageEnCours).length;
+  document.getElementById('pointage-remaining-count').textContent = total - done;
+  const btn = document.getElementById('pointage-valider-btn');
+  if (btn) btn.style.display = (done >= total) ? 'block' : 'none';
+}
+
+// Affiche/masque le champ détail et le warning NC selon le motif choisi
+function onPointageMotifChange(key) {
+  const sel = document.getElementById('motif-' + key);
+  const detailWrap = document.getElementById('detail-wrap-' + key);
+  const ncWarn = document.getElementById('nc-warn-' + key);
+  if (!sel) return;
+  const val = sel.value;
+  // Toujours afficher le champ détail
+  if (detailWrap) detailWrap.style.display = val ? 'block' : 'none';
+  // Avertissement NC si chargement à son compte ou refus de travail
+  if (ncWarn) ncWarn.style.display = (val === 'Chargement à son compte' || val === 'Refus de travail') ? 'block' : 'none';
+  if (val) setTimeout(() => { const inp = document.getElementById('justif-' + key); if (inp) inp.focus(); }, 50);
+}
+
+function pointerAnomalieItem(key, immat, extraChauffeur = '', extraLieu = '') {
+  const sel   = document.getElementById('motif-' + key);
+  const input = document.getElementById('justif-' + key);
+  const motif = sel ? sel.value.trim() : '';
+  const detail = input ? input.value.trim() : '';
+
+  if (key.startsWith('anom_')) {
+    if (!motif) {
+      showToast('⚠️ Sélectionnez un motif avant de valider', true);
+      if (sel) sel.focus();
+      return;
+    }
+  } else if (key.startsWith('viol_')) {
+    if (!detail) {
+      showToast('⚠️ Saisissez une justification avant de valider', true);
+      if (input) input.focus();
+      return;
+    }
+  }
+
+  const justif = key.startsWith('anom_') ? (motif + (detail ? ' — ' + detail : '')) : detail;
+  _pointageEnCours[key] = { motif, detail, justif, ts: new Date().toISOString() };
+
+  // Sauvegarder dans DB.anomaliesPointees si c'est une anomalie de lieu
+  if (key.startsWith('anom_')) {
+    const r = DB.dispo.find(x => x.v === immat);
+    if (r) {
+      if (!DB.anomaliesPointees) DB.anomaliesPointees = {};
+      const eq = typeof window.CURRENT_EQUIPE !== 'undefined' ? window.CURRENT_EQUIPE : 'A';
+      DB.anomaliesPointees[r.v + '_' + today()] = {
+        motif, detail, justif,
+        ts: new Date().toISOString(),
+        date: today(),
+        equipe: eq,
+        chauffeur: r.chauffeur,
+        lieuInitial: r.lieuJ1_initial,
+        lieuActuel: r.lieuJ1
+      };
+
+      // ── Auto-déclaration NC si "Chargement à son compte" ou "Refus de travail" ──
+      if (motif === 'Chargement à son compte' || motif === 'Refus de travail') {
+        if (!DB.nc) DB.nc = [];
+        DB.nc.push({
+          ref: '',
+          date: today(),
+          sharik: r.chauffeur || '',
+          immat: r.v || '',
+          type: motif,
+          obs: 'Auto — Anomalie lieu J+1 : ' + r.lieuJ1_initial + ' → ' + r.lieuJ1 + (detail ? ' | ' + detail : '')
+        });
+        showToast('📋 NC auto-créée pour ' + r.v + ' (' + r.chauffeur + ')');
+      }
+    }
+  } else if (key.startsWith('viol_')) {
+    if (!DB.anomaliesPointees) DB.anomaliesPointees = {};
+    const eq = typeof window.CURRENT_EQUIPE !== 'undefined' ? window.CURRENT_EQUIPE : 'A';
+    const pkey = 'viol_' + immat + '_' + extraChauffeur + '_' + extraLieu.trim().toUpperCase() + '_' + today();
+    DB.anomaliesPointees[pkey] = {
+      motif: 'Blacklist',
+      detail: detail,
+      justif: detail,
+      ts: new Date().toISOString(),
+      date: today(),
+      equipe: eq,
+      chauffeur: extraChauffeur,
+      lieuInitial: 'Blacklist Règle',
+      lieuActuel: extraLieu
+    };
+  }
+
+  // Re-render la liste mise à jour
+  const anomalies = getAnomaliesAPointer();
+  const violations = getBlacklistViolations();
+  renderPointageList(anomalies, violations);
+
+  saveDB();
+}) return;
 
   const totalItems = anomalies.length + violations.length;
   document.getElementById('pointage-remaining-count').textContent = totalItems - Object.keys(_pointageEnCours).length;
@@ -5932,15 +5909,19 @@ function _checkActionsLibres(nomAction) {
 }
 
 function checkPointageRequired() {
+  console.log("DEBUG: checkPointageRequired called");
   // 1. Si pas connecté, ne rien faire (le login screen est actif)
   if (sessionStorage.getItem('numiplan_auth') !== 'ok') {
+    console.log("DEBUG: not authenticated");
     _setActionsBloqueesPointage(false);
     return false;
   }
 
   // 2. Si session Admin (aucun verrou d'équipe), pas de pointage requis ni d'overlay
   const lock = sessionStorage.getItem('numiplan_team_lock');
+  console.log("DEBUG: lock =", lock);
   if (!lock) {
+    console.log("DEBUG: lock is null (admin session)");
     _setActionsBloqueesPointage(false);
     const modal = document.getElementById('modal-pointage-anomalies');
     if (modal) modal.style.setProperty('display', 'none', 'important');
@@ -5949,18 +5930,27 @@ function checkPointageRequired() {
 
   // 3. Si l'équipe active n'est pas celle verrouillée (mode lecture seule), pas de blocage
   const eq = typeof window.CURRENT_EQUIPE !== 'undefined' ? window.CURRENT_EQUIPE : 'A';
+  console.log("DEBUG: CURRENT_EQUIPE =", eq);
   const isReadOnly = lock !== eq;
+  console.log("DEBUG: isReadOnly =", isReadOnly);
   if (isReadOnly) {
+    console.log("DEBUG: readonly mode active");
     _setActionsBloqueesPointage(false);
     const modal = document.getElementById('modal-pointage-anomalies');
     if (modal) modal.style.setProperty('display', 'none', 'important');
     return false;
   }
 
-  if (typeof getAnomaliesAPointer !== 'function' || typeof getBlacklistViolations !== 'function') return false;
+  if (typeof getAnomaliesAPointer !== 'function' || typeof getBlacklistViolations !== 'function') {
+    console.log("DEBUG: helper functions missing");
+    return false;
+  }
   const anomalies = getAnomaliesAPointer();
   const violations = getBlacklistViolations();
+  console.log("DEBUG: anomalies count =", anomalies.length);
+  console.log("DEBUG: violations count =", violations.length);
   if (anomalies.length || violations.length) {
+    console.log("DEBUG: blocking user interface");
     _setActionsBloqueesPointage(true);
     // Ouvrir automatiquement le formulaire de pointage s'il n'est pas déjà affiché
     const modal = document.getElementById('modal-pointage-anomalies');
@@ -5969,6 +5959,7 @@ function checkPointageRequired() {
     }
     return true;
   } else {
+    console.log("DEBUG: unblocking user interface");
     _setActionsBloqueesPointage(false);
     const modal = document.getElementById('modal-pointage-anomalies');
     if (modal) modal.style.setProperty('display', 'none', 'important');
