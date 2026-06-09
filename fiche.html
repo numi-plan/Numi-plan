@@ -215,6 +215,26 @@
     
     const cleanSrc = window.cloneTeamData ? window.cloneTeamData(src, eq === 'A' ? window.INITIAL_DATA : undefined) : src;
     
+    // Auto-heal si des camions de référence (INITIAL_DATA) sont manquants dans la liste de disponibilité de l'équipe A
+    if (eq === 'A') {
+      if (!cleanSrc.dispo || !cleanSrc.dispo.length) {
+        cleanSrc.dispo = cloneEquipePayload(window.INITIAL_DATA ? window.INITIAL_DATA.dispo : []);
+      } else {
+        const existingImmat = new Set(cleanSrc.dispo.map(r => r.v));
+        const missingVehicles = (window.INITIAL_DATA ? window.INITIAL_DATA.dispo : []).filter(r => !existingImmat.has(r.v));
+        if (missingVehicles.length > 0) {
+          const healedVehicles = missingVehicles.map(v => {
+            if (v.v === '000926-514-16') {
+              return Object.assign({}, v, { etat: 'En mission', lieuJ: 'BOUIRA', lieuJ1: 'BOUIRA' });
+            }
+            return v;
+          });
+          cleanSrc.dispo = [...cleanSrc.dispo, ...cloneEquipePayload(healedVehicles)];
+          console.log(`[Auto-Heal] ${healedVehicles.length} véhicules manquants réintégrés pour l'Équipe A.`);
+        }
+      }
+    }
+    
     // Auto-heal si le Suivi BL est manquant ou vide pour l'équipe A (migration cloud)
     if (eq === 'A' && (!cleanSrc.bl || !cleanSrc.bl.length)) {
       cleanSrc.bl = cloneEquipePayload(window.INITIAL_DATA ? window.INITIAL_DATA.bl : []);
@@ -749,6 +769,16 @@ tbody td { padding:6px 8px; font-size:11px; vertical-align:middle; }
 .del-btn:hover { color:var(--red); background:rgba(248,113,113,.1); }
 .cell-input { font-family: inherit; }
 .cell-input:focus { border-bottom-color: #38bdf8 !important; outline: none; }
+tr.dragging {
+  opacity: 0.4;
+  border: 2px dashed var(--acc) !important;
+}
+.team-drop-hover {
+  background: rgba(52, 211, 153, 0.25) !important;
+  border: 1px solid var(--grn) !important;
+  transform: scale(1.05);
+  box-shadow: 0 0 15px rgba(52, 211, 153, 0.4);
+}
 </style>
 </head>
 <body>
@@ -981,7 +1011,7 @@ tbody td { padding:6px 8px; font-size:11px; vertical-align:middle; }
 
   function checkPassword() {
     const val = document.getElementById('pwd-input').value;
-    if (val === 'Sharik@2026') {
+    if (val === 'Sharik@admin') {
       sessionStorage.setItem('numiplan_auth', 'ok');
       sessionStorage.removeItem('numiplan_team_lock'); // Admin : pas de verrou d'équipe
       document.getElementById('login-screen').style.display = 'none';
@@ -1081,10 +1111,10 @@ tbody td { padding:6px 8px; font-size:11px; vertical-align:middle; }
   </div>
   <div class="header-right">
     <div style="display:flex;background:var(--bg3);border:1px solid var(--border);border-radius:8px;overflow:hidden">
-      <button id="btn-eqA" onclick="switchEquipe('A')" style="padding:7px 18px;font-size:11px;font-weight:700;letter-spacing:1px;border:none;cursor:pointer;background:var(--acc);color:#000;transition:all .2s">ÉQUIPE A</button>
-      <button id="btn-eqB" onclick="switchEquipe('B')" style="padding:7px 18px;font-size:11px;font-weight:700;letter-spacing:1px;border:none;cursor:pointer;background:transparent;color:var(--txt2);transition:all .2s">ÉQUIPE B</button>
-      <button id="btn-eqC" onclick="switchEquipe('C')" style="padding:7px 18px;font-size:11px;font-weight:700;letter-spacing:1px;border:none;cursor:pointer;background:transparent;color:var(--txt2);transition:all .2s">ÉQUIPE C</button>
-      <button id="btn-eqD" onclick="switchEquipe('D')" style="padding:7px 18px;font-size:11px;font-weight:700;letter-spacing:1px;border:none;cursor:pointer;background:transparent;color:var(--txt2);transition:all .2s">ÉQUIPE D</button>
+      <button id="btn-eqA" onclick="switchEquipe('A')" ondragover="handleTeamDragOver(event)" ondragenter="handleTeamDragEnter(this)" ondragleave="handleTeamDragLeave(this)" ondrop="handleTeamDrop(event, 'A')" style="padding:7px 18px;font-size:11px;font-weight:700;letter-spacing:1px;border:none;cursor:pointer;background:var(--acc);color:#000;transition:all .2s">ÉQUIPE A</button>
+      <button id="btn-eqB" onclick="switchEquipe('B')" ondragover="handleTeamDragOver(event)" ondragenter="handleTeamDragEnter(this)" ondragleave="handleTeamDragLeave(this)" ondrop="handleTeamDrop(event, 'B')" style="padding:7px 18px;font-size:11px;font-weight:700;letter-spacing:1px;border:none;cursor:pointer;background:transparent;color:var(--txt2);transition:all .2s">ÉQUIPE B</button>
+      <button id="btn-eqC" onclick="switchEquipe('C')" ondragover="handleTeamDragOver(event)" ondragenter="handleTeamDragEnter(this)" ondragleave="handleTeamDragLeave(this)" ondrop="handleTeamDrop(event, 'C')" style="padding:7px 18px;font-size:11px;font-weight:700;letter-spacing:1px;border:none;cursor:pointer;background:transparent;color:var(--txt2);transition:all .2s">ÉQUIPE C</button>
+      <button id="btn-eqD" onclick="switchEquipe('D')" ondragover="handleTeamDragOver(event)" ondragenter="handleTeamDragEnter(this)" ondragleave="handleTeamDragLeave(this)" ondrop="handleTeamDrop(event, 'D')" style="padding:7px 18px;font-size:11px;font-weight:700;letter-spacing:1px;border:none;cursor:pointer;background:transparent;color:var(--txt2);transition:all .2s">ÉQUIPE D</button>
     </div>
 
     <div class="date-badge" id="todayBadge"></div>
@@ -1507,6 +1537,7 @@ mark.hl { background: rgba(56,189,248,.25); color: var(--acc); border-radius: 3p
     </select>
     <button class="btn btn-reset" onclick="resetFilters('dispo-search','dispo-etat','dispo-region','dispo-region-j');renderDispo()">↺ Reset</button>
     <button class="btn btn-add" onclick="openModal('modal-dispo')">＋ Ajouter</button>
+
   </div>
   <div style="padding-top:20px">
     <div id="flash-infos-container"></div>
@@ -1884,6 +1915,73 @@ mark.hl { background: rgba(56,189,248,.25); color: var(--acc); border-radius: 3p
     </div>
   </div>
 </div>
+
+<!-- Overlay bloquant pointage obligatoire -->
+<div id="pointage-block-overlay" style="display:none;position:fixed;inset:0;background:rgba(10,14,26,.85);z-index:99990;align-items:center;justify-content:center;backdrop-filter:blur(6px);cursor:pointer" onclick="lancerPointageObligatoire()">
+  <div style="color:#f87171;font-family:'IBM Plex Sans',sans-serif;font-size:16px;font-weight:700;text-align:center;pointer-events:none">
+    ⚠️ POINTAGE OBLIGATOIRE DES ANOMALIES EN COURS<br>
+    <span style="font-size:12px;color:var(--txt2);font-weight:400">Cliquez n'importe où pour ouvrir le formulaire de pointage</span>
+  </div>
+</div>
+
+<!-- Script synchrone de verrouillage anti-F5 -->
+<script>
+  (function() {
+    try {
+      const auth = sessionStorage.getItem('numiplan_auth');
+      const lock = sessionStorage.getItem('numiplan_team_lock');
+      if (auth === 'ok' && lock) {
+        const raw = localStorage.getItem('numiplan_data_v2');
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          const eq = parsed.active || 'A';
+          if (lock === eq) {
+            const dbEq = parsed.teams && parsed.teams[eq];
+            if (dbEq && dbEq.dispo) {
+              const deja = dbEq.anomaliesPointees || {};
+              const todayStr = new Date().toISOString().split('T')[0];
+              
+              const hasAnomalies = dbEq.dispo.some(r => {
+                if (!r.lieuJ1_initial || !r.lieuJ1) return false;
+                if (r.lieuJ1 === '—' || r.lieuJ1_initial === '—') return false;
+                if (r.lieuJ1.trim().toUpperCase() === r.lieuJ1_initial.trim().toUpperCase()) return false;
+                const key = r.v + '_' + todayStr;
+                return !deja[key];
+              });
+
+              const bl = dbEq.blacklist || [];
+              let hasViolations = false;
+              if (bl.length) {
+                hasViolations = dbEq.dispo.some(r => {
+                  return bl.some(rule => {
+                    const chMatch = (r.chauffeur || '').trim().toUpperCase() === rule.chauffeur;
+                    const lieuJ   = (r.lieuJ  || '').trim().toUpperCase();
+                    const lieuJ1  = (r.lieuJ1 || '').trim().toUpperCase();
+                    const dest    = rule.destination;
+                    if (chMatch && lieuJ && lieuJ !== '—' && lieuJ.includes(dest)) {
+                      const pkey = 'viol_' + r.v + '_' + r.chauffeur + '_' + lieuJ + '_' + todayStr;
+                      if (!deja[pkey]) return true;
+                    }
+                    if (chMatch && lieuJ1 && lieuJ1 !== '—' && lieuJ1.includes(dest)) {
+                      const pkey = 'viol_' + r.v + '_' + r.chauffeur + '_' + lieuJ1 + '_' + todayStr;
+                      if (!deja[pkey]) return true;
+                    }
+                    return false;
+                  });
+                });
+              }
+
+              if (hasAnomalies || hasViolations) {
+                window._actionsBloquees = true;
+                document.write('<style>#pointage-block-overlay { display: flex !important; } #modal-pointage-anomalies { display: flex !important; }</style>');
+              }
+            }
+          }
+        }
+      }
+    } catch(e) { console.warn('Erreur verrouillage instantané pointage:', e); }
+  })();
+</script>
 
 <!-- Modal Pointage Anomalies (bloquant post-bascule) -->
 <div id="modal-pointage-anomalies" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.88);z-index:99998;align-items:center;justify-content:center">
@@ -2552,6 +2650,244 @@ function ensureTeamCaches() {
   window.DB_D = cloneTeamData(window.DB_D, emptyTeamData());
 }
 
+function restaurerDonneesInitialesDispo() {
+  const eq = (typeof window.CURRENT_EQUIPE !== 'undefined') ? window.CURRENT_EQUIPE : 'A';
+  if (confirm(`Voulez-vous restaurer la liste par défaut des camions/chauffeurs pour l'Équipe ${eq} ?\nCette opération remplacera la liste de disponibilité actuelle par la liste initiale, mais conservera toutes vos autres données (pannes, non-conformités, odomètres, etc.).`)) {
+    DB.dispo = JSON.parse(JSON.stringify(INITIAL_DATA.dispo));
+    if (window['DB_' + eq]) {
+      window['DB_' + eq].dispo = JSON.parse(JSON.stringify(INITIAL_DATA.dispo));
+    }
+    saveDB();
+    renderDispo();
+    if (typeof showToast === 'function') {
+      showToast(`✅ Liste de disponibilité de l'Équipe ${eq} restaurée`);
+    }
+  }
+}
+window.restaurerDonneesInitialesDispo = restaurerDonneesInitialesDispo;
+
+function handleDispoDragStart(event, immat) {
+  const lock = sessionStorage.getItem('numiplan_team_lock');
+  if (lock) {
+    event.preventDefault();
+    return;
+  }
+  event.target.classList.add('dragging');
+  event.dataTransfer.setData('text/plain', immat);
+  event.dataTransfer.effectAllowed = 'move';
+}
+
+function handleDispoDragEnd(el) {
+  el.classList.remove('dragging');
+}
+
+function handleTeamDragOver(event) {
+  const lock = sessionStorage.getItem('numiplan_team_lock');
+  if (lock) return;
+  event.preventDefault();
+  event.dataTransfer.dropEffect = 'move';
+}
+
+function handleTeamDragEnter(btn) {
+  const lock = sessionStorage.getItem('numiplan_team_lock');
+  if (lock) return;
+  btn.classList.add('team-drop-hover');
+}
+
+function handleTeamDragLeave(btn) {
+  btn.classList.remove('team-drop-hover');
+}
+
+function handleTeamDrop(event, destEq) {
+  event.preventDefault();
+  const btn = event.currentTarget || document.getElementById('btn-eq' + destEq);
+  if (btn) btn.classList.remove('team-drop-hover');
+
+  const lock = sessionStorage.getItem('numiplan_team_lock');
+  if (lock) {
+    showToast(`⚠️ Action refusée : seuls les administrateurs peuvent transférer des véhicules d'une équipe à l'autre.`, true);
+    return;
+  }
+
+  const immat = event.dataTransfer.getData('text/plain');
+  const srcEq = (typeof CURRENT_EQUIPE !== 'undefined') ? CURRENT_EQUIPE : 'A';
+
+  if (!immat) return;
+  if (srcEq === destEq) return;
+
+  if (confirm(`Voulez-vous transférer le véhicule ${immat} de l'Équipe ${srcEq} vers l'Équipe ${destEq} ?`)) {
+    const srcData = window['DB_' + srcEq];
+    const destData = window['DB_' + destEq];
+
+    if (!srcData || !destData) {
+      showToast('⚠️ Erreur de chargement des équipes pour le transfert', true);
+      return;
+    }
+
+    const vehIdx = srcData.dispo.findIndex(v => v.v === immat);
+    if (vehIdx === -1) {
+      showToast('⚠️ Véhicule introuvable dans la liste source', true);
+      return;
+    }
+
+    const vehObj = srcData.dispo[vehIdx];
+
+    // Retirer de la source et ajouter à la destination
+    srcData.dispo.splice(vehIdx, 1);
+    if (!destData.dispo) destData.dispo = [];
+    destData.dispo.push(vehObj);
+
+    const chauffeurName = (vehObj.chauffeur || '').trim().toUpperCase();
+
+    // Helper pour transférer tous les éléments associés d'une liste
+    function transfererElementsList(listName, matchFn) {
+      if (srcData[listName] && Array.isArray(srcData[listName])) {
+        const aGarder = [];
+        const aTransferer = [];
+        srcData[listName].forEach(item => {
+          if (matchFn(item)) {
+            aTransferer.push(item);
+          } else {
+            aGarder.push(item);
+          }
+        });
+
+        srcData[listName] = aGarder;
+
+        if (aTransferer.length) {
+          if (!destData[listName]) destData[listName] = [];
+          destData[listName] = destData[listName].concat(aTransferer);
+        }
+
+        if (srcEq === CURRENT_EQUIPE) {
+          DB[listName] = srcData[listName];
+        }
+      }
+    }
+
+    // 1. Pannes (immat ou chauffeur)
+    transfererElementsList('pannes', p => {
+      const pImmat = (p.immat || '').trim().toUpperCase();
+      const pChauf = (p.chauffeur || '').trim().toUpperCase();
+      return pImmat === immat || (chauffeurName && pChauf === chauffeurName);
+    });
+
+    // 2. Non-conformités (sharik)
+    if (chauffeurName) {
+      transfererElementsList('nc', r => (r.sharik || '').trim().toUpperCase() === chauffeurName);
+    }
+
+    // 3. Gasoil (vehicule ou chauffeur)
+    transfererElementsList('gasoil', g => {
+      const gVeh = (g.vehicule || '').trim().toUpperCase();
+      const gChauf = (g.chauffeur || '').trim().toUpperCase();
+      return gVeh === immat || (chauffeurName && gChauf === chauffeurName);
+    });
+
+    // 4. Équipements (tr ou sharik)
+    transfererElementsList('equip', e => {
+      const eTr = (e.tr || '').trim().toUpperCase();
+      const eSharik = (e.sharik || '').trim().toUpperCase();
+      return eTr === immat || (chauffeurName && eSharik === chauffeurName);
+    });
+
+    // 5. Activité (tr ou sharik)
+    transfererElementsList('activite', a => {
+      const aTr = (a.tr || '').trim().toUpperCase();
+      const aSharik = (a.sharik || '').trim().toUpperCase();
+      return aTr === immat || (chauffeurName && aSharik === chauffeurName);
+    });
+
+    // 6. Odomètres (v ou chauffeur)
+    transfererElementsList('odo', o => {
+      const oVeh = (o.v || '').trim().toUpperCase();
+      const oChauf = (o.chauffeur || '').trim().toUpperCase();
+      return oVeh === immat || (chauffeurName && oChauf === chauffeurName);
+    });
+
+    // 7. CSPC (v ou chauffeur)
+    transfererElementsList('cspc', c => {
+      const cVeh = (c.v || '').trim().toUpperCase();
+      const cChauf = (c.chauffeur || '').trim().toUpperCase();
+      return cVeh === immat || (chauffeurName && cChauf === chauffeurName);
+    });
+
+    // 8. Suivi BL (chauffeur)
+    if (chauffeurName) {
+      transfererElementsList('bl', b => (b.chauffeur || '').trim().toUpperCase() === chauffeurName);
+    }
+
+    // 9. Blacklist (chauffeur)
+    if (chauffeurName) {
+      transfererElementsList('blacklist', b => (b.chauffeur || '').trim().toUpperCase() === chauffeurName);
+    }
+
+    // 10. Anomalies pointées
+    if (srcData.anomaliesPointees && typeof srcData.anomaliesPointees === 'object') {
+      if (!destData.anomaliesPointees) destData.anomaliesPointees = {};
+      Object.keys(srcData.anomaliesPointees).forEach(k => {
+        const kUpper = k.toUpperCase();
+        const matchesVeh = kUpper.includes(immat);
+        const matchesChauf = chauffeurName && kUpper.includes(chauffeurName);
+        if (matchesVeh || matchesChauf) {
+          destData.anomaliesPointees[k] = srcData.anomaliesPointees[k];
+          delete srcData.anomaliesPointees[k];
+        }
+      });
+      if (srcEq === CURRENT_EQUIPE) {
+        DB.anomaliesPointees = srcData.anomaliesPointees;
+      }
+    }
+
+    if (srcEq === CURRENT_EQUIPE) {
+      DB.dispo = srcData.dispo;
+    }
+
+    // Logger le mouvement
+    if (typeof logMouvement === 'function') {
+      if (!DB.tracabilite) DB.tracabilite = [];
+      const now = new Date();
+      const dateStr = now.getFullYear() + '-' + 
+        String(now.getMonth()+1).padStart(2,'0') + '-' + 
+        String(now.getDate()).padStart(2,'0') + ' ' + 
+        String(now.getHours()).padStart(2,'0') + ':' + 
+        String(now.getMinutes()).padStart(2,'0') + ':' + 
+        String(now.getSeconds()).padStart(2,'0');
+      const operator = getOperatorRole();
+      DB.tracabilite.push({
+        timestamp: Date.now(),
+        date: dateStr,
+        type: 'TRANSFERT_EQUIPE',
+        targetType: 'TRACTEUR',
+        target: immat,
+        operator: operator,
+        motif: `Transfert de l'Équipe ${srcEq} vers l'Équipe ${destEq}`
+      });
+    }
+
+    // Sauvegarder les deux bases
+    saveTeamDB(srcEq, srcData);
+    saveTeamDB(destEq, destData);
+
+    // Rafraîchir l'affichage
+    renderDispo();
+    if (typeof renderPannes === 'function') renderPannes();
+    if (typeof renderNC === 'function') renderNC();
+    if (typeof renderGasoil === 'function') renderGasoil();
+    if (typeof renderEquip === 'function') renderEquip();
+    if (typeof renderActivite === 'function') renderActivite();
+    if (typeof renderBL === 'function') renderBL();
+    if (typeof renderBLAlerts === 'function') renderBLAlerts();
+    if (typeof renderOdo === 'function') renderOdo();
+    if (typeof renderCSPC === 'function') renderCSPC();
+    if (typeof renderBlacklist === 'function') renderBlacklist();
+
+    showToast(`✅ Véhicule ${immat} transféré vers l'Équipe ${destEq}`);
+  }
+}
+
+window.restaurerDonneesInitialesDispo = restaurerDonneesInitialesDispo;
+
 function getOperatorRole() {
   const lock = sessionStorage.getItem('numiplan_team_lock');
   return lock ? `Chef d'équipe ${lock}` : 'Superviseur Admin';
@@ -3058,6 +3394,19 @@ function loadDB() {
   }
   if (!window.DB_A.dispo || !window.DB_A.dispo.length) {
     window.DB_A = cloneTeamData(INITIAL_DATA, INITIAL_DATA);
+  } else {
+    // S'assurer que tous les véhicules par défaut sont présents dans l'équipe A (réintégration automatique)
+    const existing = new Set(window.DB_A.dispo.map(r => r.v));
+    const missing = INITIAL_DATA.dispo.filter(r => !existing.has(r.v));
+    if (missing.length > 0) {
+      const healed = missing.map(v => {
+        if (v.v === '000926-514-16') {
+          return Object.assign({}, v, { etat: 'En mission', lieuJ: 'BOUIRA', lieuJ1: 'BOUIRA' });
+        }
+        return v;
+      });
+      window.DB_A.dispo = [...window.DB_A.dispo, ...JSON.parse(JSON.stringify(healed))];
+    }
   }
   if (!window.DB_A.bl || !window.DB_A.bl.length) {
     window.DB_A.bl = cloneTeamData(INITIAL_DATA, INITIAL_DATA).bl;
@@ -3372,6 +3721,7 @@ function renderDispo() {
 
   const body = document.getElementById('dispo-body');
   if (!data.length) { body.innerHTML = `<tr><td colspan="15"><div class="empty-state"><div class="icon">🔍</div>Aucun résultat</div></td></tr>`; return; }
+  const isDraggable = !sessionStorage.getItem('numiplan_team_lock');
   body.innerHTML = data.map((r,i) => {
     const realIdx = DB.dispo.indexOf(r);
     const isSurveille = !!r.surveillance;
@@ -3432,7 +3782,7 @@ function renderDispo() {
       chauffeurCellContent = `<span style="font-weight: 600; font-size: 12px; max-width: 110px; overflow: hidden; text-overflow: ellipsis; display: inline-block; vertical-align: middle;" title="${r.chauffeur}">${r.chauffeur}</span>${extPill}`;
     }
 
-    return `<tr style="${rowBg}">
+    return `<tr style="${rowBg}" draggable="${isDraggable}" ondragstart="if(!sessionStorage.getItem('numiplan_team_lock')){ handleDispoDragStart(event, '${r.v}') }else{ event.preventDefault(); }" ondragend="handleDispoDragEnd(this)">
       <td class="mono" style="color:var(--acc);font-size:10px;white-space:nowrap">${r.v}</td>
       <td>${stateBadge(r.etat)}</td>
       <td style="white-space:nowrap; vertical-align: middle;">${chauffeurCellContent}</td>
@@ -5237,6 +5587,9 @@ function getAnomaliesAPointer() {
 let _pointageEnCours = {};
 
 function lancerPointageObligatoire() {
+  const lock = sessionStorage.getItem('numiplan_team_lock');
+  if (!lock) return; // Session Admin : pas de pointage obligatoire !
+
   const anomalies = getAnomaliesAPointer();
   // Aussi vérifier les violations blacklist
   const violations = getBlacklistViolations();
@@ -5251,7 +5604,7 @@ function lancerPointageObligatoire() {
   if (!modal) return;
 
   renderPointageList(anomalies, violations);
-  modal.style.display = 'flex';
+  modal.style.setProperty('display', 'flex', 'important');
 
   // Bloquer toutes les actions critiques
   _setActionsBloqueesPointage(true);
@@ -5557,20 +5910,9 @@ function renderHistoriqueAnomalies() {
 // Bloque / débloque les boutons d'action critiques pendant le pointage
 function _setActionsBloqueesPointage(bloquer) {
   window._actionsBloquees = bloquer;
-  let overlay = document.getElementById('pointage-block-overlay');
-  if (bloquer) {
-    if (!overlay) {
-      overlay = document.createElement('div');
-      overlay.id = 'pointage-block-overlay';
-      overlay.style.cssText = 'position:fixed;inset:0;background:rgba(10,14,26,.85);z-index:99990;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(6px);cursor:pointer';
-      overlay.innerHTML = '<div style="color:#f87171;font-family:\'IBM Plex Sans\',sans-serif;font-size:16px;font-weight:700;text-align:center;pointer-events:none">⚠️ POINTAGE OBLIGATOIRE DES ANOMALIES EN COURS<br><span style="font-size:12px;color:var(--txt2);font-weight:400">Cliquez n\'importe où pour ouvrir le formulaire de pointage</span></div>';
-      overlay.addEventListener('click', () => {
-        lancerPointageObligatoire();
-      });
-      document.body.appendChild(overlay);
-    }
-  } else {
-    if (overlay) overlay.remove();
+  const overlay = document.getElementById('pointage-block-overlay');
+  if (overlay) {
+    overlay.style.setProperty('display', bloquer ? 'flex' : 'none', bloquer ? 'important' : '');
   }
 }
 
@@ -5590,21 +5932,46 @@ function _checkActionsLibres(nomAction) {
 }
 
 function checkPointageRequired() {
-  const eq = typeof window.CURRENT_EQUIPE !== 'undefined' ? window.CURRENT_EQUIPE : 'A';
-  const lock = sessionStorage.getItem('numiplan_team_lock');
-  const isReadOnly = lock && lock !== eq;
-  if (isReadOnly) {
+  // 1. Si pas connecté, ne rien faire (le login screen est actif)
+  if (sessionStorage.getItem('numiplan_auth') !== 'ok') {
     _setActionsBloqueesPointage(false);
     return false;
   }
+
+  // 2. Si session Admin (aucun verrou d'équipe), pas de pointage requis ni d'overlay
+  const lock = sessionStorage.getItem('numiplan_team_lock');
+  if (!lock) {
+    _setActionsBloqueesPointage(false);
+    const modal = document.getElementById('modal-pointage-anomalies');
+    if (modal) modal.style.setProperty('display', 'none', 'important');
+    return false;
+  }
+
+  // 3. Si l'équipe active n'est pas celle verrouillée (mode lecture seule), pas de blocage
+  const eq = typeof window.CURRENT_EQUIPE !== 'undefined' ? window.CURRENT_EQUIPE : 'A';
+  const isReadOnly = lock !== eq;
+  if (isReadOnly) {
+    _setActionsBloqueesPointage(false);
+    const modal = document.getElementById('modal-pointage-anomalies');
+    if (modal) modal.style.setProperty('display', 'none', 'important');
+    return false;
+  }
+
   if (typeof getAnomaliesAPointer !== 'function' || typeof getBlacklistViolations !== 'function') return false;
   const anomalies = getAnomaliesAPointer();
   const violations = getBlacklistViolations();
   if (anomalies.length || violations.length) {
     _setActionsBloqueesPointage(true);
+    // Ouvrir automatiquement le formulaire de pointage s'il n'est pas déjà affiché
+    const modal = document.getElementById('modal-pointage-anomalies');
+    if (modal && modal.style.display !== 'flex') {
+      lancerPointageObligatoire();
+    }
     return true;
   } else {
     _setActionsBloqueesPointage(false);
+    const modal = document.getElementById('modal-pointage-anomalies');
+    if (modal) modal.style.setProperty('display', 'none', 'important');
     return false;
   }
 }
