@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="fr">
 <head>
 <meta charset="UTF-8">
@@ -913,8 +913,8 @@ tr.dragging {
     
     const isReadOnly = lock && lock !== eq;
     
-    // 1. Masquer les boutons d'action de modification
-    document.querySelectorAll('.btn-add, .btn-save, [onclick*="basculerJournee"], [onclick*="archiveToday"], .btn-danger, .del-btn, .btn-archive, .btn-perf, #perf-drop').forEach(btn => {
+    // 1. Masquer les boutons d'action de modification (sauf les actions globales de la barre de recherche)
+    document.querySelectorAll('.btn-add, .btn-save:not(.btn-global), .btn-danger, .del-btn, .btn-archive:not(.btn-global), .btn-perf, #perf-drop').forEach(btn => {
       if (isReadOnly) {
         btn.style.setProperty('display', 'none', 'important');
       } else {
@@ -1233,8 +1233,7 @@ mark.hl { background: rgba(56,189,248,.25); color: var(--acc); border-radius: 3p
   </div>
   <div class="global-search-hint">TOUTES ÉQUIPES · A B C D</div>
   <div style="display:flex;gap:6px;align-items:center;margin-left:auto;flex-wrap:wrap">
-    <button class="btn btn-save" onclick="basculerJournee()" title="Basculer Lieu J+1 → Lieu Jour">⏭ Nouvelle journée</button>
-    <button class="btn btn-archive" onclick="archiveToday()">📦 Archiver aujourd'hui</button>
+    <button class="btn btn-save btn-global" onclick="basculerJournee()" title="Basculer Lieu J+1 → Lieu Jour">⏭ Nouvelle journée</button>
     <button class="btn btn-numiflow" onclick="exportNumiflow()">📊 Export Numiflow</button>
     <button class="btn btn-extract" onclick="exportAllData()">⬇ Extraction Données</button>
   </div>
@@ -1385,18 +1384,18 @@ mark.hl { background: rgba(56,189,248,.25); color: var(--acc); border-radius: 3p
       <span class="tab-count" id="cnt-dispo-chauffeurs" style="background:var(--pur);color:#000" title="Nombre de chauffeurs uniques (sans doublons)">—</span>
     </span>
   </button>
-  <button class="tab-btn" onclick="switchTab('pannes',this)">🔧 Pannes <span class="tab-count red" id="cnt-pannes">—</span></button>
-  <button class="tab-btn" onclick="switchTab('nc',this)">⚠️ Non-conformités <span class="tab-count" id="cnt-nc">—</span></button>
-  <button class="tab-btn" onclick="switchTab('gasoil',this)">⛽ Gasoil <span class="tab-count" id="cnt-gasoil">—</span></button>
+  <button class="tab-btn" onclick="switchTab('pannes',this)">🔧 Pannes <span class="tab-count red" id="cnt-pannes" style="display:none;">—</span></button>
+  <button class="tab-btn" onclick="switchTab('nc',this)">⚠️ Non-conformités <span class="tab-count" id="cnt-nc" style="display:none;">—</span></button>
+  <button class="tab-btn" onclick="switchTab('gasoil',this)">⛽ Gasoil <span class="tab-count" id="cnt-gasoil" style="display:none;">—</span></button>
   <button class="tab-btn" onclick="switchTab('equip',this)">🔩 Équipements <span class="tab-count" id="cnt-equip">—</span></button>
   <button class="tab-btn" onclick="switchTab('bl',this)">📄 Suivi BL</button>
-  <button class="tab-btn" onclick="switchTab('odo',this)">🛣️ Odomètre <span class="tab-count" id="cnt-odo">—</span></button>
+  <button class="tab-btn" onclick="switchTab('odo',this)">🛣️ Odomètre <span class="tab-count" id="cnt-odo" style="display:none;">—</span></button>
   <button class="tab-btn" onclick="switchTab('cspc',this)">🔷 CSPC <span class="tab-count" id="cnt-cspc">—</span></button>
   <button class="tab-btn" onclick="switchTab('vehicule',this)">🔍 Fiche Véhicule</button>
   <button class="tab-btn" onclick="switchTab('analytics',this)">📊 Analyses</button>
-  <button class="tab-btn" onclick="switchTab('archives',this)">🗄️ Archives</button>
   <button class="tab-btn" id="tab-blacklist" onclick="if(typeof switchTab==='function')switchTab('blacklist',this)">🚫 Blacklist <span class="tab-count" id="cnt-blacklist" style="background:#f87171">—</span></button>
-  <button class="tab-btn" onclick="switchTab('tracabilite',this)">📜 Traçabilité <span class="tab-count" id="cnt-tracabilite">—</span></button>
+  <button class="tab-btn" onclick="switchTab('tracabilite',this)">📜 Traçabilité <span class="tab-count" id="cnt-tracabilite" style="display:none;">—</span></button>
+  <button class="tab-btn" id="tab-flashinfo" onclick="switchTab('flashinfo',this)">📢 Flash Info</button>
   <button class="tab-btn" onclick="ouvrirHistoriqueAnomalies()" style="color:#fbbf24;border-color:rgba(251,191,36,.3)">📊 Historique Anomalies</button>
 </div>
 
@@ -1530,7 +1529,6 @@ mark.hl { background: rgba(56,189,248,.25); color: var(--acc); border-radius: 3p
   </div>
   <div style="padding-top:20px">
     <div id="flash-infos-container"></div>
-    <div id="bl-alerts-container-dispo"></div>
     <div class="stats-row" id="dispo-stats"></div>
     <div class="sec-title">État du parc véhicules</div>
     <div class="table-wrap">
@@ -1661,7 +1659,6 @@ mark.hl { background: rgba(56,189,248,.25); color: var(--acc); border-radius: 3p
     <button class="btn btn-add" onclick="openModal('modal-bl')">＋ Ajouter</button>
   </div>
   <div style="padding-top:20px">
-    <div id="bl-alerts-container-bl"></div>
     <div class="sec-title">Suivi des bons de livraison par chauffeur</div>
     <div class="table-wrap">
       <table>
@@ -1755,28 +1752,7 @@ mark.hl { background: rgba(56,189,248,.25); color: var(--acc); border-radius: 3p
 <!-- PERF CAMIONS DELETED -->
 
 
-<!-- ══════════════ ARCHIVES ══════════════ -->
-<div id="page-archives" class="page">
-  <div class="filter-bar">
-    <label>Équipe</label>
-    <div style="display:flex;gap:4px" id="archive-eq-btns">
-      <button class="btn" id="arc-btn-A" style="background:rgba(56,189,248,.2);border-color:rgba(56,189,248,.5);color:var(--acc);font-weight:800" onclick="setArchiveEq('A')">EQ A</button>
-      <button class="btn" id="arc-btn-B" style="background:var(--surf);border-color:var(--border);color:var(--txt2)" onclick="setArchiveEq('B')">EQ B</button>
-      <button class="btn" id="arc-btn-C" style="background:var(--surf);border-color:var(--border);color:var(--txt2)" onclick="setArchiveEq('C')">EQ C</button>
-      <button class="btn" id="arc-btn-D" style="background:var(--surf);border-color:var(--border);color:var(--txt2)" onclick="setArchiveEq('D')">EQ D</button>
-    </div>
-    <label style="margin-left:8px">Date</label>
-    <input type="date" class="filter-input" id="archive-filter-date" onchange="renderArchives()">
-    <button class="btn btn-reset" onclick="document.getElementById('archive-filter-date').value='';renderArchives()">↺ Reset</button>
-    <button class="btn btn-danger" onclick="clearAllArchives()">🗑 Vider éq. active</button>
-    <button class="btn" id="btn-load-all-archives" style="background:rgba(167,139,250,.15);border-color:rgba(167,139,250,.4);color:var(--pur);margin-left:8px" onclick="loadAllArchives(this)">☁️ Charger tout l'historique</button>
-  </div>
-  <div style="padding-top:20px">
-    <div class="stats-row" id="archive-stats"></div>
-    <div class="sec-title" id="archive-sec-title">Snapshots journaliers — Équipe A</div>
-    <div id="archives-list"></div>
-  </div>
-</div>
+<!-- ARCHIVES DELETED -->
 <div id="page-blacklist" class="page">
   <div class="filter-bar">
     <input type="text" class="filter-input" id="blacklist-search" placeholder="Rechercher chauffeur ou destination…" oninput="renderBlacklist()">
@@ -3073,7 +3049,11 @@ function renderBLAlerts() {
           <button onclick="validerBLRapide('${al.chauffeur.replace(/'/g, "\\'")}', '${al.month}')" style="padding: 4px 10px; font-size: 10px; font-weight: 700; border-radius: 5px; cursor: pointer; background: var(--grn); color: #000; border: none; transition: background .2s;" onmouseover="this.style.opacity='0.8'" onmouseout="this.style.opacity='1'">
             ✅ Valider Réception
           </button>
-        ` : ''}
+        ` : `
+          <button onclick="validerBLRapide('${al.chauffeur.replace(/'/g, "\\'")}', '${al.month}')" style="padding: 4px 10px; font-size: 10px; font-weight: 700; border-radius: 5px; cursor: pointer; background: var(--yel); color: #000; border: none; transition: background .2s;" onmouseover="this.style.opacity='0.8'" onmouseout="this.style.opacity='1'">
+            BL reçu
+          </button>
+        `}
       </div>
     `;
   }).join('');
@@ -3101,10 +3081,120 @@ function validerBLRapide(chauffeur, month) {
     saveDB();
     renderBLAlerts();
     if (typeof renderBL === 'function') renderBL();
+    if (typeof renderDispo === 'function') renderDispo();
     showToast(`📄 BL ${month.toUpperCase()} pour ${chauffeur} marqué Déposé`);
   }
 }
 window.validerBLRapide = validerBLRapide;
+
+function showBLAlertPopover(event, chauffeur) {
+  event.stopPropagation();
+  const blRow = (DB.bl || []).find(x => fuzzyMatchChauffeur(x.chauffeur, chauffeur));
+  if (!blRow) {
+    showToast("⚠️ Données BL introuvables pour ce chauffeur", true);
+    return;
+  }
+  const months = ['mars','avril','mai','juin','juil','aout','sep','oct','nov','dec'];
+  const now = new Date();
+  const activeAlerts = [];
+  months.forEach(m => {
+    const val = (blRow[m] || '').trim().toLowerCase();
+    if (val === 'déposer' || val === 'depose') return;
+    const status = checkBLMonthStatus(m, now);
+    if (status === 'late' || status === 'due') {
+      activeAlerts.push({ month: m, status: status, val: val });
+    }
+  });
+  if (!activeAlerts.length) return;
+  const oldPopover = document.getElementById('bl-alert-popover');
+  if (oldPopover) oldPopover.remove();
+  const popover = document.createElement('div');
+  popover.id = 'bl-alert-popover';
+  popover.style.cssText = `
+    position: absolute;
+    background: #111827;
+    border: 1px solid #2d3f65;
+    border-radius: 8px;
+    box-shadow: 0 10px 25px rgba(0,0,0,0.6);
+    padding: 12px;
+    z-index: 10000;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    min-width: 220px;
+  `;
+  const title = document.createElement('div');
+  title.style.cssText = `
+    font-size: 10px;
+    font-weight: 700;
+    color: var(--txt2);
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 4px;
+    margin-bottom: 4px;
+  `;
+  title.innerText = `BL — ${blRow.chauffeur}`;
+  popover.appendChild(title);
+  activeAlerts.forEach(al => {
+    const item = document.createElement('div');
+    item.style.cssText = `
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      font-size: 11px;
+    `;
+    const label = document.createElement('span');
+    label.style.fontWeight = '600';
+    label.style.textTransform = 'uppercase';
+    label.style.color = al.status === 'late' ? 'var(--red)' : 'var(--yel)';
+    label.innerText = al.month;
+    const button = document.createElement('button');
+    button.style.cssText = `
+      padding: 4px 8px;
+      font-size: 10px;
+      font-weight: 700;
+      border-radius: 4px;
+      cursor: pointer;
+      border: none;
+      transition: background 0.2s;
+    `;
+    if (al.val === 'restitue') {
+      button.innerText = 'Valider Réception';
+      button.style.background = 'var(--grn)';
+      button.style.color = '#000';
+    } else {
+      button.innerText = 'BL reçu';
+      button.style.background = 'var(--yel)';
+      button.style.color = '#000';
+    }
+    button.onmouseover = () => button.style.opacity = '0.8';
+    button.onmouseout = () => button.style.opacity = '1';
+    button.onclick = (e) => {
+      e.stopPropagation();
+      validerBLRapide(blRow.chauffeur, al.month);
+      popover.remove();
+    };
+    item.appendChild(label);
+    item.appendChild(button);
+    popover.appendChild(item);
+  });
+  document.body.appendChild(popover);
+  const rect = event.currentTarget.getBoundingClientRect();
+  popover.style.left = (rect.left + window.scrollX) + 'px';
+  popover.style.top = (rect.bottom + window.scrollY + 5) + 'px';
+  setTimeout(() => {
+    const closeListener = (e) => {
+      if (!popover.contains(e.target) && e.target !== event.currentTarget) {
+        popover.remove();
+        document.removeEventListener('click', closeListener);
+      }
+    };
+    document.addEventListener('click', closeListener);
+  }, 10);
+}
+window.showBLAlertPopover = showBLAlertPopover;
 
 function saveTeamDB(eq, dbData) {
   dbData._localTs = Date.now();
@@ -3751,7 +3841,7 @@ function renderDispo() {
     if (worstStatus === 'late') {
       rowBg = 'background: linear-gradient(90deg, rgba(239, 68, 68, 0.16) 0%, rgba(239, 68, 68, 0.03) 40%, rgba(0, 0, 0, 0) 100%); border-left: 4px solid #ef4444;';
       chauffeurCellContent = `
-        <div style="display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 6px; background: rgba(239, 68, 68, 0.25); border: 1px solid rgba(239, 68, 68, 0.5); box-shadow: 0 0 10px rgba(239, 68, 68, 0.3); vertical-align: middle;">
+        <div onclick="showBLAlertPopover(event, '${r.chauffeur.replace(/'/g, "\\'")}')" style="display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 6px; background: rgba(239, 68, 68, 0.25); border: 1px solid rgba(239, 68, 68, 0.5); box-shadow: 0 0 10px rgba(239, 68, 68, 0.3); vertical-align: middle; cursor: pointer;" title="Cliquer pour gérer les BL">
           <span style="font-weight: 700; color: #f87171; font-size: 11px; max-width: 100px; overflow: hidden; text-overflow: ellipsis; display: inline-block; vertical-align: middle;" title="${r.chauffeur}">${r.chauffeur}</span>
           <span style="font-size: 13px; animation: pulse-eye 0.8s ease-in-out infinite alternate; display: inline-block; vertical-align: middle;" title="${tooltipText}">🚨</span>
         </div>${extPill}
@@ -3759,7 +3849,7 @@ function renderDispo() {
     } else if (worstStatus === 'due') {
       rowBg = 'background: linear-gradient(90deg, rgba(245, 158, 11, 0.1) 0%, rgba(245, 158, 11, 0.02) 40%, rgba(0, 0, 0, 0) 100%); border-left: 4px solid #f59e0b;';
       chauffeurCellContent = `
-        <div style="display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 6px; background: rgba(245, 158, 11, 0.15); border: 1px solid rgba(245, 158, 11, 0.4); box-shadow: 0 0 6px rgba(245, 158, 11, 0.15); vertical-align: middle;">
+        <div onclick="showBLAlertPopover(event, '${r.chauffeur.replace(/'/g, "\\'")}')" style="display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 6px; background: rgba(245, 158, 11, 0.15); border: 1px solid rgba(245, 158, 11, 0.4); box-shadow: 0 0 6px rgba(245, 158, 11, 0.15); vertical-align: middle; cursor: pointer;" title="Cliquer pour gérer les BL">
           <span style="font-weight: 700; color: #fbbf24; font-size: 11px; max-width: 100px; overflow: hidden; text-overflow: ellipsis; display: inline-block; vertical-align: middle;" title="${r.chauffeur}">${r.chauffeur}</span>
           <span style="font-size: 13px; display: inline-block; vertical-align: middle;" title="${tooltipText}">⏳</span>
         </div>${extPill}
@@ -4178,7 +4268,7 @@ function savePanne() {
       ts: new Date().toISOString(),
       equipe: typeof window.CURRENT_EQUIPE !== 'undefined' ? window.CURRENT_EQUIPE : 'A'
     });
-    kpiLastPointageDate = today();
+    kpiLastPointageDate = newKpi === 'NON' ? '' : today();
   } else if (DB.pannes[idx].kpi !== newKpi) {
     kpiHistory.push({
       date: today(),
@@ -4186,7 +4276,7 @@ function savePanne() {
       ts: new Date().toISOString(),
       equipe: typeof window.CURRENT_EQUIPE !== 'undefined' ? window.CURRENT_EQUIPE : 'A'
     });
-    kpiLastPointageDate = today();
+    kpiLastPointageDate = newKpi === 'NON' ? '' : today();
   }
 
   const obj = {
@@ -4227,7 +4317,7 @@ function toggleKpi(idx) {
   if (!r) return;
   const newVal = r.kpi === 'OUI' ? 'NON' : 'OUI';
   r.kpi = newVal;
-  r.kpiLastPointageDate = today();
+  r.kpiLastPointageDate = newVal === 'NON' ? '' : today();
   if (!r.kpiHistory) r.kpiHistory = [];
   r.kpiHistory.push({
     date: today(),
@@ -4619,7 +4709,9 @@ function showVehicleProfile(immat) {
 
   // Historique dans les archives
   const histFromArchives = [];
-  Object.entries(ARCHIVES).sort().forEach(([date,snap])=>{
+  const eqArch = CURRENT_EQUIPE || 'A';
+  const teamArchives = ARCHIVES[eqArch] || {};
+  Object.entries(teamArchives).sort().forEach(([date,snap])=>{
     const d = (snap.dispo||[]).find(r=>r.v===immat);
     if (d) histFromArchives.push({date, etat:d.etat, chauffeur:d.chauffeur, lieuJ1:d.lieuJ1});
   });
@@ -4716,9 +4808,16 @@ function showVehicleProfile(immat) {
 // ARCHIVES
 // ═══════════════════════════════════════════════════════════════
 function archiveToday() {
+  const eq = typeof window.CURRENT_EQUIPE !== 'undefined' ? window.CURRENT_EQUIPE : 'A';
+  const lock = sessionStorage.getItem('numiplan_team_lock');
+  if (lock && lock !== eq) {
+    if (typeof showToast === 'function') {
+      showToast('⚠️ Lecture seule — vous ne pouvez pas archiver la journée de l\'Équipe ' + eq, true);
+    }
+    return;
+  }
   if (!_checkActionsLibres('archiveToday')) return;
   const d = today();
-  const eq = CURRENT_EQUIPE || 'A';
   const snap = {
     dispo: JSON.parse(JSON.stringify(DB.dispo)),
     pannes: JSON.parse(JSON.stringify(DB.pannes)),
@@ -4781,7 +4880,9 @@ function setArchiveEq(eq) {
 }
 
 function renderArchives() {
-  const filterDate = document.getElementById('archive-filter-date').value;
+  const filterDateEl = document.getElementById('archive-filter-date');
+  if (!filterDateEl) return;
+  const filterDate = filterDateEl.value;
   const eq = _arcEq || 'A';
   const arcEq = ARCHIVES[eq] || {};
 
@@ -5339,9 +5440,8 @@ function renderAnalytics() {
   document.getElementById('analytics-global').innerHTML = `
     <div class="stat-card blue" onclick="switchTab('dispo',document.querySelector('[onclick*=\\'dispo\\']'))" title="Aller à Disponibilité" style="cursor:pointer"><div class="stat-num">${DB.dispo.length}</div><div class="stat-lbl">Total véhicules</div></div>
     <div class="stat-card red" onclick="switchTab('pannes',document.querySelector('[onclick*=\\'pannes\\']'));resetFilters('panne-search','panne-date-from','panne-date-to');renderPannes()" title="Aller aux Pannes" style="cursor:pointer"><div class="stat-num">${DB.pannes.length}</div><div class="stat-lbl">Total pannes</div></div>
-    <div class="stat-card org" onclick="goToNC()" title="Aller aux Non-conformités" style="cursor:pointer"><div class="stat-num">${DB.nc.length}</div><div class="stat-lbl">Total NC</div></div>
-    <div class="stat-card green" onclick="switchTab('gasoil',document.querySelector('[onclick*=\\'gasoil\\']'));resetFilters('gasoil-search','gasoil-date-from','gasoil-date-to');renderGasoil()" title="Aller au Gasoil" style="cursor:pointer"><div class="stat-num">${DB.gasoil.length}</div><div class="stat-lbl">Ravitaillements</div></div>
-    <div class="stat-card pur" onclick="switchTab('archives',document.querySelector('[onclick*=\\'archives\\']'))" title="Aller aux Archives" style="cursor:pointer"><div class="stat-num">${Object.keys(ARCHIVES).length}</div><div class="stat-lbl">Jours archivés</div></div>`;
+    <div class="stat-card org" onclick="goToNC()" title="Aller aux Non-conformités" style="pointer:cursor"><div class="stat-num">${DB.nc.length}</div><div class="stat-lbl">Total NC</div></div>
+    <div class="stat-card green" onclick="switchTab('gasoil',document.querySelector('[onclick*=\\'gasoil\\']'));resetFilters('gasoil-search','gasoil-date-from','gasoil-date-to');renderGasoil()" title="Aller au Gasoil" style="cursor:pointer"><div class="stat-num">${DB.gasoil.length}</div><div class="stat-lbl">Ravitaillements</div></div>`;
 
   // Top pannes par véhicule
   const pv = {}; DB.pannes.forEach(r=>{pv[r.immat]=(pv[r.immat]||0)+1;});
@@ -6061,6 +6161,13 @@ window.voirHistoriqueKpi = voirHistoriqueKpi;
 // ═══════════════════════════════════════════════════════════════
 function basculerJournee() {
   const eq = typeof window.CURRENT_EQUIPE !== 'undefined' ? window.CURRENT_EQUIPE : 'A';
+  const lock = sessionStorage.getItem('numiplan_team_lock');
+  if (lock && lock !== eq) {
+    if (typeof showToast === 'function') {
+      showToast('⚠️ Lecture seule — vous ne pouvez pas basculer la journée de l\'Équipe ' + eq, true);
+    }
+    return;
+  }
   const todayStr = today();
   const basculeKey = 'numiplan_last_bascule_' + eq;
   const exportKey  = 'numiplan_last_export_'  + eq;
@@ -6175,7 +6282,7 @@ function checkBascule() {
       const banner = document.createElement('div');
       banner.id = 'bascule-banner-' + eq;
       banner.style.cssText = 'position:fixed;top:60px;left:50%;transform:translateX(-50%);background:#1e3a5f;border:1px solid var(--acc);border-radius:10px;padding:12px 20px;z-index:500;display:flex;align-items:center;gap:12px;box-shadow:0 8px 32px rgba(0,0,0,.5)';
-      banner.innerHTML = `<span style="font-size:13px;color:var(--txt)">📅 Nouvelle journée — Équipe ${eq}</span><button class="btn btn-save" onclick="basculerJournee();this.parentElement.remove()" style="font-size:11px;padding:5px 12px">⏭ Basculer J+1 → Jour</button><button class="del-btn" onclick="this.parentElement.remove()" style="font-size:16px">✕</button>`;
+      banner.innerHTML = `<span style="font-size:13px;color:var(--txt)">📅 Nouvelle journée — Équipe ${eq}</span><button class="btn btn-save btn-global" onclick="basculerJournee();this.parentElement.remove()" style="font-size:11px;padding:5px 12px">⏭ Basculer J+1 → Jour</button><button class="del-btn" onclick="this.parentElement.remove()" style="font-size:16px">✕</button>`;
       document.body.appendChild(banner);
     }, 1000);
   }
@@ -6429,9 +6536,10 @@ function switchEquipe(eq) {
   // Update subtitle
   document.querySelector('.header-sub').textContent = 'SUIVI CHAUFFEUR · ÉQUIPE ' + eq;
   // Re-render all tabs
+  _arcEq = eq;
   renderDispo(); renderPannes(); renderNC(); renderGasoil();
   renderEquip(); renderActivite(); renderBL(); renderOdo(); renderCSPC();
-  renderBLAlerts(); renderTracabilite();
+  renderBLAlerts(); renderTracabilite(); renderFlashInfos(); renderArchives();
   if (typeof renderAnalytics === 'function') renderAnalytics();
 
   // Appliquer le verrouillage d'interface si en mode lecture seule
@@ -6473,6 +6581,7 @@ renderOdo();
 renderCSPC();
 renderBLAlerts();
 renderTracabilite();
+renderFlashInfos();
 checkPointageRequired();
 
 // ════════════════════════════════════════════════════════════════════════════
@@ -6617,6 +6726,13 @@ async function exportNumiflow() {
   // ── Marquer l'export comme effectué pour cette journée (par équipe) ──
   const _exportKey = 'numiplan_last_export_' + (CURRENT_EQUIPE || 'A');
   localStorage.setItem(_exportKey, today());
+
+  // ── Lancement automatique de l'extraction complète des données ──────
+  try {
+    await exportAllData();
+  } catch(e) {
+    console.error('Auto data extraction failed:', e);
+  }
 
   openModal('modal-export-numiflow');
 }
@@ -7491,7 +7607,8 @@ function publierFlashInfo() {
   document.getElementById('flash-content').value = '';
   
   showToast('🚀 Flash Info publié avec succès !');
-  renderAdminFlashList();
+  if (typeof renderFlashInfos === 'function') renderFlashInfos();
+  if (typeof renderAdminFlashList === 'function') renderAdminFlashList();
 }
 window.publierFlashInfo = publierFlashInfo;
 
@@ -7561,9 +7678,58 @@ function supprimerFlashInfo(flashId) {
   });
   
   showToast('🗑 Flash Info supprimé');
-  renderAdminFlashList();
+  if (typeof renderFlashInfos === 'function') renderFlashInfos();
+  if (typeof renderAdminFlashList === 'function') renderAdminFlashList();
 }
 window.supprimerFlashInfo = supprimerFlashInfo;
+
+function publierFlashInfoInline() {
+  const title = document.getElementById('flash-title-inline').value.trim();
+  const content = document.getElementById('flash-content-inline').value.trim();
+  
+  if (!title) { showToast('⚠️ Le titre est requis', true); return; }
+  if (!content) { showToast('⚠️ Le message détaillé est requis', true); return; }
+  
+  const checkedTeams = [];
+  document.querySelectorAll('input[name="flash-teams-inline"]:checked').forEach(cb => {
+    checkedTeams.push(cb.value);
+  });
+  
+  if (checkedTeams.length === 0) {
+    showToast('⚠️ Sélectionnez au moins une équipe cible', true);
+    return;
+  }
+  
+  const flashId = 'flash_' + Date.now();
+  const flash = {
+    id: flashId,
+    title: title,
+    content: content,
+    date: today(),
+    createdBy: getOperatorRole(),
+    teams: checkedTeams,
+    signatures: {}
+  };
+  
+  checkedTeams.forEach(eq => {
+    const db = window['DB_' + eq] || (eq === CURRENT_EQUIPE ? DB : null);
+    if (db) {
+      if (!db.flashInfos) db.flashInfos = [];
+      db.flashInfos.push(flash);
+      if (window.saveTeamDB) {
+        window.saveTeamDB(eq, db);
+      }
+    }
+  });
+  
+  document.getElementById('flash-title-inline').value = '';
+  document.getElementById('flash-content-inline').value = '';
+  
+  showToast('🚀 Flash Info publié avec succès !');
+  renderFlashInfos();
+  if (typeof renderAdminFlashList === 'function') renderAdminFlashList();
+}
+window.publierFlashInfoInline = publierFlashInfoInline;
 
 function renderFlashInfos() {
   const container = document.getElementById('flash-infos-container');
@@ -7572,33 +7738,105 @@ function renderFlashInfos() {
   const eq = CURRENT_EQUIPE || 'A';
   if (!DB.flashInfos) DB.flashInfos = [];
   
-  // Filtrer les Flash Infos ciblés pour cette équipe et non résolus par elle
-  const activeFlashes = DB.flashInfos.filter(f => f.teams.includes(eq) && (!f.signatures || !f.signatures[eq]));
+  const lock = sessionStorage.getItem('numiplan_team_lock');
+  const isAdmin = !lock;
   
-  if (activeFlashes.length === 0) {
-    container.innerHTML = '';
-    return;
-  }
-  
-  container.innerHTML = activeFlashes.map(f => {
-    return `
-      <div style="background: linear-gradient(135deg, rgba(239, 68, 68, 0.15) 0%, rgba(245, 158, 11, 0.15) 100%); border: 1.5px solid var(--org); border-radius: 12px; padding: 16px 20px; margin-bottom: 20px; box-shadow: 0 4px 20px rgba(245, 158, 11, 0.15); animation: fadeIn 0.4s ease;">
-        <div style="display:flex; align-items:center; gap:10px; margin-bottom:10px;">
-          <span style="font-size:20px; animation: pulse-eye 0.8s infinite alternate; display:inline-block;">📢</span>
-          <span style="font-size:12px; font-weight:700; color:var(--org); letter-spacing:1.5px; text-transform:uppercase;">FLASH INFO IMPORTANT</span>
-        </div>
-        <div style="display:flex; justify-content:space-between; align-items:start; gap:20px; flex-wrap:wrap;">
-          <div style="flex:1;">
-            <h4 style="font-size:14px; font-weight:700; color:var(--txt); margin-bottom:6px;">${f.title}</h4>
-            <p style="font-size:12px; color:var(--txt2); line-height:1.6; white-space:pre-wrap;">${f.content}</p>
+  if (isAdmin) {
+    const activeFlashes = DB.flashInfos;
+    
+    let flashesHtml = '';
+    if (activeFlashes.length === 0) {
+      flashesHtml = '<div style="color:var(--txt3); font-size:12px; font-style:italic; text-align:center; padding:20px 0;">Aucun Flash Info publié pour cette équipe.</div>';
+    } else {
+      flashesHtml = activeFlashes.map(f => {
+        const sigs = Object.entries(f.signatures || {}).map(([team, sig]) => {
+          return `<span style="background:rgba(52,211,153,0.15); color:var(--grn); border-radius:4px; padding:2px 6px; font-size:10px; white-space:nowrap;">EQ ${team}: ${sig.name}</span>`;
+        }).join(' ') || '<span style="color:var(--txt3); font-size:10px;">Aucun émargement</span>';
+        
+        return `
+          <div style="background: var(--bg3); border: 1px solid var(--border); border-radius: 8px; padding: 12px 14px; margin-bottom: 8px; display:flex; justify-content:space-between; align-items:start; gap:12px;">
+            <div style="flex:1; min-width:0;">
+              <div style="display:flex; align-items:center; gap:8px; margin-bottom:4px; flex-wrap:wrap;">
+                <span style="font-weight:700; color:var(--acc); font-size:12px;">${f.title}</span>
+                <span style="font-size:10px; color:var(--txt3); font-family:monospace;">(${f.date})</span>
+                <span style="font-size:10px; background:rgba(56,189,248,0.15); color:var(--acc); padding:1px 5px; border-radius:4px; font-family:monospace;">Cibles: ${f.teams.join(', ')}</span>
+              </div>
+              <p style="font-size:11px; color:var(--txt2); white-space:pre-wrap; margin-bottom:6px; line-height:1.4;">${f.content}</p>
+              <div style="display:flex; flex-wrap:wrap; gap:6px; align-items:center;">
+                <span style="font-size:10px; color:var(--txt3); font-weight:700;">Émargements:</span>
+                ${sigs}
+              </div>
+            </div>
+            <button onclick="supprimerFlashInfo('${f.id}')" style="background:none; border:none; color:var(--red); cursor:pointer; font-size:14px; padding:2px;" title="Supprimer">🗑</button>
           </div>
-          <button class="btn" onclick="emargerFlash('${f.id}')" style="background:rgba(251,191,36,0.2); border-color:#fbbf24; color:#fbbf24; font-size:11px; padding:8px 18px; font-weight:700; border-radius:8px; display:flex; align-items:center; gap:6px; cursor:pointer;">
-            <span>✍️ Émarger et résoudre</span>
-          </button>
+        `;
+      }).join('');
+    }
+    
+    container.innerHTML = `
+      <div style="background: var(--bg2); border: 1px solid var(--border); border-radius: 12px; padding: 16px 20px; margin-bottom: 20px; box-shadow: 0 4px 20px rgba(0,0,0,0.25);">
+        <div style="font-size: 11px; font-weight: 700; color: var(--txt2); letter-spacing: 2px; text-transform: uppercase; margin-bottom: 12px; display: flex; align-items: center; gap: 8px; border-bottom: 1px solid var(--border); padding-bottom:8px;">
+          <span>📢 DIFFUSION FLASH INFO (ADMIN)</span>
+        </div>
+        <div style="display:grid; grid-template-columns:1.2fr 1fr; gap:20px; align-items:start;">
+          <!-- Formulaire de publication -->
+          <div style="display:flex; flex-direction:column; gap:10px; background:var(--bg3); padding:14px; border-radius:8px; border:1px solid var(--border);">
+            <div style="display:flex; gap:10px; flex-wrap:wrap;">
+              <input type="text" id="flash-title-inline" placeholder="Titre du message / Rappel..." style="flex:1; min-width:180px; background:var(--bg2); border:1px solid var(--border); border-radius:6px; padding:7px 10px; color:var(--txt); font-size:12px; outline:none;">
+              <div style="display:flex; gap:8px; align-items:center; background:var(--bg2); padding:0 10px; border-radius:6px; border:1px solid var(--border); min-height:30px;">
+                <span style="font-size:10px; color:var(--txt3); font-weight:700; text-transform:uppercase;">Cibles:</span>
+                <label style="display:flex; align-items:center; gap:3px; cursor:pointer; font-family:monospace; font-size:11px; color:var(--txt2);">
+                  <input type="checkbox" name="flash-teams-inline" value="A" checked style="width:auto;cursor:pointer;"> A
+                </label>
+                <label style="display:flex; align-items:center; gap:3px; cursor:pointer; font-family:monospace; font-size:11px; color:var(--txt2);">
+                  <input type="checkbox" name="flash-teams-inline" value="B" style="width:auto;cursor:pointer;"> B
+                </label>
+                <label style="display:flex; align-items:center; gap:3px; cursor:pointer; font-family:monospace; font-size:11px; color:var(--txt2);">
+                  <input type="checkbox" name="flash-teams-inline" value="C" style="width:auto;cursor:pointer;"> C
+                </label>
+                <label style="display:flex; align-items:center; gap:3px; cursor:pointer; font-family:monospace; font-size:11px; color:var(--txt2);">
+                  <input type="checkbox" name="flash-teams-inline" value="D" style="width:auto;cursor:pointer;"> D
+                </label>
+              </div>
+            </div>
+            <textarea id="flash-content-inline" placeholder="Saisissez ici le texte du flash info..." style="width:100%; min-height:60px; background:var(--bg2); border:1px solid var(--border); border-radius:6px; padding:8px 10px; color:var(--txt); font-size:12px; outline:none; resize:vertical;"></textarea>
+            <button onclick="publierFlashInfoInline()" style="padding:7px 16px; background:rgba(56,189,248,0.15); border:1px solid rgba(56,189,248,0.4); color:var(--acc); font-size:11px; font-weight:700; border-radius:6px; cursor:pointer; align-self:flex-end; transition:background 0.2s;" onmouseover="this.style.background='rgba(56,189,248,0.25)'" onmouseout="this.style.background='rgba(56,189,248,0.15)'">
+              🚀 Publier l'information
+            </button>
+          </div>
+          <!-- Liste des messages -->
+          <div style="max-height:180px; overflow-y:auto; padding-right:4px;">
+            ${flashesHtml}
+          </div>
         </div>
       </div>
     `;
-  }).join('');
+  } else {
+    const activeFlashes = DB.flashInfos.filter(f => f.teams.includes(eq) && (!f.signatures || !f.signatures[eq]));
+    
+    if (activeFlashes.length === 0) {
+      container.innerHTML = '';
+      return;
+    }
+    
+    container.innerHTML = activeFlashes.map(f => {
+      return `
+        <div style="background: linear-gradient(135deg, rgba(239, 68, 68, 0.15) 0%, rgba(245, 158, 11, 0.15) 100%); border: 1.5px solid var(--org); border-radius: 12px; padding: 16px 20px; margin-bottom: 20px; box-shadow: 0 4px 20px rgba(245, 158, 11, 0.15); animation: fadeIn 0.4s ease; display:flex; justify-content:space-between; align-items:start; gap:20px; flex-wrap:wrap;">
+          <div style="flex:1; min-width:240px;">
+            <div style="display:flex; align-items:center; gap:10px; margin-bottom:10px;">
+              <span style="font-size:20px; animation: pulse-eye 0.8s infinite alternate; display:inline-block;">📢</span>
+              <span style="font-size:12px; font-weight:700; color:var(--org); letter-spacing:1.5px; text-transform:uppercase;">FLASH INFO IMPORTANT</span>
+            </div>
+            <h4 style="font-size:14px; font-weight:700; color:var(--txt); margin-bottom:6px;">${f.title}</h4>
+            <p style="font-size:12px; color:var(--txt2); line-height:1.6; white-space:pre-wrap;">${f.content}</p>
+          </div>
+          <button class="btn" onclick="emargerFlash('${f.id}')" style="background:rgba(251,191,36,0.2); border-color:#fbbf24; color:#fbbf24; font-size:11px; padding:8px 18px; font-weight:700; border-radius:8px; display:flex; align-items:center; gap:6px; cursor:pointer; align-self:center;">
+            <span>✍️ Émarger et résoudre</span>
+          </button>
+        </div>
+      `;
+    }).join('');
+  }
 }
 window.renderFlashInfos = renderFlashInfos;
 
