@@ -831,7 +831,10 @@ tr.dragging {
     <div style="display: flex; gap: 16px; margin-bottom: 24px; align-items: center; background: var(--bg2); border: 1px solid var(--border); border-radius: 12px; padding: 14px 20px;">
       <div style="flex: 1; display: flex; flex-direction: column; gap: 6px;">
         <label style="font-size: 10px; font-weight: 700; color: var(--txt2); letter-spacing: 1px; text-transform: uppercase;">Rechercher Chauffeur</label>
-        <input type="text" id="admin-bl-search-chauffeur" placeholder="Nom du chauffeur..." oninput="renderGlobalBLAlerts()" style="background: var(--bg3); border: 1px solid var(--border); border-radius: 8px; padding: 10px 14px; color: var(--txt); font-size: 13px; outline: none; box-sizing: border-box; width: 100%;">
+        <div style="position: relative; width: 100%;">
+          <span style="position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: var(--txt3); font-size: 14px; pointer-events: none;">🔍</span>
+          <input type="text" id="admin-bl-search-chauffeur" placeholder="Nom du chauffeur..." oninput="renderGlobalBLAlerts()" style="background: var(--bg3); border: 1px solid var(--border); border-radius: 8px; padding: 10px 14px 10px 38px; color: var(--txt); font-size: 13px; outline: none; box-sizing: border-box; width: 100%;">
+        </div>
       </div>
       <div style="width: 200px; display: flex; flex-direction: column; gap: 6px;">
         <label style="font-size: 10px; font-weight: 700; color: var(--txt2); letter-spacing: 1px; text-transform: uppercase;">Filtrer par Équipe</label>
@@ -845,6 +848,9 @@ tr.dragging {
       </div>
       <button class="btn" onclick="resetAdminBLFilters()" style="margin-top: 18px; padding: 10px 18px; font-size: 12px; font-weight: 700; border-radius: 8px; cursor: pointer; display: flex; align-items: center; gap: 6px;">
         <span>↺ Réinitialiser</span>
+      </button>
+      <button class="btn btn-numiflow" onclick="exporterOTNonRealises()" style="margin-top: 18px; padding: 10px 18px; font-size: 12px; font-weight: 700; border-radius: 8px; cursor: pointer; display: flex; align-items: center; gap: 6px;">
+        <span>📥 Fichier OT non réalisés</span>
       </button>
     </div>
 
@@ -1882,9 +1888,9 @@ mark.hl { background: rgba(56,189,248,.25); color: var(--acc); border-radius: 3p
 </div>
 
 <!-- Overlay bloquant pointage obligatoire -->
-<div id="pointage-block-overlay" style="display:none;position:fixed;inset:0;background:rgba(10,14,26,.85);z-index:99990;align-items:center;justify-content:center;backdrop-filter:blur(6px);cursor:pointer" onclick="lancerPointageObligatoire()">
+<div id="pointage-block-overlay" style="display:none;position:fixed;inset:0;background:rgba(10,14,26,.85);z-index:99990;align-items:center;justify-content:center;backdrop-filter:blur(6px);cursor:pointer" onclick="handlePointageOverlayClick()">
   <div style="color:#f87171;font-family:'IBM Plex Sans',sans-serif;font-size:16px;font-weight:700;text-align:center;pointer-events:none">
-    ⚠️ POINTAGE OBLIGATOIRE DES ANOMALIES EN COURS<br>
+    ⚠️ POINTAGE OBLIGATOIRE EN COURS<br>
     <span style="font-size:12px;color:var(--txt2);font-weight:400">Cliquez n'importe où pour ouvrir le formulaire de pointage</span>
   </div>
 </div>
@@ -1936,9 +1942,24 @@ mark.hl { background: rgba(56,189,248,.25); color: var(--acc); border-radius: 3p
                 });
               }
 
+              // Vérification des KPIs bloquants (> 8h non saisis)
+              const pannes = dbEq.pannes || [];
+              const eightHoursAgo = Date.now() - 8 * 60 * 60 * 1000;
+              const hasBlockingKpis = pannes.some(r => {
+                if (r.kpi !== 'NON') return false;
+                if (r.kpiLastPointageDate === todayStr) return false;
+                const declTs = (r.kpiHistory && r.kpiHistory[0] && r.kpiHistory[0].ts)
+                  ? new Date(r.kpiHistory[0].ts).getTime()
+                  : (r.date ? new Date(r.date + 'T12:00:00').getTime() : 0);
+                return declTs < eightHoursAgo;
+              });
+
               if (hasAnomalies || hasViolations) {
                 window._actionsBloquees = true;
                 document.write('<style>#pointage-block-overlay { display: flex !important; } #modal-pointage-anomalies { display: flex !important; }</style>');
+              } else if (hasBlockingKpis) {
+                window._actionsBloquees = true;
+                document.write('<style>#pointage-block-overlay { display: flex !important; } #modal-pointage-kpi-atelier { display: flex !important; }</style>');
               }
             }
           }
@@ -2033,7 +2054,7 @@ mark.hl { background: rgba(56,189,248,.25); color: var(--acc); border-radius: 3p
     </div>
     <div id="kpi-pointage-list" style="overflow-y:auto;flex:1;padding:16px 28px"></div>
     <div style="padding:16px 28px;border-top:1px solid rgba(56,189,248,.2);display:flex;justify-content:flex-end;align-items:center;flex-shrink:0">
-      <button onclick="document.getElementById('modal-pointage-kpi-atelier').style.display='none'" style="background:#1a2236;color:#94a3b8;border:1px solid #2d3f65;padding:10px 24px;border-radius:9px;cursor:pointer;font-size:12px;font-weight:700">✕ Fermer</button>
+      <button id="kpi-close-btn" onclick="document.getElementById('modal-pointage-kpi-atelier').style.display='none'" style="background:#1a2236;color:#94a3b8;border:1px solid #2d3f65;padding:10px 24px;border-radius:9px;cursor:pointer;font-size:12px;font-weight:700">✕ Fermer</button>
     </div>
   </div>
 </div>
@@ -2290,6 +2311,118 @@ mark.hl { background: rgba(56,189,248,.25); color: var(--acc); border-radius: 3p
     <div class="modal-actions">
       <button class="btn btn-reset" onclick="closeModal('modal-cspc')">Annuler</button>
       <button class="btn btn-save" onclick="saveCSPC()">💾 Enregistrer</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal Entretien Sharik -->
+<div class="modal-overlay" id="modal-entretien-sharik" style="z-index: 20000;">
+  <div class="modal" style="width: 650px; max-width: 95vw; background: var(--bg2); border: 1px solid var(--border); border-radius: 16px; padding: 24px;">
+    <h3 style="font-size: 16px; color: var(--acc); font-weight: 700; display: flex; align-items: center; gap: 8px; margin-bottom: 20px;">
+      <span>📋 Entretien Réception Chauffeur (Sharik)</span>
+    </h3>
+    
+    <div style="background: var(--bg3); border: 1px solid var(--border); border-radius: 10px; padding: 14px; margin-bottom: 20px;">
+      <div style="font-size: 12px; color: var(--txt2); margin-bottom: 4px;">Informations du conducteur :</div>
+      <div style="font-size: 15px; font-weight: bold; color: var(--txt);">
+        Chauffeur : <span id="ent-chauffeur-name" style="color: var(--acc);"></span>
+      </div>
+      <div style="font-size: 12px; color: var(--txt2); margin-top: 4px;">
+        Équipe : <span id="ent-chauffeur-team" style="font-weight: 600; color: var(--grn);"></span> | BL concerné : <span id="ent-bl-month" style="font-weight: 600; text-transform: uppercase; color: var(--org);"></span>
+      </div>
+    </div>
+
+    <!-- Section 1 : Liste des BL manquants -->
+    <div style="border: 1px solid var(--border); border-radius: 10px; padding: 14px; margin-bottom: 20px; background: rgba(56, 189, 248, 0.03);">
+      <h4 style="font-size: 11px; text-transform: uppercase; letter-spacing: 1px; color: var(--acc); margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center;">
+        <span>📄 Liste des BL manquants (Perte de mémoire)</span>
+        <div style="display: flex; gap: 6px;">
+          <button onclick="copierListeBLManquants()" class="btn" style="padding: 4px 8px; font-size: 10px; background: rgba(56,189,248,0.1); border-color: rgba(56,189,248,0.3); color: var(--acc); cursor: pointer;">📋 Copier</button>
+          <button onclick="imprimerListeBLManquants()" class="btn" style="padding: 4px 8px; font-size: 10px; background: rgba(148,163,184,0.1); border-color: rgba(148,163,184,0.3); color: var(--txt); cursor: pointer;">🖨️ Imprimer</button>
+        </div>
+      </h4>
+      <div id="ent-bl-manquants-list" style="font-size: 12px; line-height: 1.6; color: var(--txt); max-height: 100px; overflow-y: auto;">
+        <!-- Rempli dynamiquement -->
+      </div>
+    </div>
+
+    <!-- Section 2 : Questionnaire interactif -->
+    <div style="border: 1px solid var(--border); border-radius: 10px; padding: 14px; margin-bottom: 20px;">
+      <h4 style="font-size: 11px; text-transform: uppercase; letter-spacing: 1px; color: var(--acc); margin-bottom: 12px;">💬 Questions à poser au chauffeur</h4>
+      
+      <!-- Question 1: Réalisé ou non ? -->
+      <div style="margin-bottom: 16px;">
+        <label style="font-size: 12px; font-weight: 600; color: var(--txt); display: block; margin-bottom: 8px;">1. Est-ce que l'Ordre de Transport (OT) est réalisé ?</label>
+        <div style="display: flex; gap: 20px;">
+          <label style="display: flex; align-items: center; gap: 6px; font-size: 13px; cursor: pointer; color: var(--txt);">
+            <input type="radio" name="ot-realise" value="oui" onchange="toggleOTRealise(this.value)" style="width: auto; cursor: pointer;">
+            Oui, il est réalisé (Livré)
+          </label>
+          <label style="display: flex; align-items: center; gap: 6px; font-size: 13px; cursor: pointer; color: var(--txt);">
+            <input type="radio" name="ot-realise" value="non" onchange="toggleOTRealise(this.value)" style="width: auto; cursor: pointer;">
+            Non, il n'est pas réalisé
+          </label>
+        </div>
+      </div>
+
+      <!-- Question 2A: Si réalisé, pourquoi pas restitué? -->
+      <div id="ot-realise-oui-section" style="display: none; border-top: 1px solid var(--border); padding-top: 12px; margin-bottom: 12px;">
+        <label style="font-size: 12px; font-weight: 600; color: var(--txt); display: block; margin-bottom: 6px;">2. Pourquoi l'OT n'a-t-il pas été restitué ?</label>
+        <select id="ot-non-restitue-motif" onchange="onMotifRestitutionChange(this.value)" style="background: var(--bg3); border: 1px solid var(--border); border-radius: 8px; padding: 8px; color: var(--txt); width: 100%; margin-bottom: 8px; cursor: pointer;">
+          <option value="">Sélectionner un motif...</option>
+          <option value="Oublié à la maison / dans le camion">Oublié à la maison / dans le camion</option>
+          <option value="Perdu">Perdu</option>
+          <option value="autre">Autre motif (Préciser ci-dessous)</option>
+        </select>
+        <textarea id="ot-non-restitue-details" placeholder="Précisez la raison ou le commentaire ici..." style="background: var(--bg3); border: 1px solid var(--border); border-radius: 8px; padding: 8px; color: var(--txt); width: 100%; font-size: 12px; display: none; margin-bottom: 8px;"></textarea>
+        
+        <div style="margin-top: 12px; padding: 10px; background: rgba(251,146,60,0.1); border-left: 3px solid var(--org); border-radius: 4px; font-size: 12px; color: var(--org);">
+          ⚠️ <b>Action requise :</b> Demander au chauffeur de le restituer dans les plus brefs délais.
+        </div>
+      </div>
+
+      <!-- Question 2B: Si non réalisé, renseigner le fichier -->
+      <div id="ot-realise-non-section" style="display: none; border-top: 1px solid var(--border); padding-top: 12px; margin-bottom: 12px;">
+        <div style="margin-bottom: 12px; padding: 10px; background: rgba(248,113,113,0.1); border-left: 3px solid var(--red); border-radius: 4px; font-size: 12px; color: var(--red);">
+          📝 <b>Règle :</b> Les OT non réalisés doivent être enregistrés dans le fichier de suivi.
+        </div>
+        
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 10px;">
+          <div>
+            <label style="font-size: 10px; text-transform: uppercase; color: var(--txt2); font-weight: 700;">Numéro de l'OT / Commande</label>
+            <input type="text" id="ot-non-realise-num" placeholder="Ex: OT-983421" style="background: var(--bg3); border: 1px solid var(--border); border-radius: 8px; padding: 8px; color: var(--txt); width: 100%;">
+          </div>
+          <div>
+            <label style="font-size: 10px; text-transform: uppercase; color: var(--txt2); font-weight: 700;">Motif de non-réalisation</label>
+            <select id="ot-non-realise-motif" style="background: var(--bg3); border: 1px solid var(--border); border-radius: 8px; padding: 8px; color: var(--txt); width: 100%; cursor: pointer;">
+              <option value="Commande annulée par le client">Commande annulée par le client</option>
+              <option value="Panne de camion">Panne de camion</option>
+              <option value="Absence chauffeur">Absence chauffeur</option>
+              <option value="Client fermé / Refus livraison">Client fermé / Refus livraison</option>
+              <option value="Autre motif">Autre motif</option>
+            </select>
+          </div>
+        </div>
+        <button onclick="enregistrerOTNonRealise()" class="btn btn-save" style="width: 100%; padding: 8px; font-size: 12px; cursor: pointer;">💾 Enregistrer dans le fichier des OT non réalisés</button>
+      </div>
+    </div>
+
+    <!-- Section 3 : Note d'aide (Où trouver l'OT ?) -->
+    <div style="background: rgba(167,139,250,0.08); border: 1px solid rgba(167,139,250,0.2); border-radius: 10px; padding: 12px; margin-bottom: 20px;">
+      <div style="font-size: 12px; font-weight: 700; color: var(--pur); display: flex; align-items: center; gap: 6px; margin-bottom: 4px;">
+        <span>💡 Où trouver l'OT ? (Vérifier État de CMD)</span>
+      </div>
+      <div style="font-size: 11px; color: var(--txt2); line-height: 1.5;">
+        Vous pouvez localiser l'OT en consultant l'<b>État de la Commande (CMD)</b> :<br>
+        • Soit dans le <b>Compte-rendu</b> d'activité quotidien.<br>
+        • Soit dans la liste des <b>BL en anomalie</b>.
+      </div>
+    </div>
+
+    <!-- Actions Modal -->
+    <div class="modal-actions" style="margin-top: 0;">
+      <button class="btn btn-reset" onclick="closeModal('modal-entretien-sharik')">Fermer</button>
+      <button id="btn-entretien-valider-restitue" class="btn btn-save" style="background:#38bdf8; border-color:#38bdf8; color:#000; cursor: pointer;">✓ Marquer Restitué</button>
     </div>
   </div>
 </div>
@@ -2578,6 +2711,7 @@ let ARCHIVES = {};
 // Exposer DB et ARCHIVES globalement pour le module Firebase
 window.DB = DB;
 window.ARCHIVES = ARCHIVES;
+window._pointageEnCours = {};
 
 function emptyTeamData() {
   return {
@@ -3265,6 +3399,221 @@ function validerBLRapideGlobal(chauffeur, month, team, action) {
 }
 window.validerBLRapideGlobal = validerBLRapideGlobal;
 
+// Variable temporaire pour stocker les infos de l'entretien en cours
+let CURRENT_ENTRETIEN = { chauffeur: '', month: '', team: '', list: [] };
+
+function ouvrirEntretienSharik(chauffeur, month, team) {
+  CURRENT_ENTRETIEN = { chauffeur: chauffeur, month: month, team: team, list: [] };
+  
+  // Remplir les informations textuelles
+  document.getElementById('ent-chauffeur-name').textContent = chauffeur;
+  document.getElementById('ent-chauffeur-team').textContent = team;
+  document.getElementById('ent-bl-month').textContent = month;
+  
+  // Réinitialiser les champs du formulaire
+  const radios = document.getElementsByName('ot-realise');
+  radios.forEach(r => r.checked = false);
+  document.getElementById('ot-realise-oui-section').style.display = 'none';
+  document.getElementById('ot-realise-non-section').style.display = 'none';
+  
+  document.getElementById('ot-non-restitue-motif').value = '';
+  document.getElementById('ot-non-restitue-details').value = '';
+  document.getElementById('ot-non-restitue-details').style.display = 'none';
+  
+  document.getElementById('ot-non-realise-num').value = '';
+  document.getElementById('ot-non-realise-motif').selectedIndex = 0;
+  
+  // Charger la liste complète des BL manquants pour ce chauffeur
+  const monthsList = ['mars','avril','mai','juin','juil','aout','sep','oct','nov','dec'];
+  const db = window['DB_' + team];
+  const missing = [];
+  
+  if (db && db.bl) {
+    const row = db.bl.find(r => r.chauffeur.toUpperCase() === chauffeur.toUpperCase());
+    if (row) {
+      monthsList.forEach(m => {
+        const statusVal = (row[m] || '').trim().toLowerCase();
+        if (statusVal !== 'déposer' && statusVal !== 'depose') {
+          let label = m.toUpperCase();
+          if (statusVal.startsWith('partiel_')) {
+            label += ` (Partiel - ${statusVal.split('_')[1]} manquants)`;
+          } else {
+            label += ` (Non restitué)`;
+          }
+          missing.push(label);
+        }
+      });
+    }
+  }
+  
+  CURRENT_ENTRETIEN.list = missing;
+  
+  const listContainer = document.getElementById('ent-bl-manquants-list');
+  if (missing.length === 0) {
+    listContainer.innerHTML = '<span style="color: var(--txt3);">Aucun BL manquant trouvé.</span>';
+  } else {
+    listContainer.innerHTML = '<ul style="margin: 0; padding-left: 20px;">' + 
+      missing.map(item => `<li>${item}</li>`).join('') + 
+      '</ul>';
+  }
+  
+  // Configurer le bouton de validation finale
+  const validateBtn = document.getElementById('btn-entretien-valider-restitue');
+  validateBtn.onclick = function() {
+    validerBLRapideGlobal(chauffeur, month, team, 'restitue');
+    closeModal('modal-entretien-sharik');
+  };
+  
+  // Ouvrir le modal
+  openModal('modal-entretien-sharik');
+}
+window.ouvrirEntretienSharik = ouvrirEntretienSharik;
+
+function toggleOTRealise(val) {
+  const ouiSec = document.getElementById('ot-realise-oui-section');
+  const nonSec = document.getElementById('ot-realise-non-section');
+  
+  if (val === 'oui') {
+    ouiSec.style.display = 'block';
+    nonSec.style.display = 'none';
+  } else {
+    ouiSec.style.display = 'none';
+    nonSec.style.display = 'block';
+  }
+}
+window.toggleOTRealise = toggleOTRealise;
+
+function onMotifRestitutionChange(val) {
+  const details = document.getElementById('ot-non-restitue-details');
+  if (val === 'autre') {
+    details.style.display = 'block';
+    details.focus();
+  } else {
+    details.style.display = 'none';
+  }
+}
+window.onMotifRestitutionChange = onMotifRestitutionChange;
+
+function copierListeBLManquants() {
+  if (!CURRENT_ENTRETIEN.list || CURRENT_ENTRETIEN.list.length === 0) {
+    showToast("Aucun BL manquant à copier", true);
+    return;
+  }
+  const text = `Chauffeur: ${CURRENT_ENTRETIEN.chauffeur}\nEquipe: ${CURRENT_ENTRETIEN.team}\nBL Manquants:\n` + 
+    CURRENT_ENTRETIEN.list.map(item => `- ${item}`).join('\n');
+  
+  navigator.clipboard.writeText(text).then(() => {
+    showToast("📋 Liste copiée dans le presse-papier !");
+  }).catch(err => {
+    console.error("Erreur de copie :", err);
+    showToast("Erreur lors de la copie", true);
+  });
+}
+window.copierListeBLManquants = copierListeBLManquants;
+
+function imprimerListeBLManquants() {
+  if (!CURRENT_ENTRETIEN.list || CURRENT_ENTRETIEN.list.length === 0) {
+    showToast("Aucun BL manquant à imprimer", true);
+    return;
+  }
+  
+  const printWindow = window.open('', '_blank');
+  printWindow.document.write(`
+    <html>
+      <head>
+        <title>BL Manquants - ${CURRENT_ENTRETIEN.chauffeur}</title>
+        <style>
+          body { font-family: 'Helvetica Neue', Arial, sans-serif; padding: 40px; color: #333; }
+          h2 { border-bottom: 2px solid #333; padding-bottom: 10px; margin-bottom: 20px; }
+          .meta { margin-bottom: 20px; font-size: 14px; }
+          ul { font-size: 16px; line-height: 2; }
+          @media print {
+            button { display: none; }
+          }
+        </style>
+      </head>
+      <body>
+        <h2>FICHE DE RESTITUTION BL MANQUANTS</h2>
+        <div class="meta">
+          <strong>Chauffeur :</strong> ${CURRENT_ENTRETIEN.chauffeur}<br>
+          <strong>Équipe :</strong> ${CURRENT_ENTRETIEN.team}<br>
+          <strong>Date d'édition :</strong> ${new Date().toLocaleDateString('fr-FR')}
+        </div>
+        <p>Veuillez restituer au plus vite les pièces justificatives manquantes suivantes :</p>
+        <ul>
+          ${CURRENT_ENTRETIEN.list.map(item => `<li>${item}</li>`).join('')}
+        </ul>
+        <br><br>
+        <div style="display:flex; justify-content:space-between; margin-top: 50px;">
+          <div>Signature Chauffeur</div>
+          <div>Signature Administration</div>
+        </div>
+        <br><br>
+        <button onclick="window.print()" style="padding: 10px 20px; font-size: 14px; background: #38bdf8; border: none; border-radius: 4px; cursor: pointer; font-weight: bold;">Imprimer la fiche</button>
+      </body>
+    </html>
+  `);
+  printWindow.document.close();
+}
+window.imprimerListeBLManquants = imprimerListeBLManquants;
+
+function enregistrerOTNonRealise() {
+  const numInput = document.getElementById('ot-non-realise-num');
+  const motifSelect = document.getElementById('ot-non-realise-motif');
+  const otNum = numInput.value.trim();
+  const motif = motifSelect.value;
+  
+  if (!otNum) {
+    showToast("⚠️ Veuillez renseigner le numéro d'OT", true);
+    return;
+  }
+  
+  const entry = {
+    chauffeur: CURRENT_ENTRETIEN.chauffeur,
+    team: CURRENT_ENTRETIEN.team,
+    month: CURRENT_ENTRETIEN.month,
+    ot: otNum,
+    motif: motif,
+    date: new Date().toISOString()
+  };
+  
+  const allEntries = JSON.parse(localStorage.getItem('ot_non_realises') || '[]');
+  allEntries.push(entry);
+  localStorage.setItem('ot_non_realises', JSON.stringify(allEntries));
+  
+  showToast(`💾 OT ${otNum} enregistré avec succès`);
+  
+  // Réinitialiser les champs
+  numInput.value = '';
+  motifSelect.selectedIndex = 0;
+}
+window.enregistrerOTNonRealise = enregistrerOTNonRealise;
+
+function exporterOTNonRealises() {
+  const data = JSON.parse(localStorage.getItem('ot_non_realises') || '[]');
+  if (data.length === 0) {
+    showToast("Aucun OT non réalisé enregistré pour le moment.", true);
+    return;
+  }
+  // format CSV compatible Excel (UTF-8 avec BOM)
+  const BOM = "\uFEFF";
+  let csv = BOM + "Date;Chauffeur;Equipe;Mois;Numero OT;Motif\n";
+  data.forEach(item => {
+    const dStr = new Date(item.date).toLocaleDateString('fr-FR');
+    csv += `"${dStr}";"${item.chauffeur}";"${item.team}";"${item.month}";"${item.ot}";"${item.motif}"\n`;
+  });
+  
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `OT_non_realises_${new Date().toISOString().slice(0,10)}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+}
+window.exporterOTNonRealises = exporterOTNonRealises;
+
 function resetAdminBLFilters() {
   const ch = document.getElementById('admin-bl-search-chauffeur');
   if (ch) ch.value = '';
@@ -3351,10 +3700,15 @@ function renderGlobalBLAlerts() {
     let actionButtonsHtml = '';
 
     if (!val) {
-      // Non restitué -> Bouton "Signaler Rendu"
-      actionButtonsHtml = `<button onclick="validerBLRapideGlobal('${al.chauffeur.split("'").join("\\'")}', '${al.month}', '${al.team}', 'restitue')" class="btn btn-save" style="background:#38bdf8; border-color:#38bdf8; color:#000; padding: 6px 14px; font-size: 11px; font-weight: 700; border-radius: 6px; cursor: pointer;">✓ Signaler Rendu</button>`;
+      // Non restitué -> Bouton "Signaler Rendu" & "Entretien Sharik"
+      actionButtonsHtml = `
+        <div style="display:flex; gap:8px;">
+          <button onclick="validerBLRapideGlobal('${al.chauffeur.split("'").join("\\'")}', '${al.month}', '${al.team}', 'restitue')" class="btn btn-save" style="background:#38bdf8; border-color:#38bdf8; color:#000; padding: 6px 14px; font-size: 11px; font-weight: 700; border-radius: 6px; cursor: pointer;">✓ Signaler Rendu</button>
+          <button onclick="ouvrirEntretienSharik('${al.chauffeur.split("'").join("\\'")}', '${al.month}', '${al.team}')" class="btn" style="background:rgba(167,139,250,0.15); border-color:rgba(167,139,250,0.4); color:var(--pur); padding: 6px 14px; font-size: 11px; font-weight: 700; border-radius: 6px; cursor: pointer;">📋 Entretien Sharik</button>
+        </div>
+      `;
     } else if (val === 'restitue') {
-      // Restitué -> Boutons "Pointé Complet" & "Rendu Partiel"
+      // Restitué -> Boutons "Pointé Complet", "Rendu Partiel" & "Entretien Sharik"
       borderStyle = 'border-color: rgba(56, 189, 248, 0.4);';
       bgStyle = 'background: rgba(56, 189, 248, 0.08);';
       tagClass = 'badge-dispo';
@@ -3365,10 +3719,11 @@ function renderGlobalBLAlerts() {
         <div style="display:flex; gap:8px;">
           <button onclick="validerBLRapideGlobal('${al.chauffeur.split("'").join("\\'")}', '${al.month}', '${al.team}', 'depose')" class="btn btn-save" style="padding: 6px 14px; font-size: 11px; font-weight: 700; border-radius: 6px; cursor: pointer;">✓ Pointé Complet</button>
           <button onclick="validerBLRapideGlobal('${al.chauffeur.split("'").join("\\'")}', '${al.month}', '${al.team}', 'partiel')" class="btn" style="background:rgba(245,158,11,0.2); border-color:#f59e0b; color:#f59e0b; padding: 6px 14px; font-size: 11px; font-weight: 700; border-radius: 6px; cursor: pointer;">⚠️ Rendu Partiel</button>
+          <button onclick="ouvrirEntretienSharik('${al.chauffeur.split("'").join("\\'")}', '${al.month}', '${al.team}')" class="btn" style="background:rgba(167,139,250,0.15); border-color:rgba(167,139,250,0.4); color:var(--pur); padding: 6px 14px; font-size: 11px; font-weight: 700; border-radius: 6px; cursor: pointer;">📋 Entretien Sharik</button>
         </div>
       `;
     } else if (val.startsWith('partiel_')) {
-      // Rendu Partiel -> Boutons "Pointé Complet" & "Modifier Partiel"
+      // Rendu Partiel -> Boutons "Pointé Complet", "Modifier Partiel" & "Entretien Sharik"
       const missingCount = val.split('_')[1] || '?';
       borderStyle = 'border-color: rgba(245, 158, 11, 0.4);';
       bgStyle = 'background: rgba(245, 158, 11, 0.08);';
@@ -3380,6 +3735,7 @@ function renderGlobalBLAlerts() {
         <div style="display:flex; gap:8px;">
           <button onclick="validerBLRapideGlobal('${al.chauffeur.split("'").join("\\'")}', '${al.month}', '${al.team}', 'depose')" class="btn btn-save" style="padding: 6px 14px; font-size: 11px; font-weight: 700; border-radius: 6px; cursor: pointer;">✓ Pointé Complet</button>
           <button onclick="validerBLRapideGlobal('${al.chauffeur.split("'").join("\\'")}', '${al.month}', '${al.team}', 'partiel')" class="btn" style="background:rgba(245,158,11,0.2); border-color:#f59e0b; color:#f59e0b; padding: 6px 14px; font-size: 11px; font-weight: 700; border-radius: 6px; cursor: pointer;">✏️ Modifier partiel</button>
+          <button onclick="ouvrirEntretienSharik('${al.chauffeur.split("'").join("\\'")}', '${al.month}', '${al.team}')" class="btn" style="background:rgba(167,139,250,0.15); border-color:rgba(167,139,250,0.4); color:var(--pur); padding: 6px 14px; font-size: 11px; font-weight: 700; border-radius: 6px; cursor: pointer;">📋 Entretien Sharik</button>
         </div>
       `;
     }
@@ -5346,6 +5702,9 @@ function saveOdo() {
   saveDB(); closeModal('modal-odo'); renderOdo(); showToast('✅ Relevé KM enregistré');
 }
 
+
+
+
 // ═══════════════════════════════════════════════════════════════
 // RENDER: CSPC
 // ═══════════════════════════════════════════════════════════════
@@ -5665,6 +6024,122 @@ function pointerAnomalieItem(key, immat, extraChauffeur = '', extraLieu = '') {
   saveDB();
 }
 
+function getAnomaliesAPointer() {
+  if (!DB || !DB.dispo) return [];
+  const deja = DB.anomaliesPointees || {};
+  const todayStr = today();
+  return DB.dispo.filter(r => {
+    if (!r.lieuJ1_initial || !r.lieuJ1) return false;
+    if (r.lieuJ1 === '—' || r.lieuJ1_initial === '—') return false;
+    if (r.lieuJ1.trim().toUpperCase() === r.lieuJ1_initial.trim().toUpperCase()) return false;
+    const key = r.v + '_' + todayStr;
+    return !deja[key];
+  });
+}
+window.getAnomaliesAPointer = getAnomaliesAPointer;
+
+function getBlacklistViolations() {
+  if (!DB || !DB.dispo) return [];
+  const bl = DB.blacklist || [];
+  if (!bl.length) return [];
+  
+  const deja = DB.anomaliesPointees || {};
+  const todayStr = today();
+  const violations = [];
+  
+  DB.dispo.forEach(r => {
+    bl.forEach(rule => {
+      const chMatch = (r.chauffeur || '').trim().toUpperCase() === rule.chauffeur;
+      if (!chMatch) return;
+      
+      const lieuJ   = (r.lieuJ  || '').trim().toUpperCase();
+      const lieuJ1  = (r.lieuJ1 || '').trim().toUpperCase();
+      const dest    = rule.destination;
+      
+      if (lieuJ && lieuJ !== '—' && lieuJ.includes(dest)) {
+        const pkey = 'viol_' + r.v + '_' + r.chauffeur + '_' + lieuJ + '_' + todayStr;
+        if (!deja[pkey]) {
+          violations.push({
+            vehicule: r.v,
+            chauffeur: r.chauffeur,
+            champ: 'Lieu Jour',
+            lieu: lieuJ,
+            rule: rule
+          });
+        }
+      }
+      
+      if (lieuJ1 && lieuJ1 !== '—' && lieuJ1.includes(dest)) {
+        const pkey = 'viol_' + r.v + '_' + r.chauffeur + '_' + lieuJ1 + '_' + todayStr;
+        if (!deja[pkey]) {
+          violations.push({
+            vehicule: r.v,
+            chauffeur: r.chauffeur,
+            champ: 'Lieu J+1',
+            lieu: lieuJ1,
+            rule: rule
+          });
+        }
+      }
+    });
+  });
+  
+  return violations;
+}
+window.getBlacklistViolations = getBlacklistViolations;
+
+function getBlockingKpis() {
+  if (!DB || !DB.pannes) return [];
+  const todayStr = today();
+  const eightHoursAgo = Date.now() - 8 * 60 * 60 * 1000;
+  return DB.pannes.filter(r => {
+    if (r.kpi !== 'NON') return false;
+    if (r.kpiLastPointageDate === todayStr) return false;
+    const declTs = (r.kpiHistory && r.kpiHistory[0] && r.kpiHistory[0].ts)
+      ? new Date(r.kpiHistory[0].ts).getTime()
+      : (r.date ? new Date(r.date + 'T12:00:00').getTime() : 0);
+    return declTs < eightHoursAgo;
+  });
+}
+window.getBlockingKpis = getBlockingKpis;
+
+function handlePointageOverlayClick() {
+  const anomalies = typeof getAnomaliesAPointer === 'function' ? getAnomaliesAPointer() : [];
+  const violations = typeof getBlacklistViolations === 'function' ? getBlacklistViolations() : [];
+  const blockingKpis = typeof getBlockingKpis === 'function' ? getBlockingKpis() : [];
+
+  if (anomalies.length || violations.length) {
+    lancerPointageObligatoire();
+  } else if (blockingKpis.length) {
+    ouvrirPointageKpiAtelier();
+  }
+}
+window.handlePointageOverlayClick = handlePointageOverlayClick;
+
+function lancerPointageObligatoire() {
+  const lock = sessionStorage.getItem('numiplan_team_lock');
+  if (!lock) return; // Pas de pointage obligatoire ni de blocage en session admin
+
+  const modal = document.getElementById('modal-pointage-anomalies');
+  if (modal) {
+    // Réinitialiser la session de pointage
+    window._pointageEnCours = {};
+    
+    const anomalies = getAnomaliesAPointer();
+    const violations = getBlacklistViolations();
+    renderPointageList(anomalies, violations);
+    modal.style.display = 'flex';
+    _setActionsBloqueesPointage(true);
+  }
+}
+window.lancerPointageObligatoire = lancerPointageObligatoire;
+
+function setPointageDone() {
+  window._pointageEnCours = {};
+  saveDB();
+}
+window.setPointageDone = setPointageDone;
+
 function validerToutPointage() {
   setPointageDone();
   document.getElementById('modal-pointage-anomalies').style.display = 'none';
@@ -5785,73 +6260,107 @@ function _setActionsBloqueesPointage(bloquer) {
 // Intercepteur : vérifie si les actions sont bloquées
 function _checkActionsLibres(nomAction) {
   if (!window._actionsBloquees) return true;
-  // Afficher le modal de pointage
-  const modal = document.getElementById('modal-pointage-anomalies');
-  if (modal) {
-    const anomalies = getAnomaliesAPointer();
-    const violations = getBlacklistViolations();
-    renderPointageList(anomalies, violations);
-    modal.style.display = 'flex';
+  
+  const anomalies = typeof getAnomaliesAPointer === 'function' ? getAnomaliesAPointer() : [];
+  const violations = typeof getBlacklistViolations === 'function' ? getBlacklistViolations() : [];
+  const blockingKpis = typeof getBlockingKpis === 'function' ? getBlockingKpis() : [];
+  
+  if (anomalies.length || violations.length) {
+    const modal = document.getElementById('modal-pointage-anomalies');
+    if (modal) {
+      renderPointageList(anomalies, violations);
+      modal.style.display = 'flex';
+    }
+    showToast('⚠️ Pointage des anomalies obligatoire avant toute action', true);
+  } else if (blockingKpis.length) {
+    const modal = document.getElementById('modal-pointage-kpi-atelier');
+    if (modal) {
+      renderKpiPointageList();
+      modal.style.display = 'flex';
+    }
+    showToast('⚠️ Confirmation des KPI atelier obligatoire avant toute action', true);
   }
-  showToast('⚠️ Pointage des anomalies obligatoire avant toute action', true);
   return false;
 }
 
 function checkPointageRequired() {
-  console.log("DEBUG: checkPointageRequired called");
   // 1. Si pas connecté, ne rien faire (le login screen est actif)
   if (sessionStorage.getItem('numiplan_auth') !== 'ok') {
-    console.log("DEBUG: not authenticated");
     _setActionsBloqueesPointage(false);
     return false;
   }
 
   // 2. Si session Admin (aucun verrou d'équipe), pas de pointage requis ni d'overlay
   const lock = sessionStorage.getItem('numiplan_team_lock');
-  console.log("DEBUG: lock =", lock);
   if (!lock) {
-    console.log("DEBUG: lock is null (admin session)");
     _setActionsBloqueesPointage(false);
     const modal = document.getElementById('modal-pointage-anomalies');
     if (modal) modal.style.setProperty('display', 'none', 'important');
+    const kpiModal = document.getElementById('modal-pointage-kpi-atelier');
+    if (kpiModal) kpiModal.style.setProperty('display', 'none', 'important');
     return false;
   }
 
   // 3. Si l'équipe active n'est pas celle verrouillée (mode lecture seule), pas de blocage
   const eq = typeof window.CURRENT_EQUIPE !== 'undefined' ? window.CURRENT_EQUIPE : 'A';
-  console.log("DEBUG: CURRENT_EQUIPE =", eq);
   const isReadOnly = lock !== eq;
-  console.log("DEBUG: isReadOnly =", isReadOnly);
   if (isReadOnly) {
-    console.log("DEBUG: readonly mode active");
     _setActionsBloqueesPointage(false);
     const modal = document.getElementById('modal-pointage-anomalies');
     if (modal) modal.style.setProperty('display', 'none', 'important');
+    const kpiModal = document.getElementById('modal-pointage-kpi-atelier');
+    if (kpiModal) kpiModal.style.setProperty('display', 'none', 'important');
     return false;
   }
 
   if (typeof getAnomaliesAPointer !== 'function' || typeof getBlacklistViolations !== 'function') {
-    console.log("DEBUG: helper functions missing");
     return false;
   }
   const anomalies = getAnomaliesAPointer();
   const violations = getBlacklistViolations();
-  console.log("DEBUG: anomalies count =", anomalies.length);
-  console.log("DEBUG: violations count =", violations.length);
-  if (anomalies.length || violations.length) {
-    console.log("DEBUG: blocking user interface");
+  const blockingKpis = typeof getBlockingKpis === 'function' ? getBlockingKpis() : [];
+  
+  if (anomalies.length || violations.length || blockingKpis.length) {
     _setActionsBloqueesPointage(true);
-    // Ouvrir automatiquement le formulaire de pointage s'il n'est pas déjà affiché
-    const modal = document.getElementById('modal-pointage-anomalies');
-    if (modal && modal.style.display !== 'flex') {
-      lancerPointageObligatoire();
+    
+    // Mettre à jour le texte de l'overlay dynamiquement
+    const overlay = document.getElementById('pointage-block-overlay');
+    if (overlay) {
+      const textEl = overlay.querySelector('div');
+      if (textEl) {
+        if (anomalies.length || violations.length) {
+          textEl.innerHTML = `⚠️ POINTAGE OBLIGATOIRE DES ANOMALIES EN COURS<br>
+                              <span style="font-size:12px;color:var(--txt2);font-weight:400">Cliquez n'importe où pour ouvrir le formulaire de pointage</span>`;
+        } else {
+          textEl.innerHTML = `⚠️ CONFIRMATION OBLIGATOIRE DES KPI ATELIER EN COURS<br>
+                              <span style="font-size:12px;color:var(--txt2);font-weight:400">Cliquez n'importe où pour ouvrir le pointage KPI Atelier</span>`;
+        }
+      }
+    }
+    
+    // Ouvrir le modal approprié automatiquement
+    if (anomalies.length || violations.length) {
+      const modal = document.getElementById('modal-pointage-anomalies');
+      if (modal && modal.style.display !== 'flex') {
+        lancerPointageObligatoire();
+      }
+      const kpiModal = document.getElementById('modal-pointage-kpi-atelier');
+      if (kpiModal) kpiModal.style.setProperty('display', 'none', 'important');
+    } else {
+      const kpiModal = document.getElementById('modal-pointage-kpi-atelier');
+      if (kpiModal && kpiModal.style.display !== 'flex') {
+        ouvrirPointageKpiAtelier();
+      }
+      const modal = document.getElementById('modal-pointage-anomalies');
+      if (modal) modal.style.setProperty('display', 'none', 'important');
     }
     return true;
   } else {
-    console.log("DEBUG: unblocking user interface");
     _setActionsBloqueesPointage(false);
     const modal = document.getElementById('modal-pointage-anomalies');
     if (modal) modal.style.setProperty('display', 'none', 'important');
+    const kpiModal = document.getElementById('modal-pointage-kpi-atelier');
+    if (kpiModal) kpiModal.style.setProperty('display', 'none', 'important');
     return false;
   }
 }
@@ -6041,6 +6550,15 @@ function renderKpiPointageList() {
   const toPoint = DB.pannes.filter(r => r.kpi === 'NON' && r.kpiLastPointageDate !== today());
   countEl.textContent = toPoint.length;
   
+  // Contrôler la visibilité du bouton Fermer
+  const closeBtn = document.getElementById('kpi-close-btn');
+  if (closeBtn) {
+    const lock = sessionStorage.getItem('numiplan_team_lock');
+    const eq = typeof window.CURRENT_EQUIPE !== 'undefined' ? window.CURRENT_EQUIPE : 'A';
+    const isBlocked = lock && lock === eq && getBlockingKpis().length > 0;
+    closeBtn.style.display = isBlocked ? 'none' : 'block';
+  }
+  
   if (!toPoint.length) {
     listEl.innerHTML = '<div style="text-align:center;padding:40px;color:#64748b;font-size:13px">🎉 Tous les camions signalés ont été pointés aujourd\'hui !</div>';
     setTimeout(() => {
@@ -6101,6 +6619,9 @@ function pointerKpiAtelier(globalIdx, response) {
   renderPannes();
   renderDispo();
   renderKpiPointageList();
+  if (typeof checkPointageRequired === 'function') {
+    checkPointageRequired();
+  }
 }
 window.pointerKpiAtelier = pointerKpiAtelier;
 
