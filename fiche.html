@@ -2089,6 +2089,22 @@ mark.hl { background: rgba(56,189,248,.25); color: var(--acc); border-radius: 3p
   </div>
 </div>
 
+<!-- Modal Alertes BL Équipe -->
+<div id="modal-bl-alerts-equipe" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.88);z-index:99996;align-items:center;justify-content:center">
+  <div style="background:#0f1623;border:2px solid #fbbf24;border-radius:18px;padding:0;width:740px;max-width:96vw;max-height:85vh;display:flex;flex-direction:column;box-shadow:0 24px 80px rgba(0,0,0,.9)">
+    <div style="padding:22px 28px 16px;border-bottom:1px solid rgba(251,191,36,.3);display:flex;align-items:center;justify-content:space-between;flex-shrink:0">
+      <div>
+        <div style="font-size:13px;font-weight:800;color:#fbbf24;letter-spacing:2px;text-transform:uppercase">🚨 Alertes Retours BL — Actions Requises</div>
+        <div style="font-size:11px;color:#94a3b8;margin-top:3px">Veuillez renseigner le statut de restitution pour les chauffeurs ci-dessous</div>
+      </div>
+    </div>
+    <div id="bl-alerts-equipe-list" style="overflow-y:auto;flex:1;padding:16px 28px"></div>
+    <div style="padding:16px 28px;border-top:1px solid rgba(251,191,36,.2);display:flex;justify-content:flex-end;align-items:center;flex-shrink:0">
+      <button onclick="document.getElementById('modal-bl-alerts-equipe').style.display='none'" style="background:#1a2236;color:#94a3b8;border:1px solid #2d3f65;padding:10px 24px;border-radius:9px;cursor:pointer;font-size:12px;font-weight:700">✕ Fermer</button>
+    </div>
+  </div>
+</div>
+
 <!-- Modal Historique KPI Atelier -->
 <div id="modal-historique-kpi-atelier" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.88);z-index:99999;align-items:center;justify-content:center">
   <div style="background:#0f1623;border:2px solid #a78bfa;border-radius:18px;padding:0;width:640px;max-width:96vw;max-height:80vh;display:flex;flex-direction:column;box-shadow:0 24px 80px rgba(0,0,0,.9)">
@@ -3398,12 +3414,16 @@ function validerBLRapideGlobal(chauffeur, month, team, action) {
   if (db && db.bl) {
     const row = db.bl.find(r => r.chauffeur.toUpperCase() === chauffeur.toUpperCase());
     if (row) {
+      row.alerts = row.alerts || {};
+      row.alerts[month] = row.alerts[month] || {};
       if (action === 'restitue') {
         row[month] = 'restitue';
+        row.alerts[month].status = 'closed';
         saveTeamDB(team, db);
         showToast(`📄 BL ${month.toUpperCase()} pour ${chauffeur} (EQ ${team}) signalé Restitué`);
       } else if (action === 'depose') {
         row[month] = 'déposer';
+        row.alerts[month].status = 'closed';
         saveTeamDB(team, db);
         showToast(`✅ BL ${month.toUpperCase()} pour ${chauffeur} (EQ ${team}) marqué Déposé complet`);
       } else if (action === 'partiel') {
@@ -3415,6 +3435,7 @@ function validerBLRapideGlobal(chauffeur, month, team, action) {
           return;
         }
         row[month] = 'partiel_' + count;
+        row.alerts[month].status = 'active';
         saveTeamDB(team, db);
         showToast(`⚠️ BL ${month.toUpperCase()} pour ${chauffeur} (EQ ${team}) marqué Rendu Partiel (${count} manquants)`);
       }
@@ -3428,6 +3449,39 @@ function validerBLRapideGlobal(chauffeur, month, team, action) {
   }
 }
 window.validerBLRapideGlobal = validerBLRapideGlobal;
+
+function relancerBLGlobal(chauffeur, month, team) {
+  const db = window['DB_' + team];
+  if (db && db.bl) {
+    const row = db.bl.find(r => r.chauffeur.toUpperCase() === chauffeur.toUpperCase());
+    if (row) {
+      row.alerts = row.alerts || {};
+      const prevCount = row.alerts[month]?.relanceCount || 0;
+      
+      row.alerts[month] = {
+        status: 'active',
+        promisedDate: '',
+        teamResponse: '',
+        responseDate: '',
+        relanceCount: prevCount + 1
+      };
+      
+      if (row[month] === 'restitue') {
+        row[month] = '';
+      }
+      
+      saveTeamDB(team, db);
+      
+      if (team === CURRENT_EQUIPE) {
+        DB.bl = db.bl;
+      }
+      
+      showToast(`🚨 Relance #${prevCount + 1} envoyée à l'équipe ${team} pour ${chauffeur} (${month.toUpperCase()})`);
+      renderGlobalBLAlerts();
+    }
+  }
+}
+window.relancerBLGlobal = relancerBLGlobal;
 
 // Variable temporaire pour stocker les infos de l'entretien en cours
 let CURRENT_ENTRETIEN = { chauffeur: '', month: '', team: '', list: [] };
@@ -3687,7 +3741,8 @@ function renderGlobalBLAlerts() {
               month: m,
               status: status,
               team: eq,
-              val: val
+              val: val,
+              alerts: r.alerts
             });
           }
         });
@@ -3726,14 +3781,46 @@ function renderGlobalBLAlerts() {
     let blinkStyle = isLate ? 'animation: pulse-eye 0.8s ease-in-out infinite alternate;' : '';
     let detailsText = `Chauffeur : <b style="color: var(--txt);">${al.chauffeur}</b> — BL <b style="text-transform: uppercase; color: var(--acc);">${al.month}</b> attendus.`;
     
+    // Check team response
+    let responseHtml = '';
+    const alertData = al.alerts ? al.alerts[al.month] : null;
+    if (alertData) {
+      if (alertData.status === 'responded') {
+        responseHtml = `
+          <div style="margin-top: 8px; font-size: 11px; color: #fbbf24; background: rgba(251, 191, 36, 0.05); padding: 6px 10px; border-radius: 6px; border: 1px solid rgba(251, 191, 36, 0.15); font-family: sans-serif;">
+            <b>Réponse Équipe :</b> Promesse de passage pour le <b>${fmtDate(alertData.promisedDate)}</b>
+            ${alertData.teamResponse ? ` | Commentaire : <i>"${alertData.teamResponse}"</i>` : ''}
+            ${alertData.relanceCount ? ` <span style="color: #ef4444; font-weight: 800;">(Relancé ${alertData.relanceCount}x)</span>` : ''}
+          </div>
+        `;
+      } else if (alertData.status === 'closed') {
+        responseHtml = `
+          <div style="margin-top: 8px; font-size: 11px; color: #34d399; background: rgba(52, 211, 153, 0.05); padding: 6px 10px; border-radius: 6px; border: 1px solid rgba(52, 211, 153, 0.15); font-family: sans-serif;">
+            <b>Réponse Équipe :</b> Signalé Restitué
+            ${alertData.teamResponse ? ` | Commentaire : <i>"${alertData.teamResponse}"</i>` : ''}
+          </div>
+        `;
+      } else if (alertData.status === 'active') {
+        responseHtml = `
+          <div style="margin-top: 8px; font-size: 11px; color: #f87171; background: rgba(239, 68, 68, 0.05); padding: 6px 10px; border-radius: 6px; border: 1px solid rgba(239, 68, 68, 0.15); font-family: sans-serif;">
+            <b>Alerte Active</b> - En attente de réponse de l'équipe.
+            ${alertData.relanceCount ? ` <span style="color: #ef4444; font-weight: 800;">(Relancé ${alertData.relanceCount}x)</span>` : ''}
+          </div>
+        `;
+      }
+    }
+
+    const relancerBtnHtml = `<button onclick="relancerBLGlobal('${al.chauffeur.split("'").join("\\'")}', '${al.month}', '${al.team}')" class="btn" style="background:rgba(239,68,68,0.15); border-color:rgba(239,68,68,0.4); color:#f87171; padding: 6px 14px; font-size: 11px; font-weight: 700; border-radius: 6px; cursor: pointer;">🚨 Relancer</button>`;
+
     // Boutons d'actions dynamiques selon l'état actuel du BL
     let actionButtonsHtml = '';
 
     if (!val) {
       // Non restitué -> Bouton "Signaler Rendu" & "Entretien Sharik"
       actionButtonsHtml = `
-        <div style="display:flex; gap:8px;">
+        <div style="display:flex; gap:8px; align-items:center;">
           <button onclick="validerBLRapideGlobal('${al.chauffeur.split("'").join("\\'")}', '${al.month}', '${al.team}', 'restitue')" class="btn btn-save" style="background:#38bdf8; border-color:#38bdf8; color:#000; padding: 6px 14px; font-size: 11px; font-weight: 700; border-radius: 6px; cursor: pointer;">✓ Signaler Rendu</button>
+          ${relancerBtnHtml}
           <button onclick="ouvrirEntretienSharik('${al.chauffeur.split("'").join("\\'")}', '${al.month}', '${al.team}')" class="btn" style="background:rgba(167,139,250,0.15); border-color:rgba(167,139,250,0.4); color:var(--pur); padding: 6px 14px; font-size: 11px; font-weight: 700; border-radius: 6px; cursor: pointer;">📋 Entretien Sharik</button>
         </div>
       `;
@@ -3746,9 +3833,10 @@ function renderGlobalBLAlerts() {
       blinkStyle = '';
       detailsText = `Chauffeur : <b style="color: var(--txt);">${al.chauffeur}</b> — BL <b style="text-transform: uppercase; color: var(--acc);">${al.month}</b> restitués, en attente de vérification.`;
       actionButtonsHtml = `
-        <div style="display:flex; gap:8px;">
+        <div style="display:flex; gap:8px; align-items:center;">
           <button onclick="validerBLRapideGlobal('${al.chauffeur.split("'").join("\\'")}', '${al.month}', '${al.team}', 'depose')" class="btn btn-save" style="padding: 6px 14px; font-size: 11px; font-weight: 700; border-radius: 6px; cursor: pointer;">✓ Pointé Complet</button>
           <button onclick="validerBLRapideGlobal('${al.chauffeur.split("'").join("\\'")}', '${al.month}', '${al.team}', 'partiel')" class="btn" style="background:rgba(245,158,11,0.2); border-color:#f59e0b; color:#f59e0b; padding: 6px 14px; font-size: 11px; font-weight: 700; border-radius: 6px; cursor: pointer;">⚠️ Rendu Partiel</button>
+          ${relancerBtnHtml}
           <button onclick="ouvrirEntretienSharik('${al.chauffeur.split("'").join("\\'")}', '${al.month}', '${al.team}')" class="btn" style="background:rgba(167,139,250,0.15); border-color:rgba(167,139,250,0.4); color:var(--pur); padding: 6px 14px; font-size: 11px; font-weight: 700; border-radius: 6px; cursor: pointer;">📋 Entretien Sharik</button>
         </div>
       `;
@@ -3762,24 +3850,28 @@ function renderGlobalBLAlerts() {
       blinkStyle = 'animation: pulse-eye 0.8s ease-in-out infinite alternate;';
       detailsText = `Chauffeur : <b style="color: var(--txt);">${al.chauffeur}</b> — BL <b style="text-transform: uppercase; color: var(--acc);">${al.month}</b> rendu partiellement (<b>${missingCount}</b> BL manquants).`;
       actionButtonsHtml = `
-        <div style="display:flex; gap:8px;">
+        <div style="display:flex; gap:8px; align-items:center;">
           <button onclick="validerBLRapideGlobal('${al.chauffeur.split("'").join("\\'")}', '${al.month}', '${al.team}', 'depose')" class="btn btn-save" style="padding: 6px 14px; font-size: 11px; font-weight: 700; border-radius: 6px; cursor: pointer;">✓ Pointé Complet</button>
           <button onclick="validerBLRapideGlobal('${al.chauffeur.split("'").join("\\'")}', '${al.month}', '${al.team}', 'partiel')" class="btn" style="background:rgba(245,158,11,0.2); border-color:#f59e0b; color:#f59e0b; padding: 6px 14px; font-size: 11px; font-weight: 700; border-radius: 6px; cursor: pointer;">✏️ Modifier partiel</button>
+          ${relancerBtnHtml}
           <button onclick="ouvrirEntretienSharik('${al.chauffeur.split("'").join("\\'")}', '${al.month}', '${al.team}')" class="btn" style="background:rgba(167,139,250,0.15); border-color:rgba(167,139,250,0.4); color:var(--pur); padding: 6px 14px; font-size: 11px; font-weight: 700; border-radius: 6px; cursor: pointer;">📋 Entretien Sharik</button>
         </div>
       `;
     }
 
     return `
-      <div style="display: flex; align-items: center; justify-content: space-between; padding: 12px 18px; border-radius: 8px; border: 1px solid; ${borderStyle} ${bgStyle} margin-bottom: 10px;">
-        <div style="display: flex; align-items: center; gap: 14px;">
-          <span class="badge ${tagClass}" style="font-size: 10px; ${blinkStyle}">${tagText}</span>
-          <span class="badge" style="background: var(--bg3); border: 1px solid var(--border); color: var(--acc); font-size: 10px; font-weight: 700;">EQ ${al.team}</span>
-          <div style="font-size: 13px; color: var(--txt);">
-            ${detailsText}
+      <div style="display: flex; flex-direction: column; padding: 12px 18px; border-radius: 8px; border: 1px solid; ${borderStyle} ${bgStyle} margin-bottom: 10px; gap: 4px;">
+        <div style="display: flex; align-items: center; justify-content: space-between; width: 100%;">
+          <div style="display: flex; align-items: center; gap: 14px;">
+            <span class="badge ${tagClass}" style="font-size: 10px; ${blinkStyle}">${tagText}</span>
+            <span class="badge" style="background: var(--bg3); border: 1px solid var(--border); color: var(--acc); font-size: 10px; font-weight: 700;">EQ ${al.team}</span>
+            <div style="font-size: 13px; color: var(--txt);">
+              ${detailsText}
+            </div>
           </div>
+          ${actionButtonsHtml}
         </div>
-        ${actionButtonsHtml}
+        ${responseHtml}
       </div>
     `;
   }).join('');
@@ -4166,6 +4258,7 @@ function renderDispo() {
   const nonPassCount = (DB && DB.pannes) ? DB.pannes.filter(r => r.kpiLastPointageDate === todayStr && r.kpiPassage === 'NON').length : 0;
   
   let adminKpiCardHtml = '';
+  let adminBlCardHtml = '';
   const isAdmin = !sessionStorage.getItem('numiplan_team_lock');
   if (isAdmin) {
     adminKpiCardHtml = `
@@ -4176,6 +4269,34 @@ function renderDispo() {
     <div class="stat-card red" style="cursor:pointer;transition:opacity .2s;border-left-color:#ef4444" onclick="ouvrirPointageKpiAtelier('NON')" title="Voir les pannes pointées NON (Non passé à l'atelier)">
       <div class="stat-num" style="color:#ef4444">${nonPassCount}</div>
       <div class="stat-lbl" style="color:#ef4444">Non Passés Éq. ${CURRENT_EQUIPE}</div>
+    </div>`;
+
+    // Calculate missingBlDriversCount
+    const months = ['mars','avril','mai','juin','juil','aout','sep','oct','nov','dec'];
+    const nowCheck = new Date();
+    let missingBlDriversCount = 0;
+    if (DB && DB.bl) {
+      DB.bl.forEach(r => {
+        let hasMissing = false;
+        months.forEach(m => {
+          const val = (r[m] || '').trim().toLowerCase();
+          if (val !== 'déposer' && val !== 'depose' && val !== 'restitue') {
+            const status = checkBLMonthStatus(m, nowCheck);
+            if (status === 'due' || status === 'late') {
+              hasMissing = true;
+            }
+          }
+        });
+        if (hasMissing) {
+          missingBlDriversCount++;
+        }
+      });
+    }
+
+    adminBlCardHtml = `
+    <div class="stat-card" style="cursor:pointer;transition:opacity .2s;border-left-color:#fbbf24" onclick="switchTab('bl',document.querySelector('[onclick*=\\'bl\\']'))" title="Voir les BL manquants de l'équipe active">
+      <div class="stat-num" style="color:#fbbf24">${missingBlDriversCount}</div>
+      <div class="stat-lbl" style="color:#fbbf24">BL Manquants Éq. ${CURRENT_EQUIPE}</div>
     </div>`;
   }
 
@@ -4188,7 +4309,8 @@ function renderDispo() {
     <div class="stat-card" style="cursor:pointer;transition:opacity .2s" onclick="filterByEtat('')" title="Afficher tout"><div class="stat-num">${DB.dispo.length}</div><div class="stat-lbl">Total ↺</div></div>
     <div class="stat-card" style="cursor:pointer;transition:opacity .2s;border-left-color:#a78bfa" onclick="showAnomaliesLieu()" title="Voir les anomalies de lieu J+1"><div class="stat-num" style="color:#a78bfa">${typeof getAnomaliesAPointer === 'function' ? getAnomaliesAPointer().length : 0}</div><div class="stat-lbl" style="color:#a78bfa">⚠️ Anomalies lieu</div></div>
     <div class="${kpiClass}" style="cursor:pointer;transition:opacity .2s;border-left-color:${kpiBorder}" onclick="ouvrirPointageKpiAtelier('TO_POINT')" title="Voir les pannes non pointées pour passage atelier"><div class="stat-num" style="color:${kpiColor}">${kpiCount}</div><div class="stat-lbl" style="color:${kpiColor}">🛠️ KPI Atelier</div></div>
-    ${adminKpiCardHtml}`;
+    ${adminKpiCardHtml}
+    ${adminBlCardHtml}`;
   document.getElementById('cnt-dispo').textContent = data.length;
   
   // Compter le nombre de chauffeurs uniques dans la liste filtrée
@@ -4251,7 +4373,17 @@ function renderDispo() {
     // Styles de ligne et du badge chauffeur (Percutant & Premium)
     let rowBg = '';
     let chauffeurCellContent = '';
-    if (worstStatus === 'late') {
+    const hasActiveAlert = r.chauffeur && r.chauffeur !== '—' && typeof hasActiveBlAlert === 'function' && hasActiveBlAlert(r.chauffeur);
+    
+    if (hasActiveAlert) {
+      rowBg = 'background: linear-gradient(90deg, rgba(239, 68, 68, 0.2) 0%, rgba(239, 68, 68, 0.04) 40%, rgba(0, 0, 0, 0) 100%); border-left: 4px solid #ef4444;';
+      chauffeurCellContent = `
+        <div onclick="ouvrirPopupBlAlertesEquipe()" style="display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 6px; background: rgba(239, 68, 68, 0.3); border: 2px solid #ef4444; box-shadow: 0 0 12px rgba(239, 68, 68, 0.4); vertical-align: middle; cursor: pointer;" title="ALERTE RELANCE BL - Cliquer pour répondre">
+          <span style="font-weight: 800; color: #fff; font-size: 11px; max-width: 100px; overflow: hidden; text-overflow: ellipsis; display: inline-block; vertical-align: middle;" title="${r.chauffeur}">${r.chauffeur}</span>
+          <span style="font-size: 13px; animation: pulse-eye 0.8s ease-in-out infinite alternate; display: inline-block; vertical-align: middle;">🚨</span>
+        </div>${extPill}
+      `;
+    } else if (worstStatus === 'late') {
       rowBg = 'background: linear-gradient(90deg, rgba(239, 68, 68, 0.16) 0%, rgba(239, 68, 68, 0.03) 40%, rgba(0, 0, 0, 0) 100%); border-left: 4px solid #ef4444;';
       chauffeurCellContent = `
         <div onclick="showBLAlertPopover(event, '${r.chauffeur.replace(/'/g, "\\'")}')" style="display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 6px; background: rgba(239, 68, 68, 0.25); border: 1px solid rgba(239, 68, 68, 0.5); box-shadow: 0 0 10px rgba(239, 68, 68, 0.3); vertical-align: middle; cursor: pointer;" title="Cliquer pour gérer les BL">
@@ -6565,6 +6697,9 @@ function checkPointageRequired() {
     if (modal) modal.style.setProperty('display', 'none', 'important');
     const kpiModal = document.getElementById('modal-pointage-kpi-atelier');
     if (kpiModal) kpiModal.style.setProperty('display', 'none', 'important');
+    if (typeof checkBlAlertsRequired === 'function') {
+      checkBlAlertsRequired();
+    }
     return false;
   }
 }
@@ -6738,6 +6873,188 @@ function shouldUpdateLieuJ1Initial(r, newVal) {
 }
 window.shouldUpdateLieuJ1Initial = shouldUpdateLieuJ1Initial;
 
+function isBlAlertPending(r, m) {
+  const val = (r[m] || '').trim().toLowerCase();
+  if (val === 'déposer' || val === 'depose') return false; // BL fully returned, alert cleared
+  
+  if (!r.alerts || !r.alerts[m]) return false;
+  const alert = r.alerts[m];
+  if (alert.status === 'active') return true;
+  if (alert.status === 'responded') {
+    if (alert.promisedDate && alert.promisedDate <= today()) {
+      return true;
+    }
+  }
+  return false;
+}
+window.isBlAlertPending = isBlAlertPending;
+
+function hasActiveBlAlert(chauffeurName) {
+  if (!DB || !DB.bl) return false;
+  const blRow = DB.bl.find(x => x.chauffeur.toUpperCase() === chauffeurName.toUpperCase());
+  if (!blRow) return false;
+  
+  const months = ['mars','avril','mai','juin','juil','aout','sep','oct','nov','dec'];
+  return months.some(m => isBlAlertPending(blRow, m));
+}
+window.hasActiveBlAlert = hasActiveBlAlert;
+
+function getPendingBlAlertsForCurrentTeam() {
+  const alerts = [];
+  const months = ['mars','avril','mai','juin','juil','aout','sep','oct','nov','dec'];
+  
+  if (DB && DB.bl) {
+    DB.bl.forEach(r => {
+      months.forEach(m => {
+        if (isBlAlertPending(r, m)) {
+          alerts.push({ driverRow: r, month: m, alert: r.alerts[m] });
+        }
+      });
+    });
+  }
+  return alerts;
+}
+window.getPendingBlAlertsForCurrentTeam = getPendingBlAlertsForCurrentTeam;
+
+function ouvrirPopupBlAlertesEquipe() {
+  const modal = document.getElementById('modal-bl-alerts-equipe');
+  if (!modal) return;
+  modal.style.display = 'flex';
+  renderPopupBlAlertsList();
+}
+window.ouvrirPopupBlAlertesEquipe = ouvrirPopupBlAlertesEquipe;
+
+function renderPopupBlAlertsList() {
+  const container = document.getElementById('bl-alerts-equipe-list');
+  if (!container) return;
+  
+  const pending = getPendingBlAlertsForCurrentTeam();
+  if (pending.length === 0) {
+    container.innerHTML = '<div style="text-align:center;padding:20px;color:#64748b;">Aucune alerte active pour vos chauffeurs.</div>';
+    document.getElementById('modal-bl-alerts-equipe').style.display = 'none';
+    return;
+  }
+  
+  let html = '';
+  pending.forEach((p, idx) => {
+    const r = p.driverRow;
+    const m = p.month;
+    const alert = p.alert;
+    const val = (r[m] || '').trim().toLowerCase();
+    
+    let statusText = 'Non restitué';
+    if (val.startsWith('partiel_')) {
+      statusText = `Rendu Partiel (${val.split('_')[1]} manquants)`;
+    }
+    
+    html += `
+      <div style="background:rgba(239, 68, 68, 0.03); border:1px solid rgba(239, 68, 68, 0.15); border-radius:10px; padding:16px; margin-bottom:12px;">
+        <div style="font-size:12px; font-weight:700; color:var(--txt); margin-bottom:6px;">
+          🚨 Chauffeur : <span style="color:var(--acc); font-family:monospace;">${r.chauffeur}</span> — BL de <b>${m.toUpperCase()}</b> (${statusText})
+        </div>
+        
+        <div style="display:flex; flex-direction:column; gap:8px; margin-top:10px; background:var(--bg3); border-radius:8px; padding:12px;">
+          <div style="font-size:11px; font-weight:700; color:var(--txt2); margin-bottom:4px;">Renseigner l'exécution :</div>
+          
+          <div style="display:flex; gap:16px; align-items:center;">
+            <label style="display:flex; align-items:center; gap:6px; font-size:12px; color:var(--txt); cursor:pointer;">
+              <input type="radio" name="bl-action-${idx}" value="restitue" onchange="toggleBlResponseFields(${idx}, 'restitue')" style="cursor:pointer; width:auto;">
+              BL Restitués (En attente)
+            </label>
+            <label style="display:flex; align-items:center; gap:6px; font-size:12px; color:var(--txt); cursor:pointer;">
+              <input type="radio" name="bl-action-${idx}" value="promise" onchange="toggleBlResponseFields(${idx}, 'promise')" style="cursor:pointer; width:auto;" checked>
+              Le chauffeur passera à une date sélectionnée
+            </label>
+          </div>
+          
+          <!-- Date de passage promise -->
+          <div id="bl-promise-date-group-${idx}" style="margin-top:8px;">
+            <label style="font-size:11px; color:var(--txt3); display:block; margin-bottom:4px;">Date de passage prévue :</label>
+            <input type="date" id="bl-promise-date-${idx}" style="background:var(--bg2); border:1px solid var(--border); border-radius:6px; padding:6px 10px; color:var(--txt); font-size:12px; outline:none; width:200px;">
+          </div>
+          
+          <!-- Détails / commentaires -->
+          <div style="margin-top:8px;">
+            <label style="font-size:11px; color:var(--txt3); display:block; margin-bottom:4px;">Détails / Commentaires :</label>
+            <textarea id="bl-details-${idx}" placeholder="Saisir des précisions..." style="background:var(--bg2); border:1px solid var(--border); border-radius:6px; padding:8px 10px; color:var(--txt); font-size:12px; outline:none; width:100%; height:50px; resize:vertical; box-sizing:border-box;"></textarea>
+          </div>
+          
+          <button onclick="validerReponseBL(${idx}, '${r.chauffeur.replace(/'/g, "\\'")}', '${m}')" class="btn btn-save" style="margin-top:10px; background:#22c55e; border-color:#22c55e; color:#000; padding:6px 14px; font-size:11px; font-weight:700; border-radius:6px; cursor:pointer; align-self:flex-end;">✓ Valider cette réponse</button>
+        </div>
+      </div>
+    `;
+  });
+  
+  container.innerHTML = html;
+}
+window.renderPopupBlAlertsList = renderPopupBlAlertsList;
+
+function toggleBlResponseFields(idx, value) {
+  const dateGroup = document.getElementById(`bl-promise-date-group-${idx}`);
+  if (dateGroup) {
+    dateGroup.style.display = (value === 'restitue') ? 'none' : 'block';
+  }
+}
+window.toggleBlResponseFields = toggleBlResponseFields;
+
+function validerReponseBL(idx, chauffeur, month) {
+  const radios = document.getElementsByName(`bl-action-${idx}`);
+  let chosenAction = 'promise';
+  radios.forEach(r => {
+    if (r.checked) chosenAction = r.value;
+  });
+  
+  const details = document.getElementById(`bl-details-${idx}`).value.trim();
+  const promisedDate = document.getElementById(`bl-promise-date-${idx}`)?.value || '';
+  
+  if (chosenAction === 'promise' && !promisedDate) {
+    showToast("⚠️ Veuillez sélectionner une date de passage", true);
+    return;
+  }
+  
+  const eq = typeof window.CURRENT_EQUIPE !== 'undefined' ? window.CURRENT_EQUIPE : 'A';
+  if (DB && DB.bl) {
+    const row = DB.bl.find(r => r.chauffeur.toUpperCase() === chauffeur.toUpperCase());
+    if (row) {
+      row.alerts = row.alerts || {};
+      if (chosenAction === 'restitue') {
+        row[month] = 'restitue';
+        row.alerts[month] = {
+          status: 'closed',
+          teamResponse: details,
+          promisedDate: '',
+          responseDate: today()
+        };
+        showToast(`✓ BL ${month.toUpperCase()} pour ${chauffeur} marqués comme Restitués`);
+      } else {
+        row.alerts[month] = {
+          status: 'responded',
+          teamResponse: details,
+          promisedDate: promisedDate,
+          responseDate: today()
+        };
+        showToast(`✓ Réponse enregistrée : passage prévu le ${fmtDate(promisedDate)}`);
+      }
+      saveDB();
+      renderBL();
+      renderDispo();
+      renderPopupBlAlertsList();
+    }
+  }
+}
+window.validerReponseBL = validerReponseBL;
+
+function checkBlAlertsRequired() {
+  const lock = sessionStorage.getItem('numiplan_team_lock');
+  if (!lock || lock === 'BL') return;
+  
+  const pending = getPendingBlAlertsForCurrentTeam();
+  if (pending.length > 0) {
+    ouvrirPopupBlAlertesEquipe();
+  }
+}
+window.checkBlAlertsRequired = checkBlAlertsRequired;
+
 function ouvrirPointageKpiAtelier(filterType) {
   const modal = document.getElementById('modal-pointage-kpi-atelier');
   if (!modal) return;
@@ -6851,7 +7168,6 @@ function renderKpiPointageList() {
 window.renderKpiPointageList = renderKpiPointageList;
 
 function pointerKpiAtelier(globalIdx, response) {
-  if (!_checkActionsLibres('pointerKpiAtelier')) return;
   const r = DB.pannes[globalIdx];
   if (!r) return;
   
