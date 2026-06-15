@@ -1942,17 +1942,40 @@ mark.hl { background: rgba(56,189,248,.25); color: var(--acc); border-radius: 3p
                 });
               }
 
-              // Vérification des KPIs bloquants (> 8h non saisis)
+              // Vérification des KPIs bloquants selon shift 8h à partir de 6h et snooze
               const pannes = dbEq.pannes || [];
-              const eightHoursAgo = Date.now() - 8 * 60 * 60 * 1000;
-              const hasBlockingKpis = pannes.some(r => {
-                if (r.kpi !== 'NON') return false;
-                if (r.kpiLastPointageDate === todayStr) return false;
-                const declTs = (r.kpiHistory && r.kpiHistory[0] && r.kpiHistory[0].ts)
-                  ? new Date(r.kpiHistory[0].ts).getTime()
-                  : (r.date ? new Date(r.date + 'T12:00:00').getTime() : 0);
-                return declTs < eightHoursAgo;
-              });
+              const toPointKpis = pannes.filter(r => r.kpi === 'NON' && r.kpiLastPointageDate !== todayStr);
+              
+              let hasBlockingKpis = false;
+              if (toPointKpis.length > 0) {
+                const now = new Date();
+                const today6 = new Date(now);
+                today6.setHours(6, 0, 0, 0);
+                
+                let cycleStart;
+                if (now >= today6) {
+                  cycleStart = today6;
+                } else {
+                  cycleStart = new Date(today6);
+                  cycleStart.setDate(today6.getDate() - 1);
+                }
+                
+                const elapsedHours = (now - cycleStart) / (1000 * 60 * 60);
+                const isCloseAllowed = elapsedHours < 7;
+                
+                if (isCloseAllowed) {
+                  const snoozed = sessionStorage.getItem('numiplan_kpi_snoozed') === 'true';
+                  const closedAt = parseInt(sessionStorage.getItem('numiplan_kpi_closed_at') || '0', 10);
+                  const oneHourMs = 60 * 60 * 1000;
+                  if (snoozed && (Date.now() - closedAt < oneHourMs)) {
+                    hasBlockingKpis = false;
+                  } else {
+                    hasBlockingKpis = true;
+                  }
+                } else {
+                  hasBlockingKpis = true;
+                }
+              }
 
               if (hasAnomalies || hasViolations) {
                 window._actionsBloquees = true;
@@ -2047,14 +2070,20 @@ mark.hl { background: rgba(56,189,248,.25); color: var(--acc); border-radius: 3p
         <div style="font-size:13px;font-weight:800;color:#38bdf8;letter-spacing:2px;text-transform:uppercase">⚙️ Pointage KPI Passage Atelier</div>
         <div style="font-size:11px;color:#64748b;margin-top:3px">Confirmer le passage à l'atelier des camions en panne</div>
       </div>
-      <div style="background:rgba(56,189,248,.15);border:1px solid rgba(56,189,248,.4);border-radius:10px;padding:6px 14px;text-align:center">
-        <div style="font-size:20px;font-weight:800;color:#38bdf8" id="kpi-remaining-count">0</div>
-        <div style="font-size:9px;color:#94a3b8;letter-spacing:1px">NON POINTÉ(S)</div>
+      <div style="display:flex;align-items:center;gap:12px">
+        <div id="kpi-countdown-timer-container" style="display:none;background:rgba(245,158,11,.15);border:1px solid rgba(245,158,11,.4);border-radius:10px;padding:6px 14px;text-align:center">
+          <div style="font-size:16px;font-weight:800;color:#fbbf24;font-family:monospace" id="kpi-countdown-timer-val">08:00:00</div>
+          <div style="font-size:8px;color:#fbbf24;letter-spacing:1px;font-weight:700" id="kpi-countdown-timer-lbl">SHIFT RESTANT</div>
+        </div>
+        <div style="background:rgba(56,189,248,.15);border:1px solid rgba(56,189,248,.4);border-radius:10px;padding:6px 14px;text-align:center">
+          <div style="font-size:20px;font-weight:800;color:#38bdf8" id="kpi-remaining-count">0</div>
+          <div style="font-size:9px;color:#94a3b8;letter-spacing:1px">NON POINTÉ(S)</div>
+        </div>
       </div>
     </div>
     <div id="kpi-pointage-list" style="overflow-y:auto;flex:1;padding:16px 28px"></div>
     <div style="padding:16px 28px;border-top:1px solid rgba(56,189,248,.2);display:flex;justify-content:flex-end;align-items:center;flex-shrink:0">
-      <button id="kpi-close-btn" onclick="document.getElementById('modal-pointage-kpi-atelier').style.display='none'" style="background:#1a2236;color:#94a3b8;border:1px solid #2d3f65;padding:10px 24px;border-radius:9px;cursor:pointer;font-size:12px;font-weight:700">✕ Fermer</button>
+      <button id="kpi-close-btn" onclick="closeKpiPointageModal()" style="background:#1a2236;color:#94a3b8;border:1px solid #2d3f65;padding:10px 24px;border-radius:9px;cursor:pointer;font-size:12px;font-weight:700">✕ Fermer</button>
     </div>
   </div>
 </div>
@@ -6088,18 +6117,60 @@ function getBlacklistViolations() {
 }
 window.getBlacklistViolations = getBlacklistViolations;
 
+function getKpiShiftState() {
+  const now = new Date();
+  const today6 = new Date(now);
+  today6.setHours(6, 0, 0, 0);
+  
+  let cycleStart;
+  if (now >= today6) {
+    cycleStart = today6;
+  } else {
+    cycleStart = new Date(today6);
+    cycleStart.setDate(today6.getDate() - 1);
+  }
+  
+  const elapsedMs = now - cycleStart;
+  const elapsedHours = elapsedMs / (1000 * 60 * 60);
+  
+  const shiftDurationMs = 8 * 60 * 60 * 1000;
+  const remainingMs = Math.max(0, shiftDurationMs - elapsedMs);
+  
+  // Le bouton de fermeture est autorisé durant les 7 premières heures du shift (0.0h à 7.0h)
+  const isCloseAllowed = elapsedHours < 7;
+  
+  return {
+    cycleStart,
+    elapsedHours,
+    remainingMs,
+    isCloseAllowed
+  };
+}
+window.getKpiShiftState = getKpiShiftState;
+
 function getBlockingKpis() {
   if (!DB || !DB.pannes) return [];
+  
   const todayStr = today();
-  const eightHoursAgo = Date.now() - 8 * 60 * 60 * 1000;
-  return DB.pannes.filter(r => {
-    if (r.kpi !== 'NON') return false;
-    if (r.kpiLastPointageDate === todayStr) return false;
-    const declTs = (r.kpiHistory && r.kpiHistory[0] && r.kpiHistory[0].ts)
-      ? new Date(r.kpiHistory[0].ts).getTime()
-      : (r.date ? new Date(r.date + 'T12:00:00').getTime() : 0);
-    return declTs < eightHoursAgo;
-  });
+  // Filtrer les pannes non pointées pour la journée
+  const toPoint = DB.pannes.filter(r => r.kpi === 'NON' && r.kpiLastPointageDate !== todayStr);
+  if (toPoint.length === 0) return [];
+
+  // Évaluer la règle du shift et du report temporaire (snooze)
+  const state = getKpiShiftState();
+  if (state.isCloseAllowed) {
+    const snoozed = sessionStorage.getItem('numiplan_kpi_snoozed') === 'true';
+    const closedAt = parseInt(sessionStorage.getItem('numiplan_kpi_closed_at') || '0', 10);
+    const oneHourMs = 60 * 60 * 1000;
+    
+    if (snoozed && (Date.now() - closedAt < oneHourMs)) {
+      // Sous snooze de moins d'une heure : pas de blocage
+      return [];
+    }
+  }
+  
+  // Hors snooze ou shift dans sa dernière heure / terminé : blocage actif
+  return toPoint;
 }
 window.getBlockingKpis = getBlockingKpis;
 
@@ -6115,6 +6186,101 @@ function handlePointageOverlayClick() {
   }
 }
 window.handlePointageOverlayClick = handlePointageOverlayClick;
+
+function closeKpiPointageModal() {
+  const shiftState = getKpiShiftState();
+  if (shiftState.isCloseAllowed) {
+    sessionStorage.setItem('numiplan_kpi_closed_at', Date.now().toString());
+    sessionStorage.setItem('numiplan_kpi_snoozed', 'true');
+    const modal = document.getElementById('modal-pointage-kpi-atelier');
+    if (modal) modal.style.setProperty('display', 'none', 'important');
+    checkPointageRequired();
+  }
+}
+window.closeKpiPointageModal = closeKpiPointageModal;
+
+let kpiTimerInterval = null;
+let lastIsCloseAllowed = null;
+let lastSnoozeState = null;
+
+function startKpiTimerLoop() {
+  if (kpiTimerInterval) clearInterval(kpiTimerInterval);
+  kpiTimerInterval = setInterval(() => {
+    updateKpiTimerUI();
+  }, 1000);
+  updateKpiTimerUI();
+}
+window.startKpiTimerLoop = startKpiTimerLoop;
+
+function updateKpiTimerUI() {
+  if (sessionStorage.getItem('numiplan_auth') !== 'ok') {
+    return;
+  }
+  
+  const lock = sessionStorage.getItem('numiplan_team_lock');
+  if (!lock) {
+    const container = document.getElementById('kpi-countdown-timer-container');
+    if (container) container.style.display = 'none';
+    return;
+  }
+
+  const state = getKpiShiftState();
+  
+  // 1. Vérifier si le snooze a expiré
+  const snoozed = sessionStorage.getItem('numiplan_kpi_snoozed') === 'true';
+  const closedAt = parseInt(sessionStorage.getItem('numiplan_kpi_closed_at') || '0', 10);
+  const oneHourMs = 60 * 60 * 1000;
+  const snoozeExpired = snoozed && (Date.now() - closedAt >= oneHourMs);
+  
+  if (snoozeExpired) {
+    sessionStorage.removeItem('numiplan_kpi_snoozed');
+  }
+
+  // 2. Déclencher checkPointageRequired si transition d'état ou expiration du snooze
+  const currentSnoozeActive = snoozed && !snoozeExpired;
+  if (lastIsCloseAllowed !== null && lastIsCloseAllowed !== state.isCloseAllowed) {
+    lastIsCloseAllowed = state.isCloseAllowed;
+    checkPointageRequired();
+  } else {
+    lastIsCloseAllowed = state.isCloseAllowed;
+  }
+  
+  if (lastSnoozeState !== null && lastSnoozeState !== currentSnoozeActive) {
+    lastSnoozeState = currentSnoozeActive;
+    checkPointageRequired();
+  } else {
+    lastSnoozeState = currentSnoozeActive;
+  }
+
+  // 3. Mettre à jour l'affichage du minuteur
+  const container = document.getElementById('kpi-countdown-timer-container');
+  const timerVal = document.getElementById('kpi-countdown-timer-val');
+  const timerLbl = document.getElementById('kpi-countdown-timer-lbl');
+  if (!container || !timerVal || !timerLbl) return;
+
+  container.style.display = 'block';
+
+  if (state.isCloseAllowed) {
+    const hours = Math.floor(state.remainingMs / (1000 * 60 * 60));
+    const mins = Math.floor((state.remainingMs % (1000 * 60 * 60)) / (1000 * 60));
+    const secs = Math.floor((state.remainingMs % (1000 * 60)) / 1000);
+    
+    timerVal.textContent = `${hours.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+    timerVal.style.color = '#fbbf24';
+    timerLbl.textContent = 'SHIFT RESTANT';
+    timerLbl.style.color = '#fbbf24';
+    container.style.background = 'rgba(245,158,11,0.15)';
+    container.style.borderColor = 'rgba(245,158,11,0.4)';
+  } else {
+    timerVal.textContent = 'VERROUILLÉ';
+    timerVal.style.color = '#f87171';
+    timerLbl.textContent = 'SHIFT TERMINÉ';
+    timerLbl.style.color = '#f87171';
+    container.style.background = 'rgba(239,68,68,0.15)';
+    container.style.borderColor = 'rgba(239,68,68,0.4)';
+  }
+}
+window.updateKpiTimerUI = updateKpiTimerUI;
 
 function lancerPointageObligatoire() {
   const lock = sessionStorage.getItem('numiplan_team_lock');
@@ -6556,7 +6722,12 @@ function renderKpiPointageList() {
     const lock = sessionStorage.getItem('numiplan_team_lock');
     const eq = typeof window.CURRENT_EQUIPE !== 'undefined' ? window.CURRENT_EQUIPE : 'A';
     const isBlocked = lock && lock === eq && getBlockingKpis().length > 0;
-    closeBtn.style.display = isBlocked ? 'none' : 'block';
+    const shiftState = getKpiShiftState();
+    if (isBlocked && !shiftState.isCloseAllowed) {
+      closeBtn.style.setProperty('display', 'none', 'important');
+    } else {
+      closeBtn.style.display = 'block';
+    }
   }
   
   if (!toPoint.length) {
@@ -7104,6 +7275,7 @@ renderBLAlerts();
 renderTracabilite();
 renderFlashInfos();
 checkPointageRequired();
+startKpiTimerLoop();
 
 // ════════════════════════════════════════════════════════════════════════════
 // EXPORT NUMIFLOW — canvas DISPO.xlsx (lettre à lettre)
