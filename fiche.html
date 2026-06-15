@@ -983,6 +983,7 @@ tr.dragging {
         tabFlash.style.removeProperty('display');
       }
     }
+
   }
   window.applyTeamLockUI = applyTeamLockUI;
 
@@ -1563,7 +1564,7 @@ mark.hl { background: rgba(56,189,248,.25); color: var(--acc); border-radius: 3p
     <div class="sec-title">Historique des pannes</div>
     <div class="table-wrap">
       <table>
-        <thead><tr><th>Date</th><th>Chauffeur</th><th>Immatriculation</th><th>Type</th><th>N° DI</th><th>Description</th><th>CET</th><th>KPI</th><th>Action</th></tr></thead>
+        <thead><tr><th>Date</th><th>Chauffeur</th><th>Immatriculation</th><th>Type</th><th>N° DI</th><th>Description</th><th>CET</th><th id="th-kpi-col">KPI</th><th>Action</th></tr></thead>
         <tbody id="pannes-body"></tbody>
       </table>
     </div>
@@ -2068,7 +2069,7 @@ mark.hl { background: rgba(56,189,248,.25); color: var(--acc); border-radius: 3p
     <div style="padding:22px 28px 16px;border-bottom:1px solid rgba(56,189,248,.3);display:flex;align-items:center;justify-content:space-between;flex-shrink:0">
       <div>
         <div style="font-size:13px;font-weight:800;color:#38bdf8;letter-spacing:2px;text-transform:uppercase">⚙️ Pointage KPI Passage Atelier</div>
-        <div style="font-size:11px;color:#64748b;margin-top:3px">Confirmer le passage à l'atelier des camions en panne</div>
+        <div style="font-size:11px;color:#64748b;margin-top:3px" id="kpi-modal-desc">Confirmer le passage à l'atelier des camions en panne</div>
       </div>
       <div style="display:flex;align-items:center;gap:12px">
         <div id="kpi-countdown-timer-container" style="display:none;background:rgba(245,158,11,.15);border:1px solid rgba(245,158,11,.4);border-radius:10px;padding:6px 14px;text-align:center">
@@ -2077,7 +2078,7 @@ mark.hl { background: rgba(56,189,248,.25); color: var(--acc); border-radius: 3p
         </div>
         <div style="background:rgba(56,189,248,.15);border:1px solid rgba(56,189,248,.4);border-radius:10px;padding:6px 14px;text-align:center">
           <div style="font-size:20px;font-weight:800;color:#38bdf8" id="kpi-remaining-count">0</div>
-          <div style="font-size:9px;color:#94a3b8;letter-spacing:1px">NON POINTÉ(S)</div>
+          <div style="font-size:9px;color:#94a3b8;letter-spacing:1px" id="kpi-remaining-label">NON POINTÉ(S)</div>
         </div>
       </div>
     </div>
@@ -4052,8 +4053,16 @@ function openModal(id, editIdx=-1) {
   if (hi) hi.value = editIdx;
   if (id === 'modal-odo' && editIdx === -1) buildOdoWeekInputs();
   if (id === 'modal-odo-export') initOdoExportModal();
-  if (id === 'modal-panne' && editIdx === -1) {
-    document.getElementById('f-panne-kpi').value = 'NON';
+  if (id === 'modal-panne') {
+    const isAdmin = !sessionStorage.getItem('numiplan_team_lock');
+    const kpiSelect = document.getElementById('f-panne-kpi');
+    if (kpiSelect) {
+      const parent = kpiSelect.closest('.form-group');
+      if (parent) parent.style.display = isAdmin ? 'block' : 'none';
+    }
+    if (editIdx === -1) {
+      document.getElementById('f-panne-kpi').value = 'NON';
+    }
   }
 }
 
@@ -4152,6 +4161,24 @@ function renderDispo() {
   const kpiColor = kpiCount > 0 ? '#f87171' : 'var(--txt3)';
   const kpiBorder = kpiCount > 0 ? '#f87171' : 'var(--border)';
 
+  const todayStr = today();
+  const passCount = (DB && DB.pannes) ? DB.pannes.filter(r => r.kpiLastPointageDate === todayStr && r.kpiPassage === 'OUI').length : 0;
+  const nonPassCount = (DB && DB.pannes) ? DB.pannes.filter(r => r.kpiLastPointageDate === todayStr && r.kpiPassage === 'NON').length : 0;
+  
+  let adminKpiCardHtml = '';
+  const isAdmin = !sessionStorage.getItem('numiplan_team_lock');
+  if (isAdmin) {
+    adminKpiCardHtml = `
+    <div class="stat-card green" style="cursor:pointer;transition:opacity .2s;border-left-color:#22c55e" onclick="ouvrirPointageKpiAtelier('OUI')" title="Voir les pannes pointées OUI (Passé à l'atelier)">
+      <div class="stat-num" style="color:#22c55e">${passCount}</div>
+      <div class="stat-lbl" style="color:#22c55e">Passés Éq. ${CURRENT_EQUIPE}</div>
+    </div>
+    <div class="stat-card red" style="cursor:pointer;transition:opacity .2s;border-left-color:#ef4444" onclick="ouvrirPointageKpiAtelier('NON')" title="Voir les pannes pointées NON (Non passé à l'atelier)">
+      <div class="stat-num" style="color:#ef4444">${nonPassCount}</div>
+      <div class="stat-lbl" style="color:#ef4444">Non Passés Éq. ${CURRENT_EQUIPE}</div>
+    </div>`;
+  }
+
   document.getElementById('dispo-stats').innerHTML = `
     <div class="stat-card blue" style="cursor:pointer;transition:opacity .2s" onclick="filterByEtat('En mission')" title="Filtrer En mission"><div class="stat-num">${c.mission}</div><div class="stat-lbl">En mission</div></div>
     <div class="stat-card green" style="cursor:pointer;transition:opacity .2s" onclick="filterByEtat('DISPONIBLE')" title="Filtrer Disponible"><div class="stat-num">${c.dispo}</div><div class="stat-lbl">Disponible</div></div>
@@ -4160,7 +4187,8 @@ function renderDispo() {
     <div class="stat-card pur" style="cursor:pointer;transition:opacity .2s" onclick="switchTab('cspc',document.querySelector('[onclick*=\\'cspc\\']'))" title="Voir les véhicules CSPC"><div class="stat-num">${DB.cspc.length}</div><div class="stat-lbl">CSPC</div></div>
     <div class="stat-card" style="cursor:pointer;transition:opacity .2s" onclick="filterByEtat('')" title="Afficher tout"><div class="stat-num">${DB.dispo.length}</div><div class="stat-lbl">Total ↺</div></div>
     <div class="stat-card" style="cursor:pointer;transition:opacity .2s;border-left-color:#a78bfa" onclick="showAnomaliesLieu()" title="Voir les anomalies de lieu J+1"><div class="stat-num" style="color:#a78bfa">${typeof getAnomaliesAPointer === 'function' ? getAnomaliesAPointer().length : 0}</div><div class="stat-lbl" style="color:#a78bfa">⚠️ Anomalies lieu</div></div>
-    <div class="${kpiClass}" style="cursor:pointer;transition:opacity .2s;border-left-color:${kpiBorder}" onclick="ouvrirPointageKpiAtelier()" title="Voir les pannes non pointées pour passage atelier"><div class="stat-num" style="color:${kpiColor}">${kpiCount}</div><div class="stat-lbl" style="color:${kpiColor}">🛠️ KPI Atelier</div></div>`;
+    <div class="${kpiClass}" style="cursor:pointer;transition:opacity .2s;border-left-color:${kpiBorder}" onclick="ouvrirPointageKpiAtelier('TO_POINT')" title="Voir les pannes non pointées pour passage atelier"><div class="stat-num" style="color:${kpiColor}">${kpiCount}</div><div class="stat-lbl" style="color:${kpiColor}">🛠️ KPI Atelier</div></div>
+    ${adminKpiCardHtml}`;
   document.getElementById('cnt-dispo').textContent = data.length;
   
   // Compter le nombre de chauffeurs uniques dans la liste filtrée
@@ -4585,8 +4613,12 @@ function renderPannes() {
     data = DB.pannes.filter(r=>rSet.has(r.immat));
   }
 
+  const isAdmin = !sessionStorage.getItem('numiplan_team_lock');
+  const thKpi = document.getElementById('th-kpi-col');
+  if (thKpi) thKpi.style.display = isAdmin ? '' : 'none';
+
   const body = document.getElementById('pannes-body');
-  if (!data.length) { body.innerHTML = `<tr><td colspan="9"><div class="empty-state"><div class="icon">🔍</div>Aucun résultat</div></td></tr>`; return; }
+  if (!data.length) { body.innerHTML = `<tr><td colspan="${isAdmin ? 9 : 8}"><div class="empty-state"><div class="icon">🔍</div>Aucun résultat</div></td></tr>`; return; }
   body.innerHTML = data.map(r => {
     const realIdx = DB.pannes.indexOf(r);
     const recCount = countByImmat[r.immat] || 0;
@@ -4600,9 +4632,10 @@ function renderPannes() {
       <td class="mono" style="font-size:10px;color:var(--acc)">${r.di||'—'}</td>
       <td style="max-width:280px;font-size:11px;color:var(--txt2)">${r.desc}</td>
       <td style="font-size:11px">${r.cet}</td>
+      ${isAdmin ? `
       <td style="text-align:center">
         <div style="display:flex;flex-direction:column;align-items:center;gap:3px">
-          ${(()=>{
+          ${(()=> {
             const kv = r.kpi;
             if (kv === 'OUI') return `<button onclick="toggleKpi(${realIdx})" style="background:rgba(34,197,94,.18);color:#22c55e;border:1px solid rgba(34,197,94,.4);border-radius:6px;padding:3px 12px;font-size:11px;font-weight:700;cursor:pointer;transition:all .2s" title="Cliquer pour basculer → NON">✅ OUI</button>`;
             if (kv === 'NON') return `<button onclick="toggleKpi(${realIdx})" style="background:rgba(244,63,94,.15);color:#f87171;border:1px solid rgba(244,63,94,.4);border-radius:6px;padding:3px 12px;font-size:11px;font-weight:700;cursor:pointer;transition:all .2s" title="Cliquer pour basculer → OUI">✗ NON</button>`;
@@ -4611,6 +4644,7 @@ function renderPannes() {
           <span onclick="voirHistoriqueKpi(${realIdx})" style="font-size:9px;color:#818cf8;cursor:pointer;text-decoration:underline" title="Voir l'historique de traçabilité">🕒 Historique</span>
         </div>
       </td>
+      ` : ''}
       <td><button class="del-btn" onclick="editPanne(${realIdx})">✏️</button><button class="del-btn" onclick="deletePanne(${realIdx})">🗑</button></td>
     </tr>`;
   }).join('');
@@ -4697,6 +4731,10 @@ function savePanne() {
 }
 
 function toggleKpi(idx) {
+  if (sessionStorage.getItem('numiplan_team_lock')) {
+    showToast('⚠️ Action réservée à la session Administrateur', true);
+    return;
+  }
   if (!_checkActionsLibres('toggleKpi')) return;
   const r = DB.pannes[idx];
   if (!r) return;
@@ -6700,9 +6738,10 @@ function shouldUpdateLieuJ1Initial(r, newVal) {
 }
 window.shouldUpdateLieuJ1Initial = shouldUpdateLieuJ1Initial;
 
-function ouvrirPointageKpiAtelier() {
+function ouvrirPointageKpiAtelier(filterType) {
   const modal = document.getElementById('modal-pointage-kpi-atelier');
   if (!modal) return;
+  window._activeKpiFilter = filterType || 'TO_POINT';
   modal.style.display = 'flex';
   renderKpiPointageList();
 }
@@ -6711,10 +6750,34 @@ window.ouvrirPointageKpiAtelier = ouvrirPointageKpiAtelier;
 function renderKpiPointageList() {
   const listEl = document.getElementById('kpi-pointage-list');
   const countEl = document.getElementById('kpi-remaining-count');
+  const labelEl = document.getElementById('kpi-remaining-label');
+  const descEl = document.getElementById('kpi-modal-desc');
   if (!listEl) return;
   
-  const toPoint = DB.pannes.filter(r => r.kpi === 'NON' && r.kpiLastPointageDate !== today());
-  countEl.textContent = toPoint.length;
+  const filterType = window._activeKpiFilter || 'TO_POINT';
+  const todayStr = today();
+  
+  let list = [];
+  let labelText = 'NON POINTÉ(S)';
+  let descText = 'Confirmer le passage à l\'atelier des camions en panne';
+  
+  if (filterType === 'OUI') {
+    list = DB.pannes.filter(r => r.kpiLastPointageDate === todayStr && r.kpiPassage === 'OUI');
+    labelText = 'PASSÉ(S)';
+    descText = 'Liste des camions enregistrés comme PASSÉS à l\'atelier aujourd\'hui';
+  } else if (filterType === 'NON') {
+    list = DB.pannes.filter(r => r.kpiLastPointageDate === todayStr && r.kpiPassage === 'NON');
+    labelText = 'NON PASSÉ(S)';
+    descText = 'Liste des camions enregistrés comme NON PASSÉS à l\'atelier aujourd\'hui';
+  } else {
+    list = DB.pannes.filter(r => r.kpi === 'NON' && r.kpiLastPointageDate !== todayStr);
+    labelText = 'NON POINTÉ(S)';
+    descText = 'Confirmer le passage à l\'atelier des camions en panne';
+  }
+  
+  countEl.textContent = list.length;
+  if (labelEl) labelEl.textContent = labelText;
+  if (descEl) descEl.textContent = descText;
   
   // Contrôler la visibilité du bouton Fermer
   const closeBtn = document.getElementById('kpi-close-btn');
@@ -6730,18 +6793,37 @@ function renderKpiPointageList() {
     }
   }
   
-  if (!toPoint.length) {
-    listEl.innerHTML = '<div style="text-align:center;padding:40px;color:#64748b;font-size:13px">🎉 Tous les camions signalés ont été pointés aujourd\'hui !</div>';
-    setTimeout(() => {
-      const modal = document.getElementById('modal-pointage-kpi-atelier');
-      if (modal && modal.style.display === 'flex') modal.style.display = 'none';
-    }, 1500);
+  if (!list.length) {
+    let emptyText = 'Aucun camion dans cette liste.';
+    if (filterType === 'TO_POINT') {
+      emptyText = '🎉 Tous les camions signalés ont été pointés aujourd\'hui !';
+    }
+    listEl.innerHTML = `<div style="text-align:center;padding:40px;color:#64748b;font-size:13px">${emptyText}</div>`;
+    
+    if (filterType === 'TO_POINT') {
+      setTimeout(() => {
+        const modal = document.getElementById('modal-pointage-kpi-atelier');
+        if (modal && modal.style.display === 'flex') modal.style.display = 'none';
+      }, 1500);
+    }
     return;
   }
   
   let html = '';
-  toPoint.forEach((r, i) => {
+  list.forEach((r, i) => {
     const globalIdx = DB.pannes.indexOf(r);
+    
+    let currentStatusHtml = '';
+    if (r.kpiLastPointageDate === todayStr) {
+      if (r.kpiPassage === 'OUI') {
+        currentStatusHtml = `<span style="background:rgba(34,197,94,.15);color:#22c55e;padding:1px 6px;border-radius:4px;font-weight:600">OUI (Passé à l'atelier)</span>`;
+      } else {
+        currentStatusHtml = `<span style="background:rgba(248,113,113,.15);color:#f87171;padding:1px 6px;border-radius:4px;font-weight:600">NON (Non passé)</span>`;
+      }
+    } else {
+      currentStatusHtml = `<span style="background:rgba(248,113,113,.15);color:#f87171;padding:1px 6px;border-radius:4px;font-weight:600">NON (Pas encore passé)</span>`;
+    }
+    
     html += `
       <div style="background:rgba(56,189,248,.04);border:1px solid rgba(56,189,248,.15);border-radius:10px;padding:14px 16px;margin-bottom:10px">
         <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px">
@@ -6753,7 +6835,7 @@ function renderKpiPointageList() {
               Panne déclarée le : <b>${fmtDate(r.date)}</b> | Description : <i>${r.desc || '—'}</i>
             </div>
             <div style="font-size:10px;color:#64748b">
-              KPI actuel : <span style="background:rgba(248,113,113,.15);color:#f87171;padding:1px 6px;border-radius:4px;font-weight:600">NON (Pas encore passé)</span>
+              KPI actuel : ${currentStatusHtml}
             </div>
           </div>
           <div style="display:flex;gap:8px;align-self:center">
@@ -6773,7 +6855,7 @@ function pointerKpiAtelier(globalIdx, response) {
   const r = DB.pannes[globalIdx];
   if (!r) return;
   
-  r.kpi = response;
+  r.kpiPassage = response;
   r.kpiLastPointageDate = today();
   
   if (!r.kpiHistory) r.kpiHistory = [];
@@ -6790,6 +6872,7 @@ function pointerKpiAtelier(globalIdx, response) {
   renderPannes();
   renderDispo();
   renderKpiPointageList();
+
   if (typeof checkPointageRequired === 'function') {
     checkPointageRequired();
   }
