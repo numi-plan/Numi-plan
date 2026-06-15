@@ -1945,7 +1945,7 @@ mark.hl { background: rgba(56,189,248,.25); color: var(--acc); border-radius: 3p
 
               // Vérification des KPIs bloquants selon shift 8h à partir de 6h et snooze
               const pannes = dbEq.pannes || [];
-              const toPointKpis = pannes.filter(r => r.kpi === 'NON' && r.kpiLastPointageDate !== todayStr);
+              const toPointKpis = pannes.filter(r => r.kpi === 'NON' && r.kpiDate && r.kpiDate < todayStr && r.kpiLastPointageDate !== todayStr);
               
               let hasBlockingKpis = false;
               if (toPointKpis.length > 0) {
@@ -4217,7 +4217,7 @@ function openModal(id, editIdx=-1) {
       if (parent) parent.style.display = isAdmin ? 'block' : 'none';
     }
     if (editIdx === -1) {
-      document.getElementById('f-panne-kpi').value = 'NON';
+      document.getElementById('f-panne-kpi').value = '';
     }
   }
 }
@@ -4312,7 +4312,7 @@ function renderDispo() {
     else if (e.includes('panne')) c.panne++;
     else if (e.includes('manque')) c.manque++;
   });
-  const kpiCount = DB.pannes.filter(r => r.kpi === 'NON' && r.kpiLastPointageDate !== today()).length;
+  const kpiCount = DB.pannes.filter(r => r.kpi === 'NON' && r.kpiDate && r.kpiDate < today() && r.kpiLastPointageDate !== today()).length;
   const kpiClass = kpiCount > 0 ? 'stat-card blink-kpi-card' : 'stat-card';
   const kpiColor = kpiCount > 0 ? '#f87171' : 'var(--txt3)';
   const kpiBorder = kpiCount > 0 ? '#f87171' : 'var(--border)';
@@ -4871,10 +4871,11 @@ function savePanne() {
   if (!immat) { showToast('⚠️ Immatriculation requise', true); return; }
   
   const idx = parseInt(document.getElementById('panne-edit-idx').value);
-  const newKpi = document.getElementById('f-panne-kpi').value || 'NON';
+  const newKpi = document.getElementById('f-panne-kpi').value || '';
   
   let kpiHistory = idx >= 0 ? (DB.pannes[idx].kpiHistory || []) : [];
   let kpiLastPointageDate = idx >= 0 ? (DB.pannes[idx].kpiLastPointageDate || '') : '';
+  let kpiDate = idx >= 0 ? (DB.pannes[idx].kpiDate || '') : '';
   
   if (idx < 0) {
     kpiHistory.push({
@@ -4883,7 +4884,8 @@ function savePanne() {
       ts: new Date().toISOString(),
       equipe: typeof window.CURRENT_EQUIPE !== 'undefined' ? window.CURRENT_EQUIPE : 'A'
     });
-    kpiLastPointageDate = newKpi === 'NON' ? '' : today();
+    kpiDate = (newKpi === 'OUI' || newKpi === 'NON') ? today() : '';
+    kpiLastPointageDate = '';
   } else if (DB.pannes[idx].kpi !== newKpi) {
     kpiHistory.push({
       date: today(),
@@ -4891,7 +4893,8 @@ function savePanne() {
       ts: new Date().toISOString(),
       equipe: typeof window.CURRENT_EQUIPE !== 'undefined' ? window.CURRENT_EQUIPE : 'A'
     });
-    kpiLastPointageDate = newKpi === 'NON' ? '' : today();
+    kpiDate = (newKpi === 'OUI' || newKpi === 'NON') ? today() : '';
+    kpiLastPointageDate = '';
   }
 
   const obj = {
@@ -4903,6 +4906,7 @@ function savePanne() {
     cet: document.getElementById('f-panne-cet').value.trim(),
     kpi: newKpi,
     kpiHistory,
+    kpiDate,
     kpiLastPointageDate
   };
   
@@ -4936,7 +4940,8 @@ function toggleKpi(idx) {
   if (!r) return;
   const newVal = r.kpi === 'OUI' ? 'NON' : 'OUI';
   r.kpi = newVal;
-  r.kpiLastPointageDate = newVal === 'NON' ? '' : today();
+  r.kpiDate = (newVal === 'OUI' || newVal === 'NON') ? today() : '';
+  r.kpiLastPointageDate = '';
   if (!r.kpiHistory) r.kpiHistory = [];
   r.kpiHistory.push({
     date: today(),
@@ -6387,7 +6392,7 @@ function getBlockingKpis() {
   
   const todayStr = today();
   // Filtrer les pannes non pointées pour la journée
-  const toPoint = DB.pannes.filter(r => r.kpi === 'NON' && r.kpiLastPointageDate !== todayStr);
+  const toPoint = DB.pannes.filter(r => r.kpi === 'NON' && r.kpiDate && r.kpiDate < todayStr && r.kpiLastPointageDate !== todayStr);
   if (toPoint.length === 0) return [];
 
   // Évaluer la règle du shift et du report temporaire (snooze)
@@ -7151,7 +7156,7 @@ function renderKpiPointageList() {
     labelText = 'NON PASSÉ(S)';
     descText = 'Liste des camions enregistrés comme NON PASSÉS à l\'atelier aujourd\'hui';
   } else {
-    list = DB.pannes.filter(r => r.kpi === 'NON' && r.kpiLastPointageDate !== todayStr);
+    list = DB.pannes.filter(r => r.kpi === 'NON' && r.kpiDate && r.kpiDate < todayStr && r.kpiLastPointageDate !== todayStr);
     labelText = 'NON POINTÉ(S)';
     descText = 'Confirmer le passage à l\'atelier des camions en panne';
   }
