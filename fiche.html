@@ -3732,10 +3732,29 @@ function renderGlobalBLAlerts() {
 
         months.forEach(m => {
           const val = (r[m] || '').trim().toLowerCase();
-          if (val === 'déposer' || val === 'depose') return;
-          
           const status = checkBLMonthStatus(m, now);
-          if (status === 'due' || status === 'late') {
+          
+          let shouldInclude = false;
+          if (qChauffeur) {
+            // Si l'utilisateur recherche un chauffeur, on affiche TOUS les mois pour consulter l'historique !
+            shouldInclude = true;
+          } else {
+            // Vue par défaut à l'ouverture : afficher les actions en cours / alertes
+            if (val === 'restitue' || val.startsWith('partiel_')) {
+              shouldInclude = true;
+            } else if (status === 'due' || status === 'late') {
+              if (val !== 'déposer' && val !== 'depose') {
+                shouldInclude = true;
+              }
+            }
+            // Ou s'il y a un historique d'alerte actif
+            const alert = r.alerts ? r.alerts[m] : null;
+            if (alert && (alert.status === 'active' || alert.status === 'responded')) {
+              shouldInclude = true;
+            }
+          }
+
+          if (shouldInclude) {
             alerts.push({
               chauffeur: r.chauffeur,
               month: m,
@@ -3760,14 +3779,30 @@ function renderGlobalBLAlerts() {
     return;
   }
 
+  // Trier les alertes par urgence décroissante
   alerts.sort((a, b) => {
-    if (a.status === b.status) {
-      if (a.team === b.team) {
-        return a.chauffeur.localeCompare(b.chauffeur);
-      }
+    const getScore = (x) => {
+      const v = x.val.toLowerCase();
+      if (v === 'restitue') return 10;
+      if (x.status === 'late') return 9;
+      if (v.startsWith('partiel_')) return 8;
+      if (x.status === 'due') return 7;
+      if (v === 'déposer' || v === 'depose') return 1; // plus faible priorité (déjà archivé)
+      return 2; // non requis encore
+    };
+    
+    const scoreA = getScore(a);
+    const scoreB = getScore(b);
+    
+    if (scoreA !== scoreB) {
+      return scoreB - scoreA; // Tri par score d'urgence (décroissant)
+    }
+    
+    if (a.team !== b.team) {
       return a.team.localeCompare(b.team);
     }
-    return a.status === 'late' ? -1 : 1;
+    
+    return a.chauffeur.localeCompare(b.chauffeur);
   });
 
   const alertItemsHtml = alerts.map((al, idx) => {
@@ -3815,11 +3850,17 @@ function renderGlobalBLAlerts() {
     // Boutons d'actions dynamiques selon l'état actuel du BL
     let actionButtonsHtml = '';
 
-    if (!val) {
-      // Non restitué -> Bouton "Signaler Rendu" & "Entretien Sharik"
+    if (val === 'déposer' || val === 'depose') {
+      // Déposé Complet
+      borderStyle = 'border-color: rgba(52, 211, 153, 0.4);';
+      bgStyle = 'background: rgba(52, 211, 153, 0.08);';
+      tagClass = 'badge-dispo';
+      tagText = '✅ DÉPOSÉ COMPLET';
+      blinkStyle = '';
+      detailsText = `Chauffeur : <b style="color: var(--txt);">${al.chauffeur}</b> — BL <b style="text-transform: uppercase; color: var(--acc);">${al.month}</b> déposés complets.`;
       actionButtonsHtml = `
         <div style="display:flex; gap:8px; align-items:center;">
-          <button onclick="validerBLRapideGlobal('${al.chauffeur.split("'").join("\\'")}', '${al.month}', '${al.team}', 'restitue')" class="btn btn-save" style="background:#38bdf8; border-color:#38bdf8; color:#000; padding: 6px 14px; font-size: 11px; font-weight: 700; border-radius: 6px; cursor: pointer;">✓ Signaler Rendu</button>
+          <button onclick="validerBLRapideGlobal('${al.chauffeur.split("'").join("\\'")}', '${al.month}', '${al.team}', 'partiel')" class="btn" style="background:rgba(245,158,11,0.2); border-color:#f59e0b; color:#f59e0b; padding: 6px 14px; font-size: 11px; font-weight: 700; border-radius: 6px; cursor: pointer;">⚠️ Rendu Partiel</button>
           ${relancerBtnHtml}
           <button onclick="ouvrirEntretienSharik('${al.chauffeur.split("'").join("\\'")}', '${al.month}', '${al.team}')" class="btn" style="background:rgba(167,139,250,0.15); border-color:rgba(167,139,250,0.4); color:var(--pur); padding: 6px 14px; font-size: 11px; font-weight: 700; border-radius: 6px; cursor: pointer;">📋 Entretien Sharik</button>
         </div>
@@ -3853,6 +3894,29 @@ function renderGlobalBLAlerts() {
         <div style="display:flex; gap:8px; align-items:center;">
           <button onclick="validerBLRapideGlobal('${al.chauffeur.split("'").join("\\'")}', '${al.month}', '${al.team}', 'depose')" class="btn btn-save" style="padding: 6px 14px; font-size: 11px; font-weight: 700; border-radius: 6px; cursor: pointer;">✓ Pointé Complet</button>
           <button onclick="validerBLRapideGlobal('${al.chauffeur.split("'").join("\\'")}', '${al.month}', '${al.team}', 'partiel')" class="btn" style="background:rgba(245,158,11,0.2); border-color:#f59e0b; color:#f59e0b; padding: 6px 14px; font-size: 11px; font-weight: 700; border-radius: 6px; cursor: pointer;">✏️ Modifier partiel</button>
+          ${relancerBtnHtml}
+          <button onclick="ouvrirEntretienSharik('${al.chauffeur.split("'").join("\\'")}', '${al.month}', '${al.team}')" class="btn" style="background:rgba(167,139,250,0.15); border-color:rgba(167,139,250,0.4); color:var(--pur); padding: 6px 14px; font-size: 11px; font-weight: 700; border-radius: 6px; cursor: pointer;">📋 Entretien Sharik</button>
+        </div>
+      `;
+    } else if (al.status !== 'due' && al.status !== 'late') {
+      // Hors Période (non requis encore)
+      borderStyle = 'border-color: rgba(148, 163, 184, 0.3);';
+      bgStyle = 'background: rgba(148, 163, 184, 0.04);';
+      tagClass = 'badge-pur';
+      tagText = '⏳ HORS PÉRIODE';
+      blinkStyle = '';
+      detailsText = `Chauffeur : <b style="color: var(--txt);">${al.chauffeur}</b> — BL <b style="text-transform: uppercase; color: var(--acc);">${al.month}</b> non requis pour le moment.`;
+      actionButtonsHtml = `
+        <div style="display:flex; gap:8px; align-items:center;">
+          <button onclick="validerBLRapideGlobal('${al.chauffeur.split("'").join("\\'")}', '${al.month}', '${al.team}', 'restitue')" class="btn btn-save" style="background:#38bdf8; border-color:#38bdf8; color:#000; padding: 6px 14px; font-size: 11px; font-weight: 700; border-radius: 6px; cursor: pointer;">✓ Signaler Rendu</button>
+          <button onclick="ouvrirEntretienSharik('${al.chauffeur.split("'").join("\\'")}', '${al.month}', '${al.team}')" class="btn" style="background:rgba(167,139,250,0.15); border-color:rgba(167,139,250,0.4); color:var(--pur); padding: 6px 14px; font-size: 11px; font-weight: 700; border-radius: 6px; cursor: pointer;">📋 Entretien Sharik</button>
+        </div>
+      `;
+    } else {
+      // Non restitué
+      actionButtonsHtml = `
+        <div style="display:flex; gap:8px; align-items:center;">
+          <button onclick="validerBLRapideGlobal('${al.chauffeur.split("'").join("\\'")}', '${al.month}', '${al.team}', 'restitue')" class="btn btn-save" style="background:#38bdf8; border-color:#38bdf8; color:#000; padding: 6px 14px; font-size: 11px; font-weight: 700; border-radius: 6px; cursor: pointer;">✓ Signaler Rendu</button>
           ${relancerBtnHtml}
           <button onclick="ouvrirEntretienSharik('${al.chauffeur.split("'").join("\\'")}', '${al.month}', '${al.team}')" class="btn" style="background:rgba(167,139,250,0.15); border-color:rgba(167,139,250,0.4); color:var(--pur); padding: 6px 14px; font-size: 11px; font-weight: 700; border-radius: 6px; cursor: pointer;">📋 Entretien Sharik</button>
         </div>
