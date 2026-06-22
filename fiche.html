@@ -1264,7 +1264,7 @@ mark.hl { background: rgba(56,189,248,.25); color: var(--acc); border-radius: 3p
       onkeydown="if(event.key==='Escape')closeGlobalSearch()">
     <button class="global-search-clear" id="globalSearchClear" onclick="clearGlobalSearch()">✕</button>
   </div>
-  <div class="global-search-hint">TOUTES ÉQUIPES · A B C D</div>
+  <div class="global-search-hint">TOUTES ÉQUIPES · A B C D · V2.1</div>
   <div style="display:flex;gap:6px;align-items:center;margin-left:auto;flex-wrap:wrap">
     <div class="rac-badge" id="header-rac-A" title="Roulage à charge - Équipe A" style="color:var(--acc);font-weight:700">A: —</div>
     <div class="rac-badge" id="header-rac-B" title="Roulage à charge - Équipe B" style="color:var(--grn);font-weight:700">B: —</div>
@@ -2913,7 +2913,7 @@ function getTeamRACStats(db) {
       delta = valid[valid.length-1] - valid[valid.length-2];
     }
     const kmFacture = (r.kmFacture !== undefined && r.kmFacture !== null) ? r.kmFacture : 0;
-    if (delta > 0 && kmFacture > 0) {
+    if (delta > 0 && delta <= 10000 && kmFacture > 0) {
       fact += kmFacture;
       odo += delta;
     }
@@ -6136,7 +6136,7 @@ function renderOdo() {
     let deltaVal = 0;
     if (valid.length>=2) {
       const d = valid[valid.length-1]-valid[valid.length-2];
-      if (d>0) {
+      if (d>0 && d <= 10000) {
         totalKm += d;
         deltaVal = d;
       }
