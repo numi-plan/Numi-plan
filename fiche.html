@@ -228,27 +228,42 @@
     }
     
     const currentEq = getCurrentEquipe();
+    const localDb = (eq === currentEq && typeof window.DB !== 'undefined') ? window.DB : window['DB_' + eq];
+    const localTs = localDb ? (localDb._localTs || 0) : 0;
+    const remoteTs = cleanSrc._localTs || 0;
     
-    // Si c'est l'équipe active affichée à l'écran
-    if (eq === currentEq && typeof window.DB !== 'undefined') {
-      const localTs  = window.DB._localTs || 0;
-      const remoteTs = cleanSrc._localTs || 0;
-      
-      // ── CORRECTIF : ignorer le snapshot si c'est l'écho de notre propre écriture
-      // (même timestamp) ou une version plus ancienne que ce qu'on a en local.
-      // On n'applique que si la version distante est STRICTEMENT plus récente
-      // (modification faite par un autre utilisateur/onglet).
-      if (remoteTs <= localTs) {
-        if (typeof window.checkPointageRequired === 'function') {
-          window.checkPointageRequired();
+    // 1. Si le local est strictement plus récent, on synchronise vers le cloud
+    if ((_fbReady || _fbLoaded[eq]) && localDb && localTs > remoteTs) {
+      if (!window._teamSyncStarted) window._teamSyncStarted = {};
+      if (!window._teamSyncStarted[eq]) {
+        window._teamSyncStarted[eq] = true;
+        console.log(`[Firebase Auto-Sync] Poussée des données locales plus récentes de l'Équipe ${eq} (${localTs} > ${remoteTs}) vers le cloud.`);
+        if (typeof window.saveTeamDB === 'function') {
+          setTimeout(() => {
+            window.saveTeamDB(eq, localDb);
+          }, 500);
         }
-        return;
       }
-      
+      return;
+    }
+    
+    // 2. Si c'est identique, pas besoin de réappliquer
+    if (localDb && localTs === remoteTs) {
+      if (typeof window.checkPointageRequired === 'function') {
+        window.checkPointageRequired();
+      }
+      return;
+    }
+    
+    // 3. Sinon, le cloud est plus récent (remoteTs > localTs) : on l'applique
+    if (eq === currentEq && typeof window.DB !== 'undefined') {
       const merged = mergeTeamData(window.DB, cleanSrc);
       Object.assign(window.DB, merged);
       window['DB_' + eq] = cloneEquipePayload(merged);
       
+      if (typeof alignOdoWeeksGlobal === 'function') {
+        alignOdoWeeksGlobal();
+      }
       safeRenderActiveTeam(eq);
     } else {
       // Pour les équipes inactives, aucun risque de perte de focus ou de modal local
@@ -257,8 +272,19 @@
       // Si nous initialisons ou réactivons
       if (eq === currentEq && typeof window.DB !== 'undefined') {
         Object.assign(window.DB, cloneEquipePayload(cleanSrc));
+      }
+      
+      if (typeof alignOdoWeeksGlobal === 'function') {
+        alignOdoWeeksGlobal();
+      }
+      
+      if (eq === currentEq && typeof window.DB !== 'undefined') {
         safeRenderActiveTeam(eq);
       }
+    }
+    
+    if (typeof updateHeaderRAC === 'function') {
+      updateHeaderRAC();
     }
   }
 
@@ -358,13 +384,12 @@
       let data = snapshot.data();
       if (!data) return;
 
-      applyEquipeData(eq, data);
       _fbLoaded[eq] = true;
-      
       const currentEq = getCurrentEquipe();
       if (eq === currentEq) {
         _fbReady = true;
       }
+      applyEquipeData(eq, data);
     }, (err) => {
       console.error(`Firebase onSnapshot error for Team ${eq}:`, err);
       showFirebaseBadge(`⚠️ Connexion cloud perdue (${eq})`, true);
@@ -597,6 +622,7 @@ body { font-family:'IBM Plex Sans',sans-serif; background:var(--bg); color:var(-
 .header-sub { font-size:10px; color:var(--txt2); font-weight:600; letter-spacing:3px; text-transform:uppercase; }
 .header-right { margin-left:auto; display:flex; align-items:center; gap:10px; }
 .date-badge { background:var(--bg3); border:1px solid var(--border); border-radius:8px; padding:7px 14px; font-family:'IBM Plex Mono',monospace; font-size:12px; color:var(--acc); }
+.rac-badge { background:var(--bg3); border:1px solid var(--border); border-radius:8px; padding:7px 12px; font-family:'IBM Plex Mono',monospace; font-size:12px; transition: all 0.2s; }
 
 /* TABS */
 .tabs-bar { background:var(--bg2); border-right:1px solid var(--border); display:flex; flex-direction:column; width:225px; min-width:225px; overflow-y:auto; flex-shrink:0; }
@@ -1240,6 +1266,11 @@ mark.hl { background: rgba(56,189,248,.25); color: var(--acc); border-radius: 3p
   </div>
   <div class="global-search-hint">TOUTES ÉQUIPES · A B C D</div>
   <div style="display:flex;gap:6px;align-items:center;margin-left:auto;flex-wrap:wrap">
+    <div class="rac-badge" id="header-rac-A" title="Roulage à charge - Équipe A" style="color:var(--acc);font-weight:700">A: —</div>
+    <div class="rac-badge" id="header-rac-B" title="Roulage à charge - Équipe B" style="color:var(--grn);font-weight:700">B: —</div>
+    <div class="rac-badge" id="header-rac-C" title="Roulage à charge - Équipe C" style="color:var(--org);font-weight:700">C: —</div>
+    <div class="rac-badge" id="header-rac-D" title="Roulage à charge - Équipe D" style="color:var(--pur);font-weight:700">D: —</div>
+    <div class="rac-badge" id="header-rac-global" title="Roulage à charge - Global" style="color:var(--yel);font-weight:700">Global: —</div>
     <button class="btn btn-save btn-global" onclick="basculerJournee()" title="Basculer Lieu J+1 → Lieu Jour">⏭ Nouvelle journée</button>
     <button class="btn btn-numiflow" onclick="exportNumiflow()">📊 Export Numiflow</button>
     <button class="btn btn-extract" onclick="exportAllData()">⬇ Extraction Données</button>
@@ -1684,6 +1715,8 @@ mark.hl { background: rgba(56,189,248,.25); color: var(--acc); border-radius: 3p
     <button class="btn btn-reset" onclick="resetFilters('odo-search');renderOdo()">↺ Reset</button>
     <button class="btn btn-add" onclick="openModal('modal-odo')">＋ Relevé KM</button>
     <button class="btn btn-extract" onclick="openModal('modal-odo-export')">⬇ Export KM</button>
+    <button class="btn btn-numiflow" onclick="triggerImportKmFacture()">📥 Import KM Facturé</button>
+    <input type="file" id="import-km-facture-input" accept=".xlsx, .xls" style="display:none" onchange="importKmFacture(this)">
   </div>
   <div style="padding-top:20px">
     <div class="stats-row" id="odo-stats"></div>
@@ -1771,7 +1804,19 @@ mark.hl { background: rgba(56,189,248,.25); color: var(--acc); border-radius: 3p
     <div style="font-size:11px;color:var(--txt3);margin-bottom:16px;padding:0 4px">
       Une règle blacklist bloque un chauffeur sur une destination précise. Après bascule journée, toute affectation non conforme génère une anomalie à pointer obligatoirement.
     </div>
-    <div id="blacklist-body"></div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Chauffeur</th>
+            <th>Destination Interdite</th>
+            <th>Motif / Justification</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody id="blacklist-body"></tbody>
+      </table>
+    </div>
   </div>
 </div>
 
@@ -2119,6 +2164,21 @@ mark.hl { background: rgba(56,189,248,.25); color: var(--acc); border-radius: 3p
   </div>
 </div>
 
+<!-- Modal Extensions List -->
+<div class="modal-overlay" id="modal-extensions-list">
+  <div class="modal" style="max-width: 450px;">
+    <h3 style="margin-bottom: 15px; color: var(--pur);">📋 Chauffeurs en Extension (Équipe <span id="ext-team-name">A</span>)</h3>
+    <div style="max-height: 300px; overflow-y: auto; margin-bottom: 20px;">
+      <ul id="ext-drivers-list" style="list-style-type: none; padding: 0; display: flex; flex-direction: column; gap: 8px;">
+        <!-- Dynamically populated -->
+      </ul>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-reset" onclick="closeModal('modal-extensions-list')">Fermer</button>
+    </div>
+  </div>
+</div>
+
 <!-- Modal Dispo -->
 <div class="modal-overlay" id="modal-dispo">
   <div class="modal">
@@ -2325,6 +2385,7 @@ mark.hl { background: rgba(56,189,248,.25); color: var(--acc); border-radius: 3p
     <div class="form-grid">
       <div class="form-group"><label>Véhicule</label><input id="f-odo-v" list="dl-vehicules" placeholder="001079-514-16"></div>
       <div class="form-group"><label>Chauffeur</label><input id="f-odo-chauffeur" list="dl-chauffeurs" placeholder="NOM PRÉNOM"></div>
+      <div class="form-group"><label>KM Facturé</label><input id="f-odo-km-facture" type="number" placeholder="ex. 1200"></div>
       <div class="form-group full" style="background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:12px">
         <label style="margin-bottom:8px;display:block">Relevés par semaine (laisser vide si inconnu)</label>
         <div id="odo-week-inputs" style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px"></div>
@@ -2758,6 +2819,144 @@ let ARCHIVES = {};
 window.DB = DB;
 window.ARCHIVES = ARCHIVES;
 window._pointageEnCours = {};
+
+function normalizeOdoDate(dStr) {
+  if (!dStr) return null;
+  dStr = String(dStr).trim();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(dStr)) {
+    return dStr;
+  }
+  let m = dStr.match(/^(\d{2})[/-](\d{2})[/-](\d{4})$/);
+  if (m) {
+    return `${m[3]}-${m[2]}-${m[1]}`;
+  }
+  m = dStr.match(/^(\d{2})[/-](\d{2})$/);
+  if (m) {
+    return `2026-${m[2]}-${m[1]}`;
+  }
+  const d = new Date(dStr);
+  if (!isNaN(d.getTime())) {
+    return d.toISOString().slice(0, 10);
+  }
+  return null;
+}
+
+function alignOdoWeeksGlobal() {
+  const EQUIPES = ['A', 'B', 'C', 'D'];
+  const allWeeks = new Set();
+  
+  // 1. Gather all weeks from all databases
+  EQUIPES.forEach(eq => {
+    const db = window['DB_' + eq];
+    if (db && db.odo_weeks) {
+      db.odo_weeks.forEach(w => {
+        const norm = normalizeOdoDate(w);
+        if (norm) allWeeks.add(norm);
+      });
+    }
+  });
+  if (window.DB && window.DB.odo_weeks) {
+    window.DB.odo_weeks.forEach(w => {
+      const norm = normalizeOdoDate(w);
+      if (norm) allWeeks.add(norm);
+    });
+  }
+  
+  // Sort chronologically (natural string sorting works because they are YYYY-MM-DD)
+  const globalSortedWeeks = [...allWeeks].sort();
+  
+  // 2. Align odo_weeks and vals for all databases
+  EQUIPES.forEach(eq => {
+    const db = window['DB_' + eq];
+    if (db) {
+      alignOdoWeeksForDB(db, globalSortedWeeks);
+    }
+  });
+  if (window.DB) {
+    alignOdoWeeksForDB(window.DB, globalSortedWeeks);
+  }
+}
+
+function alignOdoWeeksForDB(db, globalSortedWeeks) {
+  if (!db) return;
+  const oldWeeks = db.odo_weeks || [];
+  const oldWeeksNormalized = oldWeeks.map(normalizeOdoDate);
+  
+  db.odo_weeks = [...globalSortedWeeks];
+  
+  if (db.odo && Array.isArray(db.odo)) {
+    db.odo.forEach(rec => {
+      if (!rec.vals) rec.vals = [];
+      const newVals = new Array(globalSortedWeeks.length).fill(null);
+      for (let i = 0; i < oldWeeksNormalized.length; i++) {
+        const d = oldWeeksNormalized[i];
+        if (d) {
+          const newIdx = globalSortedWeeks.indexOf(d);
+          if (newIdx !== -1) {
+            newVals[newIdx] = rec.vals[i] !== undefined ? rec.vals[i] : null;
+          }
+        }
+      }
+      rec.vals = newVals;
+    });
+  }
+}
+
+function getTeamRACStats(db) {
+  if (!db || !db.odo) return { fact: 0, odo: 0 };
+  let fact = 0;
+  let odo = 0;
+  db.odo.forEach(r => {
+    const valid = (r.vals||[]).filter(v=>v&&v>1000);
+    let delta = 0;
+    if (valid.length >= 2) {
+      delta = valid[valid.length-1] - valid[valid.length-2];
+    }
+    const kmFacture = (r.kmFacture !== undefined && r.kmFacture !== null) ? r.kmFacture : 0;
+    if (delta > 0 && kmFacture > 0) {
+      fact += kmFacture;
+      odo += delta;
+    }
+  });
+  return { fact, odo };
+}
+
+function updateHeaderRAC() {
+  const curEq = typeof CURRENT_EQUIPE !== 'undefined' ? CURRENT_EQUIPE : 'A';
+  
+  let totalFact = 0;
+  let totalOdo = 0;
+  
+  ['A', 'B', 'C', 'D'].forEach(eq => {
+    const db = (eq === curEq && typeof window.DB !== 'undefined') ? window.DB : window['DB_' + eq];
+    const stats = getTeamRACStats(db);
+    totalFact += stats.fact;
+    totalOdo += stats.odo;
+    
+    const eqRac = stats.odo > 0 ? (stats.fact / stats.odo) * 100 : null;
+    const eqRacStr = eqRac !== null ? `${eqRac.toFixed(1)}%` : '—';
+    
+    const el = document.getElementById('header-rac-' + eq);
+    if (el) {
+      el.innerHTML = `Éq. ${eq}: ${eqRacStr}`;
+      if (eq === curEq) {
+        el.style.border = '1px solid var(--acc)';
+        el.style.boxShadow = '0 0 4px rgba(56,189,248,0.4)';
+      } else {
+        el.style.border = '1px solid var(--border)';
+        el.style.boxShadow = 'none';
+      }
+    }
+  });
+  
+  const globalRac = totalOdo > 0 ? (totalFact / totalOdo) * 100 : null;
+  const globalRacStr = globalRac !== null ? `${globalRac.toFixed(1)}%` : '—';
+  
+  const elGlobal = document.getElementById('header-rac-global');
+  if (elGlobal) {
+    elGlobal.innerHTML = `Global: ${globalRacStr}`;
+  }
+}
 
 function emptyTeamData() {
   return {
@@ -3258,6 +3457,9 @@ function validerBLRapide(chauffeur, month) {
   const row = (DB.bl || []).find(r => r.chauffeur.toUpperCase() === chauffeur.toUpperCase());
   if (row) {
     row[month] = 'déposer';
+    row.alerts = row.alerts || {};
+    row.alerts[month] = row.alerts[month] || {};
+    row.alerts[month].status = 'closed';
     saveDB();
     renderBLAlerts();
     if (typeof renderBL === 'function') renderBL();
@@ -3442,6 +3644,8 @@ function validerBLRapideGlobal(chauffeur, month, team, action) {
       
       if (team === CURRENT_EQUIPE) {
         DB.bl = db.bl;
+        if (typeof renderDispo === 'function') renderDispo();
+        if (typeof renderBL === 'function') renderBL();
       }
       
       renderGlobalBLAlerts();
@@ -3466,7 +3670,7 @@ function relancerBLGlobal(chauffeur, month, team) {
         relanceCount: prevCount + 1
       };
       
-      if (row[month] === 'restitue') {
+      if (row[month] === 'restitue' || row[month] === 'déposer' || row[month] === 'depose') {
         row[month] = '';
       }
       
@@ -3474,6 +3678,8 @@ function relancerBLGlobal(chauffeur, month, team) {
       
       if (team === CURRENT_EQUIPE) {
         DB.bl = db.bl;
+        if (typeof renderDispo === 'function') renderDispo();
+        if (typeof renderBL === 'function') renderBL();
       }
       
       showToast(`🚨 Relance #${prevCount + 1} envoyée à l'équipe ${team} pour ${chauffeur} (${month.toUpperCase()})`);
@@ -3710,6 +3916,8 @@ window.resetAdminBLFilters = resetAdminBLFilters;
 function renderGlobalBLAlerts() {
   const container = document.getElementById('admin-bl-alerts-container');
   if (!container) return;
+
+  if (typeof alignDriversBlTeams === 'function') alignDriversBlTeams();
 
   const qChauffeurEl = document.getElementById('admin-bl-search-chauffeur');
   const qTeamEl = document.getElementById('admin-bl-search-team');
@@ -4027,6 +4235,11 @@ function loadDB() {
   ['A', 'B', 'C', 'D'].forEach(eq => {
     window['DB_' + eq] = cloneTeamData(window['DB_' + eq], eq === 'A' ? INITIAL_DATA : emptyTeamData());
   });
+  
+  if (typeof alignOdoWeeksGlobal === 'function') {
+    alignOdoWeeksGlobal();
+  }
+
   if (typeof CURRENT_EQUIPE !== 'undefined') {
     CURRENT_EQUIPE = active;
     window.CURRENT_EQUIPE = active;
@@ -4044,6 +4257,9 @@ function loadDB() {
   } catch (e) { Object.keys(ARCHIVES).forEach(k => delete ARCHIVES[k]); }
   window.DB = DB;
   window.ARCHIVES = ARCHIVES;
+  if (typeof updateHeaderRAC === 'function') {
+    updateHeaderRAC();
+  }
 }
 
 // Fonction exposée au module Firebase pour sync propre sans casser la référence
@@ -4102,6 +4318,9 @@ function saveDB() {
   }
   if (typeof checkPointageRequired === 'function') {
     checkPointageRequired();
+  }
+  if (typeof updateHeaderRAC === 'function') {
+    updateHeaderRAC();
   }
 }
 
@@ -4323,6 +4542,7 @@ function renderDispo() {
   
   let adminKpiCardHtml = '';
   let adminBlCardHtml = '';
+  let adminExtensionsCardHtml = '';
   const isAdmin = !sessionStorage.getItem('numiplan_team_lock');
   if (isAdmin) {
     adminKpiCardHtml = `
@@ -4362,6 +4582,30 @@ function renderDispo() {
       <div class="stat-num" style="color:#fbbf24">${missingBlDriversCount}</div>
       <div class="stat-lbl" style="color:#fbbf24">BL Manquants Éq. ${CURRENT_EQUIPE}</div>
     </div>`;
+
+    // Calculate unique extension drivers count (drivers with > 1 truck in DB.dispo)
+    const extDrivers = new Set();
+    const tempCounts = {};
+    if (DB && DB.dispo) {
+      DB.dispo.forEach(row => {
+        const ch = (row.chauffeur || '').trim().toUpperCase();
+        if (ch && ch !== '—' && ch !== '' && !ch.includes('MANQUE CHAUFFEUR')) {
+          tempCounts[ch] = (tempCounts[ch] || 0) + 1;
+        }
+      });
+      for (const [ch, count] of Object.entries(tempCounts)) {
+        if (count >= 2) {
+          extDrivers.add(ch);
+        }
+      }
+    }
+    const extCount = extDrivers.size;
+
+    adminExtensionsCardHtml = `
+    <div class="stat-card pur" style="cursor:pointer;transition:opacity .2s;border-left-color:var(--pur)" onclick="ouvrirListeExtensions()" title="Voir les chauffeurs en extension (avec plus de 1 camion) de l'équipe active">
+      <div class="stat-num" style="color:var(--pur)">${extCount}</div>
+      <div class="stat-lbl" style="color:var(--pur)">Extensions Éq. ${CURRENT_EQUIPE}</div>
+    </div>`;
   }
 
   document.getElementById('dispo-stats').innerHTML = `
@@ -4374,7 +4618,8 @@ function renderDispo() {
     <div class="stat-card" style="cursor:pointer;transition:opacity .2s;border-left-color:#a78bfa" onclick="showAnomaliesLieu()" title="Voir les anomalies de lieu J+1"><div class="stat-num" style="color:#a78bfa">${typeof getAnomaliesAPointer === 'function' ? getAnomaliesAPointer().length : 0}</div><div class="stat-lbl" style="color:#a78bfa">⚠️ Anomalies lieu</div></div>
     <div class="${kpiClass}" style="cursor:pointer;transition:opacity .2s;border-left-color:${kpiBorder}" onclick="ouvrirPointageKpiAtelier('TO_POINT')" title="Voir les pannes non pointées pour passage atelier"><div class="stat-num" style="color:${kpiColor}">${kpiCount}</div><div class="stat-lbl" style="color:${kpiColor}">🛠️ KPI Atelier</div></div>
     ${adminKpiCardHtml}
-    ${adminBlCardHtml}`;
+    ${adminBlCardHtml}
+    ${adminExtensionsCardHtml}`;
   document.getElementById('cnt-dispo').textContent = data.length;
   
   // Compter le nombre de chauffeurs uniques dans la liste filtrée
@@ -5882,19 +6127,40 @@ function renderOdo() {
   const weeks = DB.odo_weeks || [];
   const head = document.getElementById('odo-head');
   head.innerHTML = `<th>Véhicule</th><th>Chauffeur</th>` +
-    weeks.map(w=>`<th style="font-size:9px">${w}</th>`).join('') + `<th>KM Total</th><th style="color:var(--red)">🔧 Pannes</th><th style="color:var(--org)">Dernière panne</th><th>Action</th>`;
+    weeks.map(w=>`<th style="font-size:9px">${w}</th>`).join('') + `<th>KM Parcourus</th><th>KM Facturé</th><th>Roulage à charge</th><th style="color:var(--red)">🔧 Pannes</th><th style="color:var(--org)">Dernière panne</th><th>Action</th>`;
   let totalKm = 0;
+  let totalFact = 0;
+  let totalOdo = 0;
   data.forEach(r => {
     const valid = (r.vals||[]).filter(v=>v&&v>1000);
-    if (valid.length>=2) { const d=valid[valid.length-1]-valid[valid.length-2]; if(d>0) totalKm+=d; }
+    let deltaVal = 0;
+    if (valid.length>=2) {
+      const d = valid[valid.length-1]-valid[valid.length-2];
+      if (d>0) {
+        totalKm += d;
+        deltaVal = d;
+      }
+    }
+    const kmFacture = (r.kmFacture !== undefined && r.kmFacture !== null) ? r.kmFacture : 0;
+    if (deltaVal > 0 && kmFacture > 0) {
+      totalFact += kmFacture;
+      totalOdo += deltaVal;
+    }
   });
+  const tabRac = totalOdo > 0 ? (totalFact / totalOdo) * 100 : null;
+  const tabRacStr = tabRac !== null ? `${tabRac.toFixed(1)} %` : '—';
+
   document.getElementById('odo-stats').innerHTML = `
     <div class="stat-card" onclick="resetFilters('odo-search');renderOdo()" title="Reset — Tous les véhicules" style="cursor:pointer"><div class="stat-num">${data.length}</div><div class="stat-lbl">Véhicules ↺</div></div>
     <div class="stat-card blue" title="KM total parcourus sur la période visible"><div class="stat-num">${totalKm.toLocaleString('fr-FR')}</div><div class="stat-lbl">KM parcourus</div></div>
-    <div class="stat-card red" onclick="filterOdoAnomalies()" title="Afficher uniquement les anomalies" style="cursor:pointer"><div class="stat-num" id="odo-anomaly-count">—</div><div class="stat-lbl">Anomalies ⚠</div></div>`;
+    <div class="stat-card green" title="Roulage à charge moyen de la sélection"><div class="stat-num">${tabRacStr}</div><div class="stat-lbl">Roulage à charge</div></div>
+    <div class="stat-card red" onclick="filterOdoAnomalies()" title="Afficher uniquement les anomalies" style="pointer-events:auto;cursor:pointer"><div class="stat-num" id="odo-anomaly-count">—</div><div class="stat-lbl">Anomalies ⚠</div></div>`;
   if(document.getElementById('odo-anomaly-count')) document.getElementById('odo-anomaly-count').textContent = anomalyVehicles.size;
+  if (typeof updateHeaderRAC === 'function') {
+    updateHeaderRAC();
+  }
   const body = document.getElementById('odo-body');
-  if (!data.length) { body.innerHTML = `<tr><td colspan="${weeks.length+6}"><div class="empty-state"><div class="icon">🔍</div>Aucun résultat</div></td></tr>`; return; }
+  if (!data.length) { body.innerHTML = `<tr><td colspan="${weeks.length+8}"><div class="empty-state"><div class="icon">🔍</div>Aucun résultat</div></td></tr>`; return; }
   // Lookup pannes par matricule (uniquement dans renderOdo)
   const pannesByVehicle = {};
   (DB.pannes||[]).forEach(p => {
@@ -5913,8 +6179,16 @@ function renderOdo() {
       return `<td class="mono ${anom?'km-anomaly':''}">${v.toLocaleString('fr-FR')}</td>`;
     }).join('');
     const valid = (r.vals||[]).filter(v=>v&&v>1000);
+    let deltaVal = null;
     let delta = '—';
-    if (valid.length>=2) { const d=valid[valid.length-1]-valid[valid.length-2]; delta=`<span style="color:${d>0?'var(--grn)':'var(--red)'}">${d>0?'+':''}${d.toLocaleString('fr-FR')}</span>`; }
+    if (valid.length>=2) { const d=valid[valid.length-1]-valid[valid.length-2]; deltaVal=d; delta=`<span style="color:${d>0?'var(--grn)':'var(--red)'}">${d>0?'+':''}${d.toLocaleString('fr-FR')}</span>`; }
+    const kmFacture = (r.kmFacture !== undefined && r.kmFacture !== null) ? r.kmFacture : null;
+    const kmFactureStr = kmFacture !== null ? kmFacture.toLocaleString('fr-FR') : '—';
+    let racStr = '—';
+    if (deltaVal !== null && deltaVal > 0 && kmFacture !== null && kmFacture > 0) {
+      const rac = (kmFacture / deltaVal) * 100;
+      racStr = `<span style="font-weight:700;color:var(--acc)">${rac.toFixed(1)} %</span>`;
+    }
     const pKey = (r.v||''). trim().toUpperCase();
     const panDates = (pannesByVehicle[pKey]||[]).filter(Boolean).sort();
     const panCount = panDates.length;
@@ -5929,7 +6203,9 @@ function renderOdo() {
       <td class="mono" style="color:var(--acc)">${r.v}</td>
       <td style="font-weight:600">${r.chauffeur||'—'}</td>
       ${cells}
-      <td>${delta}</td>
+      <td class="mono">${delta}</td>
+      <td class="mono" style="color:var(--grn);font-weight:600">${kmFactureStr}</td>
+      <td class="mono">${racStr}</td>
       ${panCountCell}
       ${panLastCell}
       <td><button class="del-btn" onclick="editOdo(${realIdx})">✏️</button><button class="del-btn" onclick="deleteOdo(${realIdx})">🗑</button></td>
@@ -5941,6 +6217,7 @@ function editOdo(idx) {
   const r = DB.odo[idx];
   document.getElementById('f-odo-v').value = r.v||'';
   document.getElementById('f-odo-chauffeur').value = r.chauffeur||'';
+  document.getElementById('f-odo-km-facture').value = (r.kmFacture !== undefined && r.kmFacture !== null) ? r.kmFacture : '';
   buildOdoWeekInputs();
   (r.vals||[]).forEach((v,i)=>{
     const el = document.getElementById('f-odo-val-'+i);
@@ -5964,10 +6241,125 @@ function saveOdo() {
     if (!el||el.value==='') return null;
     return parseInt(el.value)||null;
   });
-  const obj = { v, chauffeur: document.getElementById('f-odo-chauffeur').value.trim().toUpperCase(), vals };
+  const kmFactureInput = document.getElementById('f-odo-km-facture').value.trim();
+  const kmFacture = kmFactureInput !== '' ? parseFloat(kmFactureInput) : null;
   const idx = parseInt(document.getElementById('odo-edit-idx').value);
+  const existing = idx >= 0 ? DB.odo[idx] : {};
+  const obj = Object.assign({}, existing, {
+    v,
+    chauffeur: document.getElementById('f-odo-chauffeur').value.trim().toUpperCase(),
+    vals,
+    kmFacture
+  });
   if (idx >= 0) DB.odo[idx] = obj; else DB.odo.push(obj);
   saveDB(); closeModal('modal-odo'); renderOdo(); showToast('✅ Relevé KM enregistré');
+}
+
+function triggerImportKmFacture() {
+  document.getElementById('import-km-facture-input').click();
+}
+
+function importKmFacture(input) {
+  const file = input.files[0];
+  if (!file) return;
+  const doLoad = () => {
+    const reader = new FileReader();
+    reader.onload = e => {
+      try {
+        const wb = XLSX.read(e.target.result, {type:'array'});
+        const ws = wb.Sheets[wb.SheetNames[0]];
+        const raw = XLSX.utils.sheet_to_json(ws);
+        
+        const teamMap = typeof buildTracteurEquipeMap === 'function' ? buildTracteurEquipeMap() : {};
+        
+        let countUpdated = 0;
+        let countAdded = 0;
+
+        raw.forEach(r => {
+          const camionKey = Object.keys(r).find(k => k.toLowerCase().includes('camion') || k.toLowerCase().includes('vehicule') || k.toLowerCase().includes('immat'));
+          const kmKey = Object.keys(r).find(k => k.toLowerCase().includes('factur') || k.toLowerCase().includes('km'));
+          
+          if (!camionKey || !kmKey) return;
+          
+          const v = (r[camionKey] || '').toString().trim().toUpperCase();
+          const km = parseFloat(r[kmKey]);
+          
+          if (!v || isNaN(km)) return;
+          
+          // Determine target team
+          let targetEq = teamMap[v] || CURRENT_EQUIPE;
+          let targetDb = (targetEq === CURRENT_EQUIPE && typeof window.DB !== 'undefined') ? window.DB : window['DB_' + targetEq];
+          
+          if (!targetDb) return;
+          if (!targetDb.odo) targetDb.odo = [];
+          
+          let odoRec = targetDb.odo.find(item => item.v && item.v.trim().toUpperCase() === v);
+          if (odoRec) {
+            odoRec.kmFacture = km;
+            countUpdated++;
+          } else {
+            const newRec = {
+              v: v,
+              chauffeur: '',
+              vals: new Array(targetDb.odo_weeks ? targetDb.odo_weeks.length : 0).fill(null),
+              kmFacture: km
+            };
+            targetDb.odo.push(newRec);
+            countAdded++;
+          }
+          
+          // Synchronize window.DB if it's the active team
+          if (targetEq === CURRENT_EQUIPE && typeof window.DB !== 'undefined') {
+            let activeRec = window.DB.odo.find(item => item.v && item.v.trim().toUpperCase() === v);
+            if (activeRec) {
+              activeRec.kmFacture = km;
+            } else {
+              const newRec = {
+                v: v,
+                chauffeur: '',
+                vals: new Array(window.DB.odo_weeks ? window.DB.odo_weeks.length : 0).fill(null),
+                kmFacture: km
+              };
+              window.DB.odo.push(newRec);
+            }
+          }
+        });
+        
+        // Save modified databases
+        const EQUIPS_TO_SAVE = ['A', 'B', 'C', 'D'];
+        EQUIPS_TO_SAVE.forEach(eq => {
+          const eqDb = (eq === CURRENT_EQUIPE && typeof window.DB !== 'undefined') ? window.DB : window['DB_' + eq];
+          if (eqDb) {
+            eqDb._localTs = Date.now();
+            if (eq === CURRENT_EQUIPE) {
+              saveDB();
+            } else {
+              if (typeof window.saveTeamDB === 'function') {
+                window.saveTeamDB(eq, eqDb);
+              }
+            }
+          }
+        });
+        
+        renderOdo();
+        showToast(`📥 Import réussi : ${countUpdated} mis à jour, ${countAdded} ajoutés`);
+      } catch (err) {
+        console.error(err);
+        showToast('⚠️ Erreur lors de la lecture du fichier Excel', true);
+      }
+    };
+    reader.readAsArrayBuffer(file);
+  };
+  
+  if (typeof XLSX === 'undefined') {
+    const s = document.createElement('script');
+    s.src = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
+    s.onload = doLoad;
+    document.head.appendChild(s);
+  } else {
+    doLoad();
+  }
+  input.value = '';
 }
 
 
@@ -6051,6 +6443,98 @@ function saveCSPC() {
   if (idx >= 0) DB.cspc[idx] = obj; else DB.cspc.push(obj);
   saveDB(); closeModal('modal-cspc'); renderCSPC(); showToast('✅ CSPC enregistré');
 }
+
+// ═══════════════════════════════════════════════════════════════
+// RENDER: BLACKLIST
+// ═══════════════════════════════════════════════════════════════
+function renderBlacklist() {
+  const q = document.getElementById('blacklist-search')?.value.trim().toLowerCase() || '';
+  const rawList = DB.blacklist || [];
+  
+  let data = rawList.filter(r => {
+    const ch = (r.chauffeur || '').toLowerCase();
+    const dest = (r.destination || '').toLowerCase();
+    return !q || ch.includes(q) || dest.includes(q);
+  });
+
+  const cntEl = document.getElementById('cnt-blacklist');
+  if (cntEl) cntEl.textContent = rawList.length;
+
+  const body = document.getElementById('blacklist-body');
+  if (!body) return;
+
+  if (!data.length) {
+    body.innerHTML = `<tr><td colspan="4"><div class="empty-state"><div class="icon">🔍</div>Aucun résultat</div></td></tr>`;
+    return;
+  }
+
+  body.innerHTML = data.map(r => {
+    const realIdx = DB.blacklist.indexOf(r);
+    return `<tr>
+      <td style="font-weight:600;color:var(--txt)">${r.chauffeur || '—'}</td>
+      <td class="mono" style="color:#f87171">${r.destination || '—'}</td>
+      <td>${r.motif || '—'}</td>
+      <td>
+        <button class="del-btn" onclick="editBlacklist(${realIdx})">✏️</button>
+        <button class="del-btn" onclick="deleteBlacklist(${realIdx})">🗑</button>
+      </td>
+    </tr>`;
+  }).join('');
+}
+window.renderBlacklist = renderBlacklist;
+
+function openBlacklistModal() {
+  openModal('modal-blacklist', -1);
+  document.getElementById('f-bl-chauffeur').value = '';
+  document.getElementById('f-bl-destination').value = '';
+  document.getElementById('f-bl-motif').value = '';
+}
+window.openBlacklistModal = openBlacklistModal;
+
+function editBlacklist(idx) {
+  const r = DB.blacklist[idx];
+  if (!r) return;
+  document.getElementById('f-bl-chauffeur').value = r.chauffeur || '';
+  document.getElementById('f-bl-destination').value = r.destination || '';
+  document.getElementById('f-bl-motif').value = r.motif || '';
+  openModal('modal-blacklist', idx);
+}
+window.editBlacklist = editBlacklist;
+
+function saveBlacklist() {
+  if (!_checkActionsLibres('saveBlacklist')) return;
+  const chauffeur = document.getElementById('f-bl-chauffeur').value.trim().toUpperCase();
+  const destination = document.getElementById('f-bl-destination').value.trim().toUpperCase();
+  const motif = document.getElementById('f-bl-motif').value.trim();
+
+  if (!chauffeur) { showToast('⚠️ Chauffeur requis', true); return; }
+  if (!destination) { showToast('⚠️ Destination requise', true); return; }
+
+  const obj = { chauffeur, destination, motif };
+  const idx = parseInt(document.getElementById('blacklist-edit-idx').value);
+  if (idx >= 0) {
+    DB.blacklist[idx] = obj;
+  } else {
+    if (!DB.blacklist) DB.blacklist = [];
+    DB.blacklist.push(obj);
+  }
+  
+  saveDB();
+  closeModal('modal-blacklist');
+  renderBlacklist();
+  showToast('✅ Règle blacklist enregistrée');
+}
+window.saveBlacklist = saveBlacklist;
+
+function deleteBlacklist(idx) {
+  if (!_checkActionsLibres('deleteBlacklist')) return;
+  if (!confirm('Supprimer cette règle ?')) return;
+  DB.blacklist.splice(idx, 1);
+  saveDB();
+  renderBlacklist();
+  showToast('✅ Règle blacklist supprimée');
+}
+window.deleteBlacklist = deleteBlacklist;
 
 // ═══════════════════════════════════════════════════════════════
 // ═══════════════════════════════════════════════════════════════
@@ -6873,6 +7357,9 @@ function declKm(idx) {
     if (!DB.odo_weeks.includes(today_str)) DB.odo_weeks.push(today_str);
     DB.odo.push({ v: r.v, chauffeur: r.chauffeur, vals: DB.odo_weeks.map((w,i) => i === DB.odo_weeks.length-1 ? km : null) });
   }
+  if (typeof alignOdoWeeksGlobal === 'function') {
+    alignOdoWeeksGlobal();
+  }
   saveDB();
   renderDispo();
   if (typeof renderOdo === 'function') renderOdo();
@@ -6958,9 +7445,105 @@ function isBlAlertPending(r, m) {
 }
 window.isBlAlertPending = isBlAlertPending;
 
+function alignDriversBlTeams() {
+  if (typeof CURRENT_EQUIPE === 'undefined') return;
+  const teams = ['A', 'B', 'C', 'D'];
+  
+  // 1. Map each unique driver to their current team based on dispo
+  const driverToActiveTeam = {};
+  teams.forEach(eq => {
+    const db = (eq === CURRENT_EQUIPE && typeof DB !== 'undefined') ? DB : window['DB_' + eq];
+    if (db && db.dispo) {
+      db.dispo.forEach(r => {
+        const ch = (r.chauffeur || '').trim().toUpperCase();
+        if (ch && ch !== '—' && ch !== '' && !ch.includes('MANQUE CHAUFFEUR')) {
+          driverToActiveTeam[ch] = eq;
+        }
+      });
+    }
+  });
+
+  // 2. Iterate through all teams' BL records and check if they need to be moved
+  let changed = false;
+  const changedTeams = new Set();
+
+  teams.forEach(currentEq => {
+    const db = (currentEq === CURRENT_EQUIPE && typeof DB !== 'undefined') ? DB : window['DB_' + currentEq];
+    if (!db || !db.bl) return;
+
+    const keptBl = [];
+    db.bl.forEach(blRow => {
+      const ch = (blRow.chauffeur || '').trim().toUpperCase();
+      const targetEq = driverToActiveTeam[ch];
+
+      if (targetEq && targetEq !== currentEq) {
+        // This BL row belongs to another team! Move it to targetEq
+        const targetDb = (targetEq === CURRENT_EQUIPE && typeof DB !== 'undefined') ? DB : window['DB_' + targetEq];
+        if (targetDb) {
+          targetDb.bl = targetDb.bl || [];
+          // Check if target team already has a record for this driver
+          const existingRow = targetDb.bl.find(x => x.chauffeur.toUpperCase() === ch);
+          if (existingRow) {
+            // Merge records: prioritize non-empty values for months
+            const months = ['mars','avril','mai','juin','juil','aout','sep','oct','nov','dec'];
+            months.forEach(m => {
+              const valCur = (existingRow[m] || '').trim();
+              const valNew = (blRow[m] || '').trim();
+              if (!valCur && valNew) {
+                existingRow[m] = valNew;
+              }
+            });
+            // Merge alerts
+            if (blRow.alerts) {
+              existingRow.alerts = existingRow.alerts || {};
+              Object.keys(blRow.alerts).forEach(m => {
+                if (!existingRow.alerts[m] || existingRow.alerts[m].status !== 'active') {
+                  existingRow.alerts[m] = blRow.alerts[m];
+                }
+              });
+            }
+          } else {
+            // Add new row to target team
+            targetDb.bl.push(blRow);
+          }
+          changed = true;
+          changedTeams.add(targetEq);
+          changedTeams.add(currentEq);
+        }
+      } else {
+        // Keep it in currentEq
+        keptBl.push(blRow);
+      }
+    });
+
+    if (db.bl.length !== keptBl.length) {
+      db.bl = keptBl;
+      changed = true;
+      changedTeams.add(currentEq);
+    }
+  });
+
+  // 3. Save databases that were changed
+  if (changed) {
+    changedTeams.forEach(eq => {
+      if (eq === CURRENT_EQUIPE && typeof DB !== 'undefined') {
+        saveDB();
+      } else {
+        const db = window['DB_' + eq];
+        if (db) {
+          saveTeamDB(eq, db);
+        }
+      }
+    });
+    if (typeof renderDispo === 'function') renderDispo();
+    if (typeof renderBL === 'function') renderBL();
+  }
+}
+window.alignDriversBlTeams = alignDriversBlTeams;
+
 function hasActiveBlAlert(chauffeurName) {
   if (!DB || !DB.bl) return false;
-  const blRow = DB.bl.find(x => x.chauffeur.toUpperCase() === chauffeurName.toUpperCase());
+  const blRow = DB.bl.find(x => fuzzyMatchChauffeur(x.chauffeur, chauffeurName));
   if (!blRow) return false;
   
   const months = ['mars','avril','mai','juin','juil','aout','sep','oct','nov','dec'];
@@ -7117,6 +7700,7 @@ function checkBlAlertsRequired() {
   const lock = sessionStorage.getItem('numiplan_team_lock');
   if (!lock || lock === 'BL') return;
   
+  if (typeof alignDriversBlTeams === 'function') alignDriversBlTeams();
   const pending = getPendingBlAlertsForCurrentTeam();
   if (pending.length > 0) {
     ouvrirPopupBlAlertesEquipe();
@@ -7132,6 +7716,45 @@ function ouvrirPointageKpiAtelier(filterType) {
   renderKpiPointageList();
 }
 window.ouvrirPointageKpiAtelier = ouvrirPointageKpiAtelier;
+
+function ouvrirListeExtensions() {
+  const extDrivers = new Map();
+  const driverCounts = {};
+  if (DB && DB.dispo) {
+    DB.dispo.forEach(row => {
+      const ch = (row.chauffeur || '').trim().toUpperCase();
+      if (ch && ch !== '—' && ch !== '' && !ch.includes('MANQUE CHAUFFEUR')) {
+        driverCounts[ch] = (driverCounts[ch] || 0) + 1;
+      }
+    });
+    for (const [ch, count] of Object.entries(driverCounts)) {
+      if (count >= 2) {
+        extDrivers.set(ch, count);
+      }
+    }
+  }
+  
+  const team = CURRENT_EQUIPE || 'A';
+  const teamSpan = document.getElementById('ext-team-name');
+  if (teamSpan) teamSpan.textContent = team;
+  
+  const listUl = document.getElementById('ext-drivers-list');
+  if (listUl) {
+    if (extDrivers.size === 0) {
+      listUl.innerHTML = '<li style="color:var(--txt3); font-style:italic; text-align:center; padding: 10px 0;">Aucun chauffeur avec plus de 1 camion pour cette équipe</li>';
+    } else {
+      listUl.innerHTML = Array.from(extDrivers.entries())
+        .sort((a, b) => a[0].localeCompare(b[0]))
+        .map(([d, count]) => `<li style="padding:8px 12px; background:var(--bg3); border-radius:6px; border-left:4px solid var(--pur); color:var(--txt); font-weight:600; display:flex; justify-content:space-between; align-items:center;">
+          <span>👤 ${d}</span>
+          <span class="badge badge-pur" style="font-size: 10px;">${count} camions</span>
+        </li>`)
+        .join('');
+    }
+  }
+  openModal('modal-extensions-list');
+}
+window.ouvrirListeExtensions = ouvrirListeExtensions;
 
 function renderKpiPointageList() {
   const listEl = document.getElementById('kpi-pointage-list');
@@ -7709,6 +8332,13 @@ function switchEquipe(eq) {
   // Vérifier et appliquer le pointage obligatoire
   if (typeof window.checkPointageRequired === 'function') {
     window.checkPointageRequired();
+  }
+  
+  if (typeof alignDriversBlTeams === 'function') {
+    alignDriversBlTeams();
+  }
+  if (typeof updateHeaderRAC === 'function') {
+    updateHeaderRAC();
   }
 }
 
