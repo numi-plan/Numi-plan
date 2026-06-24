@@ -39,6 +39,7 @@
 
   let _fbReady      = false;
   let _fbLoaded     = {};
+  let _initialCloudLoadCompleted = {};
   let _migrating    = false;
   const EQUIPES = ['A', 'B', 'C', 'D'];
 
@@ -233,7 +234,8 @@
     const remoteTs = cleanSrc._localTs || 0;
     
     // 1. Si le local est strictement plus récent, on synchronise vers le cloud
-    if ((_fbReady || _fbLoaded[eq]) && localDb && localTs > remoteTs) {
+    // MAIS uniquement si on a déjà fait le premier chargement cloud pour éviter d'écraser le cloud au démarrage
+    if (_initialCloudLoadCompleted[eq] && (_fbReady || _fbLoaded[eq]) && localDb && localTs > remoteTs) {
       if (!window._teamSyncStarted) window._teamSyncStarted = {};
       if (!window._teamSyncStarted[eq]) {
         window._teamSyncStarted[eq] = true;
@@ -249,6 +251,7 @@
     
     // 2. Si c'est identique, pas besoin de réappliquer
     if (localDb && localTs === remoteTs) {
+      _initialCloudLoadCompleted[eq] = true;
       if (typeof window.checkPointageRequired === 'function') {
         window.checkPointageRequired();
       }
@@ -282,6 +285,8 @@
         safeRenderActiveTeam(eq);
       }
     }
+    
+    _initialCloudLoadCompleted[eq] = true;
     
     if (typeof updateHeaderRAC === 'function') {
       updateHeaderRAC();
@@ -1010,6 +1015,15 @@ tr.dragging {
       }
     }
 
+    const tabOdo = document.getElementById('tab-odo');
+    if (tabOdo) {
+      if (lock) {
+        tabOdo.style.setProperty('display', 'none', 'important');
+      } else {
+        tabOdo.style.removeProperty('display');
+      }
+    }
+
   }
   window.applyTeamLockUI = applyTeamLockUI;
 
@@ -1328,10 +1342,12 @@ mark.hl { background: rgba(56,189,248,.25); color: var(--acc); border-radius: 3p
         if ([r.v, r.chauffeur, r.agence].some(f => match(f, q)))
           results.push({ eq, tab:'bl', icon:'📄', title: r.v||'—', sub: [r.chauffeur, r.agence, r.depot].filter(Boolean).join(' · '), tabLabel:'Suivi BL' });
       });
-      (src.odo||[]).forEach(r => {
-        if ([r.v, r.chauffeur].some(f => match(f, q)))
-          results.push({ eq, tab:'odo', icon:'🛣️', title: r.v||'—', sub: [r.chauffeur].filter(Boolean).join(' · '), tabLabel:'Odomètre' });
-      });
+      if (!lock) {
+        (src.odo||[]).forEach(r => {
+          if ([r.v, r.chauffeur].some(f => match(f, q)))
+            results.push({ eq, tab:'odo', icon:'🛣️', title: r.v||'—', sub: [r.chauffeur].filter(Boolean).join(' · '), tabLabel:'Odomètre' });
+        });
+      }
       (src.equip||[]).forEach(r => {
         if ([r.v, r.chauffeur, r.agence].some(f => match(f, q)))
           results.push({ eq, tab:'equip', icon:'🔩', title: r.v||'—', sub: [r.chauffeur, r.agence, r.equip].filter(Boolean).join(' · '), tabLabel:'Équipements' });
@@ -1427,7 +1443,7 @@ mark.hl { background: rgba(56,189,248,.25); color: var(--acc); border-radius: 3p
   <button class="tab-btn" onclick="switchTab('gasoil',this)">⛽ Gasoil <span class="tab-count" id="cnt-gasoil" style="display:none;">—</span></button>
   <button class="tab-btn" onclick="switchTab('equip',this)">🔩 Équipements <span class="tab-count" id="cnt-equip">—</span></button>
   <button class="tab-btn" onclick="switchTab('bl',this)">📄 Suivi BL</button>
-  <button class="tab-btn" onclick="switchTab('odo',this)">🛣️ Odomètre <span class="tab-count" id="cnt-odo" style="display:none;">—</span></button>
+  <button class="tab-btn" id="tab-odo" onclick="switchTab('odo',this)">🛣️ Odomètre <span class="tab-count" id="cnt-odo" style="display:none;">—</span></button>
   <button class="tab-btn" onclick="switchTab('cspc',this)">🔷 CSPC <span class="tab-count" id="cnt-cspc">—</span></button>
   <button class="tab-btn" onclick="switchTab('vehicule',this)">🔍 Fiche Véhicule</button>
   <button class="tab-btn" onclick="switchTab('analytics',this)">📊 Analyses</button>
@@ -4457,6 +4473,8 @@ document.querySelectorAll('.modal-overlay').forEach(m => {
 function today() { return new Date().toISOString().split('T')[0]; }
 
 function switchTab(name, btn) {
+  const lock = sessionStorage.getItem('numiplan_team_lock');
+  if (name === 'odo' && lock) return;
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
   document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
   document.getElementById('page-'+name).classList.add('active');
@@ -5688,11 +5706,15 @@ function archiveToday() {
   if (!_checkActionsLibres('archiveToday')) return;
   const d = today();
   const snap = {
-    dispo: JSON.parse(JSON.stringify(DB.dispo)),
-    pannes: JSON.parse(JSON.stringify(DB.pannes)),
-    nc: JSON.parse(JSON.stringify(DB.nc)),
-    gasoil: JSON.parse(JSON.stringify(DB.gasoil)),
-    equip: JSON.parse(JSON.stringify(DB.equip)),
+    dispo: JSON.parse(JSON.stringify(DB.dispo || [])),
+    pannes: JSON.parse(JSON.stringify(DB.pannes || [])),
+    nc: JSON.parse(JSON.stringify(DB.nc || [])),
+    gasoil: JSON.parse(JSON.stringify(DB.gasoil || [])),
+    equip: JSON.parse(JSON.stringify(DB.equip || [])),
+    odo: JSON.parse(JSON.stringify(DB.odo || [])),
+    odo_weeks: JSON.parse(JSON.stringify(DB.odo_weeks || [])),
+    bl: JSON.parse(JSON.stringify(DB.bl || [])),
+    activite: JSON.parse(JSON.stringify(DB.activite || [])),
     archivedAt: new Date().toISOString()
   };
   // Structurer par équipe : ARCHIVES[eq][date]
@@ -8396,6 +8418,10 @@ async function exportNumiflow() {
     nc:         JSON.parse(JSON.stringify(DB.nc      || [])),
     gasoil:     JSON.parse(JSON.stringify(DB.gasoil  || [])),
     equip:      JSON.parse(JSON.stringify(DB.equip   || [])),
+    odo:        JSON.parse(JSON.stringify(DB.odo     || [])),
+    odo_weeks:  JSON.parse(JSON.stringify(DB.odo_weeks || [])),
+    bl:         JSON.parse(JSON.stringify(DB.bl      || [])),
+    activite:   JSON.parse(JSON.stringify(DB.activite || [])),
     archivedAt: new Date().toISOString(),
     source:     'export-numiflow'
   };
