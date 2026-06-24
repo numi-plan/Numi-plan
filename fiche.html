@@ -212,7 +212,6 @@
 
   // ── Applique les données d'une équipe dans DB et re-render ──
   function applyEquipeData(eq, src) {
-    return; // TEMPORARY DISABLE FOR RECOVERY
     if (!src || !src.dispo) return;
     
     const cleanSrc = window.cloneTeamData ? window.cloneTeamData(src, eq === 'A' ? window.INITIAL_DATA : undefined) : src;
@@ -476,7 +475,6 @@
   // ÉCRITURE — écriture directe sur le document d'équipe correspondant (A|B|C|D)
   // ──────────────────────────────────────────────
   window._firebaseSaveDB = function(dbData) {
-    return; // TEMPORARY DISABLE FOR RECOVERY
     if (!_fbReady) {
       console.warn('[Firebase] saveDB bloqué — Firebase pas encore prêt');
       return;
@@ -498,7 +496,6 @@
   };
 
   window.saveTeamDB = function(eq, dbData) {
-    return; // TEMPORARY DISABLE FOR RECOVERY
     if (!_fbReady) {
       console.warn('[Firebase] saveTeamDB bloqué — Firebase pas encore prêt');
       return;
