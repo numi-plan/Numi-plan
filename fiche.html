@@ -2207,7 +2207,7 @@ mark.hl { background: rgba(56,189,248,.25); color: var(--acc); border-radius: 3p
           <option>En mission</option><option>DISPONIBLE</option><option>En panne</option><option>Manque chauffeur</option>
         </select></div>
       <div class="form-group"><label>Type</label>
-        <select id="f-dispo-type"><option>TRACTEUR</option><option>REMORQUE</option></select></div>
+        <select id="f-dispo-type"><option>TRACTEUR</option><option>REMORQUE</option><option>CELLULE</option></select></div>
       <div class="form-group"><label>Chauffeur</label><input id="f-dispo-chauffeur" list="dl-chauffeurs" placeholder="NOM PRÉNOM"></div>
       <div class="form-group"><label>Horaire (ex: 06:30)</label><input id="f-dispo-hor" placeholder="06:30" type="time"></div>
       <div class="form-group"><label>Équipement</label>
@@ -2244,7 +2244,7 @@ mark.hl { background: rgba(56,189,248,.25); color: var(--acc); border-radius: 3p
       <div class="form-group"><label>Immatriculation</label><input id="f-panne-immat" list="dl-vehicules" placeholder="000900-514-16"></div>
       <div class="form-group"><label>Chauffeur</label><input id="f-panne-chauffeur" list="dl-chauffeurs" placeholder="NOM PRÉNOM"></div>
       <div class="form-group"><label>Type</label>
-        <select id="f-panne-type"><option>TRACTEUR</option><option>REMORQUE</option></select></div>
+        <select id="f-panne-type"><option>TRACTEUR</option><option>REMORQUE</option><option>CELLULE</option></select></div>
       <div class="form-group"><label>N° DI</label><input id="f-panne-di" placeholder="DI2605005999"></div>
       <div class="form-group"><label>CET</label><input id="f-panne-cet" placeholder="ABDO .D"></div>
       <div class="form-group full"><label>Description</label><textarea id="f-panne-desc" placeholder="Description de la panne…"></textarea></div>
@@ -5011,6 +5011,7 @@ function renderPannes() {
   let data = DB.pannes.filter(r => matchQ(r,q) && inRange(r.date,'panne-date-from','panne-date-to'));
   const tr = data.filter(r=>r.type==='TRACTEUR').length;
   const rm = data.filter(r=>r.type==='REMORQUE').length;
+  const cell = data.filter(r=>r.type==='CELLULE').length;
 
   // ── Détection récurrence par véhicule (sur TOUTES les pannes) ──────────
   const countByImmat = {};
@@ -5041,6 +5042,7 @@ function renderPannes() {
     <div class="stat-card red" onclick="resetFilters('panne-search','panne-date-from','panne-date-to');renderPannes()" title="Reset — Afficher tout" style="cursor:pointer"><div class="stat-num">${data.length}</div><div class="stat-lbl">Filtrées ↺</div></div>
     <div class="stat-card" onclick="document.getElementById('panne-search').value='TRACTEUR';renderPannes()" title="Filtrer Tracteurs" style="cursor:pointer"><div class="stat-num">${tr}</div><div class="stat-lbl">Tracteurs</div></div>
     <div class="stat-card org" onclick="document.getElementById('panne-search').value='REMORQUE';renderPannes()" title="Filtrer Remorques" style="cursor:pointer"><div class="stat-num">${rm}</div><div class="stat-lbl">Remorques</div></div>
+    <div class="stat-card pur" style="border-left-color:var(--pur)" onclick="document.getElementById('panne-search').value='CELLULE';renderPannes()" title="Filtrer Cellules" style="cursor:pointer"><div class="stat-num" style="color:var(--pur)">${cell}</div><div class="stat-lbl">Cellules</div></div>
     <div class="stat-card red" onclick="resetFilters('panne-search','panne-date-from','panne-date-to');renderPannes()" title="Total — Reset filtres" style="cursor:pointer"><div class="stat-num">${DB.pannes.length}</div><div class="stat-lbl">Total ↺</div></div>
     <div class="stat-card" style="border-left-color:#22c55e;cursor:pointer" title="Pannes avec KPI = OUI"><div class="stat-num" style="color:#22c55e">${kpiOui}</div><div class="stat-lbl">✅ KPI OUI</div></div>
     <div class="stat-card" style="border-left-color:#f43f5e;cursor:pointer" onclick="document.getElementById('panne-search').value='__consecutif__';renderPannes()" title="Véhicules en panne 3 jours consécutifs ou plus"><div class="stat-num" style="color:#f43f5e">${consecutifs.length}</div><div class="stat-lbl">🔴 3j+ consécutifs</div></div>
@@ -5087,7 +5089,7 @@ function renderPannes() {
       <td class="mono" style="color:var(--yel)">${fmtDate(r.date)}</td>
       <td style="font-weight:600">${r.chauffeur}</td>
       <td class="mono" style="color:var(--acc)">${r.immat}${recCount>=3?` <span style="color:#a21caf;font-size:9px;font-weight:800">${recCount}×</span>`:''}${isConsec?` <span style="color:#f43f5e;font-size:9px;font-weight:800">🔴${isConsec.streak}j</span>`:''}</td>
-      <td><span class="badge ${r.type==='TRACTEUR'?'badge-mission':'badge-manque'}">${r.type}</span></td>
+      <td><span class="badge ${r.type==='TRACTEUR'?'badge-mission':r.type==='CELLULE'?'badge-pur':'badge-manque'}">${r.type}</span></td>
       <td class="mono" style="font-size:10px;color:var(--acc)">${r.di||'—'}</td>
       <td style="max-width:280px;font-size:11px;color:var(--txt2)">${r.desc}</td>
       <td style="font-size:11px">${r.cet}</td>
