@@ -147,12 +147,24 @@
             mergedList.push(localItem);
           } else {
             // Fusionner les champs des deux, la version distante fait autorité
-            mergedList.push(Object.assign({}, localItem, remoteItem));
+            const mergedItem = Object.assign({}, localItem, remoteItem);
+            if (listName === 'odo' && localItem.vals && remoteItem.vals) {
+              const mergedVals = [];
+              const maxLen = Math.max(localItem.vals.length, remoteItem.vals.length);
+              for (let i = 0; i < maxLen; i++) {
+                const lVal = localItem.vals[i];
+                const rVal = remoteItem.vals[i];
+                mergedVals.push((lVal !== null && lVal !== undefined) ? lVal : rVal);
+              }
+              mergedItem.vals = mergedVals;
+            }
+            mergedList.push(mergedItem);
           }
         } else if (localItem) {
           // Si l'élément est uniquement en local, c'est qu'il a été supprimé à distance.
           // On ne le garde que si l'utilisateur est en train de l'éditer localement dans un modal.
-          if (isRecordBeingEdited(key, listName)) {
+          // Pour les odomètres, on conserve toujours l'élément local pour ne pas perdre un véhicule nouvellement ajouté.
+          if (isRecordBeingEdited(key, listName) || listName === 'odo') {
             mergedList.push(localItem);
           }
         } else if (remoteItem) {
@@ -233,9 +245,7 @@
     const localTs = localDb ? (localDb._localTs || 0) : 0;
     const remoteTs = cleanSrc._localTs || 0;
     
-    // 1. Si le local est strictement plus récent, on synchronise vers le cloud
-    // MAIS uniquement si on a déjà fait le premier chargement cloud pour éviter d'écraser le cloud au démarrage
-    if (_initialCloudLoadCompleted[eq] && (_fbReady || _fbLoaded[eq]) && localDb && localTs > remoteTs) {
+    if ((_fbReady || _fbLoaded[eq]) && localDb && localTs > remoteTs) {
       if (!window._teamSyncStarted) window._teamSyncStarted = {};
       if (!window._teamSyncStarted[eq]) {
         window._teamSyncStarted[eq] = true;
@@ -1728,10 +1738,17 @@ mark.hl { background: rgba(56,189,248,.25); color: var(--acc); border-radius: 3p
   <div class="filter-bar">
     <label>Filtre</label>
     <input type="text" class="filter-input" id="odo-search" placeholder="Véhicule / Chauffeur…" oninput="renderOdo()">
-    <button class="btn btn-reset" onclick="resetFilters('odo-search');renderOdo()">↺ Reset</button>
+    <span style="display:flex;align-items:center;gap:6px;margin-left:12px">
+      <span style="font-size:11px;color:var(--txt2)">Du</span>
+      <input type="date" class="filter-input" id="odo-filter-start" onchange="renderOdo()" style="padding:4px 8px;width:120px">
+      <span style="font-size:11px;color:var(--txt2)">au</span>
+      <input type="date" class="filter-input" id="odo-filter-end" onchange="renderOdo()" style="padding:4px 8px;width:120px">
+    </span>
+    <button class="btn btn-reset" onclick="resetFilters('odo-search', 'odo-filter-start', 'odo-filter-end');renderOdo()">↺ Reset</button>
     <button class="btn btn-add" onclick="openModal('modal-odo')">＋ Relevé KM</button>
     <button class="btn btn-extract" onclick="openModal('modal-odo-export')">⬇ Export KM</button>
     <button class="btn btn-numiflow" onclick="triggerImportKmFacture()">📥 Import KM Facturé</button>
+    <button class="btn btn-analytics" onclick="openOdoRacHistoryModal()" style="background:#eab308;color:#000;font-weight:700">📈 Historique RAC</button>
     <input type="file" id="import-km-facture-input" accept=".xlsx, .xls" style="display:none" onchange="importKmFacture(this)">
   </div>
   <div style="padding-top:20px">
@@ -2410,6 +2427,46 @@ mark.hl { background: rgba(56,189,248,.25); color: var(--acc); border-radius: 3p
     <div class="modal-actions">
       <button class="btn btn-reset" onclick="closeModal('modal-odo')">Annuler</button>
       <button class="btn btn-save" onclick="saveOdo()">💾 Enregistrer</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal Historique RAC -->
+<div class="modal-overlay" id="modal-odo-rac-history">
+  <div class="modal" style="max-width:850px; width:90%">
+    <h3 style="display:flex;align-items:center;gap:8px">📈 Historique Roulage à Charge (RAC)</h3>
+    <div style="display:flex;gap:12px;margin-bottom:16px;background:var(--bg2);padding:12px;border-radius:8px;border:1px solid var(--border)">
+      <div style="flex:1">
+        <label style="font-size:11px;color:var(--txt2);margin-bottom:4px;display:block">Équipe</label>
+        <select id="h-rac-team" onchange="onRacHistoryTeamChange()" style="width:100%;padding:6px;border-radius:6px;background:var(--bg);color:var(--txt);border:1px solid var(--border)">
+          <option value="A">Équipe A</option>
+          <option value="B">Équipe B</option>
+          <option value="C">Équipe C</option>
+          <option value="D">Équipe D</option>
+        </select>
+      </div>
+      <div style="flex:2">
+        <label style="font-size:11px;color:var(--txt2);margin-bottom:4px;display:block">Camion / Véhicule</label>
+        <select id="h-rac-vehicle" onchange="renderRacHistoryTable()" style="width:100%;padding:6px;border-radius:6px;background:var(--bg);color:var(--txt);border:1px solid var(--border)"></select>
+      </div>
+    </div>
+    <div class="table-wrap" style="max-height:400px;overflow-y:auto">
+      <table style="width:100%;border-collapse:collapse">
+        <thead>
+          <tr style="background:var(--bg3);border-bottom:1px solid var(--border)">
+            <th style="padding:10px;text-align:left">Semaine</th>
+            <th style="padding:10px;text-align:right">Km Précédent</th>
+            <th style="padding:10px;text-align:right">Km Actuel</th>
+            <th style="padding:10px;text-align:right">KM Parcourus</th>
+            <th style="padding:10px;text-align:right">KM Facturé</th>
+            <th style="padding:10px;text-align:right;color:var(--acc)">Roulage à charge</th>
+          </tr>
+        </thead>
+        <tbody id="h-rac-body"></tbody>
+      </table>
+    </div>
+    <div class="modal-actions" style="margin-top:16px">
+      <button class="btn btn-reset" onclick="closeModal('modal-odo-rac-history')">Fermer</button>
     </div>
   </div>
 </div>
@@ -6148,19 +6205,29 @@ function renderOdo() {
     return !q || (r.v+' '+r.chauffeur).toLowerCase().includes(q.toLowerCase());
   });
   document.getElementById('cnt-odo').textContent = DB.odo.length;
+  
   const weeks = DB.odo_weeks || [];
+  const startVal = document.getElementById('odo-filter-start')?.value;
+  const endVal = document.getElementById('odo-filter-end')?.value;
+  const filteredWeeks = weeks.filter(w => {
+    if (startVal && w < startVal) return false;
+    if (endVal && w > endVal) return false;
+    return true;
+  });
+
   const head = document.getElementById('odo-head');
   head.innerHTML = `<th>Véhicule</th><th>Chauffeur</th>` +
-    weeks.map(w=>`<th style="font-size:9px">${w}</th>`).join('') + `<th>KM Parcourus</th><th>KM Facturé</th><th>Roulage à charge</th><th style="color:var(--red)">🔧 Pannes</th><th style="color:var(--org)">Dernière panne</th><th>Action</th>`;
+    filteredWeeks.map(w=>`<th style="font-size:9px">${w}</th>`).join('') + `<th>KM Parcourus</th><th>KM Facturé</th><th>Roulage à charge</th><th style="color:var(--red)">🔧 Pannes</th><th style="color:var(--org)">Dernière panne</th><th>Action</th>`;
+  
   let totalKm = 0;
   let totalFact = 0;
   let totalOdo = 0;
   data.forEach(r => {
-    const valid = (r.vals||[]).filter(v=>v&&v>1000);
+    const rangeVals = filteredWeeks.map(w => r.vals[weeks.indexOf(w)]).filter(v => v && v > 1000);
     let deltaVal = 0;
-    if (valid.length>=2) {
-      const d = valid[valid.length-1]-valid[valid.length-2];
-      if (d>0 && d <= 10000) {
+    if (rangeVals.length >= 2) {
+      const d = rangeVals[rangeVals.length - 1] - rangeVals[0];
+      if (d > 0 && d <= 50000) {
         totalKm += d;
         deltaVal = d;
       }
@@ -6175,7 +6242,7 @@ function renderOdo() {
   const tabRacStr = tabRac !== null ? `${tabRac.toFixed(1)} %` : '—';
 
   document.getElementById('odo-stats').innerHTML = `
-    <div class="stat-card" onclick="resetFilters('odo-search');renderOdo()" title="Reset — Tous les véhicules" style="cursor:pointer"><div class="stat-num">${data.length}</div><div class="stat-lbl">Véhicules ↺</div></div>
+    <div class="stat-card" onclick="resetFilters('odo-search', 'odo-filter-start', 'odo-filter-end');renderOdo()" title="Reset — Tous les véhicules" style="cursor:pointer"><div class="stat-num">${data.length}</div><div class="stat-lbl">Véhicules ↺</div></div>
     <div class="stat-card blue" title="KM total parcourus sur la période visible"><div class="stat-num">${totalKm.toLocaleString('fr-FR')}</div><div class="stat-lbl">KM parcourus</div></div>
     <div class="stat-card green" title="Roulage à charge moyen de la sélection"><div class="stat-num">${tabRacStr}</div><div class="stat-lbl">Roulage à charge</div></div>
     <div class="stat-card red" onclick="filterOdoAnomalies()" title="Afficher uniquement les anomalies" style="pointer-events:auto;cursor:pointer"><div class="stat-num" id="odo-anomaly-count">—</div><div class="stat-lbl">Anomalies ⚠</div></div>`;
@@ -6184,7 +6251,7 @@ function renderOdo() {
     updateHeaderRAC();
   }
   const body = document.getElementById('odo-body');
-  if (!data.length) { body.innerHTML = `<tr><td colspan="${weeks.length+8}"><div class="empty-state"><div class="icon">🔍</div>Aucun résultat</div></td></tr>`; return; }
+  if (!data.length) { body.innerHTML = `<tr><td colspan="${filteredWeeks.length+8}"><div class="empty-state"><div class="icon">🔍</div>Aucun résultat</div></td></tr>`; return; }
   // Lookup pannes par matricule (uniquement dans renderOdo)
   const pannesByVehicle = {};
   (DB.pannes||[]).forEach(p => {
@@ -6195,17 +6262,25 @@ function renderOdo() {
   });
   body.innerHTML = data.map(r => {
     const realIdx = DB.odo.indexOf(r);
-    const cells = (r.vals||[]).map((v,i)=>{
+    const cells = filteredWeeks.map(w => {
+      const origIdx = weeks.indexOf(w);
+      const v = r.vals ? r.vals[origIdx] : null;
       if (v===null||v===undefined) return `<td class="no-data">—</td>`;
       if (v===0) return `<td class="mono" style="color:var(--txt3)">0</td>`;
-      const prev = (r.vals||[]).slice(0,i).reverse().find(p=>p&&p>1000);
+      const prev = (r.vals||[]).slice(0,origIdx).reverse().find(p=>p&&p>1000);
       const anom = prev && v < prev;
       return `<td class="mono ${anom?'km-anomaly':''}">${v.toLocaleString('fr-FR')}</td>`;
     }).join('');
-    const valid = (r.vals||[]).filter(v=>v&&v>1000);
+    
+    const rangeVals = filteredWeeks.map(w => r.vals[weeks.indexOf(w)]).filter(v => v && v > 1000);
     let deltaVal = null;
     let delta = '—';
-    if (valid.length>=2) { const d=valid[valid.length-1]-valid[valid.length-2]; deltaVal=d; delta=`<span style="color:${d>0?'var(--grn)':'var(--red)'}">${d>0?'+':''}${d.toLocaleString('fr-FR')}</span>`; }
+    if (rangeVals.length >= 2) {
+      const d = rangeVals[rangeVals.length - 1] - rangeVals[0];
+      deltaVal = d;
+      delta = `<span style="color:${d>0?'var(--grn)':'var(--red)'}">${d>0?'+':''}${d.toLocaleString('fr-FR')}</span>`;
+    }
+    
     const kmFacture = (r.kmFacture !== undefined && r.kmFacture !== null) ? r.kmFacture : null;
     const kmFactureStr = kmFacture !== null ? kmFacture.toLocaleString('fr-FR') : '—';
     let racStr = '—';
@@ -6384,6 +6459,150 @@ function importKmFacture(input) {
     doLoad();
   }
   input.value = '';
+}
+
+function openOdoRacHistoryModal() {
+  const currentEq = typeof window.CURRENT_EQUIPE !== 'undefined' ? window.CURRENT_EQUIPE : 'A';
+  document.getElementById('h-rac-team').value = currentEq;
+  onRacHistoryTeamChange();
+  openModal('modal-odo-rac-history');
+}
+
+function onRacHistoryTeamChange() {
+  const eq = document.getElementById('h-rac-team').value;
+  const db = (eq === CURRENT_EQUIPE && typeof window.DB !== 'undefined') ? window.DB : window['DB_' + eq];
+  const select = document.getElementById('h-rac-vehicle');
+  
+  if (!db || !db.odo) {
+    select.innerHTML = '<option value="">Aucun véhicule</option>';
+    renderRacHistoryTable();
+    return;
+  }
+  
+  // Sort vehicles alphabetically
+  const vehicles = [...db.odo].sort((a,b) => (a.v||'').localeCompare(b.v||''));
+  
+  let options = '<option value="__all__">Tous les camions (Moyenne globale)</option>';
+  vehicles.forEach(r => {
+    options += `<option value="${r.v}">${r.v} ${r.chauffeur ? '('+r.chauffeur+')' : ''}</option>`;
+  });
+  
+  select.innerHTML = options;
+  renderRacHistoryTable();
+}
+
+function renderRacHistoryTable() {
+  const eq = document.getElementById('h-rac-team').value;
+  const db = (eq === CURRENT_EQUIPE && typeof window.DB !== 'undefined') ? window.DB : window['DB_' + eq];
+  const vehicle = document.getElementById('h-rac-vehicle').value;
+  const body = document.getElementById('h-rac-body');
+  
+  if (!db || !db.odo_weeks || !db.odo_weeks.length) {
+    body.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:20px;color:var(--txt3)">Aucune donnée disponible</td></tr>';
+    return;
+  }
+  
+  const weeks = db.odo_weeks;
+  let rows = [];
+  
+  if (vehicle === '__all__') {
+    // Global summary for all vehicles week-by-week
+    for (let i = 1; i < weeks.length; i++) {
+      let totalDelta = 0;
+      let totalFacture = 0;
+      let countVehicles = 0;
+      
+      db.odo.forEach(r => {
+        const vCurr = r.vals ? r.vals[i] : null;
+        const vPrev = r.vals ? r.vals[i-1] : null;
+        
+        if (vCurr !== null && vPrev !== null && vCurr > 1000 && vPrev > 1000) {
+          const delta = vCurr - vPrev;
+          if (delta > 0 && delta <= 50000) {
+            totalDelta += delta;
+            
+            let kmF = null;
+            if (r.kmFactures && r.kmFactures[i] !== undefined && r.kmFactures[i] !== null) {
+              kmF = r.kmFactures[i];
+            } else if (i === weeks.length - 1 && r.kmFacture !== undefined && r.kmFacture !== null) {
+              kmF = r.kmFacture;
+            }
+            
+            if (kmF !== null && kmF > 0) {
+              totalFacture += kmF;
+              countVehicles++;
+            }
+          }
+        }
+      });
+      
+      let racStr = '—';
+      if (totalDelta > 0 && totalFacture > 0) {
+        const rac = (totalFacture / totalDelta) * 100;
+        racStr = `<span style="font-weight:700;color:var(--acc)">${rac.toFixed(1)} %</span>`;
+      }
+      
+      rows.push(`
+        <tr style="border-bottom:1px solid var(--border)">
+          <td style="padding:8px;font-family:monospace">${weeks[i]}</td>
+          <td style="padding:8px;text-align:right;color:var(--txt3)">—</td>
+          <td style="padding:8px;text-align:right;color:var(--txt3)">—</td>
+          <td style="padding:8px;text-align:right;font-family:monospace">${totalDelta.toLocaleString('fr-FR')} km</td>
+          <td style="padding:8px;text-align:right;font-family:monospace;color:var(--grn)">${totalFacture.toLocaleString('fr-FR')} km</td>
+          <td style="padding:8px;text-align:right">${racStr}</td>
+        </tr>
+      `);
+    }
+  } else {
+    // Specific vehicle history
+    const r = db.odo.find(item => item.v === vehicle);
+    if (!r) {
+      body.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:20px;color:var(--txt3)">Aucune donnée pour ce véhicule</td></tr>';
+      return;
+    }
+    
+    for (let i = 1; i < weeks.length; i++) {
+      const vCurr = r.vals ? r.vals[i] : null;
+      const vPrev = r.vals ? r.vals[i-1] : null;
+      
+      let delta = '—';
+      let deltaVal = null;
+      if (vCurr !== null && vPrev !== null && vCurr > 1000 && vPrev > 1000) {
+        deltaVal = vCurr - vPrev;
+        delta = `${deltaVal.toLocaleString('fr-FR')} km`;
+      }
+      
+      let kmF = null;
+      if (r.kmFactures && r.kmFactures[i] !== undefined && r.kmFactures[i] !== null) {
+        kmF = r.kmFactures[i];
+      } else if (i === weeks.length - 1 && r.kmFacture !== undefined && r.kmFacture !== null) {
+        kmF = r.kmFacture;
+      }
+      
+      let racStr = '—';
+      if (deltaVal !== null && deltaVal > 0 && kmF !== null && kmF > 0) {
+        const rac = (kmF / deltaVal) * 100;
+        racStr = `<span style="font-weight:700;color:var(--acc)">${rac.toFixed(1)} %</span>`;
+      }
+      
+      rows.push(`
+        <tr style="border-bottom:1px solid var(--border)">
+          <td style="padding:8px;font-family:monospace">${weeks[i]}</td>
+          <td style="padding:8px;text-align:right;font-family:monospace">${vPrev !== null ? vPrev.toLocaleString('fr-FR') : '—'}</td>
+          <td style="padding:8px;text-align:right;font-family:monospace">${vCurr !== null ? vCurr.toLocaleString('fr-FR') : '—'}</td>
+          <td style="padding:8px;text-align:right;font-family:monospace">${delta}</td>
+          <td style="padding:8px;text-align:right;font-family:monospace;color:var(--grn)">${kmF !== null ? kmF.toLocaleString('fr-FR') : '—'}</td>
+          <td style="padding:8px;text-align:right">${racStr}</td>
+        </tr>
+      `);
+    }
+  }
+  
+  if (!rows.length) {
+    body.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:20px;color:var(--txt3)">Aucun historique (Nécessite au moins 2 semaines de relevés)</td></tr>';
+  } else {
+    body.innerHTML = rows.reverse().join(''); // Show latest week first!
+  }
 }
 
 
