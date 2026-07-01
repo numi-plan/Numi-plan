@@ -186,6 +186,8 @@
     mergeList('blacklist', item => item.chauffeur && item.destination ? `${item.chauffeur}|${item.destination}` : null);
     mergeList('tracabilite', item => item.timestamp && item.type ? `${item.timestamp}|${item.type}|${item.target||''}` : null);
     mergeList('flashInfos', item => item.id);
+    mergeList('clientModifs', item => item.timestamp && item.v ? `${item.timestamp}|${item.v}` : null);
+    mergeList('incidents', item => item.timestamp && item.chauffeur ? `${item.timestamp}|${item.chauffeur}` : null);
     
     merged._localTs = Math.max(local._localTs || 0, remote._localTs || 0);
     return merged;
@@ -709,6 +711,11 @@ tbody td { padding:6px 8px; font-size:11px; vertical-align:middle; }
 .badge-ok { background:rgba(52,211,153,.1); color:var(--grn); border:1px solid rgba(52,211,153,.2); }
 .badge-nok { background:rgba(248,113,113,.1); color:var(--red); border:1px solid rgba(248,113,113,.2); }
 .badge-pur { background:rgba(167,139,250,.15); color:var(--pur); border:1px solid rgba(167,139,250,.3); }
+.badge-red { background:rgba(248,113,113,.15); color:var(--red); border:1px solid rgba(248,113,113,.3); }
+.badge-org { background:rgba(251,146,60,.15); color:var(--org); border:1px solid rgba(251,146,60,.3); }
+.badge-grn { background:rgba(52,211,153,.15); color:var(--grn); border:1px solid rgba(52,211,153,.3); }
+.badge-yel { background:rgba(253,224,71,.15); color:var(--yel); border:1px solid rgba(253,224,71,.3); }
+.badge-blue { background:rgba(56,189,248,.15); color:var(--acc); border:1px solid rgba(56,189,248,.3); }
 
 /* SECTION TITLE */
 .sec-title { font-size:10px; font-weight:700; letter-spacing:3px; text-transform:uppercase; color:var(--txt2); margin-bottom:12px; padding-bottom:7px; border-bottom:1px solid var(--border); display:flex; align-items:center; gap:10px; }
@@ -770,9 +777,10 @@ tbody td { padding:6px 8px; font-size:11px; vertical-align:middle; }
 .empty-state .icon { font-size:36px; margin-bottom:10px; }
 .no-data { color:var(--txt3); font-size:11px; font-style:italic; }
 .km-anomaly { color:var(--red); }
-::-webkit-scrollbar { width:5px; height:5px; }
-::-webkit-scrollbar-track { background:var(--bg); }
-::-webkit-scrollbar-thumb { background:var(--surf); border-radius:3px; }
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: var(--bg2); }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 5px; }
+::-webkit-scrollbar-thumb:hover { background: var(--acc); }
 /* INLINE EDITABLE CELLS */
 .cell-edit {
   cursor: pointer;
@@ -1457,6 +1465,7 @@ mark.hl { background: rgba(56,189,248,.25); color: var(--acc); border-radius: 3p
   <button class="tab-btn" onclick="switchTab('cspc',this)">🔷 CSPC <span class="tab-count" id="cnt-cspc">—</span></button>
   <button class="tab-btn" onclick="switchTab('vehicule',this)">🔍 Fiche Véhicule</button>
   <button class="tab-btn" onclick="switchTab('analytics',this)">📊 Analyses</button>
+<button class="tab-btn" id="tab-performance-chauffeur" onclick="switchTab('performance-chauffeur',this)">👤 Performance Chauffeur</button>
   <button class="tab-btn" id="tab-blacklist" onclick="if(typeof switchTab==='function')switchTab('blacklist',this)">🚫 Blacklist <span class="tab-count" id="cnt-blacklist" style="background:#f87171">—</span></button>
   <button class="tab-btn" onclick="switchTab('tracabilite',this)">📜 Traçabilité <span class="tab-count" id="cnt-tracabilite" style="display:none;">—</span></button>
   <button class="tab-btn" id="tab-flashinfo" onclick="switchTab('flashinfo',this)">📢 Flash Info</button>
@@ -1651,7 +1660,7 @@ mark.hl { background: rgba(56,189,248,.25); color: var(--acc); border-radius: 3p
     <div class="sec-title">Non-conformités SHA</div>
     <div class="table-wrap">
       <table>
-        <thead><tr><th>N°</th><th>Sharik</th><th>Type</th><th>Détail / Trajet</th><th>Date</th><th>Mise en demeure</th><th>Action</th></tr></thead>
+        <thead><tr><th>N°</th><th>Sharik</th><th>Véhicule</th><th>Type</th><th>Détail / Trajet</th><th>Date</th><th>Mise en demeure</th><th>Action</th></tr></thead>
         <tbody id="nc-body"></tbody>
       </table>
     </div>
@@ -1740,9 +1749,9 @@ mark.hl { background: rgba(56,189,248,.25); color: var(--acc); border-radius: 3p
     <input type="text" class="filter-input" id="odo-search" placeholder="Véhicule / Chauffeur…" oninput="renderOdo()">
     <span style="display:flex;align-items:center;gap:6px;margin-left:12px">
       <span style="font-size:11px;color:var(--txt2)">Du</span>
-      <input type="date" class="filter-input" id="odo-filter-start" onchange="renderOdo()" style="padding:4px 8px;width:120px">
+      <input type="date" class="filter-input" id="odo-filter-start" onchange="renderOdo()" style="padding:4px 8px;width:120px" autocomplete="off">
       <span style="font-size:11px;color:var(--txt2)">au</span>
-      <input type="date" class="filter-input" id="odo-filter-end" onchange="renderOdo()" style="padding:4px 8px;width:120px">
+      <input type="date" class="filter-input" id="odo-filter-end" onchange="renderOdo()" style="padding:4px 8px;width:120px" autocomplete="off">
     </span>
     <button class="btn btn-reset" onclick="resetFilters('odo-search', 'odo-filter-start', 'odo-filter-end');renderOdo()">↺ Reset</button>
     <button class="btn btn-add" onclick="openModal('modal-odo')">＋ Relevé KM</button>
@@ -1938,6 +1947,113 @@ mark.hl { background: rgba(56,189,248,.25); color: var(--acc); border-radius: 3p
           </thead>
           <tbody id="admin-flash-body"></tbody>
         </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════ PERFORMANCE CHAUFFEUR ══════════════ -->
+<div id="page-performance-chauffeur" class="page">
+  <div style="background:var(--bg2);border:1px solid var(--border);border-radius:16px;padding:24px;margin-bottom:24px;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;flex-wrap:wrap;gap:16px;">
+      <div>
+        <h2 style="font-size:18px;color:var(--acc);font-weight:700;">👤 Tableau de bord - Performance Chauffeur</h2>
+        <p style="font-size:12px;color:var(--txt2);margin-top:4px;">Suivi des avaries, sinistres et modifications de commandes client.</p>
+      </div>
+      <div style="display:flex;align-items:center;gap:10px;">
+        <span style="font-size:13px;color:var(--txt2);">Chauffeur :</span>
+        <input type="text" id="perf-search-chauffeur" list="dl-chauffeurs" placeholder="Rechercher un chauffeur..." oninput="renderPerformanceChauffeur()" style="width:220px;background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:8px 12px;color:var(--txt);outline:none;">
+        <button class="btn btn-reset" onclick="document.getElementById('perf-search-chauffeur').value='';renderPerformanceChauffeur()">Réinitialiser</button>
+      </div>
+    </div>
+
+    <!-- KPIs Zone -->
+    <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(180px, 1fr));gap:16px;margin-bottom:24px;">
+      <div class="stat-card" style="border-left-color:var(--txt3);">
+        <div class="stat-num" id="perf-stat-total-incidents">0</div>
+        <div class="stat-lbl">Total Incidents</div>
+      </div>
+      <div class="stat-card red" style="border-left-color:var(--red);">
+        <div class="stat-num" id="perf-stat-avaries" style="color:var(--red)">0</div>
+        <div class="stat-lbl">Avaries Marchandises</div>
+      </div>
+      <div class="stat-card org" style="border-left-color:var(--org);">
+        <div class="stat-num" id="perf-stat-sinistres" style="color:var(--org)">0</div>
+        <div class="stat-lbl">Sinistres / Accidents</div>
+      </div>
+      <div class="stat-card green" style="border-left-color:var(--grn);">
+        <div class="stat-num" id="perf-stat-non-responsable" style="color:var(--grn)">0%</div>
+        <div class="stat-lbl">Non Responsable</div>
+      </div>
+      <div class="stat-card blue" style="border-left-color:var(--acc);">
+        <div class="stat-num" id="perf-stat-modifs" style="color:var(--acc)">0</div>
+        <div class="stat-lbl">Commandes Modifiées</div>
+      </div>
+    </div>
+
+    <!-- Layout: Leaderboard or Detail view -->
+    <div id="perf-leaderboard-container">
+      <h3 style="font-size:14px;color:var(--acc);margin-bottom:12px;text-transform:uppercase;letter-spacing:1px;">🏆 Classement des chauffeurs par nombre d'incidents</h3>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Chauffeur</th>
+              <th>Avaries Marchandises</th>
+              <th>Sinistres Camions</th>
+              <th>Total Incidents</th>
+              <th>Commandes Modifiées</th>
+              <th>Statut Performance</th>
+            </tr>
+          </thead>
+          <tbody id="perf-leaderboard-body"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div id="perf-detail-container" style="display:none;margin-top:20px;">
+      <!-- Table 1: Incidents -->
+      <div style="margin-bottom:24px;">
+        <h3 style="font-size:14px;color:var(--red);margin-bottom:12px;text-transform:uppercase;letter-spacing:1px;">📋 Historique des Avaries & Sinistres</h3>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Date</th>
+                <th>Véhicule</th>
+                <th>Type d'incident</th>
+                <th>Description / Fait</th>
+                <th>Responsabilité</th>
+                <th>Équipe</th>
+                <th>Observations</th>
+              </tr>
+            </thead>
+            <tbody id="perf-incidents-body"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Table 2: Command Modifications -->
+      <div>
+        <h3 style="font-size:14px;color:var(--acc);margin-bottom:12px;text-transform:uppercase;letter-spacing:1px;">🏢 Historique des Commandes Modifiées (Tracabilité Client)</h3>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Date</th>
+                <th>Véhicule</th>
+                <th>Client</th>
+                <th>Ancienne Réf</th>
+                <th>Nouvelle Réf</th>
+                <th>Lieu Prévu</th>
+                <th>Lieu Affecté</th>
+                <th>Équipe</th>
+                <th>Observations / Justification</th>
+              </tr>
+            </thead>
+            <tbody id="perf-modifs-body"></tbody>
+          </table>
+        </div>
       </div>
     </div>
   </div>
@@ -2283,6 +2399,7 @@ mark.hl { background: rgba(56,189,248,.25); color: var(--acc); border-radius: 3p
     <div class="form-grid">
       <div class="form-group"><label>Date</label><input id="f-nc-date" type="date"></div>
       <div class="form-group"><label>Sharik (chauffeur)</label><input id="f-nc-sharik" list="dl-chauffeurs" placeholder="NOM PRÉNOM"></div>
+      <div class="form-group"><label>Véhicule</label><input id="f-nc-v" list="dl-vehicules" placeholder="001079-514-16"></div>
       <div class="form-group"><label>Type NC</label>
         <select id="f-nc-type" onchange="toggleNcAutre(this.value)">
           <option value="chgt">Changement à son compte</option>
@@ -2450,6 +2567,22 @@ mark.hl { background: rgba(56,189,248,.25); color: var(--acc); border-radius: 3p
         <select id="h-rac-vehicle" onchange="renderRacHistoryTable()" style="width:100%;padding:6px;border-radius:6px;background:var(--bg);color:var(--txt);border:1px solid var(--border)"></select>
       </div>
     </div>
+    
+    <!-- Panel d'Alertes Performance Chauffeurs -->
+    <div id="h-rac-alert-panel" style="margin-bottom:16px;display:none;background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:12px">
+      <h4 style="margin:0 0 8px 0;font-size:12px;color:var(--txt);display:flex;align-items:center;gap:6px">🚨 Chauffeurs prioritaires (Dernière semaine)</h4>
+      <div style="display:flex;gap:12px">
+        <div style="flex:1;background:rgba(239, 68, 68, 0.08);border:1px solid rgba(239, 68, 68, 0.3);border-radius:6px;padding:8px">
+          <div style="font-size:11px;font-weight:700;color:var(--red);margin-bottom:4px">🔴 Focus absolu (&lt; 40%)</div>
+          <div id="h-rac-list-red" style="font-size:11px;max-height:80px;overflow-y:auto;line-height:1.5;color:var(--txt)"></div>
+        </div>
+        <div style="flex:1;background:rgba(245, 158, 11, 0.08);border:1px solid rgba(245, 158, 11, 0.3);border-radius:6px;padding:8px">
+          <div style="font-size:11px;font-weight:700;color:var(--org);margin-bottom:4px">🟡 À surveiller (40% - 50%)</div>
+          <div id="h-rac-list-orange" style="font-size:11px;max-height:80px;overflow-y:auto;line-height:1.5;color:var(--txt)"></div>
+        </div>
+      </div>
+    </div>
+
     <div class="table-wrap" style="max-height:400px;overflow-y:auto">
       <table style="width:100%;border-collapse:collapse">
         <thead>
@@ -2603,6 +2736,105 @@ mark.hl { background: rgba(56,189,248,.25); color: var(--acc); border-radius: 3p
     <div class="modal-actions" style="margin-top: 0;">
       <button class="btn btn-reset" onclick="closeModal('modal-entretien-sharik')">Fermer</button>
       <button id="btn-entretien-valider-restitue" class="btn btn-save" style="background:#38bdf8; border-color:#38bdf8; color:#000; cursor: pointer;">✓ Marquer Restitué</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal Changement Commande Client -->
+<div class="modal-overlay" id="modal-client-modif">
+  <div class="modal" style="max-width:500px;">
+    <h3 style="color:var(--acc)">🏢 Suivi Client — Modification Commande</h3>
+    <input type="hidden" id="f-client-idx">
+    <div class="form-group">
+      <label>Chauffeur</label>
+      <input type="text" id="f-client-chauffeur" readonly style="background:var(--bg3);opacity:0.7">
+    </div>
+    <div class="form-group">
+      <label>Véhicule</label>
+      <input type="text" id="f-client-v" readonly style="background:var(--bg3);opacity:0.7">
+    </div>
+    <div class="form-group">
+      <label>Nom du Client</label>
+      <input type="text" id="f-client-nom" placeholder="Ex: CEVITAL, BIMO, etc.">
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+      <div class="form-group">
+        <label>Ancienne Réf Commande</label>
+        <input type="text" id="f-client-ref-init" placeholder="Ancienne référence">
+      </div>
+      <div class="form-group">
+        <label>Nouvelle Réf Commande</label>
+        <input type="text" id="f-client-ref-new" placeholder="Nouvelle référence">
+      </div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+      <div class="form-group">
+        <label>Destination Prévue (Lieu J+1)</label>
+        <input type="text" id="f-client-dest-init" list="dl-wilayas" placeholder="Lieu J+1 initial">
+      </div>
+      <div class="form-group">
+        <label>Destination Affectée</label>
+        <input type="text" id="f-client-dest-new" list="dl-wilayas" placeholder="Nouvelle destination">
+      </div>
+    </div>
+    <div class="form-group">
+      <label>Observations / Justification</label>
+      <textarea id="f-client-obs" placeholder="Détails de la réclamation ou motif..." style="height:60px;resize:vertical"></textarea>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-reset" onclick="closeModal('modal-client-modif')">Annuler</button>
+      <button class="btn btn-save" onclick="saveClientModif()">💾 Enregistrer</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal Déclaration Avarie / Sinistre -->
+<div class="modal-overlay" id="modal-incident">
+  <div class="modal" style="max-width:500px;">
+    <h3 style="color:var(--red)">💥 Déclarer Avarie / Sinistre</h3>
+    <input type="hidden" id="f-inc-idx">
+    <div class="form-group">
+      <label>Chauffeur</label>
+      <input type="text" id="f-inc-chauffeur" readonly style="background:var(--bg3);opacity:0.7">
+    </div>
+    <div class="form-group">
+      <label>Véhicule</label>
+      <input type="text" id="f-inc-v" readonly style="background:var(--bg3);opacity:0.7">
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+      <div class="form-group">
+        <label>Type d'incident</label>
+        <select id="f-inc-type" style="width:100%">
+          <option value="Avarie Marchandise">📦 Avarie Marchandise</option>
+          <option value="Sinistre Camion">🚛 Sinistre Camion (Accident/Accrochage)</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Responsabilité</label>
+        <select id="f-inc-resp" style="width:100%">
+          <option value="Chauffeur responsable">🔴 Chauffeur responsable</option>
+          <option value="Non responsable / Tiers">🟢 Non responsable / Tiers</option>
+          <option value="Force majeure">🟡 Force majeure</option>
+        </select>
+      </div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+      <div class="form-group">
+        <label>Description succincte</label>
+        <input type="text" id="f-inc-desc" placeholder="Ex: Marchandise inclinée, choc arrière...">
+      </div>
+      <div class="form-group">
+        <label>Date de l'incident</label>
+        <input type="date" id="f-inc-date">
+      </div>
+    </div>
+    <div class="form-group">
+      <label>Observations complémentaires</label>
+      <textarea id="f-inc-obs" placeholder="Récit des faits ou détails..." style="height:60px;resize:vertical"></textarea>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-reset" onclick="closeModal('modal-incident')">Annuler</button>
+      <button class="btn btn-save" onclick="saveIncident()">💾 Enregistrer</button>
     </div>
   </div>
 </div>
@@ -3035,7 +3267,8 @@ function emptyTeamData() {
   return {
     dispo: [], pannes: [], nc: [], gasoil: [], equip: [], activite: [],
     bl: [], odo: [], odo_weeks: [], cspc: [], blacklist: [],
-    tracabilite: [], flashInfos: [], anomaliesPointees: {}
+    tracabilite: [], flashInfos: [], anomaliesPointees: {},
+    clientModifs: [], incidents: []
   };
 }
 
@@ -4543,6 +4776,7 @@ function switchTab(name, btn) {
   if (name==='blacklist') renderBlacklist();
   if (name==='tracabilite') renderTracabilite();
   if (name==='flashinfo') renderAdminFlashList();
+  if (name==='performance-chauffeur') renderPerformanceChauffeur();
 checkBascule();
 }
 
@@ -4819,6 +5053,8 @@ function renderDispo() {
         <button class="del-btn" style="color:var(--red)" onclick="declPanne(${realIdx})" title="Panne">🔧</button>
         <button class="del-btn" style="color:var(--org)" onclick="declNC(${realIdx})" title="Non-conformité">⚠️</button>
         <button class="del-btn" style="color:var(--yel)" onclick="declGasoil(${realIdx})" title="Gasoil">⛽</button>
+        <button class="del-btn" style="color:var(--acc)" onclick="openClientModifModal(${realIdx})" title="Changement Commande Client">🏢</button>
+        <button class="del-btn" style="color:var(--red)" onclick="openIncidentModal(${realIdx})" title="Déclarer Avarie / Sinistre">💥</button>
         <button class="del-btn" style="color:var(--txt2)" onclick="editDispo(${realIdx})" title="Modifier">✏️</button>
         <button class="del-btn" style="color:var(--red)" onclick="deleteDispo(${realIdx})" title="Supprimer">🗑</button>
         <button class="del-btn" onclick="toggleSurveillance(${realIdx})" title="${r.surveillance ? 'Désactiver surveillance' : 'Activer surveillance'}" style="color:${r.surveillance ? '#f87171' : 'var(--txt3)'};font-size:14px;${r.surveillance ? 'animation:pulse-eye .8s ease-in-out infinite alternate;' : ''}">👁️</button>
@@ -5316,7 +5552,7 @@ function renderNC() {
     ${top.map(t=>`<div class="stat-card" style="cursor:pointer" onclick="filterNC('${t[0]}')" title="Filtrer ${t[0]}"><div class="stat-num" style="font-size:18px">${t[1]}×</div><div class="stat-lbl" style="font-size:9px;max-width:100px;overflow:hidden;text-overflow:ellipsis">${t[0]}</div></div>`).join('')}`;
   document.getElementById('cnt-nc').textContent = DB.nc.length;
   const body = document.getElementById('nc-body');
-  if (!data.length) { body.innerHTML = `<tr><td colspan="7"><div class="empty-state"><div class="icon">🔍</div>Aucun résultat</div></td></tr>`; return; }
+  if (!data.length) { body.innerHTML = `<tr><td colspan="8"><div class="empty-state"><div class="icon">🔍</div>Aucun résultat</div></td></tr>`; return; }
   body.innerHTML = data.map(r => {
     const realIdx = DB.nc.indexOf(r);
     let type = '', detail = '';
@@ -5327,9 +5563,10 @@ function renderNC() {
     return `<tr>
       <td class="mono" style="color:var(--txt3)">${r.n}</td>
       <td style="font-weight:600;color:var(--acc)">${r.sharik}</td>
+      <td class="mono" style="color:var(--yel);font-weight:600">${r.v || '<span class="no-data">—</span>'}</td>
       <td>${type}</td>
       <td style="font-size:11px">${detail}</td>
-      <td class="mono" style="color:var(--yel)">${fmtDate(r.date)}</td>
+      <td class="mono" style="color:var(--txt2)">${fmtDate(r.date)}</td>
       <td>${r.mise?`<span class="badge badge-panne">${r.mise}</span>`:'<span class="no-data">—</span>'}</td>
       <td><button class="del-btn" onclick="editNC(${realIdx})">✏️</button><button class="del-btn" onclick="deleteNC(${realIdx})">🗑</button></td>
     </tr>`;
@@ -5340,6 +5577,7 @@ function editNC(idx) {
   const r = DB.nc[idx];
   document.getElementById('f-nc-date').value = r.date||today();
   document.getElementById('f-nc-sharik').value = r.sharik||'';
+  document.getElementById('f-nc-v').value = r.v||'';
   // detect type
   if (r.fausse) { document.getElementById('f-nc-type').value='fausse'; document.getElementById('f-nc-detail').value=r.fausse; document.getElementById('f-nc-autre-detail').value=''; }
   else if (r.refus) { document.getElementById('f-nc-type').value='refus'; document.getElementById('f-nc-detail').value=r.refus; document.getElementById('f-nc-autre-detail').value=''; }
@@ -5372,7 +5610,9 @@ function saveNC() {
   const autreDetail = document.getElementById('f-nc-autre-detail').value.trim();
   if (type === 'autre' && !autreDetail) { showToast('⚠️ Veuillez préciser les faits', true); return; }
   const obj = {
-    n: maxN+1, sharik: sharik.toUpperCase(),
+    n: maxN+1,
+    sharik: sharik.toUpperCase(),
+    v: document.getElementById('f-nc-v').value.trim().toUpperCase(),
     fausse: type==='fausse'?detail:'',
     chgt: type==='chgt'?detail:'',
     refus: type==='refus'?detail:'',
@@ -6190,6 +6430,449 @@ function filterOdoAnomalies() {
   document.getElementById('odo-search').value = '__anomaly__';
   renderOdo();
 }
+
+
+// ── DISTANCIER SEGMENTS (Calcul automatique anomalies) ──
+window.CITY_DISTANCES = {
+  "BEJAIA_TLEMCEN": 734,
+  "TLEMCEN_BEJAIA": 734,
+  "BOUIRA_ORAN": 508,
+  "ORAN_BOUIRA": 508,
+  "BEJAIA_MASCARA": 611,
+  "MASCARA_BEJAIA": 611,
+  "SETIF_JIJEL": 159,
+  "JIJEL_SETIF": 159,
+  "SETIF_BEJAIA": 232,
+  "BEJAIA_SETIF": 232,
+  "SETIF_OUEDRHIOU": 528,
+  "OUEDRHIOU_SETIF": 528,
+  "SETIF_LAGHOUAT": 445,
+  "LAGHOUAT_SETIF": 445,
+  "ORAN_ALGER": 404,
+  "ALGER_ORAN": 404,
+  "TLEMCEN_ALGER": 516,
+  "ALGER_TLEMCEN": 516,
+  "BEJAIA_TIARET": 435,
+  "TIARET_BEJAIA": 435,
+  "BOUIRA_MAGHNIA": 643,
+  "MAGHNIA_BOUIRA": 643,
+  "BEJAIA_SAIDA": 672,
+  "SAIDA_BEJAIA": 672,
+  "BOUIRA_DJELFA": 263,
+  "DJELFA_BOUIRA": 263,
+  "BOUIRA_TLEMCEN": 611,
+  "TLEMCEN_BOUIRA": 611,
+  "BEJAIA_DJELFA": 392,
+  "DJELFA_BEJAIA": 392,
+  "TIZIOUZOU_GUELMA": 551,
+  "GUELMA_TIZIOUZOU": 551,
+  "BEJAIA_LAGHOUAT": 485,
+  "LAGHOUAT_BEJAIA": 485,
+  "BEJAIA_AKBOU": 75,
+  "AKBOU_BEJAIA": 75,
+  "TIZIOUZOU_SIDIBELABBES": 570,
+  "SIDIBELABBES_TIZIOUZOU": 570,
+  "BOUIRA_NAAMA": 749,
+  "NAAMA_BOUIRA": 749,
+  "TIZIOUZOU_NAAMA": 789,
+  "NAAMA_TIZIOUZOU": 789,
+  "BOUIRA_SAIDA": 544,
+  "SAIDA_BOUIRA": 544,
+  "BEJAIA_ELBAYADH": 642,
+  "ELBAYADH_BEJAIA": 642,
+  "BOUIRA_ELBAYADH": 521,
+  "ELBAYADH_BOUIRA": 521,
+  "BEJAIA_ALGER": 227,
+  "ALGER_BEJAIA": 227,
+  "BEJAIA_SKIKDA": 469,
+  "SKIKDA_BEJAIA": 469,
+  "BEJAIA_TEBESSA": 551,
+  "TEBESSA_BEJAIA": 551,
+  "TIZIOUZOU_KHENCHELA": 575,
+  "KHENCHELA_TIZIOUZOU": 575,
+  "TIZIOUZOU_SKIKDA": 534,
+  "SKIKDA_TIZIOUZOU": 534,
+  "TIZIOUZOU_MOSTAGANEM": 466,
+  "MOSTAGANEM_TIZIOUZOU": 466,
+  "TIZIOUZOU_MASCARA": 515,
+  "MASCARA_TIZIOUZOU": 515,
+  "TIZIOUZOU_TLEMCEN": 644,
+  "TLEMCEN_TIZIOUZOU": 644,
+  "ANNABA_DELTA": 0,
+  "DELTA_ANNABA": 0,
+  "ANNABA_ALGER": 536,
+  "ALGER_ANNABA": 536,
+  "SAIDA_BLIDA": 413,
+  "BLIDA_SAIDA": 413,
+  "SAIDA_KHEMISELKHECHNA": 474,
+  "KHEMISELKHECHNA_SAIDA": 474,
+  "SAIDA_ORAN": 177,
+  "ORAN_SAIDA": 177,
+  "ORAN_CHLEF": 208,
+  "CHLEF_ORAN": 208,
+  "BOUFARIK_SETIF": 284,
+  "SETIF_BOUFARIK": 284,
+  "BOUFARIK_ORAN": 391,
+  "ORAN_BOUFARIK": 391,
+  "BEJAIA_TIZIRACHED": 275,
+  "TIZIRACHED_BEJAIA": 275,
+  "SETIF_SOUKAHRAS": 329,
+  "SOUKAHRAS_SETIF": 329,
+  "BLIDA_DJELFA": 301,
+  "DJELFA_BLIDA": 301,
+  "SETIF_ANNABA": 272,
+  "ANNABA_SETIF": 272,
+  "KHEMISELKHECHNA_SETIF": 240,
+  "SETIF_KHEMISELKHECHNA": 240,
+  "ORAN_MEDEA": 368,
+  "MEDEA_ORAN": 368,
+  "ORAN_GUELMA": 869,
+  "GUELMA_ORAN": 869,
+  "ORAN_MILA": 792,
+  "MILA_ORAN": 792,
+  "SETIF_KHENCHELA": 203,
+  "KHENCHELA_SETIF": 203,
+  "ORAN_BOUMERDES": 440,
+  "BOUMERDES_ORAN": 440,
+  "ORAN_BLIDA": 373,
+  "BLIDA_ORAN": 373,
+  "LESEUCALYPTUS_TIZIOUZOU": 94,
+  "TIZIOUZOU_LESEUCALYPTUS": 94,
+  "LESEUCALYPTUS_CONSTANTINE": 381,
+  "CONSTANTINE_LESEUCALYPTUS": 381,
+  "KHENCHELA_DELTA": 0,
+  "DELTA_KHENCHELA": 0,
+  "DJELFA_DELTA": 0,
+  "DELTA_DJELFA": 0,
+  "ORAN_BATNA": 803,
+  "BATNA_ORAN": 803,
+  "ORAN_BEJAIA": 642,
+  "BEJAIA_ORAN": 642,
+  "SETIF_ALGER": 267,
+  "ALGER_SETIF": 267,
+  "ORAN_RELIZANE": 135,
+  "RELIZANE_ORAN": 135,
+  "BOUIRA_RELIZANE": 339,
+  "RELIZANE_BOUIRA": 339,
+  "TIZIOUZOU_TISSEMSILT": 353,
+  "TISSEMSILT_TIZIOUZOU": 353,
+  "TIZIOUZOU_CHLEF": 336,
+  "CHLEF_TIZIOUZOU": 336,
+  "BEJAIA_OUZELLAGUEN": 56,
+  "OUZELLAGUEN_BEJAIA": 56,
+  "BOUIRA_LAGHOUAT": 266,
+  "LAGHOUAT_BOUIRA": 266,
+  "BOUIRA_MILA": 291,
+  "MILA_BOUIRA": 291,
+  "TIZIOUZOU_ORAN": 526,
+  "ORAN_TIZIOUZOU": 526,
+  "OUEDRHIOU_CHLEF": 54,
+  "CHLEF_OUEDRHIOU": 54,
+  "ORAN_TIARET": 224,
+  "TIARET_ORAN": 224,
+  "TIZIOUZOU_RELIZANE": 384,
+  "RELIZANE_TIZIOUZOU": 384,
+  "ORAN_TLEMCEN": 178,
+  "TLEMCEN_ORAN": 178,
+  "KHEMISELKHECHNA_CONSTANTINE": 363,
+  "CONSTANTINE_KHEMISELKHECHNA": 363,
+  "JIJEL_LESEUCALYPTUS": 307,
+  "LESEUCALYPTUS_JIJEL": 307,
+  "KHENCHELA_BORDJBOUARRERIDJ": 324,
+  "BORDJBOUARRERIDJ_KHENCHELA": 324,
+  "ANNABA_RELIZANE": 815,
+  "RELIZANE_ANNABA": 815,
+  "ANNABA_BEJAIA": 503,
+  "BEJAIA_ANNABA": 503,
+  "DJELFA_CHLEF": 353,
+  "CHLEF_DJELFA": 353,
+  "KHEMISELKHECHNA_GHARDAIA": 620,
+  "GHARDAIA_KHEMISELKHECHNA": 620,
+  "KHEMISELKHECHNA_TEBESSA": 564,
+  "TEBESSA_KHEMISELKHECHNA": 564,
+  "KHEMISELKHECHNA_BATNA": 376,
+  "BATNA_KHEMISELKHECHNA": 376,
+  "BOUIRA_MOSTAGANEM": 422,
+  "MOSTAGANEM_BOUIRA": 422,
+  "ORAN_SETIF": 667,
+  "SETIF_ORAN": 667,
+  "ORAN_CONSTANTINE": 769,
+  "CONSTANTINE_ORAN": 769,
+  "ORAN_ORAN": 22,
+  "ORAN_BORDJBOUARRERIDJ": 599,
+  "BORDJBOUARRERIDJ_ORAN": 599,
+  "ORAN_JIJEL": 699,
+  "JIJEL_ORAN": 699,
+  "SETIF_SIDIBELABBES": 708,
+  "SIDIBELABBES_SETIF": 708,
+  "SETIF_MEDEA": 311,
+  "MEDEA_SETIF": 311,
+  "BISKRA_BEJAIA": 364,
+  "BEJAIA_BISKRA": 364,
+  "ORAN_KHEMISELKHECHNA": 403,
+  "KHEMISELKHECHNA_ORAN": 403,
+  "KHEMISELKHECHNA_ANNABA": 510,
+  "ANNABA_KHEMISELKHECHNA": 510,
+  "SIDIBELABBES_BEJAIA": 654,
+  "BEJAIA_SIDIBELABBES": 654,
+  "TIZIOUZOU_AINTEMOUCHENT": 613,
+  "AINTEMOUCHENT_TIZIOUZOU": 613,
+  "ORAN_SIDIBELABBES": 97,
+  "SIDIBELABBES_ORAN": 97,
+  "BEJAIA_BOUFARIK": 255,
+  "BOUFARIK_BEJAIA": 255,
+  "BOUIRA_OUEDRHIOU": 358,
+  "OUEDRHIOU_BOUIRA": 358,
+  "KHEMISELKHECHNA_MSILA": 207,
+  "MSILA_KHEMISELKHECHNA": 207,
+  "KHEMISELKHECHNA_BEJAIA": 217,
+  "BEJAIA_KHEMISELKHECHNA": 217,
+  "KHEMISELKHECHNA_ELEULMA": 267,
+  "ELEULMA_KHEMISELKHECHNA": 267,
+  "KHEMISELKHECHNA_JIJEL": 292,
+  "JIJEL_KHEMISELKHECHNA": 292,
+  "ORAN_MOSTAGANEM": 68,
+  "MOSTAGANEM_ORAN": 68,
+  "BISKRA_JIJEL": 355,
+  "JIJEL_BISKRA": 355,
+  "ORAN_SKIKDA": 881,
+  "SKIKDA_ORAN": 881,
+  "DJELFA_ALGER": 343,
+  "ALGER_DJELFA": 343,
+  "DJELFA_ORAN": 510,
+  "ORAN_DJELFA": 510,
+  "BEJAIA_OUEDRHIOU": 479,
+  "OUEDRHIOU_BEJAIA": 479,
+  "BEJAIA_GUELMA": 459,
+  "GUELMA_BEJAIA": 459,
+  "TIZIOUZOU_AINDEFLA": 244,
+  "AINDEFLA_TIZIOUZOU": 244,
+  "TIZIOUZOU_ANNABA": 542,
+  "ANNABA_TIZIOUZOU": 542,
+  "BOUIRA_ANNABA": 438,
+  "ANNABA_BOUIRA": 438,
+  "ALGER_ELKSEUR": 0,
+  "ELKSEUR_ALGER": 0,
+  "ELKHROUB_DJELFA": 444,
+  "DJELFA_ELKHROUB": 444,
+  "ANNABA_ORAN": 934,
+  "ORAN_ANNABA": 934,
+  "SETIF_BLIDA": 315,
+  "BLIDA_SETIF": 315,
+  "SETIF_TIZIOUZOU": 324,
+  "TIZIOUZOU_SETIF": 324,
+  "BISKRA_DELTA": 0,
+  "DELTA_BISKRA": 0,
+  "BEJAIA_MAGHNIA": 778,
+  "MAGHNIA_BEJAIA": 778,
+  "BEJAIA_BATNA": 295,
+  "BATNA_BEJAIA": 295,
+  "TIZIOUZOU_ALGER": 104,
+  "ALGER_TIZIOUZOU": 104,
+  "ORAN_ELKERMA": 19,
+  "ELKERMA_ORAN": 19,
+  "TIZIOUZOU_OUEDRHIOU": 384,
+  "OUEDRHIOU_TIZIOUZOU": 384,
+  "ELKHROUB_BEJAIA": 365,
+  "BEJAIA_ELKHROUB": 365,
+  "ANNABA_MASCARA": 900,
+  "MASCARA_ANNABA": 900,
+  "BEJAIA_TUNIS": 785,
+  "TUNIS_BEJAIA": 785,
+  "ORAN_ADRAR": 1146,
+  "ADRAR_ORAN": 1146,
+  "BEJAIA_MENAA": 379,
+  "MENAA_BEJAIA": 379,
+  "BOUIRA_GUELMA": 399,
+  "GUELMA_BOUIRA": 399,
+  "ANNABA_BOUMERDES": 513,
+  "BOUMERDES_ANNABA": 513,
+  "SETIF_TEBESSA": 321,
+  "TEBESSA_SETIF": 321,
+  "LESEUCALYPTUS_BEJAIA": 233,
+  "BEJAIA_LESEUCALYPTUS": 233,
+  "LESEUCALYPTUS_SKIKDA": 478,
+  "SKIKDA_LESEUCALYPTUS": 478,
+  "TIZIOUZOU_BEJAIA": 279,
+  "BEJAIA_TIZIOUZOU": 279,
+  "DJELFA_TIPAZA": 334,
+  "TIPAZA_DJELFA": 334,
+  "ORAN_LESEUCALYPTUS": 404,
+  "LESEUCALYPTUS_ORAN": 404,
+  "BOUIRA_BOUMERDES": 90,
+  "BOUMERDES_BOUIRA": 90,
+  "BEJAIA_BOUMERDES": 218,
+  "BOUMERDES_BEJAIA": 218,
+  "BOUIRA_TEBESSA": 478,
+  "TEBESSA_BOUIRA": 478,
+  "BEJAIA_BENITHOUR": 753,
+  "BENITHOUR_BEJAIA": 753,
+  "ORAN_TISSEMSILT": 292,
+  "TISSEMSILT_ORAN": 292,
+  "BEJAIA_BOUIRA": 145,
+  "BOUIRA_BEJAIA": 145,
+  "KHENCHELA_ALGER": 522,
+  "ALGER_KHENCHELA": 522,
+  "ANNABA_AINTEMOUCHENT": 1009,
+  "AINTEMOUCHENT_ANNABA": 1009,
+  "KHEMISELKHECHNA_BOUIRA": 79,
+  "BOUIRA_KHEMISELKHECHNA": 79,
+  "BOUFARIK_KHEMISELKHECHNA": 44,
+  "KHEMISELKHECHNA_BOUFARIK": 44,
+  "ANNABA_CHLEF": 723,
+  "CHLEF_ANNABA": 723,
+  "SETIF_GHARDAIA": 621,
+  "GHARDAIA_SETIF": 621,
+  "SETIF_DJELFA": 319,
+  "DJELFA_SETIF": 319,
+  "SETIF_ELOUED": 441,
+  "ELOUED_SETIF": 441,
+  "SETIF_OUARGLA": 595,
+  "OUARGLA_SETIF": 595,
+  "KHEMISELKHECHNA_AINDEFLA": 159,
+  "AINDEFLA_KHEMISELKHECHNA": 159,
+  "KHEMISELKHECHNA_SKIKDA": 460,
+  "SKIKDA_KHEMISELKHECHNA": 460,
+  "ORAN_BECHAR": 677,
+  "BECHAR_ORAN": 677,
+  "ORAN_MASCARA": 86,
+  "MASCARA_ORAN": 86,
+  "TIPAZA_BEJAIA": 269,
+  "BEJAIA_TIPAZA": 269,
+  "ALGER_DELTA": 0,
+  "DELTA_ALGER": 0,
+  "ALGER_TEBESSA": 589,
+  "TEBESSA_ALGER": 589,
+  "ALGER_ELBAYADH": 505,
+  "ELBAYADH_ALGER": 505,
+  "BLIDA_AINDEFLA": 93,
+  "AINDEFLA_BLIDA": 93,
+  "BORDJBOUARRERIDJ_BOUFARIK": 246,
+  "BOUFARIK_BORDJBOUARRERIDJ": 246,
+  "BORDJBOUARRERIDJ_TIZIOUZOU": 238,
+  "TIZIOUZOU_BORDJBOUARRERIDJ": 238,
+  "KHENCHELA_SKIKDA": 228,
+  "SKIKDA_KHENCHELA": 228,
+  "BEJAIA_NAAMA": 885,
+  "NAAMA_BEJAIA": 885,
+  "SAIDA_MASCARA": 73,
+  "MASCARA_SAIDA": 73,
+  "ORAN_KHENCHELA": 915,
+  "KHENCHELA_ORAN": 915,
+  "BORDJBOUARRERIDJ_BLIDA": 260,
+  "BLIDA_BORDJBOUARRERIDJ": 260,
+  "BORDJBOUARRERIDJ_ALGER": 232,
+  "ALGER_BORDJBOUARRERIDJ": 232,
+  "ALGER_SAIDA": 444,
+  "SAIDA_ALGER": 444,
+  "KHENCHELA_CONSTANTINE": 136,
+  "CONSTANTINE_KHENCHELA": 136,
+  "BEJAIA_BEJAIA": 3,
+  "KHEMISELKHECHNA_AKBOU": 165,
+  "AKBOU_KHEMISELKHECHNA": 165,
+  "KHEMISELKHECHNA_BECHAR": 1026,
+  "BECHAR_KHEMISELKHECHNA": 1026,
+  "JIJEL_TAHER": 20,
+  "TAHER_JIJEL": 20,
+  "SETIF_AKBOU": 192,
+  "AKBOU_SETIF": 192,
+  "ELKHROUB_TLEMCEN": 904,
+  "TLEMCEN_ELKHROUB": 904,
+  "BEJAIA_MILA": 355,
+  "MILA_BEJAIA": 355,
+  "TIZIOUZOU_CHORFA": 201,
+  "CHORFA_TIZIOUZOU": 201,
+  "BEJAIA_CHLEF": 414,
+  "CHLEF_BEJAIA": 414,
+  "BEJAIA_ELKSEUR": 25,
+  "ELKSEUR_BEJAIA": 25,
+  "ORAN_OUMELBOUAGHI": 865,
+  "OUMELBOUAGHI_ORAN": 865,
+  "ORAN_TOUGGOURT": 865,
+  "TOUGGOURT_ORAN": 865,
+  "DJELFA_JIJEL": 439,
+  "JIJEL_DJELFA": 439,
+  "ANNABA_BLIDA": 564,
+  "BLIDA_ANNABA": 564,
+  "OUEDRHIOU_BORDJBOUARRERIDJ": 466,
+  "BORDJBOUARRERIDJ_OUEDRHIOU": 466,
+  "ALGER_TIARET": 314,
+  "TIARET_ALGER": 314,
+  "TIZIOUZOU_TIARET": 459,
+  "TIARET_TIZIOUZOU": 459,
+  "SETIF_BOUIRA": 165,
+  "BOUIRA_SETIF": 165,
+  "ELOUED_LESEUCALYPTUS": 623,
+  "LESEUCALYPTUS_ELOUED": 623,
+  "TIZIOUZOU_TIZIOUZOU": 58,
+  "TIZIOUZOU_BOUMERDES": 116,
+  "BOUMERDES_TIZIOUZOU": 116
+};
+
+function getCityDistance(cityA, cityB) {
+  if (!cityA || !cityB) return 0;
+  const clean = s => s.normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^A-Z0-9]/g, '').trim().toUpperCase();
+  const a = clean(cityA);
+  const b = clean(cityB);
+  if (a === b) return 0;
+  
+  const key = a + '_' + b;
+  if (window.CITY_DISTANCES && window.CITY_DISTANCES[key] !== undefined) {
+    return window.CITY_DISTANCES[key];
+  }
+  
+  // Essai de correspondance partielle
+  if (window.CITY_DISTANCES) {
+    const foundKey = Object.keys(window.CITY_DISTANCES).find(k => {
+      const parts = k.split('_');
+      return (parts[0].includes(a) && parts[1].includes(b)) || (parts[0].includes(b) && parts[1].includes(a));
+    });
+    if (foundKey) return window.CITY_DISTANCES[foundKey];
+  }
+  return 0;
+}
+
+function getVehicleAnomalyKm(immat, motifName, startVal, endVal) {
+  if (!immat) return 0;
+  const vKey = immat.trim().toUpperCase();
+  const anomalies = [];
+  ['A','B','C','D'].forEach(eq => {
+    const dbEq = window['DB_' + eq] || (eq === (window.CURRENT_EQUIPE||'A') ? window.DB : null);
+    if (dbEq && dbEq.anomaliesPointees) {
+      Object.entries(dbEq.anomaliesPointees).forEach(([key, anom]) => {
+        const vehicle = key.split('_')[0].trim().toUpperCase();
+        if (anom && vehicle === vKey && anom.motif === motifName) {
+          anomalies.push({ ...anom, v: vehicle });
+        }
+      });
+    }
+  });
+  
+  const deduped = [];
+  const seen = new Set();
+  anomalies.forEach(anom => {
+    const uniqueKey = anom.v + '_' + anom.date + '_' + anom.ts + '_' + anom.motif;
+    if (!seen.has(uniqueKey)) {
+      seen.add(uniqueKey);
+      deduped.push(anom);
+    }
+  });
+
+  const filtered = deduped.filter(anom => {
+    if (startVal && anom.date && anom.date < startVal) return false;
+    if (endVal && anom.date && anom.date > endVal) return false;
+    return true;
+  });
+
+  let totalDist = 0;
+  filtered.forEach(anom => {
+    const dist = getCityDistance(anom.lieuInitial, anom.lieuActuel);
+    totalDist += dist;
+  });
+  
+  return totalDist;
+}
+
 function renderOdo() {
   const q = document.getElementById('odo-search').value;
   const anomalyVehicles = new Set();
@@ -6217,7 +6900,7 @@ function renderOdo() {
 
   const head = document.getElementById('odo-head');
   head.innerHTML = `<th>Véhicule</th><th>Chauffeur</th>` +
-    filteredWeeks.map(w=>`<th style="font-size:9px">${w}</th>`).join('') + `<th>KM Parcourus</th><th>KM Facturé</th><th>Roulage à charge</th><th style="color:var(--red)">🔧 Pannes</th><th style="color:var(--org)">Dernière panne</th><th>Action</th>`;
+    filteredWeeks.map(w=>`<th style="font-size:9px">${w}</th>`).join('') + `<th>KM Parcourus</th><th>KM Facturé</th><th>Roulage à charge</th><th style="color:var(--acc)">🔄 Orientation (KM)</th><th style="color:var(--red)">🛒 A son compte (KM)</th><th style="color:var(--red)">🔧 Pannes</th><th style="color:var(--org)">Dernière panne</th><th>Action</th>`;
   
   let totalKm = 0;
   let totalFact = 0;
@@ -6251,7 +6934,7 @@ function renderOdo() {
     updateHeaderRAC();
   }
   const body = document.getElementById('odo-body');
-  if (!data.length) { body.innerHTML = `<tr><td colspan="${filteredWeeks.length+8}"><div class="empty-state"><div class="icon">🔍</div>Aucun résultat</div></td></tr>`; return; }
+  if (!data.length) { body.innerHTML = `<tr><td colspan="${filteredWeeks.length+10}"><div class="empty-state"><div class="icon">🔍</div>Aucun résultat</div></td></tr>`; return; }
   // Lookup pannes par matricule (uniquement dans renderOdo)
   const pannesByVehicle = {};
   (DB.pannes||[]).forEach(p => {
@@ -6286,7 +6969,24 @@ function renderOdo() {
     let racStr = '—';
     if (deltaVal !== null && deltaVal > 0 && kmFacture !== null && kmFacture > 0) {
       const rac = (kmFacture / deltaVal) * 100;
-      racStr = `<span style="font-weight:700;color:var(--acc)">${rac.toFixed(1)} %</span>`;
+      let badgeStyle = '';
+      let titleText = '';
+      let alertIcon = '';
+      
+      if (rac < 40) {
+        badgeStyle = 'color: var(--red); font-weight: 800; background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.4); padding: 2px 6px; border-radius: 4px; display: inline-block;';
+        titleText = '🚨 Focus absolu (< 40%)';
+        alertIcon = '🚨 ';
+      } else if (rac < 50) {
+        badgeStyle = 'color: var(--org); font-weight: 800; background: rgba(245, 158, 11, 0.1); border: 1px solid rgba(245, 158, 11, 0.4); padding: 2px 6px; border-radius: 4px; display: inline-block;';
+        titleText = '🔍 À surveiller (< 50%)';
+        alertIcon = '🔍 ';
+      } else {
+        badgeStyle = 'color: var(--grn); font-weight: 700; background: rgba(16, 185, 129, 0.1); border: 1px solid rgba(16, 185, 129, 0.4); padding: 2px 6px; border-radius: 4px; display: inline-block;';
+        titleText = '✅ Performant (≥ 50%)';
+        alertIcon = '✅ ';
+      }
+      racStr = `<span style="${badgeStyle}" title="${titleText}">${alertIcon}${rac.toFixed(1)} %</span>`;
     }
     const pKey = (r.v||''). trim().toUpperCase();
     const panDates = (pannesByVehicle[pKey]||[]).filter(Boolean).sort();
@@ -6298,6 +6998,11 @@ function renderOdo() {
     const panLastCell  = panLast
       ? `<td class="mono" style="font-size:11px;color:var(--org)">${panLast}</td>`
       : `<td style="color:var(--txt3);font-size:11px">—</td>`;
+    const kmOrientation = getVehicleAnomalyKm(r.v, 'Orientation', startVal, endVal);
+    const kmSonCompte = getVehicleAnomalyKm(r.v, 'Chargement à son compte', startVal, endVal);
+    const kmOrientationStr = kmOrientation > 0 ? `<b style="color:var(--acc)">${kmOrientation.toLocaleString('fr-FR')}</b>` : `<span style="color:var(--txt3)">—</span>`;
+    const kmSonCompteStr = kmSonCompte > 0 ? `<b style="color:var(--red)">${kmSonCompte.toLocaleString('fr-FR')}</b>` : `<span style="color:var(--txt3)">—</span>`;
+
     return `<tr>
       <td class="mono" style="color:var(--acc)">${r.v}</td>
       <td style="font-weight:600">${r.chauffeur||'—'}</td>
@@ -6305,6 +7010,8 @@ function renderOdo() {
       <td class="mono">${delta}</td>
       <td class="mono" style="color:var(--grn);font-weight:600">${kmFactureStr}</td>
       <td class="mono">${racStr}</td>
+      <td class="mono" style="text-align:center">${kmOrientationStr}</td>
+      <td class="mono" style="text-align:center">${kmSonCompteStr}</td>
       ${panCountCell}
       ${panLastCell}
       <td><button class="del-btn" onclick="editOdo(${realIdx})">✏️</button><button class="del-btn" onclick="deleteOdo(${realIdx})">🗑</button></td>
@@ -6496,9 +7203,11 @@ function renderRacHistoryTable() {
   const db = (eq === CURRENT_EQUIPE && typeof window.DB !== 'undefined') ? window.DB : window['DB_' + eq];
   const vehicle = document.getElementById('h-rac-vehicle').value;
   const body = document.getElementById('h-rac-body');
+  const alertPanel = document.getElementById('h-rac-alert-panel');
   
   if (!db || !db.odo_weeks || !db.odo_weeks.length) {
     body.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:20px;color:var(--txt3)">Aucune donnée disponible</td></tr>';
+    if (alertPanel) alertPanel.style.display = 'none';
     return;
   }
   
@@ -6506,11 +7215,52 @@ function renderRacHistoryTable() {
   let rows = [];
   
   if (vehicle === '__all__') {
+    // Populate alerts for the latest week
+    const lastWeekIdx = weeks.length - 1;
+    const redDrivers = [];
+    const orangeDrivers = [];
+    
+    if (lastWeekIdx >= 1) {
+      db.odo.forEach(r => {
+        const vCurr = r.vals ? r.vals[lastWeekIdx] : null;
+        const vPrev = r.vals ? r.vals[lastWeekIdx - 1] : null;
+        
+        if (vCurr !== null && vPrev !== null && vCurr > 1000 && vPrev > 1000) {
+          const delta = vCurr - vPrev;
+          if (delta > 0 && delta <= 50000) {
+            let kmF = null;
+            if (r.kmFactures && r.kmFactures[lastWeekIdx] !== undefined && r.kmFactures[lastWeekIdx] !== null) {
+              kmF = r.kmFactures[lastWeekIdx];
+            } else if (r.kmFacture !== undefined && r.kmFacture !== null) {
+              kmF = r.kmFacture;
+            }
+            
+            if (kmF !== null && kmF > 0) {
+              const vehicleRac = (kmF / delta) * 100;
+              const label = `<strong>${r.v}</strong> ${r.chauffeur ? ' (' + r.chauffeur + ')' : ''} : <strong>${vehicleRac.toFixed(1)}%</strong>`;
+              if (vehicleRac < 40) {
+                redDrivers.push(label);
+              } else if (vehicleRac < 50) {
+                orangeDrivers.push(label);
+              }
+            }
+          }
+        }
+      });
+    }
+    
+    document.getElementById('h-rac-list-red').innerHTML = redDrivers.length ? redDrivers.map(d => `• ${d}`).join('<br>') : '<span style="color:var(--txt3)">Aucun (Félicitations !)</span>';
+    document.getElementById('h-rac-list-orange').innerHTML = orangeDrivers.length ? orangeDrivers.map(d => `• ${d}`).join('<br>') : '<span style="color:var(--txt3)">Aucun</span>';
+    if (alertPanel) alertPanel.style.display = 'block';
+
     // Global summary for all vehicles week-by-week
     for (let i = 1; i < weeks.length; i++) {
       let totalDelta = 0;
       let totalFacture = 0;
       let countVehicles = 0;
+      let focusAbsoluCount = 0;
+      let aSurveillerCount = 0;
+      let performantCount = 0;
       
       db.odo.forEach(r => {
         const vCurr = r.vals ? r.vals[i] : null;
@@ -6531,6 +7281,15 @@ function renderRacHistoryTable() {
             if (kmF !== null && kmF > 0) {
               totalFacture += kmF;
               countVehicles++;
+              
+              const vehicleRac = (kmF / delta) * 100;
+              if (vehicleRac < 40) {
+                focusAbsoluCount++;
+              } else if (vehicleRac < 50) {
+                aSurveillerCount++;
+              } else {
+                performantCount++;
+              }
             }
           }
         }
@@ -6539,7 +7298,11 @@ function renderRacHistoryTable() {
       let racStr = '—';
       if (totalDelta > 0 && totalFacture > 0) {
         const rac = (totalFacture / totalDelta) * 100;
-        racStr = `<span style="font-weight:700;color:var(--acc)">${rac.toFixed(1)} %</span>`;
+        let badgeStyle = 'color: var(--grn); font-weight:700;';
+        if (rac < 40) badgeStyle = 'color: var(--red); font-weight:800;';
+        else if (rac < 50) badgeStyle = 'color: var(--org); font-weight:800;';
+        
+        racStr = `<span style="${badgeStyle}">${rac.toFixed(1)} %</span> <span style="font-size:11px;color:var(--txt3);margin-left:8px">(${performantCount}✅ ${aSurveillerCount}🔍 ${focusAbsoluCount}🚨)</span>`;
       }
       
       rows.push(`
@@ -6554,6 +7317,8 @@ function renderRacHistoryTable() {
       `);
     }
   } else {
+    if (alertPanel) alertPanel.style.display = 'none';
+    
     // Specific vehicle history
     const r = db.odo.find(item => item.v === vehicle);
     if (!r) {
@@ -6582,7 +7347,19 @@ function renderRacHistoryTable() {
       let racStr = '—';
       if (deltaVal !== null && deltaVal > 0 && kmF !== null && kmF > 0) {
         const rac = (kmF / deltaVal) * 100;
-        racStr = `<span style="font-weight:700;color:var(--acc)">${rac.toFixed(1)} %</span>`;
+        let badgeStyle = '';
+        let alertIcon = '';
+        if (rac < 40) {
+          badgeStyle = 'color: var(--red); font-weight:800; background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.3); padding: 1px 4px; border-radius: 4px;';
+          alertIcon = '🚨 ';
+        } else if (rac < 50) {
+          badgeStyle = 'color: var(--org); font-weight:800; background: rgba(245, 158, 11, 0.1); border: 1px solid rgba(245, 158, 11, 0.3); padding: 1px 4px; border-radius: 4px;';
+          alertIcon = '🔍 ';
+        } else {
+          badgeStyle = 'color: var(--grn); font-weight:700; background: rgba(16, 185, 129, 0.1); border: 1px solid rgba(16, 185, 129, 0.3); padding: 1px 4px; border-radius: 4px;';
+          alertIcon = '✅ ';
+        }
+        racStr = `<span style="${badgeStyle}">${alertIcon}${rac.toFixed(1)} %</span>`;
       }
       
       rows.push(`
@@ -8589,6 +9366,10 @@ function switchEquipe(eq) {
 // INIT (après définition des équipes + switchEquipe)
 // ═══════════════════════════════════════════════════════════════
 loadDB();
+const thirtyDaysAgo = new Date();
+thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+const startEl = document.getElementById('odo-filter-start');
+if (startEl) startEl.value = thirtyDaysAgo.toISOString().split('T')[0];
 switchEquipe(CURRENT_EQUIPE || 'A');
 updateDataLists();
 
@@ -9084,7 +9865,7 @@ async function runOdoExport() {
   const fmtW = w => new Date(w).toLocaleDateString('fr-FR', {day:'2-digit', month:'short', year:'numeric'});
   const eq   = CURRENT_EQUIPE || 'A';
 
-  const headers = ['Véhicule', 'Chauffeur', 'KM au ' + fmtW(weeks[fi]), 'KM au ' + fmtW(weeks[ti]), 'KM Parcourus', 'Statut'];
+  const headers = ['Véhicule', 'Chauffeur', 'KM au ' + fmtW(weeks[fi]), 'KM au ' + fmtW(weeks[ti]), 'KM Parcourus', 'Orientation (KM)', 'A son compte (KM)', 'Statut'];
   const rows = [];
   DB.odo.forEach(r => {
     const vFrom = (r.vals && r.vals[fi] != null) ? r.vals[fi] : null;
@@ -9098,7 +9879,23 @@ async function runOdoExport() {
     } else {
       statut = 'Données partielles';
     }
-    rows.push([r.v || '', r.chauffeur || '', vFrom !== null ? vFrom : '', vTo !== null ? vTo : '', delta !== null ? delta : '', statut]);
+    
+    // Calcul des anomalies de segment pour la période
+    const startW = weeks[fi];
+    const endW = weeks[ti];
+    const kmOrientation = getVehicleAnomalyKm(r.v, 'Orientation', startW, endW);
+    const kmSonCompte = getVehicleAnomalyKm(r.v, 'Chargement à son compte', startW, endW);
+    
+    rows.push([
+      r.v || '', 
+      r.chauffeur || '', 
+      vFrom !== null ? vFrom : '', 
+      vTo !== null ? vTo : '', 
+      delta !== null ? delta : '', 
+      kmOrientation > 0 ? kmOrientation : '', 
+      kmSonCompte > 0 ? kmSonCompte : '', 
+      statut
+    ]);
   });
   // Tri : KM desc, sans données en bas
   rows.sort((a,b) => {
@@ -9107,12 +9904,14 @@ async function runOdoExport() {
     return db - da;
   });
   const totKm = rows.reduce((s,r) => s + (typeof r[4]==='number' && r[4]>0 ? r[4] : 0), 0);
-  rows.push(['TOTAL', '', '', '', totKm, '']);
+  const totOri = rows.reduce((s,r) => s + (typeof r[5]==='number' && r[5]>0 ? r[5] : 0), 0);
+  const totCompte = rows.reduce((s,r) => s + (typeof r[6]==='number' && r[6]>0 ? r[6] : 0), 0);
+  rows.push(['TOTAL', '', '', '', totKm, totOri > 0 ? totOri : '', totCompte > 0 ? totCompte : '', '']);
 
   const data = [headers, ...rows];
   const wb = XLSX.utils.book_new();
   const ws = XLSX.utils.aoa_to_sheet(data);
-  ws['!cols'] = [{wch:18},{wch:26},{wch:18},{wch:18},{wch:14},{wch:20}];
+  ws['!cols'] = [{wch:18},{wch:26},{wch:18},{wch:18},{wch:14},{wch:18},{wch:18},{wch:20}];
   XLSX.utils.book_append_sheet(wb, ws, 'KM_EQ' + eq);
   const dateStr = new Date().toISOString().slice(0,10).replace(/-/g,'');
   XLSX.writeFile(wb, `ODO_EQ${eq}_${weeks[fi].replace(/-/g,'')}_a_${weeks[ti].replace(/-/g,'')}_export${dateStr}.xlsx`);
@@ -9903,6 +10702,285 @@ function emargerFlash(flashId) {
   showToast("✍️ Émargement enregistré avec succès !");
 }
 window.emargerFlash = emargerFlash;
+
+// ── FONCTIONS ET LOGIQUE : PERFORMANCE CHAUFFEUR & SUIVI CLIENT ──
+function openClientModifModal(idx) {
+  if (!_checkActionsLibres('openClientModif')) return;
+  const r = DB.dispo[idx];
+  if (!r) return;
+  document.getElementById('f-client-idx').value = idx;
+  document.getElementById('f-client-chauffeur').value = r.chauffeur || '';
+  document.getElementById('f-client-v').value = r.v || '';
+  document.getElementById('f-client-nom').value = '';
+  document.getElementById('f-client-ref-init').value = '';
+  document.getElementById('f-client-ref-new').value = '';
+  document.getElementById('f-client-dest-init').value = r.lieuJ1 && r.lieuJ1 !== '—' ? r.lieuJ1 : '';
+  document.getElementById('f-client-dest-new').value = '';
+  document.getElementById('f-client-obs').value = '';
+  openModal('modal-client-modif', idx);
+}
+window.openClientModifModal = openClientModifModal;
+
+function saveClientModif() {
+  if (!_checkActionsLibres('saveClientModif')) return;
+  const idx = parseInt(document.getElementById('f-client-idx').value);
+  const r = DB.dispo[idx];
+  if (!r) return;
+  const client = document.getElementById('f-client-nom').value.trim();
+  const refInit = document.getElementById('f-client-ref-init').value.trim();
+  const refNew = document.getElementById('f-client-ref-new').value.trim();
+  const destInit = document.getElementById('f-client-dest-init').value.trim();
+  const destNew = document.getElementById('f-client-dest-new').value.trim();
+  const obs = document.getElementById('f-client-obs').value.trim();
+
+  if (!client) { showToast('⚠️ Nom du client requis', true); return; }
+  if (!refNew && !destNew) { showToast('⚠️ Saisissez une nouvelle référence ou destination', true); return; }
+
+  if (!DB.clientModifs) DB.clientModifs = [];
+  DB.clientModifs.push({
+    timestamp: new Date().toISOString(),
+    date: today(),
+    v: r.v,
+    chauffeur: r.chauffeur,
+    client,
+    refInit,
+    refNew,
+    destInit,
+    destNew,
+    obs,
+    equipe: CURRENT_EQUIPE
+  });
+
+  logMouvement(
+    "Changement Commande", 
+    "Chauffeur", 
+    r.chauffeur, 
+    `Client: ${client} | Réf: ${refInit||'—'} ➔ ${refNew||'—'} | Dest: ${destInit||'—'} ➔ ${destNew||'—'}`
+  );
+  saveDB();
+  closeModal('modal-client-modif');
+  renderDispo();
+  showToast('✅ Modification de commande client enregistrée');
+}
+window.saveClientModif = saveClientModif;
+
+function openIncidentModal(idx) {
+  if (!_checkActionsLibres('openIncident')) return;
+  const r = DB.dispo[idx];
+  if (!r) return;
+  document.getElementById('f-inc-idx').value = idx;
+  document.getElementById('f-inc-chauffeur').value = r.chauffeur || '';
+  document.getElementById('f-inc-v').value = r.v || '';
+  document.getElementById('f-inc-desc').value = '';
+  document.getElementById('f-inc-date').value = today();
+  document.getElementById('f-inc-obs').value = '';
+  openModal('modal-incident', idx);
+}
+window.openIncidentModal = openIncidentModal;
+
+function saveIncident() {
+  if (!_checkActionsLibres('saveIncident')) return;
+  const idx = parseInt(document.getElementById('f-inc-idx').value);
+  const r = DB.dispo[idx];
+  if (!r) return;
+  const type = document.getElementById('f-inc-type').value;
+  const desc = document.getElementById('f-inc-desc').value.trim();
+  const resp = document.getElementById('f-inc-resp').value;
+  const date = document.getElementById('f-inc-date').value || today();
+  const obs = document.getElementById('f-inc-obs').value.trim();
+
+  if (!desc) { showToast('⚠️ Description de l\'incident requise', true); return; }
+
+  if (!DB.incidents) DB.incidents = [];
+  DB.incidents.push({
+    timestamp: new Date().toISOString(),
+    date,
+    v: r.v,
+    chauffeur: r.chauffeur,
+    type,
+    desc,
+    resp,
+    obs,
+    equipe: CURRENT_EQUIPE
+  });
+
+  logMouvement("Incident Chauffeur", "Chauffeur", r.chauffeur, `${type} : ${desc} (Resp: ${resp})`);
+  saveDB();
+  closeModal('modal-incident');
+  renderDispo();
+  showToast('✅ Incident enregistré avec succès');
+}
+window.saveIncident = saveIncident;
+
+function renderPerformanceChauffeur() {
+  const selectChauffeur = document.getElementById('perf-search-chauffeur').value.trim().toUpperCase();
+  
+  const allIncidents = [];
+  const allModifs = [];
+  
+  ['A','B','C','D'].forEach(eq => {
+    const dbEq = window['DB_' + eq] || (eq === (window.CURRENT_EQUIPE||'A') ? window.DB : null);
+    if (dbEq) {
+      if (dbEq.incidents) {
+        dbEq.incidents.forEach(item => {
+          allIncidents.push({ ...item, equipe: item.equipe || eq });
+        });
+      }
+      if (dbEq.clientModifs) {
+        dbEq.clientModifs.forEach(item => {
+          allModifs.push({ ...item, equipe: item.equipe || eq });
+        });
+      }
+    }
+  });
+
+  const uniqueIncidents = [];
+  const seenInc = new Set();
+  allIncidents.forEach(x => {
+    const key = x.timestamp + '_' + x.chauffeur + '_' + x.type;
+    if (!seenInc.has(key)) {
+      seenInc.add(key);
+      uniqueIncidents.push(x);
+    }
+  });
+
+  const uniqueModifs = [];
+  const seenMod = new Set();
+  allModifs.forEach(x => {
+    const key = x.timestamp + '_' + x.v + '_' + x.refNew;
+    if (!seenMod.has(key)) {
+      seenMod.add(key);
+      uniqueModifs.push(x);
+    }
+  });
+
+  if (selectChauffeur) {
+    document.getElementById('perf-leaderboard-container').style.display = 'none';
+    document.getElementById('perf-detail-container').style.display = 'block';
+
+    const driverInc = uniqueIncidents.filter(x => (x.chauffeur||'').trim().toUpperCase() === selectChauffeur);
+    const driverMod = uniqueModifs.filter(x => (x.chauffeur||'').trim().toUpperCase() === selectChauffeur);
+
+    const avariesCount = driverInc.filter(x => x.type === 'Avarie Marchandise').length;
+    const sinistresCount = driverInc.filter(x => x.type === 'Sinistre Camion').length;
+    const totalInc = driverInc.length;
+    
+    const nonRespInc = driverInc.filter(x => x.resp && x.resp.includes('Non responsable')).length;
+    const respPct = totalInc > 0 ? Math.round((nonRespInc / totalInc) * 100) : 100;
+
+    document.getElementById('perf-stat-total-incidents').textContent = totalInc;
+    document.getElementById('perf-stat-avaries').textContent = avariesCount;
+    document.getElementById('perf-stat-sinistres').textContent = sinistresCount;
+    document.getElementById('perf-stat-non-responsable').textContent = respPct + '%';
+    document.getElementById('perf-stat-modifs').textContent = driverMod.length;
+
+    const incBody = document.getElementById('perf-incidents-body');
+    if (driverInc.length === 0) {
+      incBody.innerHTML = `<tr><td colspan="7" style="text-align:center;color:var(--txt3)">Aucun incident enregistré</td></tr>`;
+    } else {
+      incBody.innerHTML = driverInc.map(x => `
+        <tr>
+          <td class="mono">${x.date}</td>
+          <td class="mono" style="color:var(--acc)">${x.v}</td>
+          <td><span class="badge ${x.type.includes('Avarie') ? 'badge-red' : 'badge-org'}">${x.type}</span></td>
+          <td style="font-weight:600">${x.desc || '—'}</td>
+          <td><span class="badge ${x.resp.includes('Non responsable') ? 'badge-grn' : x.resp.includes('Force majeure') ? 'badge-yel' : 'badge-red'}">${x.resp}</span></td>
+          <td style="text-align:center"><span class="badge badge-blue">EQ ${x.equipe}</span></td>
+          <td style="font-size:11px;color:var(--txt2)">${x.obs || '—'}</td>
+        </tr>
+      `).join('');
+    }
+
+    const modBody = document.getElementById('perf-modifs-body');
+    if (driverMod.length === 0) {
+      modBody.innerHTML = `<tr><td colspan="9" style="text-align:center;color:var(--txt3)">Aucune modification de commande</td></tr>`;
+    } else {
+      modBody.innerHTML = driverMod.map(x => `
+        <tr>
+          <td class="mono">${x.date}</td>
+          <td class="mono" style="color:var(--acc)">${x.v}</td>
+          <td style="font-weight:600">${x.client || '—'}</td>
+          <td class="mono" style="color:var(--txt3)">${x.refInit || '—'}</td>
+          <td class="mono" style="color:var(--grn);font-weight:600">${x.refNew || '—'}</td>
+          <td style="color:var(--txt3)">${x.destInit || '—'}</td>
+          <td style="color:var(--acc);font-weight:600">${x.destNew || '—'}</td>
+          <td style="text-align:center"><span class="badge badge-blue">EQ ${x.equipe}</span></td>
+          <td style="font-size:11px;color:var(--txt2)">${x.obs || '—'}</td>
+        </tr>
+      `).join('');
+    }
+  } else {
+    document.getElementById('perf-leaderboard-container').style.display = 'block';
+    document.getElementById('perf-detail-container').style.display = 'none';
+
+    const allDrivers = new Set();
+    DB.dispo.forEach(r => {
+      if (r.chauffeur && r.chauffeur !== '—' && !r.chauffeur.includes('MANQUE')) allDrivers.add(r.chauffeur.trim().toUpperCase());
+    });
+    uniqueIncidents.forEach(x => {
+      if (x.chauffeur) allDrivers.add(x.chauffeur.trim().toUpperCase());
+    });
+    uniqueModifs.forEach(x => {
+      if (x.chauffeur) allDrivers.add(x.chauffeur.trim().toUpperCase());
+    });
+
+    const driverStats = [];
+    allDrivers.forEach(name => {
+      const driverInc = uniqueIncidents.filter(x => (x.chauffeur||'').trim().toUpperCase() === name);
+      const driverMod = uniqueModifs.filter(x => (x.chauffeur||'').trim().toUpperCase() === name);
+      const avaries = driverInc.filter(x => x.type === 'Avarie Marchandise').length;
+      const sinistres = driverInc.filter(x => x.type === 'Sinistre Camion').length;
+      const total = driverInc.length;
+      
+      driverStats.push({
+        name,
+        avaries,
+        sinistres,
+        total,
+        modifs: driverMod.length
+      });
+    });
+
+    driverStats.sort((a,b) => b.total - a.total || b.modifs - a.modifs);
+
+    const leadBody = document.getElementById('perf-leaderboard-body');
+    if (driverStats.length === 0) {
+      leadBody.innerHTML = `<tr><td colspan="6" style="text-align:center;color:var(--txt3)">Aucun chauffeur enregistré</td></tr>`;
+    } else {
+      leadBody.innerHTML = driverStats.map(s => {
+        let statusBadge = '';
+        if (s.total >= 3) {
+          statusBadge = '<span class="badge badge-red" style="font-weight:bold;animation:pulse-eye 0.8s infinite alternate;">🚨 Focus Absolu</span>';
+        } else if (s.total >= 1) {
+          statusBadge = '<span class="badge badge-org" style="font-weight:bold;">🔍 À Surveiller</span>';
+        } else {
+          statusBadge = '<span class="badge badge-grn">✅ Performant</span>';
+        }
+
+        return `
+          <tr style="cursor:pointer" onclick="document.getElementById('perf-search-chauffeur').value='${s.name.replace(/'/g, "\'")}';renderPerformanceChauffeur()">
+            <td style="font-weight:bold;color:var(--acc)">${s.name}</td>
+            <td class="mono" style="text-align:center">${s.avaries > 0 ? `<b style="color:var(--red)">${s.avaries}</b>` : '0'}</td>
+            <td class="mono" style="text-align:center">${s.sinistres > 0 ? `<b style="color:var(--org)">${s.sinistres}</b>` : '0'}</td>
+            <td class="mono" style="text-align:center;font-weight:bold">${s.total > 0 ? `<span style="background:rgba(239,68,68,0.15);padding:2px 8px;border-radius:4px;color:var(--red)">${s.total}</span>` : '0'}</td>
+            <td class="mono" style="text-align:center">${s.modifs > 0 ? `<b>${s.modifs}</b>` : '0'}</td>
+            <td>${statusBadge}</td>
+          </tr>
+        `;
+      }).join('');
+    }
+
+    document.getElementById('perf-stat-total-incidents').textContent = uniqueIncidents.length;
+    document.getElementById('perf-stat-avaries').textContent = uniqueIncidents.filter(x => x.type === 'Avarie Marchandise').length;
+    document.getElementById('perf-stat-sinistres').textContent = uniqueIncidents.filter(x => x.type === 'Sinistre Camion').length;
+    
+    const nonRespTotal = uniqueIncidents.filter(x => x.resp && x.resp.includes('Non responsable')).length;
+    const respPctTotal = uniqueIncidents.length > 0 ? Math.round((nonRespTotal / uniqueIncidents.length) * 100) : 100;
+    document.getElementById('perf-stat-non-responsable').textContent = respPctTotal + '%';
+    document.getElementById('perf-stat-modifs').textContent = uniqueModifs.length;
+  }
+}
+window.renderPerformanceChauffeur = renderPerformanceChauffeur;
 </script>
 
 <!-- MODAL EXPORT NUMIFLOW + ARCHIVAGE AUTO -->
