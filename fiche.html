@@ -3332,58 +3332,178 @@ function alignOdoWeeksForDB(db, globalSortedWeeks) {
   }
 }
 
+// Helper : Détermine les indices des semaines actives qui ont au moins une saisie > 1000
+function getActiveOdoWeekIndices(db) {
+  if (!db || !db.odo_weeks || !db.odo) return null;
+  const numWeeks = db.odo_weeks.length;
+  if (numWeeks < 2) return null;
+  
+  const counts = Array(numWeeks).fill(0);
+  db.odo.forEach(r => {
+    if (r.vals) {
+      for (let i = 0; i < numWeeks; i++) {
+        if (r.vals[i] && r.vals[i] > 1000) {
+          counts[i]++;
+        }
+      }
+    }
+  });
+  
+  const activeIndices = [];
+  for (let i = numWeeks - 1; i >= 0; i--) {
+    if (counts[i] > 0) {
+      activeIndices.push(i);
+      if (activeIndices.length === 2) break;
+    }
+  }
+  
+  if (activeIndices.length === 2) {
+    return [activeIndices[1], activeIndices[0]];
+  }
+  return [numWeeks - 2, numWeeks - 1];
+}
+
+// Helper : Détermine toutes les semaines actives du mois pour le calcul de fin de mois
+function getMonthOdoWeekIndices(db) {
+  if (!db || !db.odo_weeks || !db.odo) return null;
+  const numWeeks = db.odo_weeks.length;
+  
+  const counts = Array(numWeeks).fill(0);
+  db.odo.forEach(r => {
+    if (r.vals) {
+      for (let i = 0; i < numWeeks; i++) {
+        if (r.vals[i] && r.vals[i] > 1000) {
+          counts[i]++;
+        }
+      }
+    }
+  });
+  
+  const activeIndices = [];
+  for (let i = 0; i < numWeeks; i++) {
+    if (counts[i] > 0) {
+      activeIndices.push(i);
+    }
+  }
+  
+  if (activeIndices.length >= 2) {
+    return {
+      firstIdx: activeIndices[0],
+      lastIdx: activeIndices[activeIndices.length - 1],
+      allActive: activeIndices
+    };
+  }
+  return null;
+}
+
 function getSingleVehicleRACStr(immat) {
   if (!DB || !DB.odo || !DB.odo_weeks || DB.odo_weeks.length < 2) return '<span style="color:var(--txt3); font-size:10px">—</span>';
   const r = DB.odo.find(x => x.v === immat);
   if (!r) return '<span style="color:var(--txt3); font-size:10px">—</span>';
-  const lastWeekIdx = DB.odo_weeks.length - 1;
-  const prevWeekIdx = DB.odo_weeks.length - 2;
-  const vLast = r.vals ? r.vals[lastWeekIdx] : null;
-  const vPrev = r.vals ? r.vals[prevWeekIdx] : null;
-  if (vLast && vPrev && vLast > 1000 && vPrev > 1000 && vLast > vPrev) {
-    const delta = vLast - vPrev;
-    let kmF = 0;
-    if (r.kmFactures && r.kmFactures[lastWeekIdx] !== undefined && r.kmFactures[lastWeekIdx] !== null) {
-      kmF = r.kmFactures[lastWeekIdx];
-    } else if (r.kmFacture !== undefined && r.kmFacture !== null) {
-      kmF = r.kmFacture;
-    }
-    if (delta > 0 && kmF > 0) {
-      const rac = (kmF / delta) * 100;
-      let badgeStyle = '';
-      if (rac < 40) {
-        badgeStyle = 'color: var(--red); font-weight: 800; background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.4); padding: 1px 4px; border-radius: 4px; font-size: 10px;';
-      } else if (rac < 50) {
-        badgeStyle = 'color: var(--org); font-weight: 800; background: rgba(245, 158, 11, 0.1); border: 1px solid rgba(245, 158, 11, 0.4); padding: 1px 4px; border-radius: 4px; font-size: 10px;';
-      } else {
-        badgeStyle = 'color: var(--grn); font-weight: 700; background: rgba(16, 185, 129, 0.1); border: 1px solid rgba(16, 185, 129, 0.4); padding: 1px 4px; border-radius: 4px; font-size: 10px;';
+  
+  const isEndOfMonth = [30, 31, 1].includes(new Date().getDate());
+  let deltaVal = 0;
+  let factVal = 0;
+  
+  if (isEndOfMonth) {
+    const indices = getMonthOdoWeekIndices(DB);
+    if (indices) {
+      const vLast = r.vals ? r.vals[indices.lastIdx] : null;
+      const vFirst = r.vals ? r.vals[indices.firstIdx] : null;
+      if (vLast && vFirst && vLast > 1000 && vFirst > 1000 && vLast > vFirst) {
+        deltaVal = vLast - vFirst;
+        for (let idx = 1; idx < indices.allActive.length; idx++) {
+          const i = indices.allActive[idx];
+          if (r.kmFactures && r.kmFactures[i] !== undefined && r.kmFactures[i] !== null) {
+            factVal += r.kmFactures[i];
+          } else if (i === indices.lastIdx && r.kmFacture !== undefined && r.kmFacture !== null) {
+            factVal += r.kmFacture;
+          }
+        }
       }
-      return `<span style="${badgeStyle}" title="RAC S-1 = ${kmF}km facturés / ${delta}km parcourus">${rac.toFixed(1)}%</span>`;
     }
+  } else {
+    const indices = getActiveOdoWeekIndices(DB);
+    if (indices) {
+      const [prevWeekIdx, lastWeekIdx] = indices;
+      const vLast = r.vals ? r.vals[lastWeekIdx] : null;
+      const vPrev = r.vals ? r.vals[prevWeekIdx] : null;
+      if (vLast && vPrev && vLast > 1000 && vPrev > 1000 && vLast > vPrev) {
+        deltaVal = vLast - vPrev;
+        if (r.kmFactures && r.kmFactures[lastWeekIdx] !== undefined && r.kmFactures[lastWeekIdx] !== null) {
+          factVal = r.kmFactures[lastWeekIdx];
+        } else if (r.kmFacture !== undefined && r.kmFacture !== null) {
+          factVal = r.kmFacture;
+        }
+      }
+    }
+  }
+  
+  if (deltaVal > 0 && factVal > 0) {
+    const rac = (factVal / deltaVal) * 100;
+    let badgeStyle = '';
+    if (rac < 40) {
+      badgeStyle = 'color: var(--red); font-weight: 800; background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.4); padding: 1px 4px; border-radius: 4px; font-size: 10px;';
+    } else if (rac < 50) {
+      badgeStyle = 'color: var(--org); font-weight: 800; background: rgba(245, 158, 11, 0.1); border: 1px solid rgba(245, 158, 11, 0.4); padding: 1px 4px; border-radius: 4px; font-size: 10px;';
+    } else {
+      badgeStyle = 'color: var(--grn); font-weight: 700; background: rgba(16, 185, 129, 0.1); border: 1px solid rgba(16, 185, 129, 0.4); padding: 1px 4px; border-radius: 4px; font-size: 10px;';
+    }
+    const typeLabel = isEndOfMonth ? 'Mois' : 'S-1';
+    return `<span style="${badgeStyle}" title="RAC ${typeLabel} = ${factVal}km facturés / ${deltaVal}km parcourus">${rac.toFixed(1)}%</span>`;
   }
   return '<span style="color:var(--txt3); font-size:10px">—</span>';
 }
 
 function getTeamRACStats(db) {
   if (!db || !db.odo || !db.odo_weeks || db.odo_weeks.length < 2) return { fact: 0, odo: 0 };
-  const lastWeekIdx = db.odo_weeks.length - 1;
-  const prevWeekIdx = db.odo_weeks.length - 2;
   let fact = 0;
   let odo = 0;
+  
+  const isEndOfMonth = [30, 31, 1].includes(new Date().getDate());
+  
   db.odo.forEach(r => {
-    const vLast = r.vals ? r.vals[lastWeekIdx] : null;
-    const vPrev = r.vals ? r.vals[prevWeekIdx] : null;
-    if (vLast && vPrev && vLast > 1000 && vPrev > 1000 && vLast > vPrev) {
-      const delta = vLast - vPrev;
-      let kmF = 0;
-      if (r.kmFactures && r.kmFactures[lastWeekIdx] !== undefined && r.kmFactures[lastWeekIdx] !== null) {
-        kmF = r.kmFactures[lastWeekIdx];
-      } else if (r.kmFacture !== undefined && r.kmFacture !== null) {
-        kmF = r.kmFacture;
+    if (isEndOfMonth) {
+      const indices = getMonthOdoWeekIndices(db);
+      if (indices) {
+        const vLast = r.vals ? r.vals[indices.lastIdx] : null;
+        const vFirst = r.vals ? r.vals[indices.firstIdx] : null;
+        if (vLast && vFirst && vLast > 1000 && vFirst > 1000 && vLast > vFirst) {
+          const delta = vLast - vFirst;
+          let sumFact = 0;
+          for (let idx = 1; idx < indices.allActive.length; idx++) {
+            const i = indices.allActive[idx];
+            if (r.kmFactures && r.kmFactures[i] !== undefined && r.kmFactures[i] !== null) {
+              sumFact += r.kmFactures[i];
+            } else if (i === indices.lastIdx && r.kmFacture !== undefined && r.kmFacture !== null) {
+              sumFact += r.kmFacture;
+            }
+          }
+          if (delta > 0 && delta <= 50000 && sumFact > 0) {
+            fact += sumFact;
+            odo += delta;
+          }
+        }
       }
-      if (delta > 0 && delta <= 10000 && kmF > 0) {
-        fact += kmF;
-        odo += delta;
+    } else {
+      const indices = getActiveOdoWeekIndices(db);
+      if (indices) {
+        const [prevWeekIdx, lastWeekIdx] = indices;
+        const vLast = r.vals ? r.vals[lastWeekIdx] : null;
+        const vPrev = r.vals ? r.vals[prevWeekIdx] : null;
+        if (vLast && vPrev && vLast > 1000 && vPrev > 1000 && vLast > vPrev) {
+          const delta = vLast - vPrev;
+          let kmF = 0;
+          if (r.kmFactures && r.kmFactures[lastWeekIdx] !== undefined && r.kmFactures[lastWeekIdx] !== null) {
+            kmF = r.kmFactures[lastWeekIdx];
+          } else if (r.kmFacture !== undefined && r.kmFacture !== null) {
+            kmF = r.kmFacture;
+          }
+          if (delta > 0 && delta <= 10000 && kmF > 0) {
+            fact += kmF;
+            odo += delta;
+          }
+        }
       }
     }
   });
@@ -7187,8 +7307,10 @@ function renderOdo() {
       : `<td style="color:var(--txt3);font-size:11px">—</td>`;
     const kmOrientation = getVehicleAnomalyKm(r.v, 'Orientation', startVal, endVal);
     const kmSonCompte = getVehicleAnomalyKm(r.v, 'Chargement à son compte', startVal, endVal);
+    const kmAutorise = getVehicleAnomalyKm(r.v, 'Chargement à son compte autorisé', startVal, endVal);
     const kmOrientationStr = kmOrientation > 0 ? `<b style="color:var(--acc)">${kmOrientation.toLocaleString('fr-FR')}</b>` : `<span style="color:var(--txt3)">—</span>`;
     const kmSonCompteStr = kmSonCompte > 0 ? `<b style="color:var(--red)">${kmSonCompte.toLocaleString('fr-FR')}</b>` : `<span style="color:var(--txt3)">—</span>`;
+    const kmAutoriseStr = kmAutorise > 0 ? `<b style="color:var(--grn)">${kmAutorise.toLocaleString('fr-FR')}</b>` : `<span style="color:var(--txt3)">—</span>`;
 
     return `<tr>
       <td class="mono" style="color:var(--acc)">${r.v}</td>
@@ -7199,6 +7321,7 @@ function renderOdo() {
       <td class="mono">${racStr}</td>
       <td class="mono" style="text-align:center">${kmOrientationStr}</td>
       <td class="mono" style="text-align:center">${kmSonCompteStr}</td>
+      <td class="mono" style="text-align:center">${kmAutoriseStr}</td>
       ${panCountCell}
       ${panLastCell}
       <td><button class="del-btn" onclick="editOdo(${realIdx})">✏️</button><button class="del-btn" onclick="deleteOdo(${realIdx})">🗑</button></td>
