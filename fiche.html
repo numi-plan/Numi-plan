@@ -243,10 +243,23 @@
     }
     
     const currentEq = getCurrentEquipe();
-    const localDb = (eq === currentEq && typeof window.DB !== 'undefined') ? window.DB : window['DB_' + eq];
+    
+    // RÈGLE 1 : Si c'est une équipe inactive, on accepte TOUJOURS les données du cloud directement
+    if (eq !== currentEq) {
+      window['DB_' + eq] = cloneEquipePayload(cleanSrc);
+      _initialCloudLoadCompleted[eq] = true;
+      if (typeof updateHeaderRAC === 'function') {
+        updateHeaderRAC();
+      }
+      return;
+    }
+
+    // RÈGLE 2 : Si c'est l'équipe active, on compare les localTs et remoteTs pour la compensation de latence
+    const localDb = typeof window.DB !== 'undefined' ? window.DB : window['DB_' + eq];
     const localTs = localDb ? (localDb._localTs || 0) : 0;
     const remoteTs = cleanSrc._localTs || 0;
     
+    // Si l'utilisateur est en cours d'édition ou a modifié des données en local pendant le transit
     if ((_fbReady || _fbLoaded[eq]) && localDb && localTs > remoteTs) {
       if (!window._teamSyncStarted) window._teamSyncStarted = {};
       if (!window._teamSyncStarted[eq]) {
@@ -261,7 +274,7 @@
       return;
     }
     
-    // 2. Si c'est identique, pas besoin de réappliquer
+    // Si c'est identique, pas besoin de réappliquer
     if (localDb && localTs === remoteTs) {
       _initialCloudLoadCompleted[eq] = true;
       if (typeof window.checkPointageRequired === 'function') {
@@ -270,8 +283,8 @@
       return;
     }
     
-    // 3. Sinon, le cloud est plus récent (remoteTs > localTs) : on l'applique
-    if (eq === currentEq && typeof window.DB !== 'undefined') {
+    // Sinon, le cloud est plus récent (remoteTs > localTs) : on l'applique
+    if (typeof window.DB !== 'undefined') {
       const merged = mergeTeamData(window.DB, cleanSrc);
       Object.assign(window.DB, merged);
       window['DB_' + eq] = cloneEquipePayload(merged);
@@ -280,22 +293,6 @@
         alignOdoWeeksGlobal();
       }
       safeRenderActiveTeam(eq);
-    } else {
-      // Pour les équipes inactives, aucun risque de perte de focus ou de modal local
-      window['DB_' + eq] = cloneEquipePayload(cleanSrc);
-      
-      // Si nous initialisons ou réactivons
-      if (eq === currentEq && typeof window.DB !== 'undefined') {
-        Object.assign(window.DB, cloneEquipePayload(cleanSrc));
-      }
-      
-      if (typeof alignOdoWeeksGlobal === 'function') {
-        alignOdoWeeksGlobal();
-      }
-      
-      if (eq === currentEq && typeof window.DB !== 'undefined') {
-        safeRenderActiveTeam(eq);
-      }
     }
     
     _initialCloudLoadCompleted[eq] = true;
@@ -621,6 +618,28 @@
   --border: #2d3f65; --txt: #e2e8f0; --txt2: #94a3b8; --txt3: #475569;
   --acc: #38bdf8; --grn: #34d399; --red: #f87171; --org: #fb923c;
   --yel: #fbbf24; --pur: #a78bfa;
+  --header-bg: linear-gradient(135deg, #0f172a 0%, #1e3a5f 50%, #0f172a 100%);
+  --header-txt: #e2e8f0;
+  --header-txt2: #94a3b8;
+}
+body.light-theme {
+  --bg: #f8fafc;
+  --bg2: #ffffff;
+  --bg3: #f1f5f9;
+  --surf: #e2e8f0;
+  --border: #cbd5e1;
+  --txt: #0f172a;
+  --txt2: #475569;
+  --txt3: #94a3b8;
+  --acc: #0284c7;
+  --grn: #16a34a;
+  --red: #dc2626;
+  --org: #ea580c;
+  --yel: #b45309;
+  --pur: #6d28d9;
+  --header-bg: linear-gradient(135deg, #f1f5f9 0%, #e2e8f0 50%, #cbd5e1 100%);
+  --header-txt: #0f172a;
+  --header-txt2: #475569;
 }
 @keyframes pulse-eye {
   from { opacity: 1; transform: scale(1); }
@@ -634,9 +653,9 @@
 body { font-family:'IBM Plex Sans',sans-serif; background:var(--bg); color:var(--txt); min-height:100vh; overflow-x:hidden; }
 
 /* HEADER */
-.header { background:linear-gradient(135deg,#0f172a 0%,#1e3a5f 50%,#0f172a 100%); border-bottom:1px solid var(--border); padding:16px 28px; display:flex; align-items:center; gap:16px; position:sticky; top:0; z-index:200; box-shadow:0 4px 32px rgba(0,0,0,.5); }
+.header { background: var(--header-bg); color: var(--header-txt); border-bottom:1px solid var(--border); padding:16px 28px; display:flex; align-items:center; gap:16px; position:sticky; top:0; z-index:200; box-shadow:0 4px 32px rgba(0,0,0,.5); }
 .header-logo { display:flex; align-items:center; }
-.header-sub { font-size:10px; color:var(--txt2); font-weight:600; letter-spacing:3px; text-transform:uppercase; }
+.header-sub { font-size:10px; color:var(--header-txt2); font-weight:600; letter-spacing:3px; text-transform:uppercase; }
 .header-right { margin-left:auto; display:flex; align-items:center; gap:10px; }
 .date-badge { background:var(--bg3); border:1px solid var(--border); border-radius:8px; padding:7px 14px; font-family:'IBM Plex Mono',monospace; font-size:12px; color:var(--acc); }
 .rac-badge { background:var(--bg3); border:1px solid var(--border); border-radius:8px; padding:7px 12px; font-family:'IBM Plex Mono',monospace; font-size:12px; transition: all 0.2s; }
@@ -908,6 +927,31 @@ tr.dragging {
 </div>
 
 <script>
+  // ─── MODE CLAIR / SOMBRE (PERSISTANT) ───────────────────────────────────────
+  window.toggleTheme = function() {
+    const isLight = document.body.classList.toggle('light-theme');
+    localStorage.setItem('numiplan_theme', isLight ? 'light' : 'dark');
+    const btn = document.getElementById('theme-toggle-btn');
+    if (btn) {
+      btn.innerHTML = isLight ? '☀️ Mode Clair' : '🌙 Mode Sombre';
+    }
+  };
+
+  (function() {
+    const savedTheme = localStorage.getItem('numiplan_theme');
+    if (savedTheme === 'light') {
+      document.body.classList.add('light-theme');
+      window.addEventListener('DOMContentLoaded', () => {
+        const btn = document.getElementById('theme-toggle-btn');
+        if (btn) btn.innerHTML = '☀️ Mode Clair';
+      });
+    } else {
+      window.addEventListener('DOMContentLoaded', () => {
+        const btn = document.getElementById('theme-toggle-btn');
+        if (btn) btn.innerHTML = '🌙 Mode Sombre';
+      });
+    }
+  })();
   // ─── DÉCONNEXION AUTOMATIQUE ───────────────────────────────────────────────
   // Règle : 1h d'inactivité continue → retour écran login
   // ⚠️  Déclaré ICI (avant tout appel) pour éviter le ReferenceError "Cannot access before initialization"
@@ -1172,6 +1216,9 @@ tr.dragging {
     </div>
 
     <div class="date-badge" id="todayBadge"></div>
+    <button id="theme-toggle-btn" onclick="toggleTheme()" class="date-badge" style="cursor:pointer; font-weight:700; display:flex; align-items:center; justify-content:center; gap:6px; transition:all 0.2s" title="Basculer le mode Sombre / Clair">
+      🌓 Mode
+    </button>
   </div>
 </div>
 
@@ -1320,6 +1367,31 @@ mark.hl { background: rgba(56,189,248,.25); color: var(--acc); border-radius: 3p
 </div>
 
 <script>
+  // ─── MODE CLAIR / SOMBRE (PERSISTANT) ───────────────────────────────────────
+  window.toggleTheme = function() {
+    const isLight = document.body.classList.toggle('light-theme');
+    localStorage.setItem('numiplan_theme', isLight ? 'light' : 'dark');
+    const btn = document.getElementById('theme-toggle-btn');
+    if (btn) {
+      btn.innerHTML = isLight ? '☀️ Mode Clair' : '🌙 Mode Sombre';
+    }
+  };
+
+  (function() {
+    const savedTheme = localStorage.getItem('numiplan_theme');
+    if (savedTheme === 'light') {
+      document.body.classList.add('light-theme');
+      window.addEventListener('DOMContentLoaded', () => {
+        const btn = document.getElementById('theme-toggle-btn');
+        if (btn) btn.innerHTML = '☀️ Mode Clair';
+      });
+    } else {
+      window.addEventListener('DOMContentLoaded', () => {
+        const btn = document.getElementById('theme-toggle-btn');
+        if (btn) btn.innerHTML = '🌙 Mode Sombre';
+      });
+    }
+  })();
 (function(){
   function hl(text, q) {
     if (!q || !text) return text || '';
@@ -1606,7 +1678,7 @@ mark.hl { background: rgba(56,189,248,.25); color: var(--acc); border-radius: 3p
     <div class="sec-title">État du parc véhicules</div>
     <div class="table-wrap">
       <table>
-        <thead><tr><th>Véhicule</th><th>État</th><th>Chauffeur</th><th>Horaire</th><th>Lieu Jour</th><th>Lieu J+1</th><th>Barre</th><th>Câble</th><th>Affecté</th><th>KM</th><th>Observation</th><th style="color:var(--grn)">🛡 Ass. TR</th><th style="color:var(--acc)">🛡 Ass. RM</th><th style="color:#f87171">👁️ Surveillance</th><th>Actions</th></tr></thead>
+        <thead><tr><th>Véhicule</th><th>État</th><th>Chauffeur</th><th>Horaire</th><th>Lieu Jour</th><th>Lieu J+1</th><th>Barre</th><th>Câble</th><th>Affecté</th><th>KM</th><th>RAC (S-1)</th><th>Observation</th><th style="color:var(--grn)">🛡 Ass. TR</th><th style="color:var(--acc)">🛡 Ass. RM</th><th style="color:#f87171">👁️ Surveillance</th><th>Actions</th></tr></thead>
         <tbody id="dispo-body"></tbody>
       </table>
     </div>
@@ -1618,9 +1690,9 @@ mark.hl { background: rgba(56,189,248,.25); color: var(--acc); border-radius: 3p
   <div class="filter-bar">
     <label>Filtre</label>
     <input type="text" class="filter-input" id="panne-search" placeholder="Immat / Chauffeur / N° DI…" oninput="renderPannes()">
-    <input type="date" class="filter-input" id="panne-date-from" onchange="renderPannes()">
+    <input type="date" class="filter-input" id="panne-date-from" autocomplete="off" onchange="renderPannes()">
     <span style="color:var(--txt3)">→</span>
-    <input type="date" class="filter-input" id="panne-date-to" onchange="renderPannes()">
+    <input type="date" class="filter-input" id="panne-date-to" autocomplete="off" onchange="renderPannes()">
     <button class="btn btn-reset" onclick="resetFilters('panne-search','panne-date-from','panne-date-to');renderPannes()">↺ Reset</button>
     <button class="btn btn-add" onclick="openModal('modal-panne')">＋ Ajouter</button>
   </div>
@@ -1645,13 +1717,14 @@ mark.hl { background: rgba(56,189,248,.25); color: var(--acc); border-radius: 3p
     <select class="filter-input" id="nc-type" onchange="renderNC()">
       <option value="">Tous types</option>
       <option value="chgt">Changement</option>
+      <option value="autorise">Changement autorisé</option>
       <option value="fausse">Fausse déclaration</option>
       <option value="refus">Refus travail</option>
       <option value="autre">Autre</option>
     </select>
-    <input type="date" class="filter-input" id="nc-date-from" onchange="renderNC()">
+    <input type="date" class="filter-input" id="nc-date-from" autocomplete="off" onchange="renderNC()">
     <span style="color:var(--txt3)">→</span>
-    <input type="date" class="filter-input" id="nc-date-to" onchange="renderNC()">
+    <input type="date" class="filter-input" id="nc-date-to" autocomplete="off" onchange="renderNC()">
     <button class="btn btn-reset" onclick="resetFilters('nc-search','nc-type','nc-date-from','nc-date-to');renderNC()">↺ Reset</button>
     <button class="btn btn-add" onclick="openModal('modal-nc')">＋ Ajouter</button>
   </div>
@@ -1672,9 +1745,9 @@ mark.hl { background: rgba(56,189,248,.25); color: var(--acc); border-radius: 3p
   <div class="filter-bar">
     <label>Filtre</label>
     <input type="text" class="filter-input" id="gasoil-search" placeholder="Véhicule / Chauffeur…" oninput="renderGasoil()">
-    <input type="date" class="filter-input" id="gasoil-date-from" onchange="renderGasoil()">
+    <input type="date" class="filter-input" id="gasoil-date-from" autocomplete="off" onchange="renderGasoil()">
     <span style="color:var(--txt3)">→</span>
-    <input type="date" class="filter-input" id="gasoil-date-to" onchange="renderGasoil()">
+    <input type="date" class="filter-input" id="gasoil-date-to" autocomplete="off" onchange="renderGasoil()">
     <button class="btn btn-reset" onclick="resetFilters('gasoil-search','gasoil-date-from','gasoil-date-to');renderGasoil()">↺ Reset</button>
     <button class="btn btn-add" onclick="openModal('modal-gasoil')">＋ Ajouter</button>
   </div>
@@ -2092,6 +2165,31 @@ mark.hl { background: rgba(56,189,248,.25); color: var(--acc); border-radius: 3p
 
 <!-- Script synchrone de verrouillage anti-F5 -->
 <script>
+  // ─── MODE CLAIR / SOMBRE (PERSISTANT) ───────────────────────────────────────
+  window.toggleTheme = function() {
+    const isLight = document.body.classList.toggle('light-theme');
+    localStorage.setItem('numiplan_theme', isLight ? 'light' : 'dark');
+    const btn = document.getElementById('theme-toggle-btn');
+    if (btn) {
+      btn.innerHTML = isLight ? '☀️ Mode Clair' : '🌙 Mode Sombre';
+    }
+  };
+
+  (function() {
+    const savedTheme = localStorage.getItem('numiplan_theme');
+    if (savedTheme === 'light') {
+      document.body.classList.add('light-theme');
+      window.addEventListener('DOMContentLoaded', () => {
+        const btn = document.getElementById('theme-toggle-btn');
+        if (btn) btn.innerHTML = '☀️ Mode Clair';
+      });
+    } else {
+      window.addEventListener('DOMContentLoaded', () => {
+        const btn = document.getElementById('theme-toggle-btn');
+        if (btn) btn.innerHTML = '🌙 Mode Sombre';
+      });
+    }
+  })();
   (function() {
     try {
       const auth = sessionStorage.getItem('numiplan_auth');
@@ -2224,6 +2322,7 @@ mark.hl { background: rgba(56,189,248,.25); color: var(--acc); border-radius: 3p
           <option value="">Tous les motifs</option>
           <option value="Orientation">Orientation</option>
           <option value="Chargement à son compte">Chargement à son compte</option>
+          <option value="Chargement à son compte autorisé">Chargement à son compte autorisé</option>
           <option value="Retard">Retard</option>
           <option value="Panne en route">Panne en route</option>
           <option value="Changement client">Changement client</option>
@@ -2403,6 +2502,7 @@ mark.hl { background: rgba(56,189,248,.25); color: var(--acc); border-radius: 3p
       <div class="form-group"><label>Type NC</label>
         <select id="f-nc-type" onchange="toggleNcAutre(this.value)">
           <option value="chgt">Changement à son compte</option>
+          <option value="autorise">Chargement à son compte autorisé</option>
           <option value="fausse">Fausse déclaration</option>
           <option value="refus">Refus de travail</option>
           <option value="autre">Autre</option>
@@ -2846,6 +2946,31 @@ mark.hl { background: rgba(56,189,248,.25); color: var(--acc); border-radius: 3p
 <div class="toast" id="toast"></div>
 
 <script>
+  // ─── MODE CLAIR / SOMBRE (PERSISTANT) ───────────────────────────────────────
+  window.toggleTheme = function() {
+    const isLight = document.body.classList.toggle('light-theme');
+    localStorage.setItem('numiplan_theme', isLight ? 'light' : 'dark');
+    const btn = document.getElementById('theme-toggle-btn');
+    if (btn) {
+      btn.innerHTML = isLight ? '☀️ Mode Clair' : '🌙 Mode Sombre';
+    }
+  };
+
+  (function() {
+    const savedTheme = localStorage.getItem('numiplan_theme');
+    if (savedTheme === 'light') {
+      document.body.classList.add('light-theme');
+      window.addEventListener('DOMContentLoaded', () => {
+        const btn = document.getElementById('theme-toggle-btn');
+        if (btn) btn.innerHTML = '☀️ Mode Clair';
+      });
+    } else {
+      window.addEventListener('DOMContentLoaded', () => {
+        const btn = document.getElementById('theme-toggle-btn');
+        if (btn) btn.innerHTML = '🌙 Mode Sombre';
+      });
+    }
+  })();
 // ═══════════════════════════════════════════════════════════════
 // DATA (pré-chargé depuis le fichier original)
 // ═══════════════════════════════════════════════════════════════
@@ -3207,20 +3332,59 @@ function alignOdoWeeksForDB(db, globalSortedWeeks) {
   }
 }
 
+function getSingleVehicleRACStr(immat) {
+  if (!DB || !DB.odo || !DB.odo_weeks || DB.odo_weeks.length < 2) return '<span style="color:var(--txt3); font-size:10px">—</span>';
+  const r = DB.odo.find(x => x.v === immat);
+  if (!r) return '<span style="color:var(--txt3); font-size:10px">—</span>';
+  const lastWeekIdx = DB.odo_weeks.length - 1;
+  const prevWeekIdx = DB.odo_weeks.length - 2;
+  const vLast = r.vals ? r.vals[lastWeekIdx] : null;
+  const vPrev = r.vals ? r.vals[prevWeekIdx] : null;
+  if (vLast && vPrev && vLast > 1000 && vPrev > 1000 && vLast > vPrev) {
+    const delta = vLast - vPrev;
+    let kmF = 0;
+    if (r.kmFactures && r.kmFactures[lastWeekIdx] !== undefined && r.kmFactures[lastWeekIdx] !== null) {
+      kmF = r.kmFactures[lastWeekIdx];
+    } else if (r.kmFacture !== undefined && r.kmFacture !== null) {
+      kmF = r.kmFacture;
+    }
+    if (delta > 0 && kmF > 0) {
+      const rac = (kmF / delta) * 100;
+      let badgeStyle = '';
+      if (rac < 40) {
+        badgeStyle = 'color: var(--red); font-weight: 800; background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.4); padding: 1px 4px; border-radius: 4px; font-size: 10px;';
+      } else if (rac < 50) {
+        badgeStyle = 'color: var(--org); font-weight: 800; background: rgba(245, 158, 11, 0.1); border: 1px solid rgba(245, 158, 11, 0.4); padding: 1px 4px; border-radius: 4px; font-size: 10px;';
+      } else {
+        badgeStyle = 'color: var(--grn); font-weight: 700; background: rgba(16, 185, 129, 0.1); border: 1px solid rgba(16, 185, 129, 0.4); padding: 1px 4px; border-radius: 4px; font-size: 10px;';
+      }
+      return `<span style="${badgeStyle}" title="RAC S-1 = ${kmF}km facturés / ${delta}km parcourus">${rac.toFixed(1)}%</span>`;
+    }
+  }
+  return '<span style="color:var(--txt3); font-size:10px">—</span>';
+}
+
 function getTeamRACStats(db) {
-  if (!db || !db.odo) return { fact: 0, odo: 0 };
+  if (!db || !db.odo || !db.odo_weeks || db.odo_weeks.length < 2) return { fact: 0, odo: 0 };
+  const lastWeekIdx = db.odo_weeks.length - 1;
+  const prevWeekIdx = db.odo_weeks.length - 2;
   let fact = 0;
   let odo = 0;
   db.odo.forEach(r => {
-    const valid = (r.vals||[]).filter(v=>v&&v>1000);
-    let delta = 0;
-    if (valid.length >= 2) {
-      delta = valid[valid.length-1] - valid[valid.length-2];
-    }
-    const kmFacture = (r.kmFacture !== undefined && r.kmFacture !== null) ? r.kmFacture : 0;
-    if (delta > 0 && delta <= 10000 && kmFacture > 0) {
-      fact += kmFacture;
-      odo += delta;
+    const vLast = r.vals ? r.vals[lastWeekIdx] : null;
+    const vPrev = r.vals ? r.vals[prevWeekIdx] : null;
+    if (vLast && vPrev && vLast > 1000 && vPrev > 1000 && vLast > vPrev) {
+      const delta = vLast - vPrev;
+      let kmF = 0;
+      if (r.kmFactures && r.kmFactures[lastWeekIdx] !== undefined && r.kmFactures[lastWeekIdx] !== null) {
+        kmF = r.kmFactures[lastWeekIdx];
+      } else if (r.kmFacture !== undefined && r.kmFacture !== null) {
+        kmF = r.kmFacture;
+      }
+      if (delta > 0 && delta <= 10000 && kmF > 0) {
+        fact += kmF;
+        odo += delta;
+      }
     }
   });
   return { fact, odo };
@@ -4541,6 +4705,10 @@ function loadDB() {
   ['A', 'B', 'C', 'D'].forEach(eq => {
     window['DB_' + eq] = cloneTeamData(window['DB_' + eq], eq === 'A' ? INITIAL_DATA : emptyTeamData());
   });
+  // RÈGLE 3 : Réinitialiser le timestamp local à 0 au démarrage pour forcer l'alignement sur le cloud Firestore au premier Snapshot
+  ['A', 'B', 'C', 'D'].forEach(eq => {
+    if (window['DB_' + eq]) window['DB_' + eq]._localTs = 0;
+  });
   
   if (typeof alignOdoWeeksGlobal === 'function') {
     alignOdoWeeksGlobal();
@@ -4952,7 +5120,7 @@ function renderDispo() {
   });
 
   const body = document.getElementById('dispo-body');
-  if (!data.length) { body.innerHTML = `<tr><td colspan="15"><div class="empty-state"><div class="icon">🔍</div>Aucun résultat</div></td></tr>`; return; }
+  if (!data.length) { body.innerHTML = `<tr><td colspan="16"><div class="empty-state"><div class="icon">🔍</div>Aucun résultat</div></td></tr>`; return; }
   const isDraggable = !sessionStorage.getItem('numiplan_team_lock');
   body.innerHTML = data.map((r,i) => {
     const realIdx = DB.dispo.indexOf(r);
@@ -5025,7 +5193,7 @@ function renderDispo() {
     }
 
     return `<tr style="${rowBg}" draggable="${isDraggable}" ondragstart="if(!sessionStorage.getItem('numiplan_team_lock')){ handleDispoDragStart(event, '${r.v}') }else{ event.preventDefault(); }" ondragend="handleDispoDragEnd(this)">
-      <td class="mono" style="color:var(--acc);font-size:10px;white-space:nowrap">${r.v}</td>
+      <td class="mono" style="color:var(--acc);font-size:10px;white-space:nowrap">${r.v}${r.geoloc === 'ON' ? ' <span style="color:#22c55e;font-size:9px" title="Geoloc ON">🟢</span>' : r.geoloc === 'OFF' ? ' <span style="color:#ef4444;font-size:9px" title="Geoloc OFF">🔴</span>' : ' <span style="color:var(--txt3);font-size:9px" title="Geoloc non définie">⚪</span>'}</td>
       <td>${stateBadge(r.etat)}</td>
       <td style="white-space:nowrap; vertical-align: middle;">${chauffeurCellContent}</td>
       <td class="mono" style="white-space:nowrap"><span class="cell-edit" contenteditable="true" data-field="hor" data-idx="${realIdx}" onblur="saveInline(this)" onkeydown="if(event.key==='Enter'){event.preventDefault();this.blur()}">${horaire(r.hor)||'—'}</span></td>
@@ -5042,6 +5210,7 @@ function renderDispo() {
       <td style="font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--yel);white-space:nowrap">
         <span style="cursor:pointer" onclick="declKm(${realIdx})" title="Saisir relevé KM">${r.km ? r.km.toLocaleString()+' km' : '<span style=\'color:var(--txt3)\'>＋KM</span>'}</span>
       </td>
+      <td style="text-align:center;white-space:nowrap">${getSingleVehicleRACStr(r.v)}</td>
       <td style="max-width:150px;font-size:11px"><span class="cell-edit" contenteditable="true" data-field="obs" data-idx="${realIdx}" onblur="saveInline(this)" onkeydown="if(event.key==='Enter'){event.preventDefault();this.blur()}" style="color:var(--txt2);font-style:${r.obs?'normal':'italic'}">${r.obs||'—'}</span></td>
       <td>${buildAssuranceCell(r, realIdx, 'dispo', 'tr')}</td>
       <td>${buildAssuranceCell(r, realIdx, 'dispo', 'rm')}</td>
@@ -5050,6 +5219,7 @@ function renderDispo() {
         ${r.cspc ? '<button class=\"del-btn\" style=\"color:var(--pur);font-size:10px;padding:1px 6px;border:1px solid rgba(167,139,250,.5);border-radius:4px;background:rgba(167,139,250,.15)\" onclick=\"undeclCSPC('+realIdx+')\" title=\"Retirer du programme CSPC\">🔷 CSPC ✕</button>' : '<button class=\"del-btn\" style=\"color:var(--pur);font-size:10px;padding:1px 5px;border:1px solid rgba(167,139,250,.3);border-radius:4px\" onclick=\"declCSPC('+realIdx+')\" title=\"Déclarer CSPC\">🔷</button>'}
         <button class="del-btn" style="color:var(--grn)" onclick="setEtat(${realIdx},'DISPONIBLE')" title="Disponible">✅</button>
         <button class="del-btn" style="color:var(--acc)" onclick="setEtat(${realIdx},'En mission')" title="En mission">🚛</button>
+        <button class="del-btn" style="color:${r.geoloc === 'ON' ? '#22c55e' : r.geoloc === 'OFF' ? '#ef4444' : 'var(--txt3)'}; font-size: 12px;" onclick="toggleGeoloc(${realIdx})" title="Geoloc : ${r.geoloc || 'Non défini'} (Cliquer pour basculer)">🛰️</button>
         <button class="del-btn" style="color:var(--red)" onclick="declPanne(${realIdx})" title="Panne">🔧</button>
         <button class="del-btn" style="color:var(--org)" onclick="declNC(${realIdx})" title="Non-conformité">⚠️</button>
         <button class="del-btn" style="color:var(--yel)" onclick="declGasoil(${realIdx})" title="Gasoil">⛽</button>
@@ -5125,6 +5295,7 @@ function saveDispo() {
   if (hor_str) { const [h,m] = hor_str.split(':').map(Number); hor = (h*60+m)/1440; }
   const idx = parseInt(document.getElementById('dispo-edit-idx').value);
   const obj = {
+    ...prev,
     v, etat: document.getElementById('f-dispo-etat').value,
     type: document.getElementById('f-dispo-type').value,
     chauffeur: document.getElementById('f-dispo-chauffeur').value.trim().toUpperCase(),
@@ -5539,6 +5710,7 @@ function renderNC() {
     if (!inRange(r.date,'nc-date-from','nc-date-to')) return false;
     if (typeF === 'fausse' && !r.fausse) return false;
     if (typeF === 'chgt' && !r.chgt) return false;
+    if (typeF === 'autorise' && !r.autorise) return false;
     if (typeF === 'refus' && !r.refus) return false;
     if (typeF === 'autre' && !r.autre) return false;
     return true;
@@ -5557,6 +5729,7 @@ function renderNC() {
     const realIdx = DB.nc.indexOf(r);
     let type = '', detail = '';
     if (r.chgt) { type = `<span class="badge badge-manque">Chgt compte</span>`; detail = r.chgt; }
+    else if (r.autorise) { type = `<span class="badge badge-grn">Chgt autorisé</span>`; detail = r.autorise; }
     else if (r.fausse) { type = `<span class="badge badge-panne">Fausse décl.</span>`; detail = r.fausse; }
     else if (r.refus) { type = `<span class="badge badge-mission">Refus travail</span>`; detail = r.refus; }
     else if (r.autre) { type = `<span class="badge" style="background:rgba(251,191,36,.15);color:#fbbf24;border-color:rgba(251,191,36,.3)">Autre</span>`; detail = r.autre; }
@@ -5580,6 +5753,7 @@ function editNC(idx) {
   document.getElementById('f-nc-v').value = r.v||'';
   // detect type
   if (r.fausse) { document.getElementById('f-nc-type').value='fausse'; document.getElementById('f-nc-detail').value=r.fausse; document.getElementById('f-nc-autre-detail').value=''; }
+  else if (r.autorise) { document.getElementById('f-nc-type').value='autorise'; document.getElementById('f-nc-detail').value=r.autorise; document.getElementById('f-nc-autre-detail').value=''; }
   else if (r.refus) { document.getElementById('f-nc-type').value='refus'; document.getElementById('f-nc-detail').value=r.refus; document.getElementById('f-nc-autre-detail').value=''; }
   else if (r.autre) { document.getElementById('f-nc-type').value='autre'; document.getElementById('f-nc-detail').value=''; document.getElementById('f-nc-autre-detail').value=r.autre; }
   else { document.getElementById('f-nc-type').value='chgt'; document.getElementById('f-nc-detail').value=r.chgt||''; document.getElementById('f-nc-autre-detail').value=''; }
@@ -5615,12 +5789,25 @@ function saveNC() {
     v: document.getElementById('f-nc-v').value.trim().toUpperCase(),
     fausse: type==='fausse'?detail:'',
     chgt: type==='chgt'?detail:'',
+    autorise: type==='autorise'?detail:'',
     refus: type==='refus'?detail:'',
     autre: type==='autre'?autreDetail:'',
     date: document.getElementById('f-nc-date').value||today(),
     mise: document.getElementById('f-nc-mise').value.trim(),
     commission: document.getElementById('f-nc-commission').value.trim()
   };
+  // Validation de distance limite 400km pour les chargements autorisés
+  if (type === 'autorise') {
+    const parts = detail.split(/[\-\➔\→\s]+/).map(p => p.trim().toUpperCase());
+    const validParts = parts.filter(p => p.length > 2);
+    if (validParts.length >= 2) {
+      const dist = getCityDistance(validParts[0], validParts[1]);
+      if (dist > 400) {
+        showToast(`⚠️ Alerte : Distance de ${dist} km dépasse la limite autorisée de 400 km !`, true);
+        logMouvement("Dépassement Limite 400km", "Chauffeur", sharik.toUpperCase(), `Chargement autorisé de ${dist} km (> 400 km) : ${detail}`);
+      }
+    }
+  }
   const idx = parseInt(document.getElementById('nc-edit-idx').value);
   if (idx >= 0) { obj.n = DB.nc[idx].n; DB.nc[idx] = obj; } else DB.nc.push(obj);
   saveDB(); closeModal('modal-nc'); renderNC(); showToast('✅ Non-conformité enregistrée');
@@ -6900,7 +7087,7 @@ function renderOdo() {
 
   const head = document.getElementById('odo-head');
   head.innerHTML = `<th>Véhicule</th><th>Chauffeur</th>` +
-    filteredWeeks.map(w=>`<th style="font-size:9px">${w}</th>`).join('') + `<th>KM Parcourus</th><th>KM Facturé</th><th>Roulage à charge</th><th style="color:var(--acc)">🔄 Orientation (KM)</th><th style="color:var(--red)">🛒 A son compte (KM)</th><th style="color:var(--red)">🔧 Pannes</th><th style="color:var(--org)">Dernière panne</th><th>Action</th>`;
+    filteredWeeks.map(w=>`<th style="font-size:9px">${w}</th>`).join('') + `<th>KM Parcourus</th><th>KM Facturé</th><th>Roulage à charge</th><th style="color:var(--acc)">🔄 Orientation (KM)</th><th style="color:var(--red)">🛒 A son compte (KM)</th><th style="color:var(--grn)">🟢 Autorisé (KM)</th><th style="color:var(--red)">🔧 Pannes</th><th style="color:var(--org)">Dernière panne</th><th>Action</th>`;
   
   let totalKm = 0;
   let totalFact = 0;
@@ -7102,6 +7289,9 @@ function importKmFacture(input) {
           let odoRec = targetDb.odo.find(item => item.v && item.v.trim().toUpperCase() === v);
           if (odoRec) {
             odoRec.kmFacture = km;
+            if (!odoRec.kmFactures) odoRec.kmFactures = [];
+            const lastWeekIdx = targetDb.odo_weeks ? targetDb.odo_weeks.length - 1 : 0;
+            odoRec.kmFactures[lastWeekIdx] = km;
             countUpdated++;
           } else {
             const newRec = {
@@ -7119,6 +7309,9 @@ function importKmFacture(input) {
             let activeRec = window.DB.odo.find(item => item.v && item.v.trim().toUpperCase() === v);
             if (activeRec) {
               activeRec.kmFacture = km;
+              if (!activeRec.kmFactures) activeRec.kmFactures = [];
+              const lastWeekIdx = window.DB.odo_weeks ? window.DB.odo_weeks.length - 1 : 0;
+              activeRec.kmFactures[lastWeekIdx] = km;
             } else {
               const newRec = {
                 v: v,
@@ -7646,6 +7839,7 @@ function renderPointageList(anomalies, violations) {
                         '<option value="">— Motif obligatoire —</option>' +
                         '<option value="Orientation">🔀 Orientation</option>' +
                         '<option value="Chargement à son compte">⚠️ Chargement à son compte</option>' +
+                        '<option value="Chargement à son compte autorisé">🟢 Chargement à son compte autorisé</option>' +
                         '<option value="Refus de travail">🚫 Refus de travail</option>' +
                         '<option value="Retard">⏱ Retard</option>' +
                         '<option value="Panne en route">🔧 Panne en route</option>' +
@@ -7757,18 +7951,42 @@ function pointerAnomalieItem(key, immat, extraChauffeur = '', extraLieu = '') {
         lieuActuel: r.lieuJ1
       };
 
-      // ── Auto-déclaration NC si "Chargement à son compte" ou "Refus de travail" ──
-      if (motif === 'Chargement à son compte' || motif === 'Refus de travail') {
+      // ── Auto-déclaration NC si "Chargement à son compte", "Refus de travail" ou "Chargement à son compte autorisé" ──
+      if (motif === 'Chargement à son compte' || motif === 'Refus de travail' || motif === 'Chargement à son compte autorisé') {
         if (!DB.nc) DB.nc = [];
+        const dist = getCityDistance(r.lieuJ1_initial, r.lieuJ1);
+        const isExceeded = (motif === 'Chargement à son compte autorisé' && dist > 400);
+        
+        let ncType = 'chgt';
+        let ncDetail = r.lieuJ1_initial + ' - ' + r.lieuJ1;
+        let ncObs = '';
+        
+        if (motif === 'Chargement à son compte autorisé') {
+          ncType = 'autorise';
+          ncDetail = `${r.lieuJ1_initial} - ${r.lieuJ1} (${dist} km)` + (isExceeded ? ' ⚠️ DÉPASSEMENT 400km' : '');
+          ncObs = `Distance de ${dist} km. ` + (isExceeded ? `⚠️ DÉPASSEMENT DE LA LIMITE DE 400 KM !` : `Respecte la limite.`);
+        } else {
+          ncObs = 'Anomalie lieu J+1 : ' + r.lieuJ1_initial + ' → ' + r.lieuJ1 + (detail ? ' | ' + detail : '');
+        }
+        
         DB.nc.push({
           ref: '',
           date: today(),
           sharik: r.chauffeur || '',
           immat: r.v || '',
-          type: motif,
-          obs: 'Auto — Anomalie lieu J+1 : ' + r.lieuJ1_initial + ' → ' + r.lieuJ1 + (detail ? ' | ' + detail : '')
+          type: ncType,
+          detail: ncDetail,
+          chgt: ncType === 'chgt' ? ncDetail : '',
+          autorise: ncType === 'autorise' ? ncDetail : '',
+          obs: ncObs
         });
-        showToast('📋 NC auto-créée pour ' + r.v + ' (' + r.chauffeur + ')');
+        
+        if (isExceeded) {
+          showToast(`🚨 Alerte : La distance de ${dist} km dépasse la limite autorisée de 400 km ! NC créée.`, true);
+          logMouvement("Dépassement Limite 400km", "Camion", r.v, `Chargement autorisé de ${dist} km (> 400 km) de ${r.lieuJ1_initial} à ${r.lieuJ1}`);
+        } else {
+          showToast('📋 NC auto-créée pour ' + r.v + ' (' + r.chauffeur + ')');
+        }
       }
     }
   } else if (key.startsWith('viol_')) {
@@ -9308,6 +9526,17 @@ window.CURRENT_EQUIPE = 'A';
 
 function switchEquipe(eq) {
   if (eq === CURRENT_EQUIPE) return;
+  // Réinitialiser les filtres de recherche et de date lors du changement d'équipe pour éviter de masquer des pannes
+  const filtersToReset = [
+    'dispo-search', 'dispo-etat', 'dispo-region', 'dispo-region-j',
+    'panne-search', 'panne-date-from', 'panne-date-to',
+    'nc-search', 'nc-type', 'nc-date-from', 'nc-date-to',
+    'gasoil-search', 'gasoil-date-from', 'gasoil-date-to'
+  ];
+  filtersToReset.forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.value = '';
+  });
   // Sauvegarder le cache de l'équipe quittée (évite perte au changement A↔B↔C↔D)
   const prev = CURRENT_EQUIPE;
   if (prev && typeof DB !== 'undefined') {
@@ -9865,7 +10094,7 @@ async function runOdoExport() {
   const fmtW = w => new Date(w).toLocaleDateString('fr-FR', {day:'2-digit', month:'short', year:'numeric'});
   const eq   = CURRENT_EQUIPE || 'A';
 
-  const headers = ['Véhicule', 'Chauffeur', 'KM au ' + fmtW(weeks[fi]), 'KM au ' + fmtW(weeks[ti]), 'KM Parcourus', 'Orientation (KM)', 'A son compte (KM)', 'Statut'];
+  const headers = ['Véhicule', 'Chauffeur', 'KM au ' + fmtW(weeks[fi]), 'KM au ' + fmtW(weeks[ti]), 'KM Parcourus', 'Orientation (KM)', 'A son compte (KM)', 'Autorisé (KM)', 'Statut'];
   const rows = [];
   DB.odo.forEach(r => {
     const vFrom = (r.vals && r.vals[fi] != null) ? r.vals[fi] : null;
@@ -9906,12 +10135,13 @@ async function runOdoExport() {
   const totKm = rows.reduce((s,r) => s + (typeof r[4]==='number' && r[4]>0 ? r[4] : 0), 0);
   const totOri = rows.reduce((s,r) => s + (typeof r[5]==='number' && r[5]>0 ? r[5] : 0), 0);
   const totCompte = rows.reduce((s,r) => s + (typeof r[6]==='number' && r[6]>0 ? r[6] : 0), 0);
-  rows.push(['TOTAL', '', '', '', totKm, totOri > 0 ? totOri : '', totCompte > 0 ? totCompte : '', '']);
+  const totAutorise = rows.reduce((s,r) => s + (typeof r[7]==='number' && r[7]>0 ? r[7] : 0), 0);
+  rows.push(['TOTAL', '', '', '', totKm, totOri > 0 ? totOri : '', totCompte > 0 ? totCompte : '', totAutorise > 0 ? totAutorise : '', '']);
 
   const data = [headers, ...rows];
   const wb = XLSX.utils.book_new();
   const ws = XLSX.utils.aoa_to_sheet(data);
-  ws['!cols'] = [{wch:18},{wch:26},{wch:18},{wch:18},{wch:14},{wch:18},{wch:18},{wch:20}];
+  ws['!cols'] = [{wch:18},{wch:26},{wch:18},{wch:18},{wch:14},{wch:18},{wch:18},{wch:18},{wch:20}];
   XLSX.utils.book_append_sheet(wb, ws, 'KM_EQ' + eq);
   const dateStr = new Date().toISOString().slice(0,10).replace(/-/g,'');
   XLSX.writeFile(wb, `ODO_EQ${eq}_${weeks[fi].replace(/-/g,'')}_a_${weeks[ti].replace(/-/g,'')}_export${dateStr}.xlsx`);
@@ -10981,6 +11211,20 @@ function renderPerformanceChauffeur() {
   }
 }
 window.renderPerformanceChauffeur = renderPerformanceChauffeur;
+
+function toggleGeoloc(idx) {
+  if (!_checkActionsLibres('toggleGeoloc')) return;
+  const r = DB.dispo[idx];
+  if (!r) return;
+  const oldVal = r.geoloc || 'OFF';
+  const newVal = oldVal === 'ON' ? 'OFF' : 'ON';
+  r.geoloc = newVal;
+  logMouvement("Geoloc " + newVal, "Camion", r.v, `Géolocalisation modifiée : ${oldVal} ➔ ${newVal}`);
+  saveDB();
+  renderDispo();
+  showToast(`🛰️ Géolocalisation de ${r.v} définie sur ${newVal}`);
+}
+window.toggleGeoloc = toggleGeoloc;
 </script>
 
 <!-- MODAL EXPORT NUMIFLOW + ARCHIVAGE AUTO -->
