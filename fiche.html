@@ -3401,39 +3401,112 @@ function getSingleVehicleRACStr(immat) {
   const r = DB.odo.find(x => x.v === immat);
   if (!r) return '<span style="color:var(--txt3); font-size:10px">—</span>';
   
-  const isEndOfMonth = [30, 31, 1].includes(new Date().getDate());
+  const numWeeks = DB.odo_weeks.length;
+  const counts = Array(numWeeks).fill(0);
+  DB.odo.forEach(item => {
+    if (item.vals) {
+      for (let i = 0; i < numWeeks; i++) {
+        if (item.vals[i] && item.vals[i] > 1000) counts[i]++;
+      }
+    }
+  });
+  
+  let lastWeekIdx = -1;
+  for (let i = numWeeks - 1; i >= 0; i--) {
+    if (counts[i] > 0) {
+      lastWeekIdx = i;
+      break;
+    }
+  }
+  if (lastWeekIdx === -1) return '<span style="color:var(--txt3); font-size:10px">—</span>';
+  
+  const targetDateStr = DB.odo_weeks[lastWeekIdx];
+  const parts = targetDateStr.split('-');
+  const day = parseInt(parts[2]);
+  const isEndOfMonth = (day >= 27 || day === 1);
+  
   let deltaVal = 0;
   let factVal = 0;
   
   if (isEndOfMonth) {
-    const indices = getMonthOdoWeekIndices(DB);
-    if (indices) {
-      const vLast = r.vals ? r.vals[indices.lastIdx] : null;
-      const vFirst = r.vals ? r.vals[indices.firstIdx] : null;
-      if (vLast && vFirst && vLast > 1000 && vFirst > 1000 && vLast > vFirst) {
-        deltaVal = vLast - vFirst;
-        for (let idx = 1; idx < indices.allActive.length; idx++) {
-          const i = indices.allActive[idx];
-          if (r.kmFactures && r.kmFactures[i] !== undefined && r.kmFactures[i] !== null) {
-            factVal += r.kmFactures[i];
-          } else if (i === indices.lastIdx && r.kmFacture !== undefined && r.kmFacture !== null) {
-            factVal += r.kmFacture;
+    let targetYearMonth = targetDateStr.substring(0, 7);
+    if (day === 1) {
+      const dt = new Date(targetDateStr);
+      dt.setDate(dt.getDate() - 2);
+      const yr = dt.getFullYear();
+      const mo = String(dt.getMonth() + 1).padStart(2, '0');
+      targetYearMonth = yr + '-' + mo;
+    }
+    
+    const monthIndices = [];
+    DB.odo_weeks.forEach((w, idx) => {
+      if (w && w.substring(0, 7) === targetYearMonth) {
+        monthIndices.push(idx);
+      }
+    });
+    
+    if (monthIndices.length > 0) {
+      const startIdx = monthIndices[0];
+      let firstIdx = -1;
+      
+      if (startIdx > 0 && r.vals && r.vals[startIdx - 1] && r.vals[startIdx - 1] > 1000) {
+        firstIdx = startIdx - 1;
+      } else {
+        for (let i = 0; i < monthIndices.length; i++) {
+          const idx = monthIndices[i];
+          if (r.vals && r.vals[idx] && r.vals[idx] > 1000) {
+            firstIdx = idx;
+            break;
           }
+        }
+      }
+      
+      let lastIdx = -1;
+      for (let i = monthIndices.length - 1; i >= 0; i--) {
+        const idx = monthIndices[i];
+        if (r.vals && r.vals[idx] && r.vals[idx] > 1000) {
+          lastIdx = idx;
+          break;
+        }
+      }
+      
+      if (firstIdx !== -1 && lastIdx !== -1 && lastIdx > firstIdx) {
+        deltaVal = r.vals[lastIdx] - r.vals[firstIdx];
+        
+        if (deltaVal > 0 && deltaVal <= 50000) {
+          const factIndices = [...monthIndices];
+          if (!factIndices.includes(lastWeekIdx)) {
+            factIndices.push(lastWeekIdx);
+          }
+          
+          factIndices.forEach(i => {
+            if (r.kmFactures && r.kmFactures[i] !== undefined && r.kmFactures[i] !== null) {
+              factVal += r.kmFactures[i];
+            } else if (i === lastWeekIdx && r.kmFacture !== undefined && r.kmFacture !== null) {
+              factVal += r.kmFacture;
+            }
+          });
+        } else {
+          deltaVal = 0;
         }
       }
     }
   } else {
     const indices = getActiveOdoWeekIndices(DB);
     if (indices) {
-      const [prevWeekIdx, lastWeekIdx] = indices;
-      const vLast = r.vals ? r.vals[lastWeekIdx] : null;
+      const [prevWeekIdx, lastIdx] = indices;
+      const vLast = r.vals ? r.vals[lastIdx] : null;
       const vPrev = r.vals ? r.vals[prevWeekIdx] : null;
       if (vLast && vPrev && vLast > 1000 && vPrev > 1000 && vLast > vPrev) {
         deltaVal = vLast - vPrev;
-        if (r.kmFactures && r.kmFactures[lastWeekIdx] !== undefined && r.kmFactures[lastWeekIdx] !== null) {
-          factVal = r.kmFactures[lastWeekIdx];
-        } else if (r.kmFacture !== undefined && r.kmFacture !== null) {
-          factVal = r.kmFacture;
+        if (deltaVal > 0 && deltaVal <= 10000) {
+          if (r.kmFactures && r.kmFactures[lastIdx] !== undefined && r.kmFactures[lastIdx] !== null) {
+            factVal = r.kmFactures[lastIdx];
+          } else if (r.kmFacture !== undefined && r.kmFacture !== null) {
+            factVal = r.kmFacture;
+          }
+        } else {
+          deltaVal = 0;
         }
       }
     }
@@ -3457,51 +3530,121 @@ function getSingleVehicleRACStr(immat) {
 
 function getTeamRACStats(db) {
   if (!db || !db.odo || !db.odo_weeks || db.odo_weeks.length < 2) return { fact: 0, odo: 0 };
+  
+  const numWeeks = db.odo_weeks.length;
+  const counts = Array(numWeeks).fill(0);
+  db.odo.forEach(item => {
+    if (item.vals) {
+      for (let i = 0; i < numWeeks; i++) {
+        if (item.vals[i] && item.vals[i] > 1000) counts[i]++;
+      }
+    }
+  });
+  
+  let lastWeekIdx = -1;
+  for (let i = numWeeks - 1; i >= 0; i--) {
+    if (counts[i] > 0) {
+      lastWeekIdx = i;
+      break;
+    }
+  }
+  if (lastWeekIdx === -1) return { fact: 0, odo: 0 };
+  
+  const targetDateStr = db.odo_weeks[lastWeekIdx];
+  const parts = targetDateStr.split('-');
+  const day = parseInt(parts[2]);
+  const isEndOfMonth = (day >= 27 || day === 1);
+  
   let fact = 0;
   let odo = 0;
   
-  const isEndOfMonth = [30, 31, 1].includes(new Date().getDate());
-  
   db.odo.forEach(r => {
     if (isEndOfMonth) {
-      const indices = getMonthOdoWeekIndices(db);
-      if (indices) {
-        const vLast = r.vals ? r.vals[indices.lastIdx] : null;
-        const vFirst = r.vals ? r.vals[indices.firstIdx] : null;
-        if (vLast && vFirst && vLast > 1000 && vFirst > 1000 && vLast > vFirst) {
-          const delta = vLast - vFirst;
-          let sumFact = 0;
-          for (let idx = 1; idx < indices.allActive.length; idx++) {
-            const i = indices.allActive[idx];
-            if (r.kmFactures && r.kmFactures[i] !== undefined && r.kmFactures[i] !== null) {
-              sumFact += r.kmFactures[i];
-            } else if (i === indices.lastIdx && r.kmFacture !== undefined && r.kmFacture !== null) {
-              sumFact += r.kmFacture;
+      let targetYearMonth = targetDateStr.substring(0, 7);
+      if (day === 1) {
+        const dt = new Date(targetDateStr);
+        dt.setDate(dt.getDate() - 2);
+        const yr = dt.getFullYear();
+        const mo = String(dt.getMonth() + 1).padStart(2, '0');
+        targetYearMonth = yr + '-' + mo;
+      }
+      
+      const monthIndices = [];
+      db.odo_weeks.forEach((w, idx) => {
+        if (w && w.substring(0, 7) === targetYearMonth) {
+          monthIndices.push(idx);
+        }
+      });
+      
+      if (monthIndices.length > 0) {
+        const startIdx = monthIndices[0];
+        let firstIdx = -1;
+        
+        if (startIdx > 0 && r.vals && r.vals[startIdx - 1] && r.vals[startIdx - 1] > 1000) {
+          firstIdx = startIdx - 1;
+        } else {
+          for (let i = 0; i < monthIndices.length; i++) {
+            const idx = monthIndices[i];
+            if (r.vals && r.vals[idx] && r.vals[idx] > 1000) {
+              firstIdx = idx;
+              break;
             }
           }
-          if (delta > 0 && delta <= 50000 && sumFact > 0) {
-            fact += sumFact;
-            odo += delta;
+        }
+        
+        let lastIdx = -1;
+        for (let i = monthIndices.length - 1; i >= 0; i--) {
+          const idx = monthIndices[i];
+          if (r.vals && r.vals[idx] && r.vals[idx] > 1000) {
+            lastIdx = idx;
+            break;
+          }
+        }
+        
+        if (firstIdx !== -1 && lastIdx !== -1 && lastIdx > firstIdx) {
+          const delta = r.vals[lastIdx] - r.vals[firstIdx];
+          
+          if (delta > 0 && delta <= 50000) {
+            let sumFact = 0;
+            const factIndices = [...monthIndices];
+            if (!factIndices.includes(lastWeekIdx)) {
+              factIndices.push(lastWeekIdx);
+            }
+            
+            factIndices.forEach(i => {
+              if (r.kmFactures && r.kmFactures[i] !== undefined && r.kmFactures[i] !== null) {
+                sumFact += r.kmFactures[i];
+              } else if (i === lastWeekIdx && r.kmFacture !== undefined && r.kmFacture !== null) {
+                sumFact += r.kmFacture;
+              }
+            });
+            
+            if (sumFact > 0) {
+              fact += sumFact;
+              odo += delta;
+            }
           }
         }
       }
     } else {
       const indices = getActiveOdoWeekIndices(db);
       if (indices) {
-        const [prevWeekIdx, lastWeekIdx] = indices;
-        const vLast = r.vals ? r.vals[lastWeekIdx] : null;
+        const [prevWeekIdx, lastIdx] = indices;
+        const vLast = r.vals ? r.vals[lastIdx] : null;
         const vPrev = r.vals ? r.vals[prevWeekIdx] : null;
         if (vLast && vPrev && vLast > 1000 && vPrev > 1000 && vLast > vPrev) {
           const delta = vLast - vPrev;
-          let kmF = 0;
-          if (r.kmFactures && r.kmFactures[lastWeekIdx] !== undefined && r.kmFactures[lastWeekIdx] !== null) {
-            kmF = r.kmFactures[lastWeekIdx];
-          } else if (r.kmFacture !== undefined && r.kmFacture !== null) {
-            kmF = r.kmFacture;
-          }
-          if (delta > 0 && delta <= 10000 && kmF > 0) {
-            fact += kmF;
-            odo += delta;
+          if (delta > 0 && delta <= 10000) {
+            let kmF = 0;
+            if (r.kmFactures && r.kmFactures[lastIdx] !== undefined && r.kmFactures[lastIdx] !== null) {
+              kmF = r.kmFactures[lastIdx];
+            } else if (r.kmFacture !== undefined && r.kmFacture !== null) {
+              kmF = r.kmFacture;
+            }
+            if (kmF > 0) {
+              fact += kmF;
+              odo += delta;
+            }
           }
         }
       }
@@ -3509,7 +3652,6 @@ function getTeamRACStats(db) {
   });
   return { fact, odo };
 }
-
 function updateHeaderRAC() {
   const curEq = typeof CURRENT_EQUIPE !== 'undefined' ? CURRENT_EQUIPE : 'A';
   
