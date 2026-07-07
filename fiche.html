@@ -319,6 +319,7 @@
       if (typeof renderTracabilite === 'function') renderTracabilite();
       if (typeof renderFlashInfos  === 'function') renderFlashInfos();
       if (typeof updateDataLists === 'function') updateDataLists();
+      if (typeof renderIncidentsLivraisonPage === 'function') renderIncidentsLivraisonPage();
       if (DB.perfRaw && DB.perfRaw.length && DB.perfImportTs !== _prevPerfTs) {
         PERF_RAW = DB.perfRaw.map(r => ({ ...r, date: r.date ? new Date(r.date) : null }));
         if (typeof populatePerfWeeks === 'function') populatePerfWeeks();
@@ -644,6 +645,10 @@ body.light-theme {
 @keyframes pulse-eye {
   from { opacity: 1; transform: scale(1); }
   to   { opacity: .5; transform: scale(1.2); }
+}
+@keyframes blink-immo {
+  0% { background-color: rgba(239, 68, 68, 0.35); border-color: #ef4444; box-shadow: 0 0 12px rgba(239, 68, 68, 0.4); }
+  100% { background-color: rgba(245, 158, 11, 0.35); border-color: #f59e0b; box-shadow: 0 0 12px rgba(245, 158, 11, 0.4); }
 }
 @keyframes fadeIn {
   from { opacity: 0; }
@@ -1539,6 +1544,7 @@ mark.hl { background: rgba(56,189,248,.25); color: var(--acc); border-radius: 3p
   <button class="tab-btn" onclick="switchTab('analytics',this)">📊 Analyses</button>
 <button class="tab-btn" id="tab-performance-chauffeur" onclick="switchTab('performance-chauffeur',this)">👤 Performance Chauffeur</button>
   <button class="tab-btn" id="tab-blacklist" onclick="if(typeof switchTab==='function')switchTab('blacklist',this)">🚫 Blacklist <span class="tab-count" id="cnt-blacklist" style="background:#f87171">—</span></button>
+  <button class="tab-btn" id="tab-incidents-livraison" onclick="switchTab('incidents-livraison',this)">🚨 Incidents Livraison <span class="tab-count" id="cnt-incidents-livraison" style="background:#ef4444">—</span></button>
   <button class="tab-btn" onclick="switchTab('tracabilite',this)">📜 Traçabilité <span class="tab-count" id="cnt-tracabilite" style="display:none;">—</span></button>
   <button class="tab-btn" id="tab-flashinfo" onclick="switchTab('flashinfo',this)">📢 Flash Info</button>
   <button class="tab-btn" onclick="ouvrirHistoriqueAnomalies()" style="color:#fbbf24;border-color:rgba(251,191,36,.3)">📊 Historique Anomalies</button>
@@ -1908,7 +1914,89 @@ mark.hl { background: rgba(56,189,248,.25); color: var(--acc); border-radius: 3p
 
 
 <!-- ARCHIVES DELETED -->
-<div id="page-blacklist" class="page">
+<!-- ══════════════ INCIDENTS DE LIVRAISON ══════════════ -->
+<div id="page-incidents-livraison" class="page">
+  <div class="filter-bar">
+    <label>Filtre</label>
+    <input type="text" class="filter-input" id="inc-search" placeholder="Chauffeur / Véhicule / Client / Obs…" oninput="renderIncidentsLivraisonPage()">
+    <select class="filter-input" id="inc-type-filter" onchange="renderIncidentsLivraisonPage()" style="background:rgba(255,255,255,.05);color:inherit;border:1px solid var(--border);padding:6px 12px;border-radius:8px">
+      <option value="">Tous les types d'incidents</option>
+      <option value="Immobilisation chez le client">Immobilisation chez le client</option>
+      <option value="Avarie marchandises">Avarie marchandises</option>
+      <option value="Retard de livraison">Retard de livraison</option>
+      <option value="Panne sur route">Panne sur route</option>
+      <option value="Changement de destination">Changement de destination</option>
+      <option value="Changement de référence commande">Changement de référence commande</option>
+      <option value="Autre incident">Autre incident</option>
+    </select>
+    <input type="date" class="filter-input" id="inc-date-from" onchange="renderIncidentsLivraisonPage()">
+    <input type="date" class="filter-input" id="inc-date-to" onchange="renderIncidentsLivraisonPage()">
+    <button class="btn btn-reset" onclick="resetIncFilters()">↺ Reset</button>
+  </div>
+  <div style="padding-top:20px">
+    <div class="stats-row" id="inc-stats-row"></div>
+    <div class="sec-title">Suivi des incidents de livraison</div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Véhicule</th>
+            <th>Chauffeur</th>
+            <th>Type d'incident</th>
+            <th>Client</th>
+            <th>Destination</th>
+            <th>Réf Commande</th>
+            <th>Date/Heure</th>
+            <th>Clôture / Durée</th>
+            <th>Observations</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody id="inc-table-body"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- Modal Incident Livraison -->
+<div class="modal-overlay" id="modal-incident-livraison">
+  <div class="modal" style="width:600px; max-width:95vw">
+    <h3>🚨 Déclarer un Incident de Livraison</h3>
+    <input type="hidden" id="f-inc-liv-idx">
+    <div class="form-grid" style="grid-template-columns:1fr; gap:12px">
+      <div class="form-group" style="display:flex; flex-direction:column; gap:4px">
+        <label style="font-weight:700; font-size:11px; color:var(--txt2)">Type d'anomalie / incident</label>
+        <select id="f-inc-liv-type" style="background:rgba(255,255,255,.05);color:inherit;border:1px solid var(--border);padding:8px 12px;border-radius:8px;outline:none">
+          <option value="Immobilisation chez le client">Immobilisation chez le client</option>
+          <option value="Avarie marchandises">Avarie marchandises</option>
+          <option value="Retard de livraison">Retard de livraison</option>
+          <option value="Panne sur route">Panne sur route</option>
+          <option value="Changement de destination">Changement de destination</option>
+          <option value="Changement de référence commande">Changement de référence commande</option>
+          <option value="Autre incident">Autre incident</option>
+        </select>
+      </div>
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px">
+        <div class="form-group"><label>Client</label><input id="f-inc-liv-client" placeholder="Nom du client" style="text-transform:uppercase"></div>
+        <div class="form-group"><label>Destination</label><input id="f-inc-liv-destination" placeholder="ex: ALGER, ORAN..." style="text-transform:uppercase"></div>
+      </div>
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px">
+        <div class="form-group"><label>Référence Commande</label><input id="f-inc-liv-ref-commande" placeholder="N° Commande / BL" style="text-transform:uppercase"></div>
+        <div class="form-group"><label>Date/Heure de début (déclaration)</label><input type="datetime-local" id="f-inc-liv-debut"></div>
+      </div>
+      <div class="form-group" style="display:flex; flex-direction:column; gap:4px">
+        <label style="font-weight:700; font-size:11px; color:var(--txt2)">Description / Observations / Détails</label>
+        <textarea id="f-inc-liv-obs" placeholder="Saisir des précisions..." style="background:rgba(255,255,255,.05);color:inherit;border:1px solid var(--border);padding:10px 12px;border-radius:8px;min-height:80px;resize:vertical;outline:none;font-family:inherit;font-size:inherit"></textarea>
+      </div>
+    </div>
+    <div class="modal-actions" style="margin-top:16px">
+      <button class="btn btn-save" onclick="saveIncidentLivraison()">💾 Enregistrer & Envoyer Mail</button>
+      <button class="btn btn-reset" onclick="closeModal('modal-incident-livraison')">Annuler</button>
+    </div>
+  </div>
+</div>
+
+<div id="page-blacklist"  class="page">
   <div class="filter-bar">
     <input type="text" class="filter-input" id="blacklist-search" placeholder="Rechercher chauffeur ou destination…" oninput="renderBlacklist()">
     <button class="btn btn-save" onclick="openBlacklistModal()">＋ Ajouter règle</button>
@@ -2979,6 +3067,7 @@ const ARCHIVE_KEY = 'numiplan_archives_v2';
 
 const INITIAL_DATA = {
   blacklist: [],
+  incidentsLivraison: [],
   dispo: [
     {v:'000791-524-16',etat:'En mission',type:'TRACTEUR',chauffeur:'BELAHDJER TOUFIK',hor:0.625,lieuJ:'TUNISIE',lieuJ1:'TUNISIE',equip:'OK',prog:''},
     {v:'000914-514-16',etat:'En mission',type:'TRACTEUR',chauffeur:'BELAHDJER TOUFIK',hor:0,lieuJ:'—',lieuJ1:'—',equip:'OK',prog:'SBA'},
@@ -3411,15 +3500,17 @@ function getSingleVehicleRACStr(immat) {
     }
   });
   
-  let lastWeekIdx = -1;
-  for (let i = numWeeks - 1; i >= 0; i--) {
-    if (counts[i] > 0) {
-      lastWeekIdx = i;
-      break;
+  for (let w = numWeeks - 1; w >= 0; w--) {
+    if (counts[w] > 0) {
+      const res = getSingleVehicleRACForWeek(r, w, counts);
+      if (res) return res;
     }
   }
-  if (lastWeekIdx === -1) return '<span style="color:var(--txt3); font-size:10px">—</span>';
   
+  return '<span style="color:var(--txt3); font-size:10px">—</span>';
+}
+
+function getSingleVehicleRACForWeek(r, lastWeekIdx, counts) {
   const targetDateStr = DB.odo_weeks[lastWeekIdx];
   const parts = targetDateStr.split('-');
   const day = parseInt(parts[2]);
@@ -3464,7 +3555,7 @@ function getSingleVehicleRACStr(immat) {
       let lastIdx = -1;
       for (let i = monthIndices.length - 1; i >= 0; i--) {
         const idx = monthIndices[i];
-        if (r.vals && r.vals[idx] && r.vals[idx] > 1000) {
+        if (idx <= lastWeekIdx && r.vals && r.vals[idx] && r.vals[idx] > 1000) {
           lastIdx = idx;
           break;
         }
@@ -3474,7 +3565,10 @@ function getSingleVehicleRACStr(immat) {
         deltaVal = r.vals[lastIdx] - r.vals[firstIdx];
         
         if (deltaVal > 0 && deltaVal <= 50000) {
-          const factIndices = [...monthIndices];
+          const factIndices = [];
+          monthIndices.forEach(idx => {
+            if (idx <= lastWeekIdx) factIndices.push(idx);
+          });
           if (!factIndices.includes(lastWeekIdx)) {
             factIndices.push(lastWeekIdx);
           }
@@ -3492,18 +3586,21 @@ function getSingleVehicleRACStr(immat) {
       }
     }
   } else {
-    const indices = getActiveOdoWeekIndices(DB);
-    if (indices) {
-      const [prevWeekIdx, lastIdx] = indices;
-      const vLast = r.vals ? r.vals[lastIdx] : null;
-      const vPrev = r.vals ? r.vals[prevWeekIdx] : null;
-      if (vLast && vPrev && vLast > 1000 && vPrev > 1000 && vLast > vPrev) {
+    const vLast = r.vals ? r.vals[lastWeekIdx] : null;
+    if (vLast && vLast > 1000) {
+      let prevIdx = -1;
+      for (let k = lastWeekIdx - 1; k >= 0; k--) {
+        if (r.vals && r.vals[k] && r.vals[k] > 1000) {
+          prevIdx = k;
+          break;
+        }
+      }
+      if (prevIdx !== -1) {
+        const vPrev = r.vals[prevIdx];
         deltaVal = vLast - vPrev;
         if (deltaVal > 0 && deltaVal <= 10000) {
-          if (r.kmFactures && r.kmFactures[lastIdx] !== undefined && r.kmFactures[lastIdx] !== null) {
-            factVal = r.kmFactures[lastIdx];
-          } else if (r.kmFacture !== undefined && r.kmFacture !== null) {
-            factVal = r.kmFacture;
+          if (r.kmFactures && r.kmFactures[lastWeekIdx] !== undefined && r.kmFactures[lastWeekIdx] !== null) {
+            factVal = r.kmFactures[lastWeekIdx];
           }
         } else {
           deltaVal = 0;
@@ -3525,7 +3622,7 @@ function getSingleVehicleRACStr(immat) {
     const typeLabel = isEndOfMonth ? 'Mois' : 'S-1';
     return `<span style="${badgeStyle}" title="RAC ${typeLabel} = ${factVal}km facturés / ${deltaVal}km parcourus">${rac.toFixed(1)}%</span>`;
   }
-  return '<span style="color:var(--txt3); font-size:10px">—</span>';
+  return null;
 }
 
 function getTeamRACStats(db) {
@@ -3541,15 +3638,25 @@ function getTeamRACStats(db) {
     }
   });
   
-  let lastWeekIdx = -1;
-  for (let i = numWeeks - 1; i >= 0; i--) {
-    if (counts[i] > 0) {
-      lastWeekIdx = i;
-      break;
+  for (let w = numWeeks - 1; w >= 0; w--) {
+    if (counts[w] > 0) {
+      const stats = getTeamRACStatsForWeek(db, w, counts);
+      if (stats.odo > 0 && stats.fact > 0) {
+        return stats;
+      }
     }
   }
-  if (lastWeekIdx === -1) return { fact: 0, odo: 0 };
   
+  for (let w = numWeeks - 1; w >= 0; w--) {
+    if (counts[w] > 0) {
+      return getTeamRACStatsForWeek(db, w, counts);
+    }
+  }
+  
+  return { fact: 0, odo: 0 };
+}
+
+function getTeamRACStatsForWeek(db, lastWeekIdx, counts) {
   const targetDateStr = db.odo_weeks[lastWeekIdx];
   const parts = targetDateStr.split('-');
   const day = parseInt(parts[2]);
@@ -3595,7 +3702,7 @@ function getTeamRACStats(db) {
         let lastIdx = -1;
         for (let i = monthIndices.length - 1; i >= 0; i--) {
           const idx = monthIndices[i];
-          if (r.vals && r.vals[idx] && r.vals[idx] > 1000) {
+          if (idx <= lastWeekIdx && r.vals && r.vals[idx] && r.vals[idx] > 1000) {
             lastIdx = idx;
             break;
           }
@@ -3606,7 +3713,10 @@ function getTeamRACStats(db) {
           
           if (delta > 0 && delta <= 50000) {
             let sumFact = 0;
-            const factIndices = [...monthIndices];
+            const factIndices = [];
+            monthIndices.forEach(idx => {
+              if (idx <= lastWeekIdx) factIndices.push(idx);
+            });
             if (!factIndices.includes(lastWeekIdx)) {
               factIndices.push(lastWeekIdx);
             }
@@ -3627,19 +3737,22 @@ function getTeamRACStats(db) {
         }
       }
     } else {
-      const indices = getActiveOdoWeekIndices(db);
-      if (indices) {
-        const [prevWeekIdx, lastIdx] = indices;
-        const vLast = r.vals ? r.vals[lastIdx] : null;
-        const vPrev = r.vals ? r.vals[prevWeekIdx] : null;
-        if (vLast && vPrev && vLast > 1000 && vPrev > 1000 && vLast > vPrev) {
+      const vLast = r.vals ? r.vals[lastWeekIdx] : null;
+      if (vLast && vLast > 1000) {
+        let prevIdx = -1;
+        for (let k = lastWeekIdx - 1; k >= 0; k--) {
+          if (r.vals && r.vals[k] && r.vals[k] > 1000) {
+            prevIdx = k;
+            break;
+          }
+        }
+        if (prevIdx !== -1) {
+          const vPrev = r.vals[prevIdx];
           const delta = vLast - vPrev;
           if (delta > 0 && delta <= 10000) {
             let kmF = 0;
-            if (r.kmFactures && r.kmFactures[lastIdx] !== undefined && r.kmFactures[lastIdx] !== null) {
-              kmF = r.kmFactures[lastIdx];
-            } else if (r.kmFacture !== undefined && r.kmFacture !== null) {
-              kmF = r.kmFacture;
+            if (r.kmFactures && r.kmFactures[lastWeekIdx] !== undefined && r.kmFactures[lastWeekIdx] !== null) {
+              kmF = r.kmFactures[lastWeekIdx];
             }
             if (kmF > 0) {
               fact += kmF;
@@ -3694,7 +3807,7 @@ function emptyTeamData() {
     dispo: [], pannes: [], nc: [], gasoil: [], equip: [], activite: [],
     bl: [], odo: [], odo_weeks: [], cspc: [], blacklist: [],
     tracabilite: [], flashInfos: [], anomaliesPointees: {},
-    clientModifs: [], incidents: []
+    clientModifs: [], incidents: [], incidentsLivraison: []
   };
 }
 
@@ -5207,6 +5320,7 @@ function switchTab(name, btn) {
   if (name==='tracabilite') renderTracabilite();
   if (name==='flashinfo') renderAdminFlashList();
   if (name==='performance-chauffeur') renderPerformanceChauffeur();
+  if (name === 'incidents-livraison') renderIncidentsLivraisonPage();
 checkBascule();
 }
 
@@ -5387,6 +5501,7 @@ function renderDispo() {
   body.innerHTML = data.map((r,i) => {
     const realIdx = DB.dispo.indexOf(r);
     const isSurveille = !!r.surveillance;
+    const activeImmo = (DB.incidentsLivraison || []).find(im => im.v === r.v && im.type === 'Immobilisation chez le client' && !im.fin);
     
     let worstStatus = '';
     let tooltipText = '';
@@ -5423,7 +5538,15 @@ function renderDispo() {
     let chauffeurCellContent = '';
     const hasActiveAlert = r.chauffeur && r.chauffeur !== '—' && typeof hasActiveBlAlert === 'function' && hasActiveBlAlert(r.chauffeur);
     
-    if (hasActiveAlert) {
+    if (activeImmo) {
+      rowBg = 'background: linear-gradient(90deg, rgba(239, 68, 68, 0.25) 0%, rgba(239, 68, 68, 0.05) 40%, rgba(0, 0, 0, 0) 100%); border-left: 4px solid #ef4444;';
+      chauffeurCellContent = `
+        <div onclick="cloturerIncidentLivraison('${activeImmo.id}')" style="display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 6px; border: 2px solid #ef4444; animation: blink-immo 0.8s ease-in-out infinite alternate; vertical-align: middle; cursor: pointer;" title="IMMOBILISATION EN COURS - Cliquer pour declarer la fin">
+          <span style="font-weight: 800; color: #fff; font-size: 11px; max-width: 100px; overflow: hidden; text-overflow: ellipsis; display: inline-block; vertical-align: middle;">🛑 ${r.chauffeur}</span>
+          <span style="font-size: 9px; background: #fff; color: #000; padding: 1px 4px; border-radius: 4px; font-weight: 800;">FIN 🏁</span>
+        </div>${extPill}
+      `;
+    } else if (hasActiveAlert) {
       rowBg = 'background: linear-gradient(90deg, rgba(239, 68, 68, 0.2) 0%, rgba(239, 68, 68, 0.04) 40%, rgba(0, 0, 0, 0) 100%); border-left: 4px solid #ef4444;';
       chauffeurCellContent = `
         <div onclick="ouvrirPopupBlAlertesEquipe()" style="display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 6px; background: rgba(239, 68, 68, 0.3); border: 2px solid #ef4444; box-shadow: 0 0 12px rgba(239, 68, 68, 0.4); vertical-align: middle; cursor: pointer;" title="ALERTE RELANCE BL - Cliquer pour répondre">
@@ -5481,6 +5604,7 @@ function renderDispo() {
         ${r.cspc ? '<button class=\"del-btn\" style=\"color:var(--pur);font-size:10px;padding:1px 6px;border:1px solid rgba(167,139,250,.5);border-radius:4px;background:rgba(167,139,250,.15)\" onclick=\"undeclCSPC('+realIdx+')\" title=\"Retirer du programme CSPC\">🔷 CSPC ✕</button>' : '<button class=\"del-btn\" style=\"color:var(--pur);font-size:10px;padding:1px 5px;border:1px solid rgba(167,139,250,.3);border-radius:4px\" onclick=\"declCSPC('+realIdx+')\" title=\"Déclarer CSPC\">🔷</button>'}
         <button class="del-btn" style="color:var(--grn)" onclick="setEtat(${realIdx},'DISPONIBLE')" title="Disponible">✅</button>
         <button class="del-btn" style="color:var(--acc)" onclick="setEtat(${realIdx},'En mission')" title="En mission">🚛</button>
+        <button class="del-btn" style="color:#ef4444" onclick="openIncidentLivraisonModal(${realIdx})" title="Incident de livraison">🚨</button>
         <button class="del-btn" style="color:${r.geoloc === 'ON' ? '#22c55e' : r.geoloc === 'OFF' ? '#ef4444' : 'var(--txt3)'}; font-size: 12px;" onclick="toggleGeoloc(${realIdx})" title="Geoloc : ${r.geoloc || 'Non défini'} (Cliquer pour basculer)">🛰️</button>
         <button class="del-btn" style="color:var(--red)" onclick="declPanne(${realIdx})" title="Panne">🔧</button>
         <button class="del-btn" style="color:var(--org)" onclick="declNC(${realIdx})" title="Non-conformité">⚠️</button>
@@ -7413,11 +7537,30 @@ function renderOdo() {
       delta = `<span style="color:${d>0?'var(--grn)':'var(--red)'}">${d>0?'+':''}${d.toLocaleString('fr-FR')}</span>`;
     }
     
-    const kmFacture = (r.kmFacture !== undefined && r.kmFacture !== null) ? r.kmFacture : null;
-    const kmFactureStr = kmFacture !== null ? kmFacture.toLocaleString('fr-FR') : '—';
-    let racStr = '—';
+    let kmFacture = 0;
+    let hasExplicitFact = false;
+    filteredWeeks.forEach(w => {
+      const origIdx = weeks.indexOf(w);
+      if (r.kmFactures && r.kmFactures[origIdx] !== undefined && r.kmFactures[origIdx] !== null) {
+        kmFacture += r.kmFactures[origIdx];
+        hasExplicitFact = true;
+      }
+    });
+    if (!hasExplicitFact) {
+      const lastW = weeks[weeks.length - 1];
+      if (filteredWeeks.includes(lastW)) {
+        kmFacture = (r.kmFacture !== undefined && r.kmFacture !== null) ? r.kmFacture : null;
+      } else {
+        kmFacture = null;
+      }
+    } else {
+      if (kmFacture === 0) kmFacture = null;
+    }
+    const kmFactureStr = kmFacture !== null ? kmFacture.toLocaleString('fr-FR') : '?';
+    let racStr = '?';
     if (deltaVal !== null && deltaVal > 0 && kmFacture !== null && kmFacture > 0) {
       const rac = (kmFacture / deltaVal) * 100;
+    if (deltaVal !== null && deltaVal > 0 && kmFacture !== null && kmFacture > 0) {
       let badgeStyle = '';
       let titleText = '';
       let alertIcon = '';
@@ -7503,11 +7646,18 @@ function saveOdo() {
   const kmFacture = kmFactureInput !== '' ? parseFloat(kmFactureInput) : null;
   const idx = parseInt(document.getElementById('odo-edit-idx').value);
   const existing = idx >= 0 ? DB.odo[idx] : {};
+  const odo_weeks = DB.odo_weeks || [];
+  const lastWeekIdx = odo_weeks.length - 1;
+  const kmFactures = existing.kmFactures ? [...existing.kmFactures] : [];
+  if (lastWeekIdx >= 0 && kmFacture !== null) {
+    kmFactures[lastWeekIdx] = kmFacture;
+  }
   const obj = Object.assign({}, existing, {
     v,
     chauffeur: document.getElementById('f-odo-chauffeur').value.trim().toUpperCase(),
     vals,
-    kmFacture
+    kmFacture,
+    kmFactures
   });
   if (idx >= 0) DB.odo[idx] = obj; else DB.odo.push(obj);
   saveDB(); closeModal('modal-odo'); renderOdo(); showToast('✅ Relevé KM enregistré');
@@ -7934,24 +8084,24 @@ function renderBlacklist() {
     const dest = (r.destination || '').toLowerCase();
     return !q || ch.includes(q) || dest.includes(q);
   });
-
+  
   const cntEl = document.getElementById('cnt-blacklist');
   if (cntEl) cntEl.textContent = rawList.length;
-
+  
   const body = document.getElementById('blacklist-body');
   if (!body) return;
-
+  
   if (!data.length) {
-    body.innerHTML = `<tr><td colspan="4"><div class="empty-state"><div class="icon">🔍</div>Aucun résultat</div></td></tr>`;
+    body.innerHTML = '<tr><td colspan="4"><div class="empty-state"><div class="icon">🔍</div>Aucune règle blacklist</div></td></tr>';
     return;
   }
-
+  
   body.innerHTML = data.map(r => {
-    const realIdx = DB.blacklist.indexOf(r);
+    const realIdx = rawList.indexOf(r);
     return `<tr>
-      <td style="font-weight:600;color:var(--txt)">${r.chauffeur || '—'}</td>
-      <td class="mono" style="color:#f87171">${r.destination || '—'}</td>
-      <td>${r.motif || '—'}</td>
+      <td style="font-weight:600;color:var(--acc)">${r.chauffeur}</td>
+      <td class="mono" style="color:var(--red)">${r.destination}</td>
+      <td style="color:var(--txt2);font-size:11px">${r.motif || '—'}</td>
       <td>
         <button class="del-btn" onclick="editBlacklist(${realIdx})">✏️</button>
         <button class="del-btn" onclick="deleteBlacklist(${realIdx})">🗑</button>
@@ -7959,339 +8109,328 @@ function renderBlacklist() {
     </tr>`;
   }).join('');
 }
-window.renderBlacklist = renderBlacklist;
 
 function openBlacklistModal() {
-  openModal('modal-blacklist', -1);
-  document.getElementById('f-bl-chauffeur').value = '';
-  document.getElementById('f-bl-destination').value = '';
-  document.getElementById('f-bl-motif').value = '';
+  document.getElementById('blacklist-edit-idx').value = "-1";
+  document.getElementById('f-bl-chauffeur').value = "";
+  document.getElementById('f-bl-destination').value = "";
+  document.getElementById('f-bl-motif').value = "";
+  openModal('modal-blacklist');
 }
-window.openBlacklistModal = openBlacklistModal;
 
 function editBlacklist(idx) {
   const r = DB.blacklist[idx];
   if (!r) return;
-  document.getElementById('f-bl-chauffeur').value = r.chauffeur || '';
-  document.getElementById('f-bl-destination').value = r.destination || '';
-  document.getElementById('f-bl-motif').value = r.motif || '';
+  document.getElementById('blacklist-edit-idx').value = idx;
+  document.getElementById('f-bl-chauffeur').value = r.chauffeur || "";
+  document.getElementById('f-bl-destination').value = r.destination || "";
+  document.getElementById('f-bl-motif').value = r.motif || "";
   openModal('modal-blacklist', idx);
 }
-window.editBlacklist = editBlacklist;
+
+function deleteBlacklist(idx) {
+  if (!_checkActionsLibres('deleteBlacklist')) return;
+  if (!confirm('Supprimer cette règle de blacklist ?')) return;
+  DB.blacklist.splice(idx, 1);
+  saveDB();
+  renderBlacklist();
+  showToast('✅ Règle supprimée');
+}
 
 function saveBlacklist() {
   if (!_checkActionsLibres('saveBlacklist')) return;
-  const chauffeur = document.getElementById('f-bl-chauffeur').value.trim().toUpperCase();
-  const destination = document.getElementById('f-bl-destination').value.trim().toUpperCase();
-  const motif = document.getElementById('f-bl-motif').value.trim();
-
-  if (!chauffeur) { showToast('⚠️ Chauffeur requis', true); return; }
-  if (!destination) { showToast('⚠️ Destination requise', true); return; }
-
-  const obj = { chauffeur, destination, motif };
   const idx = parseInt(document.getElementById('blacklist-edit-idx').value);
+  const ch = document.getElementById('f-bl-chauffeur').value.trim().toUpperCase();
+  const dest = document.getElementById('f-bl-destination').value.trim().toUpperCase();
+  const motif = document.getElementById('f-bl-motif').value.trim();
+  
+  if (!ch || !dest) {
+    alert('Le chauffeur et la destination interdite sont obligatoires.');
+    return;
+  }
+  
+  const rule = { chauffeur: ch, destination: dest, motif: motif };
+  if (!DB.blacklist) DB.blacklist = [];
+  
   if (idx >= 0) {
-    DB.blacklist[idx] = obj;
+    DB.blacklist[idx] = rule;
+    showToast('✅ Règle modifiée');
   } else {
-    if (!DB.blacklist) DB.blacklist = [];
-    DB.blacklist.push(obj);
+    DB.blacklist.push(rule);
+    showToast('✅ Règle ajoutée');
   }
   
   saveDB();
   closeModal('modal-blacklist');
   renderBlacklist();
-  showToast('✅ Règle blacklist enregistrée');
 }
-window.saveBlacklist = saveBlacklist;
+function openIncidentLivraisonModal(idx) {
+  if (!_checkActionsLibres('openIncidentLivraisonModal')) return;
+  const r = DB.dispo[idx];
+  if (!r) return;
+  
+  document.getElementById('f-inc-liv-idx').value = idx;
+  document.getElementById('f-inc-liv-type').value = 'Immobilisation chez le client';
+  document.getElementById('f-inc-liv-client').value = '';
+  document.getElementById('f-inc-liv-destination').value = r.lieuJ1 && r.lieuJ1 !== '?' ? r.lieuJ1 : '';
+  document.getElementById('f-inc-liv-ref-commande').value = '';
+  document.getElementById('f-inc-liv-obs').value = '';
+  
+  const now = new Date();
+  const tzOffset = now.getTimezoneOffset() * 60000;
+  const localISOTime = (new Date(now - tzOffset)).toISOString().slice(0, 16);
+  document.getElementById('f-inc-liv-debut').value = localISOTime;
+  
+  openModal('modal-incident-livraison', idx);
+}
 
-function deleteBlacklist(idx) {
-  if (!_checkActionsLibres('deleteBlacklist')) return;
-  if (!confirm('Supprimer cette règle ?')) return;
-  DB.blacklist.splice(idx, 1);
+function saveIncidentLivraison() {
+  if (!_checkActionsLibres('saveIncidentLivraison')) return;
+  const idx = parseInt(document.getElementById('f-inc-liv-idx').value);
+  const r = DB.dispo[idx];
+  if (!r) return;
+  
+  const type = document.getElementById('f-inc-liv-type').value;
+  const client = document.getElementById('f-inc-liv-client').value.trim().toUpperCase();
+  const destination = document.getElementById('f-inc-liv-destination').value.trim().toUpperCase();
+  const refCommande = document.getElementById('f-inc-liv-ref-commande').value.trim().toUpperCase();
+  const debut = document.getElementById('f-inc-liv-debut').value;
+  const obs = document.getElementById('f-inc-liv-obs').value.trim();
+  
+  if (!client) {
+    showToast('⚠️ Le nom du client est requis', true);
+    return;
+  }
+  if (!debut) {
+    showToast('⚠️ La date/heure est requise', true);
+    return;
+  }
+  
+  const incId = 'inc_' + Date.now();
+  const obj = {
+    id: incId,
+    v: r.v,
+    chauffeur: r.chauffeur || '—',
+    type,
+    client,
+    destination: destination || '—',
+    refCommande: refCommande || '—',
+    debut: new Date(debut).toISOString(),
+    fin: null,
+    dureeHeures: null,
+    obs: obs || '—',
+    equipe: CURRENT_EQUIPE
+  };
+  
+  if (!DB.incidentsLivraison) DB.incidentsLivraison = [];
+  DB.incidentsLivraison.push(obj);
+  
   saveDB();
-  renderBlacklist();
-  showToast('✅ Règle blacklist supprimée');
-}
-window.deleteBlacklist = deleteBlacklist;
-
-// ═══════════════════════════════════════════════════════════════
-// ═══════════════════════════════════════════════════════════════
-function renderAnalytics() {
-  // Global
-  const c = {mission:0,dispo:0,panne:0,manque:0};
-  DB.dispo.forEach(r=>{
-    const e=(r.etat||'').toLowerCase();
-    if(e.includes('mission')) c.mission++;
-    else if(e==='disponible') c.dispo++;
-    else if(e.includes('panne')) c.panne++;
-    else if(e.includes('manque')) c.manque++;
+  closeModal('modal-incident-livraison');
+  renderDispo();
+  showToast('✅ Incident enregistré');
+  
+  // Envoi email
+  const emailDest = 'GRP_NUMILOG_SRC@cevital.com;GRP_NUMILOG_TRANSPORT_SYNCRO@cevital.com';
+  const equipe = typeof CURRENT_EQUIPE !== 'undefined' ? CURRENT_EQUIPE : 'A';
+  const dateStr = new Date(debut).toLocaleString('fr-FR', {
+    weekday: 'long', day: '2-digit', month: 'long', year: 'numeric',
+    hour: '2-digit', minute: '2-digit'
   });
-  document.getElementById('analytics-global').innerHTML = `
-    <div class="stat-card blue" onclick="switchTab('dispo',document.querySelector('[onclick*=\\'dispo\\']'))" title="Aller à Disponibilité" style="cursor:pointer"><div class="stat-num">${DB.dispo.length}</div><div class="stat-lbl">Total véhicules</div></div>
-    <div class="stat-card red" onclick="switchTab('pannes',document.querySelector('[onclick*=\\'pannes\\']'));resetFilters('panne-search','panne-date-from','panne-date-to');renderPannes()" title="Aller aux Pannes" style="cursor:pointer"><div class="stat-num">${DB.pannes.length}</div><div class="stat-lbl">Total pannes</div></div>
-    <div class="stat-card org" onclick="goToNC()" title="Aller aux Non-conformités" style="pointer:cursor"><div class="stat-num">${DB.nc.length}</div><div class="stat-lbl">Total NC</div></div>
-    <div class="stat-card green" onclick="switchTab('gasoil',document.querySelector('[onclick*=\\'gasoil\\']'));resetFilters('gasoil-search','gasoil-date-from','gasoil-date-to');renderGasoil()" title="Aller au Gasoil" style="cursor:pointer"><div class="stat-num">${DB.gasoil.length}</div><div class="stat-lbl">Ravitaillements</div></div>`;
+  
+  const subject = encodeURIComponent(`[SHARIK] Incident Livraison - ${obj.type} - Camion ${obj.v}`);
+  const body = encodeURIComponent(
+`Bonjour,
 
-  // Top pannes par véhicule
-  const pv = {}; DB.pannes.forEach(r=>{pv[r.immat]=(pv[r.immat]||0)+1;});
-  document.getElementById('chart-pannes-vehicule').innerHTML = barChart(
-    Object.entries(pv).sort((a,b)=>b[1]-a[1]).slice(0,8).map(([label,val])=>({label,val})), 'var(--red)');
+Un incident de livraison a été déclaré sur SHARIK.
 
-  // Top NC par chauffeur
-  const nc = {}; DB.nc.forEach(r=>{nc[r.sharik]=(nc[r.sharik]||0)+1;});
-  document.getElementById('chart-nc-chauffeur').innerHTML = barChart(
-    Object.entries(nc).sort((a,b)=>b[1]-a[1]).slice(0,8).map(([label,val])=>({label,val})), 'var(--org)');
+----------------------------------
+  DÉTAIL DE L'INCIDENT
+----------------------------------
+  Type d'incident : ${obj.type}
+  Date / Heure    : ${dateStr}
+  Équipe          : ÉQUIPE ${equipe}
+  Véhicule        : ${obj.v}
+  Chauffeur       : ${obj.chauffeur}
+  Client          : ${obj.client}
+  Destination     : ${obj.destination}
+  Réf Commande    : ${obj.refCommande}
+  Observations    : ${obj.obs}
+----------------------------------
 
-  // Répartition états
-  document.getElementById('chart-etat-parc').innerHTML = barChart([
-    {label:'En mission', val:c.mission},
-    {label:'Disponible', val:c.dispo},
-    {label:'En panne', val:c.panne},
-    {label:'Manque chauffeur', val:c.manque},
-  ], 'var(--acc)');
+Ce message a été généré automatiquement par SHARIK.`
+  );
+  
+  const mailtoLink = `mailto:${emailDest}?subject=${subject}&body=${body}`;
+  window.location.href = mailtoLink;
+  showToast('📧 Client mail ouvert pour notification');
+}
 
-  // Pannes par type
-  const pt = {}; DB.pannes.forEach(r=>{pt[r.type]=(pt[r.type]||0)+1;});
-  document.getElementById('chart-pannes-type').innerHTML = barChart(
-    Object.entries(pt).map(([label,val])=>({label,val})), 'var(--yel)');
+function cloturerIncidentLivraison(incId) {
+  if (!_checkActionsLibres('cloturerIncidentLivraison')) return;
+  if (!DB.incidentsLivraison) return;
+  
+  const inc = DB.incidentsLivraison.find(im => im.id === incId);
+  if (!inc) return;
+  
+  if (!confirm(`Confirmer la clôture de l'incident (${inc.type}) pour le véhicule ${inc.v} ?`)) {
+    return;
+  }
+  
+  const now = new Date();
+  inc.fin = now.toISOString();
+  
+  if (inc.type === 'Immobilisation chez le client') {
+    const diffMs = new Date(inc.fin) - new Date(inc.debut);
+    const diffHours = diffMs / 3600000;
+    inc.dureeHeures = parseFloat(diffHours.toFixed(2));
+  }
+  
+  saveDB();
+  renderDispo();
+  
+  const tabInc = document.getElementById('tab-incidents-livraison');
+  if (tabInc && tabInc.classList.contains('active')) {
+    renderIncidentsLivraisonPage();
+  }
+  
+  if (inc.dureeHeures !== null) {
+    showToast(`✅ Incident clôturé. Durée d'immo : ${inc.dureeHeures} heures.`);
+  } else {
+    showToast(`✅ Incident clôturé avec succès.`);
+  }
+}
 
-  // Gasoil par chauffeur
-  const gc = {}; DB.gasoil.forEach(r=>{gc[r.chauffeur]=(gc[r.chauffeur]||0)+1;});
-  document.getElementById('chart-gasoil-ch').innerHTML = barChart(
-    Object.entries(gc).sort((a,b)=>b[1]-a[1]).slice(0,8).map(([label,val])=>({label,val})), 'var(--grn)');
-
-  // Pannes par mois
-  const pm = {};
-  DB.pannes.forEach(r=>{
-    if (!r.date) return;
-    const m = r.date.substring(0,7);
-    pm[m]=(pm[m]||0)+1;
+function renderIncidentsLivraisonPage() {
+  const q = document.getElementById('inc-search')?.value.trim().toLowerCase() || '';
+  const typeFilter = document.getElementById('inc-type-filter')?.value || '';
+  const dateFromStr = document.getElementById('inc-date-from')?.value || '';
+  const dateToStr = document.getElementById('inc-date-to')?.value || '';
+  
+  const rawList = DB.incidentsLivraison || [];
+  
+  let data = rawList.filter(r => {
+    const v = (r.v || '').toLowerCase();
+    const ch = (r.chauffeur || '').toLowerCase();
+    const cl = (r.client || '').toLowerCase();
+    const dest = (r.destination || '').toLowerCase();
+    const obs = (r.obs || '').toLowerCase();
+    const matchText = !q || v.includes(q) || ch.includes(q) || cl.includes(q) || dest.includes(q) || obs.includes(q);
+    if (!matchText) return false;
+    
+    if (typeFilter && r.type !== typeFilter) return false;
+    
+    const debutDate = r.debut ? r.debut.slice(0, 10) : '';
+    if (dateFromStr && debutDate < dateFromStr) return false;
+    if (dateToStr && debutDate > dateToStr) return false;
+    
+    return true;
   });
-  document.getElementById('chart-pannes-mois').innerHTML = barChart(
-    Object.entries(pm).sort().map(([label,val])=>({label,val})), 'var(--pur)');
-}
-
-function renderPointageList(anomalies, violations) {
-  const list = document.getElementById('pointage-list');
-  if (!list) return;
-
-  const totalItems = anomalies.length + violations.length;
-  document.getElementById('pointage-remaining-count').textContent = totalItems - Object.keys(_pointageEnCours).length;
-
-  let html = '';
-
-  if (anomalies.length) {
-    html += '<div style="font-size:10px;font-weight:700;color:#f59e0b;letter-spacing:2px;text-transform:uppercase;margin-bottom:10px;padding-bottom:6px;border-bottom:1px solid rgba(245,158,11,.2)">⚠️ Anomalies Lieu J+1 (' + anomalies.length + ')</div>';
-    anomalies.forEach((r) => {
-      const key = 'anom_' + r.v.replace(/\s+/g, '_');
-      const isDone = !!_pointageEnCours[key];
-      html +=
-        '<div id="pointage-item-' + key + '" style="background:' + (isDone ? 'rgba(52,211,153,.08)' : 'rgba(245,158,11,.06)') + ';border:1px solid ' + (isDone ? 'rgba(52,211,153,.3)' : 'rgba(245,158,11,.2)') + ';border-radius:10px;padding:14px 16px;margin-bottom:10px;transition:all .3s">' +
-          '<div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px">' +
-            '<div style="flex:1">' +
-              '<div style="font-size:12px;font-weight:700;color:var(--txt);margin-bottom:4px">' +
-                '<span style="font-family:monospace;color:var(--acc)">' + r.v + '</span> · ' + (r.chauffeur || '—') +
-              '</div>' +
-              '<div style="font-size:11px;color:var(--txt2)">' +
-                'Prévu J+1 : <span style="background:rgba(52,211,153,.15);color:#34d399;padding:1px 7px;border-radius:4px">' + r.lieuJ1_initial + '</span>' +
-                ' → Actuel J+1 : <span style="background:rgba(248,113,113,.15);color:#f87171;padding:1px 7px;border-radius:4px">' + r.lieuJ1 + '</span>' +
-              '</div>' +
-              (isDone
-                ? '<div style="font-size:10px;color:#34d399;margin-top:6px">✅ ' + (_pointageEnCours[key].motif || '') + ((_pointageEnCours[key].detail) ? ' — ' + _pointageEnCours[key].detail : '') + '</div>'
-                : '<div style="margin-top:10px">' +
-                    '<div style="display:flex;gap:8px;margin-bottom:6px;align-items:center">' +
-                      '<select id="motif-' + key + '" onchange="onPointageMotifChange(\'' + key + '\')" style="flex:1;background:rgba(255,255,255,.06);border:1px solid rgba(245,158,11,.4);border-radius:7px;padding:7px 11px;color:var(--txt);font-size:11px;outline:none">' +
-                        '<option value="">— Motif obligatoire —</option>' +
-                        '<option value="Orientation">🔀 Orientation</option>' +
-                        '<option value="Chargement à son compte">⚠️ Chargement à son compte</option>' +
-                        '<option value="Chargement à son compte autorisé">🟢 Chargement à son compte autorisé</option>' +
-                        '<option value="Refus de travail">🚫 Refus de travail</option>' +
-                        '<option value="Retard">⏱ Retard</option>' +
-                        '<option value="Panne en route">🔧 Panne en route</option>' +
-                        '<option value="Changement client">📦 Changement client</option>' +
-                        '<option value="Embouteillage / Route coupée">🚧 Embouteillage / Route coupée</option>' +
-                        '<option value="Erreur planning">📋 Erreur planning</option>' +
-                        '<option value="Autre">✏️ Autre</option>' +
-                      '</select>' +
-                      '<button data-pkey="' + key + '" data-immat="' + r.v + '" onclick="pointerAnomalieItem(this.dataset.pkey, this.dataset.immat)" style="background:#f59e0b;color:#000;border:none;padding:7px 16px;border-radius:7px;font-weight:800;cursor:pointer;font-size:11px;white-space:nowrap">✅ Vu</button>' +
-                    '</div>' +
-                    '<div id="detail-wrap-' + key + '" style="display:none;margin-bottom:4px">' +
-                      '<input id="justif-' + key + '" type="text" placeholder="Préciser…" style="width:100%;background:rgba(255,255,255,.06);border:1px solid rgba(245,158,11,.3);border-radius:7px;padding:7px 11px;color:var(--txt);font-size:11px;outline:none;box-sizing:border-box">' +
-                    '</div>' +
-                    '<div id="nc-warn-' + key + '" style="display:none;font-size:10px;color:#f87171;margin-top:2px">⚠️ Une déclaration NC sera automatiquement créée.</div>' +
-                  '</div>'
-              ) +
-            '</div>' +
-          '</div>' +
-        '</div>';
+  
+  const activeCount = rawList.filter(im => im.type === 'Immobilisation chez le client' && !im.fin).length;
+  const cntEl = document.getElementById('cnt-incidents-livraison');
+  if (cntEl) {
+    cntEl.textContent = activeCount > 0 ? activeCount : '—';
+    cntEl.style.display = activeCount > 0 ? 'inline-block' : 'none';
+  }
+  
+  const totalIncs = data.length;
+  const activeImmos = data.filter(im => im.type === 'Immobilisation chez le client' && !im.fin).length;
+  const totalImmoHours = data.reduce((acc, curr) => acc + (curr.dureeHeures || 0), 0);
+  
+  const statsRow = document.getElementById('inc-stats-row');
+  if (statsRow) {
+    statsRow.innerHTML = `
+      <div class="stat-card blue">
+        <div class="stat-num">${totalIncs}</div>
+        <div class="stat-lbl">Total Incidents</div>
+      </div>
+      <div class="stat-card red" style="border-left-color:#ef4444">
+        <div class="stat-num" style="color:#ef4444">${activeImmos}</div>
+        <div class="stat-lbl">Immos en cours</div>
+      </div>
+      <div class="stat-card yellow" style="border-left-color:#fbbf24">
+        <div class="stat-num" style="color:#fbbf24">${totalImmoHours.toFixed(1)} h</div>
+        <div class="stat-lbl">Cumul Durée Immo</div>
+      </div>
+    `;
+  }
+  
+  const body = document.getElementById('inc-table-body');
+  if (!body) return;
+  
+  if (!data.length) {
+    body.innerHTML = '<tr><td colspan="10"><div class="empty-state"><div class="icon">🔍</div>Aucun incident enregistré</div></td></tr>';
+    return;
+  }
+  
+  data.sort((a, b) => b.debut.localeCompare(a.debut));
+  
+  body.innerHTML = data.map(r => {
+    const realIdx = rawList.indexOf(r);
+    const debutFormatted = new Date(r.debut).toLocaleString('fr-FR', {
+      day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit'
     });
-  }
-
-  if (violations.length) {
-    html += '<div style="font-size:10px;font-weight:700;color:#f87171;letter-spacing:2px;text-transform:uppercase;margin-bottom:10px;padding-bottom:6px;border-bottom:1px solid rgba(248,113,113,.2);margin-top:' + (anomalies.length ? '16px' : '0') + '">🚫 Violations Blacklist (' + violations.length + ')</div>';
-    violations.forEach((v) => {
-      const key = 'viol_' + v.vehicule.replace(/\s+/g, '_') + '_' + (v.chauffeur || '').replace(/\s+/g, '_');
-      const isDone = !!_pointageEnCours[key];
-      html +=
-        '<div id="pointage-item-' + key + '" style="background:' + (isDone ? 'rgba(52,211,153,.08)' : 'rgba(248,113,113,.06)') + ';border:1px solid ' + (isDone ? 'rgba(52,211,153,.3)' : 'rgba(248,113,113,.2)') + ';border-radius:10px;padding:14px 16px;margin-bottom:10px;transition:all .3s">' +
-          '<div style="flex:1">' +
-            '<div style="font-size:12px;font-weight:700;color:var(--txt);margin-bottom:4px">' +
-              '<span style="font-family:monospace;color:var(--acc)">' + v.vehicule + '</span> · ' + v.chauffeur +
-              ' <span style="background:rgba(248,113,113,.2);color:#f87171;border-radius:4px;padding:1px 7px;font-size:10px">🚫 BLACKLIST ' + v.champ + '</span>' +
-            '</div>' +
-            '<div style="font-size:11px;color:var(--txt2)">Destination interdite : <span style="color:#f87171;font-weight:700">' + v.lieu + '</span></div>' +
-            '<div style="font-size:10px;color:#64748b;margin-top:2px">Motif règle : ' + v.rule.motif + '</div>' +
-            (isDone
-              ? '<div style="font-size:10px;color:#34d399;margin-top:6px">✅ Pointé : ' + (_pointageEnCours[key].justif || '') + '</div>'
-              : '<div style="display:flex;gap:8px;margin-top:10px;align-items:center">' +
-                  '<input id="justif-' + key + '" type="text" placeholder="Justification obligatoire…" style="flex:1;background:rgba(255,255,255,.06);border:1px solid rgba(248,113,113,.3);border-radius:7px;padding:7px 11px;color:var(--txt);font-size:11px;outline:none" onkeydown="if(event.key===\'Enter\')this.nextElementSibling.click()">' +
-                  '<button data-pkey="' + key + '" data-immat="' + v.vehicule + '" data-chauffeur="' + v.chauffeur.replace(/'/g, "\\'") + '" data-lieu="' + v.lieu.replace(/'/g, "\\'") + '" onclick="pointerAnomalieItem(this.dataset.pkey, this.dataset.immat, this.dataset.chauffeur, this.dataset.lieu)" style="background:#f87171;color:#000;border:none;padding:7px 16px;border-radius:7px;font-weight:800;cursor:pointer;font-size:11px;white-space:nowrap">✅ Vu</button>' +
-                '</div>'
-            ) +
-          '</div>' +
-        '</div>';
-    });
-  }
-
-  list.innerHTML = html;
-
-  // Afficher/masquer le bouton valider tout
-  const total = anomalies.length + violations.length;
-  const done  = Object.keys(_pointageEnCours).length;
-  document.getElementById('pointage-remaining-count').textContent = total - done;
-  const btn = document.getElementById('pointage-valider-btn');
-  if (btn) btn.style.display = (done >= total) ? 'block' : 'none';
-}
-
-// Affiche/masque le champ détail et le warning NC selon le motif choisi
-function onPointageMotifChange(key) {
-  const sel = document.getElementById('motif-' + key);
-  const detailWrap = document.getElementById('detail-wrap-' + key);
-  const ncWarn = document.getElementById('nc-warn-' + key);
-  if (!sel) return;
-  const val = sel.value;
-  // Toujours afficher le champ détail
-  if (detailWrap) detailWrap.style.display = val ? 'block' : 'none';
-  // Avertissement NC si chargement à son compte ou refus de travail
-  if (ncWarn) ncWarn.style.display = (val === 'Chargement à son compte' || val === 'Refus de travail') ? 'block' : 'none';
-  if (val) setTimeout(() => { const inp = document.getElementById('justif-' + key); if (inp) inp.focus(); }, 50);
-}
-
-function pointerAnomalieItem(key, immat, extraChauffeur = '', extraLieu = '') {
-  const sel   = document.getElementById('motif-' + key);
-  const input = document.getElementById('justif-' + key);
-  const motif = sel ? sel.value.trim() : '';
-  const detail = input ? input.value.trim() : '';
-
-  if (key.startsWith('anom_')) {
-    if (!motif) {
-      showToast('⚠️ Sélectionnez un motif avant de valider', true);
-      if (sel) sel.focus();
-      return;
-    }
-  } else if (key.startsWith('viol_')) {
-    if (!detail) {
-      showToast('⚠️ Saisissez une justification avant de valider', true);
-      if (input) input.focus();
-      return;
-    }
-  }
-
-  const justif = key.startsWith('anom_') ? (motif + (detail ? ' — ' + detail : '')) : detail;
-  _pointageEnCours[key] = { motif, detail, justif, ts: new Date().toISOString() };
-
-  // Sauvegarder dans DB.anomaliesPointees si c'est une anomalie de lieu
-  if (key.startsWith('anom_')) {
-    const r = DB.dispo.find(x => x.v === immat);
-    if (r) {
-      if (!DB.anomaliesPointees) DB.anomaliesPointees = {};
-      const eq = typeof window.CURRENT_EQUIPE !== 'undefined' ? window.CURRENT_EQUIPE : 'A';
-      DB.anomaliesPointees[r.v + '_' + today()] = {
-        motif, detail, justif,
-        ts: new Date().toISOString(),
-        date: today(),
-        equipe: eq,
-        chauffeur: r.chauffeur,
-        lieuInitial: r.lieuJ1_initial,
-        lieuActuel: r.lieuJ1
-      };
-
-      // ── Auto-déclaration NC si "Chargement à son compte", "Refus de travail" ou "Chargement à son compte autorisé" ──
-      if (motif === 'Chargement à son compte' || motif === 'Refus de travail' || motif === 'Chargement à son compte autorisé') {
-        if (!DB.nc) DB.nc = [];
-        const dist = getCityDistance(r.lieuJ1_initial, r.lieuJ1);
-        const isExceeded = (motif === 'Chargement à son compte autorisé' && dist > 400);
-        
-        let ncType = 'chgt';
-        let ncDetail = r.lieuJ1_initial + ' - ' + r.lieuJ1;
-        let ncObs = '';
-        
-        if (motif === 'Chargement à son compte autorisé') {
-          ncType = 'autorise';
-          ncDetail = `${r.lieuJ1_initial} - ${r.lieuJ1} (${dist} km)` + (isExceeded ? ' ⚠️ DÉPASSEMENT 400km' : '');
-          ncObs = `Distance de ${dist} km. ` + (isExceeded ? `⚠️ DÉPASSEMENT DE LA LIMITE DE 400 KM !` : `Respecte la limite.`);
-        } else {
-          ncObs = 'Anomalie lieu J+1 : ' + r.lieuJ1_initial + ' → ' + r.lieuJ1 + (detail ? ' | ' + detail : '');
-        }
-        
-        DB.nc.push({
-          ref: '',
-          date: today(),
-          sharik: r.chauffeur || '',
-          immat: r.v || '',
-          type: ncType,
-          detail: ncDetail,
-          chgt: ncType === 'chgt' ? ncDetail : '',
-          autorise: ncType === 'autorise' ? ncDetail : '',
-          obs: ncObs
-        });
-        
-        if (isExceeded) {
-          showToast(`🚨 Alerte : La distance de ${dist} km dépasse la limite autorisée de 400 km ! NC créée.`, true);
-          logMouvement("Dépassement Limite 400km", "Camion", r.v, `Chargement autorisé de ${dist} km (> 400 km) de ${r.lieuJ1_initial} à ${r.lieuJ1}`);
-        } else {
-          showToast('📋 NC auto-créée pour ' + r.v + ' (' + r.chauffeur + ')');
-        }
+    
+    let finFormatted = '';
+    if (r.fin) {
+      const fTime = new Date(r.fin).toLocaleString('fr-FR', {
+        day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit'
+      });
+      if (r.type === 'Immobilisation chez le client' && r.dureeHeures !== null) {
+        finFormatted = `<span style="color:#22c55e; font-weight:700">Clôturé : ${fTime} (${r.dureeHeures} h)</span>`;
+      } else {
+        finFormatted = `<span style="color:#22c55e; font-weight:700">Clôturé : ${fTime}</span>`;
+      }
+    } else {
+      if (r.type === 'Immobilisation chez le client') {
+        finFormatted = `<button class="btn btn-save" onclick="cloturerIncidentLivraison('${r.id}')" style="background:#ef4444;color:#fff;border:none;padding:4px 10px;font-size:10px;border-radius:4px;cursor:pointer;font-weight:700">🏁 Clôturer Immo</button>`;
+      } else {
+        finFormatted = `<button class="btn btn-save" onclick="cloturerIncidentLivraison('${r.id}')" style="background:#64748b;color:#fff;border:none;padding:4px 10px;font-size:10px;border-radius:4px;cursor:pointer;font-weight:700">🏁 Clôturer</button>`;
       }
     }
-  } else if (key.startsWith('viol_')) {
-    if (!DB.anomaliesPointees) DB.anomaliesPointees = {};
-    const eq = typeof window.CURRENT_EQUIPE !== 'undefined' ? window.CURRENT_EQUIPE : 'A';
-    const pkey = 'viol_' + immat + '_' + extraChauffeur + '_' + extraLieu.trim().toUpperCase() + '_' + today();
-    DB.anomaliesPointees[pkey] = {
-      motif: 'Blacklist',
-      detail: detail,
-      justif: detail,
-      ts: new Date().toISOString(),
-      date: today(),
-      equipe: eq,
-      chauffeur: extraChauffeur,
-      lieuInitial: 'Blacklist Règle',
-      lieuActuel: extraLieu
-    };
+    
+    return `<tr>
+      <td class="mono" style="color:var(--acc)">${r.v}</td>
+      <td style="font-weight:600">${r.chauffeur}</td>
+      <td style="font-weight:700; color:var(--yel)">${r.type}</td>
+      <td>${r.client}</td>
+      <td>${r.destination}</td>
+      <td class="mono" style="font-size:11px">${r.refCommande}</td>
+      <td class="mono" style="font-size:11px">${debutFormatted}</td>
+      <td>${finFormatted}</td>
+      <td style="font-size:11px; max-width:200px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap" title="${r.obs}">${r.obs}</td>
+      <td>
+        <button class="del-btn" onclick="deleteIncidentLivraison(${realIdx})" title="Supprimer" style="color:var(--red);border:none;background:transparent;cursor:pointer">🗑</button>
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+function resetIncFilters() {
+  const searchInput = document.getElementById('inc-search');
+  const typeFilter = document.getElementById('inc-type-filter');
+  const dateFromInput = document.getElementById('inc-date-from');
+  const dateToInput = document.getElementById('inc-date-to');
+  if (searchInput) searchInput.value = '';
+  if (typeFilter) typeFilter.value = '';
+  if (dateFromInput) dateFromInput.value = '';
+  if (dateToInput) dateToInput.value = '';
+  renderIncidentsLivraisonPage();
+}
+
+function deleteIncidentLivraison(idx) {
+  if (!_checkActionsLibres('deleteIncidentLivraison')) return;
+  if (!confirm('Supprimer définitivement cet incident de l\'historique ?')) return;
+  
+  if (DB.incidentsLivraison) {
+    DB.incidentsLivraison.splice(idx, 1);
+    saveDB();
+    renderIncidentsLivraisonPage();
+    renderDispo();
+    showToast('🗑 Incident supprimé');
   }
-
-  // Re-render la liste mise à jour
-  const anomalies = getAnomaliesAPointer();
-  const violations = getBlacklistViolations();
-  renderPointageList(anomalies, violations);
-
-  saveDB();
 }
-
-function getAnomaliesAPointer() {
-  if (!DB || !DB.dispo) return [];
-  const deja = DB.anomaliesPointees || {};
-  const todayStr = today();
-  return DB.dispo.filter(r => {
-    if (!r.lieuJ1_initial || !r.lieuJ1) return false;
-    if (r.lieuJ1 === '—' || r.lieuJ1_initial === '—') return false;
-    if (r.lieuJ1.trim().toUpperCase() === r.lieuJ1_initial.trim().toUpperCase()) return false;
-    const key = r.v + '_' + todayStr;
-    return !deja[key];
-  });
-}
-window.getAnomaliesAPointer = getAnomaliesAPointer;
 
 function getBlacklistViolations() {
   if (!DB || !DB.dispo) return [];
