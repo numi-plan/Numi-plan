@@ -7561,23 +7561,27 @@ function importKmFacture(input) {
           if (!targetDb.odo) targetDb.odo = [];
 
           let weekIdx = -1;
-          const dateKey = Object.keys(r).find(k => {
+          const startDateKey = Object.keys(r).find(k => {
             const kl = k.toLowerCase();
-            return kl.includes('date au') || kl.includes('date_au') || kl.includes('au') || kl.includes('date') || kl.includes('period') || kl.includes('fin');
+            return kl.includes('date du') || kl.includes('date_du') || kl.includes('du') || kl.includes('start') || kl.includes('debut');
+          });
+          const endDateKey = Object.keys(r).find(k => {
+            const kl = k.toLowerCase();
+            return kl.includes('date au') || kl.includes('date_au') || kl.includes('au') || kl.includes('date') || kl.includes('period') || kl.includes('fin') || kl.includes('end');
           });
           
-          if (dateKey) {
-            const dateStr = parseExcelDate(r[dateKey]);
-            if (dateStr && targetDb.odo_weeks) {
-              weekIdx = targetDb.odo_weeks.indexOf(dateStr);
-              if (weekIdx === -1) {
-                const dVal = new Date(dateStr).getTime();
-                if (!isNaN(dVal)) {
-                  weekIdx = targetDb.odo_weeks.findIndex(w => {
-                    const wVal = new Date(w).getTime();
-                    return !isNaN(wVal) && Math.abs(wVal - dVal) <= 2 * 86400 * 1000;
-                  });
-                }
+          const startStr = startDateKey ? parseExcelDate(r[startDateKey]) : null;
+          const endStr = endDateKey ? parseExcelDate(r[endDateKey]) : null;
+
+          if (endStr && targetDb.odo_weeks) {
+            weekIdx = targetDb.odo_weeks.indexOf(endStr);
+            if (weekIdx === -1) {
+              const dVal = new Date(endStr).getTime();
+              if (!isNaN(dVal)) {
+                weekIdx = targetDb.odo_weeks.findIndex(w => {
+                  const wVal = new Date(w).getTime();
+                  return !isNaN(wVal) && Math.abs(wVal - dVal) <= 2 * 86400 * 1000;
+                });
               }
             }
           }
@@ -7590,6 +7594,16 @@ function importKmFacture(input) {
           if (odoRec) {
             odoRec.kmFacture = km;
             if (!odoRec.kmFactures) odoRec.kmFactures = [];
+            
+            // Clear intermediate weeks in this imported period
+            if (startStr && endStr && targetDb.odo_weeks) {
+              targetDb.odo_weeks.forEach((w, idx) => {
+                if (w > startStr && w < endStr) {
+                  odoRec.kmFactures[idx] = null;
+                }
+              });
+            }
+            
             odoRec.kmFactures[weekIdx] = km;
             countUpdated++;
           } else {
@@ -7610,6 +7624,16 @@ function importKmFacture(input) {
             if (activeRec) {
               activeRec.kmFacture = km;
               if (!activeRec.kmFactures) activeRec.kmFactures = [];
+              
+              // Clear intermediate weeks in this imported period
+              if (startStr && endStr && window.DB.odo_weeks) {
+                window.DB.odo_weeks.forEach((w, idx) => {
+                  if (w > startStr && w < endStr) {
+                    activeRec.kmFactures[idx] = null;
+                  }
+                });
+              }
+              
               activeRec.kmFactures[weekIdx] = km;
             } else {
               const newRec = {
