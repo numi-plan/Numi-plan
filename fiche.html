@@ -11379,15 +11379,15 @@ function renderAnalytics() {
       <tr>
         <td class="mono" style="color:var(--acc);cursor:pointer;font-weight:600" onclick="switchTab('vehicule');setTimeout(()=>showVehicleProfile('${item.v}'),150)">${item.v}</td>
         <td style="font-weight:600">${item.chauffeur}</td>
-        <td class="mono" style="text-align:center;color:\${item.pannesCount > 0 ? 'var(--red)' : 'var(--txt3)'}">\${item.pannesCount > 0 ? `<b>\${item.pannesCount}</b>` : '0'}</td>
-        <td class="mono" style="text-align:center;color:\${item.ncCount > 0 ? 'var(--org)' : 'var(--txt3)'}">\${item.ncCount > 0 ? `<b>\${item.ncCount}</b>` : '0'}</td>
-        <td class="mono" style="text-align:center;color:\${item.incCount > 0 ? 'var(--yel)' : 'var(--txt3)'}">
-          \${item.incCount > 0 ? `<b>\${item.incCount}</b>` : '0'}
-          \${item.sinistreCount > 0 ? `<span style="font-size:9px;color:var(--red);background:rgba(239,68,68,0.15);padding:1px 4px;border-radius:3px;margin-left:4px" title="Sinistre / Avarie">⚠️ \${item.sinistreCount}</span>` : ''}
+        <td class="mono" style="text-align:center;color:${item.pannesCount > 0 ? 'var(--red)' : 'var(--txt3)'}">${item.pannesCount > 0 ? `<b>${item.pannesCount}</b>` : '0'}</td>
+        <td class="mono" style="text-align:center;color:${item.ncCount > 0 ? 'var(--org)' : 'var(--txt3)'}">${item.ncCount > 0 ? `<b>${item.ncCount}</b>` : '0'}</td>
+        <td class="mono" style="text-align:center;color:${item.incCount > 0 ? 'var(--yel)' : 'var(--txt3)'}">
+          ${item.incCount > 0 ? `<b>${item.incCount}</b>` : '0'}
+          ${item.sinistreCount > 0 ? `<span style="font-size:9px;color:var(--red);background:rgba(239,68,68,0.15);padding:1px 4px;border-radius:3px;margin-left:4px" title="Sinistre / Avarie">⚠️ ${item.sinistreCount}</span>` : ''}
         </td>
-        <td class="mono" style="text-align:right;padding-right:15px;color:var(--txt2)">\${item.gasoilLiters > 0 ? `\${item.gasoilLiters.toLocaleString('fr-FR')} L` : '—'}</td>
-        <td class="mono" style="text-align:right;padding-right:15px;color:var(--txt2)">\${item.odoDelta > 0 ? `\${item.odoDelta.toLocaleString('fr-FR')} km` : '—'}</td>
-        <td class="mono" style="text-align:right;padding-right:15px;\${racBadgeStyle}">\${racStr}</td>
+        <td class="mono" style="text-align:right;padding-right:15px;color:var(--txt2)">${item.gasoilLiters > 0 ? `${item.gasoilLiters.toLocaleString('fr-FR')} L` : '—'}</td>
+        <td class="mono" style="text-align:right;padding-right:15px;color:var(--txt2)">${item.odoDelta > 0 ? `${item.odoDelta.toLocaleString('fr-FR')} km` : '—'}</td>
+        <td class="mono" style="text-align:right;padding-right:15px;${racBadgeStyle}">${racStr}</td>
       </tr>
     `;
   }).join('');
