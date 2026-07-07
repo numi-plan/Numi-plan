@@ -7321,9 +7321,15 @@ function renderOdo() {
         deltaVal = d;
       }
     }
-    const kmFacture = (r.kmFacture !== undefined && r.kmFacture !== null) ? r.kmFacture : 0;
-    if (deltaVal > 0 && kmFacture > 0) {
-      totalFact += kmFacture;
+    let rowKmFact = 0;
+    filteredWeeks.forEach(w => {
+      const origIdx = weeks.indexOf(w);
+      if (r.kmFactures && r.kmFactures[origIdx] !== undefined && r.kmFactures[origIdx] !== null) {
+        rowKmFact += r.kmFactures[origIdx];
+      }
+    });
+    if (deltaVal > 0 && rowKmFact > 0) {
+      totalFact += rowKmFact;
       totalOdo += deltaVal;
     }
   });
@@ -7534,6 +7540,18 @@ function importKmFacture(input) {
     const reader = new FileReader();
     reader.onload = e => {
       try {
+        // Clear all existing billed km for all databases to overwrite completely
+        const EQUIPS = ['A', 'B', 'C', 'D'];
+        EQUIPS.forEach(eq => {
+          const eqDb = (eq === CURRENT_EQUIPE && typeof window.DB !== 'undefined') ? window.DB : window['DB_' + eq];
+          if (eqDb && eqDb.odo) {
+            eqDb.odo.forEach(item => {
+              item.kmFacture = null;
+              item.kmFactures = [];
+            });
+          }
+        });
+
         const wb = XLSX.read(e.target.result, {type:'array'});
         const ws = wb.Sheets[wb.SheetNames[0]];
         const raw = XLSX.utils.sheet_to_json(ws);
