@@ -1542,7 +1542,6 @@ mark.hl { background: rgba(56,189,248,.25); color: var(--acc); border-radius: 3p
   <button class="tab-btn" onclick="switchTab('cspc',this)">🔷 CSPC <span class="tab-count" id="cnt-cspc">—</span></button>
   <button class="tab-btn" onclick="switchTab('vehicule',this)">🔍 Fiche Véhicule</button>
   <button class="tab-btn" onclick="switchTab('analytics',this)">📊 Analyses</button>
-<button class="tab-btn" id="tab-performance-chauffeur" onclick="switchTab('performance-chauffeur',this)">👤 Performance Chauffeur</button>
   <button class="tab-btn" id="tab-blacklist" onclick="if(typeof switchTab==='function')switchTab('blacklist',this)">🚫 Blacklist <span class="tab-count" id="cnt-blacklist" style="background:#f87171">—</span></button>
   <button class="tab-btn" id="tab-incidents-livraison" onclick="switchTab('incidents-livraison',this)">🚨 Incidents Livraison <span class="tab-count" id="cnt-incidents-livraison" style="background:#ef4444">—</span></button>
   <button class="tab-btn" onclick="switchTab('tracabilite',this)">📜 Traçabilité <span class="tab-count" id="cnt-tracabilite" style="display:none;">—</span></button>
@@ -1922,6 +1921,7 @@ mark.hl { background: rgba(56,189,248,.25); color: var(--acc); border-radius: 3p
     <select class="filter-input" id="inc-type-filter" onchange="renderIncidentsLivraisonPage()" style="background:rgba(255,255,255,.05);color:inherit;border:1px solid var(--border);padding:6px 12px;border-radius:8px">
       <option value="">Tous les types d'incidents</option>
       <option value="Immobilisation chez le client">Immobilisation chez le client</option>
+      <option value="Sinistre / Avarie">Sinistre / Avarie</option>
       <option value="Avarie marchandises">Avarie marchandises</option>
       <option value="Retard de livraison">Retard de livraison</option>
       <option value="Panne sur route">Panne sur route</option>
@@ -1968,6 +1968,7 @@ mark.hl { background: rgba(56,189,248,.25); color: var(--acc); border-radius: 3p
         <label style="font-weight:700; font-size:11px; color:var(--txt2)">Type d'anomalie / incident</label>
         <select id="f-inc-liv-type" style="background:rgba(255,255,255,.05);color:inherit;border:1px solid var(--border);padding:8px 12px;border-radius:8px;outline:none">
           <option value="Immobilisation chez le client">Immobilisation chez le client</option>
+          <option value="Sinistre / Avarie">Sinistre / Avarie</option>
           <option value="Avarie marchandises">Avarie marchandises</option>
           <option value="Retard de livraison">Retard de livraison</option>
           <option value="Panne sur route">Panne sur route</option>
@@ -2114,111 +2115,6 @@ mark.hl { background: rgba(56,189,248,.25); color: var(--acc); border-radius: 3p
 </div>
 
 <!-- ══════════════ PERFORMANCE CHAUFFEUR ══════════════ -->
-<div id="page-performance-chauffeur" class="page">
-  <div style="background:var(--bg2);border:1px solid var(--border);border-radius:16px;padding:24px;margin-bottom:24px;">
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;flex-wrap:wrap;gap:16px;">
-      <div>
-        <h2 style="font-size:18px;color:var(--acc);font-weight:700;">👤 Tableau de bord - Performance Chauffeur</h2>
-        <p style="font-size:12px;color:var(--txt2);margin-top:4px;">Suivi des avaries, sinistres et modifications de commandes client.</p>
-      </div>
-      <div style="display:flex;align-items:center;gap:10px;">
-        <span style="font-size:13px;color:var(--txt2);">Chauffeur :</span>
-        <input type="text" id="perf-search-chauffeur" list="dl-chauffeurs" placeholder="Rechercher un chauffeur..." oninput="renderPerformanceChauffeur()" style="width:220px;background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:8px 12px;color:var(--txt);outline:none;">
-        <button class="btn btn-reset" onclick="document.getElementById('perf-search-chauffeur').value='';renderPerformanceChauffeur()">Réinitialiser</button>
-      </div>
-    </div>
-
-    <!-- KPIs Zone -->
-    <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(180px, 1fr));gap:16px;margin-bottom:24px;">
-      <div class="stat-card" style="border-left-color:var(--txt3);">
-        <div class="stat-num" id="perf-stat-total-incidents">0</div>
-        <div class="stat-lbl">Total Incidents</div>
-      </div>
-      <div class="stat-card red" style="border-left-color:var(--red);">
-        <div class="stat-num" id="perf-stat-avaries" style="color:var(--red)">0</div>
-        <div class="stat-lbl">Avaries Marchandises</div>
-      </div>
-      <div class="stat-card org" style="border-left-color:var(--org);">
-        <div class="stat-num" id="perf-stat-sinistres" style="color:var(--org)">0</div>
-        <div class="stat-lbl">Sinistres / Accidents</div>
-      </div>
-      <div class="stat-card green" style="border-left-color:var(--grn);">
-        <div class="stat-num" id="perf-stat-non-responsable" style="color:var(--grn)">0%</div>
-        <div class="stat-lbl">Non Responsable</div>
-      </div>
-      <div class="stat-card blue" style="border-left-color:var(--acc);">
-        <div class="stat-num" id="perf-stat-modifs" style="color:var(--acc)">0</div>
-        <div class="stat-lbl">Commandes Modifiées</div>
-      </div>
-    </div>
-
-    <!-- Layout: Leaderboard or Detail view -->
-    <div id="perf-leaderboard-container">
-      <h3 style="font-size:14px;color:var(--acc);margin-bottom:12px;text-transform:uppercase;letter-spacing:1px;">🏆 Classement des chauffeurs par nombre d'incidents</h3>
-      <div class="table-wrap">
-        <table>
-          <thead>
-            <tr>
-              <th>Chauffeur</th>
-              <th>Avaries Marchandises</th>
-              <th>Sinistres Camions</th>
-              <th>Total Incidents</th>
-              <th>Commandes Modifiées</th>
-              <th>Statut Performance</th>
-            </tr>
-          </thead>
-          <tbody id="perf-leaderboard-body"></tbody>
-        </table>
-      </div>
-    </div>
-
-    <div id="perf-detail-container" style="display:none;margin-top:20px;">
-      <!-- Table 1: Incidents -->
-      <div style="margin-bottom:24px;">
-        <h3 style="font-size:14px;color:var(--red);margin-bottom:12px;text-transform:uppercase;letter-spacing:1px;">📋 Historique des Avaries & Sinistres</h3>
-        <div class="table-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th>Date</th>
-                <th>Véhicule</th>
-                <th>Type d'incident</th>
-                <th>Description / Fait</th>
-                <th>Responsabilité</th>
-                <th>Équipe</th>
-                <th>Observations</th>
-              </tr>
-            </thead>
-            <tbody id="perf-incidents-body"></tbody>
-          </table>
-        </div>
-      </div>
-
-      <!-- Table 2: Command Modifications -->
-      <div>
-        <h3 style="font-size:14px;color:var(--acc);margin-bottom:12px;text-transform:uppercase;letter-spacing:1px;">🏢 Historique des Commandes Modifiées (Tracabilité Client)</h3>
-        <div class="table-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th>Date</th>
-                <th>Véhicule</th>
-                <th>Client</th>
-                <th>Ancienne Réf</th>
-                <th>Nouvelle Réf</th>
-                <th>Lieu Prévu</th>
-                <th>Lieu Affecté</th>
-                <th>Équipe</th>
-                <th>Observations / Justification</th>
-              </tr>
-            </thead>
-            <tbody id="perf-modifs-body"></tbody>
-          </table>
-        </div>
-      </div>
-    </div>
-  </div>
-</div>
 
 </div><!-- /page-area -->
 </div><!-- /app-layout -->
@@ -5319,7 +5215,7 @@ function switchTab(name, btn) {
   if (name==='blacklist') renderBlacklist();
   if (name==='tracabilite') renderTracabilite();
   if (name==='flashinfo') renderAdminFlashList();
-  if (name==='performance-chauffeur') renderPerformanceChauffeur();
+  
   if (name === 'incidents-livraison') renderIncidentsLivraisonPage();
 checkBascule();
 }
@@ -5609,8 +5505,6 @@ function renderDispo() {
         <button class="del-btn" style="color:var(--red)" onclick="declPanne(${realIdx})" title="Panne">🔧</button>
         <button class="del-btn" style="color:var(--org)" onclick="declNC(${realIdx})" title="Non-conformité">⚠️</button>
         <button class="del-btn" style="color:var(--yel)" onclick="declGasoil(${realIdx})" title="Gasoil">⛽</button>
-        <button class="del-btn" style="color:var(--acc)" onclick="openClientModifModal(${realIdx})" title="Changement Commande Client">🏢</button>
-        <button class="del-btn" style="color:var(--red)" onclick="openIncidentModal(${realIdx})" title="Déclarer Avarie / Sinistre">💥</button>
         <button class="del-btn" style="color:var(--txt2)" onclick="editDispo(${realIdx})" title="Modifier">✏️</button>
         <button class="del-btn" style="color:var(--red)" onclick="deleteDispo(${realIdx})" title="Supprimer">🗑</button>
         <button class="del-btn" onclick="toggleSurveillance(${realIdx})" title="${r.surveillance ? 'Désactiver surveillance' : 'Activer surveillance'}" style="color:${r.surveillance ? '#f87171' : 'var(--txt3)'};font-size:14px;${r.surveillance ? 'animation:pulse-eye .8s ease-in-out infinite alternate;' : ''}">👁️</button>
@@ -6465,6 +6359,7 @@ function showVehicleProfile(immat) {
     const chauf = dispo[0]?.chauffeur||equip?.sharik||'';
     return chauf && r.sharik.toLowerCase()===chauf.toLowerCase();
   });
+  const driverIncs = (DB.incidentsLivraison || []).filter(r => r.v === immat);
 
   // Historique dans les archives
   const histFromArchives = [];
@@ -6535,8 +6430,8 @@ function showVehicleProfile(immat) {
 
       <!-- NC du chauffeur -->
       <div class="analytics-card">
-        <h4>⚠️ NC chauffeur (${nc_list.length})</h4>
-        ${nc_list.length===0?'<div class="no-data">Aucune NC liée au chauffeur</div>':
+        <h4>?? NC chauffeur (${nc_list.length})</h4>
+        ${nc_list.length===0?'<div class="no-data">Aucune NC li?e au chauffeur</div>':
           nc_list.map(n=>`<div class="timeline-item">
             <div class="timeline-dot" style="background:var(--org)"></div>
             <div>
@@ -6544,6 +6439,24 @@ function showVehicleProfile(immat) {
               <div class="timeline-info">${ncTypeBadge(n.type)}</div>
               <div class="timeline-info" style="font-size:11px;color:var(--txt2);margin-top:3px">${n.detail}</div>
             </div>
+          </div>`).join('')}
+      </div>
+
+      <!-- INCIDENTS DE LIVRAISON -->
+      <div class="analytics-card">
+        <h4>🚨 Incidents de livraison (${driverIncs.length})</h4>
+        ${driverIncs.length===0?'<div class="no-data">Aucun incident de livraison enregistré</div>':
+          driverIncs.map(inc=>`<div class="timeline-item">
+            <div class="timeline-dot" style="background:#ef4444"></div>
+            <div>
+              <div class="timeline-date">${new Date(inc.debut).toLocaleDateString('fr-FR')}</div>
+              <div class="timeline-info" style="font-weight:600;color:var(--yel)">${inc.type}</div>
+              <div class="timeline-info" style="font-size:11px;color:var(--txt2)">Client : ${inc.client} | Cmd : ${inc.refCommande}</div>
+              <div class="timeline-info" style="font-size:11px;margin-top:3px">${inc.obs || ''}</div>
+              ${inc.fin ? `<div class="timeline-info" style="font-size:10px;color:var(--grn);margin-top:2px">Clôturé le ${new Date(inc.fin).toLocaleDateString('fr-FR')} ${inc.dureeHeures !== null ? `(${inc.dureeHeures} h)` : ''}</div>` : `<div class="timeline-info" style="font-size:10px;color:var(--red);margin-top:2px">En cours</div>`}
+            </div>
+          </div>`).join('')}
+      </div>
           </div>`).join('')}
       </div>
 
@@ -11337,7 +11250,6 @@ function emargerFlash(flashId) {
 window.emargerFlash = emargerFlash;
 
 // ── FONCTIONS ET LOGIQUE : PERFORMANCE CHAUFFEUR & SUIVI CLIENT ──
-function openClientModifModal(idx) {
   if (!_checkActionsLibres('openClientModif')) return;
   const r = DB.dispo[idx];
   if (!r) return;
@@ -11352,7 +11264,6 @@ function openClientModifModal(idx) {
   document.getElementById('f-client-obs').value = '';
   openModal('modal-client-modif', idx);
 }
-window.openClientModifModal = openClientModifModal;
 
 function saveClientModif() {
   if (!_checkActionsLibres('saveClientModif')) return;
@@ -11397,7 +11308,6 @@ function saveClientModif() {
 }
 window.saveClientModif = saveClientModif;
 
-function openIncidentModal(idx) {
   if (!_checkActionsLibres('openIncident')) return;
   const r = DB.dispo[idx];
   if (!r) return;
@@ -11409,7 +11319,6 @@ function openIncidentModal(idx) {
   document.getElementById('f-inc-obs').value = '';
   openModal('modal-incident', idx);
 }
-window.openIncidentModal = openIncidentModal;
 
 function saveIncident() {
   if (!_checkActionsLibres('saveIncident')) return;
@@ -11444,176 +11353,6 @@ function saveIncident() {
   showToast('✅ Incident enregistré avec succès');
 }
 window.saveIncident = saveIncident;
-
-function renderPerformanceChauffeur() {
-  const selectChauffeur = document.getElementById('perf-search-chauffeur').value.trim().toUpperCase();
-  
-  const allIncidents = [];
-  const allModifs = [];
-  
-  ['A','B','C','D'].forEach(eq => {
-    const dbEq = window['DB_' + eq] || (eq === (window.CURRENT_EQUIPE||'A') ? window.DB : null);
-    if (dbEq) {
-      if (dbEq.incidents) {
-        dbEq.incidents.forEach(item => {
-          allIncidents.push({ ...item, equipe: item.equipe || eq });
-        });
-      }
-      if (dbEq.clientModifs) {
-        dbEq.clientModifs.forEach(item => {
-          allModifs.push({ ...item, equipe: item.equipe || eq });
-        });
-      }
-    }
-  });
-
-  const uniqueIncidents = [];
-  const seenInc = new Set();
-  allIncidents.forEach(x => {
-    const key = x.timestamp + '_' + x.chauffeur + '_' + x.type;
-    if (!seenInc.has(key)) {
-      seenInc.add(key);
-      uniqueIncidents.push(x);
-    }
-  });
-
-  const uniqueModifs = [];
-  const seenMod = new Set();
-  allModifs.forEach(x => {
-    const key = x.timestamp + '_' + x.v + '_' + x.refNew;
-    if (!seenMod.has(key)) {
-      seenMod.add(key);
-      uniqueModifs.push(x);
-    }
-  });
-
-  if (selectChauffeur) {
-    document.getElementById('perf-leaderboard-container').style.display = 'none';
-    document.getElementById('perf-detail-container').style.display = 'block';
-
-    const driverInc = uniqueIncidents.filter(x => (x.chauffeur||'').trim().toUpperCase() === selectChauffeur);
-    const driverMod = uniqueModifs.filter(x => (x.chauffeur||'').trim().toUpperCase() === selectChauffeur);
-
-    const avariesCount = driverInc.filter(x => x.type === 'Avarie Marchandise').length;
-    const sinistresCount = driverInc.filter(x => x.type === 'Sinistre Camion').length;
-    const totalInc = driverInc.length;
-    
-    const nonRespInc = driverInc.filter(x => x.resp && x.resp.includes('Non responsable')).length;
-    const respPct = totalInc > 0 ? Math.round((nonRespInc / totalInc) * 100) : 100;
-
-    document.getElementById('perf-stat-total-incidents').textContent = totalInc;
-    document.getElementById('perf-stat-avaries').textContent = avariesCount;
-    document.getElementById('perf-stat-sinistres').textContent = sinistresCount;
-    document.getElementById('perf-stat-non-responsable').textContent = respPct + '%';
-    document.getElementById('perf-stat-modifs').textContent = driverMod.length;
-
-    const incBody = document.getElementById('perf-incidents-body');
-    if (driverInc.length === 0) {
-      incBody.innerHTML = `<tr><td colspan="7" style="text-align:center;color:var(--txt3)">Aucun incident enregistré</td></tr>`;
-    } else {
-      incBody.innerHTML = driverInc.map(x => `
-        <tr>
-          <td class="mono">${x.date}</td>
-          <td class="mono" style="color:var(--acc)">${x.v}</td>
-          <td><span class="badge ${x.type.includes('Avarie') ? 'badge-red' : 'badge-org'}">${x.type}</span></td>
-          <td style="font-weight:600">${x.desc || '—'}</td>
-          <td><span class="badge ${x.resp.includes('Non responsable') ? 'badge-grn' : x.resp.includes('Force majeure') ? 'badge-yel' : 'badge-red'}">${x.resp}</span></td>
-          <td style="text-align:center"><span class="badge badge-blue">EQ ${x.equipe}</span></td>
-          <td style="font-size:11px;color:var(--txt2)">${x.obs || '—'}</td>
-        </tr>
-      `).join('');
-    }
-
-    const modBody = document.getElementById('perf-modifs-body');
-    if (driverMod.length === 0) {
-      modBody.innerHTML = `<tr><td colspan="9" style="text-align:center;color:var(--txt3)">Aucune modification de commande</td></tr>`;
-    } else {
-      modBody.innerHTML = driverMod.map(x => `
-        <tr>
-          <td class="mono">${x.date}</td>
-          <td class="mono" style="color:var(--acc)">${x.v}</td>
-          <td style="font-weight:600">${x.client || '—'}</td>
-          <td class="mono" style="color:var(--txt3)">${x.refInit || '—'}</td>
-          <td class="mono" style="color:var(--grn);font-weight:600">${x.refNew || '—'}</td>
-          <td style="color:var(--txt3)">${x.destInit || '—'}</td>
-          <td style="color:var(--acc);font-weight:600">${x.destNew || '—'}</td>
-          <td style="text-align:center"><span class="badge badge-blue">EQ ${x.equipe}</span></td>
-          <td style="font-size:11px;color:var(--txt2)">${x.obs || '—'}</td>
-        </tr>
-      `).join('');
-    }
-  } else {
-    document.getElementById('perf-leaderboard-container').style.display = 'block';
-    document.getElementById('perf-detail-container').style.display = 'none';
-
-    const allDrivers = new Set();
-    DB.dispo.forEach(r => {
-      if (r.chauffeur && r.chauffeur !== '—' && !r.chauffeur.includes('MANQUE')) allDrivers.add(r.chauffeur.trim().toUpperCase());
-    });
-    uniqueIncidents.forEach(x => {
-      if (x.chauffeur) allDrivers.add(x.chauffeur.trim().toUpperCase());
-    });
-    uniqueModifs.forEach(x => {
-      if (x.chauffeur) allDrivers.add(x.chauffeur.trim().toUpperCase());
-    });
-
-    const driverStats = [];
-    allDrivers.forEach(name => {
-      const driverInc = uniqueIncidents.filter(x => (x.chauffeur||'').trim().toUpperCase() === name);
-      const driverMod = uniqueModifs.filter(x => (x.chauffeur||'').trim().toUpperCase() === name);
-      const avaries = driverInc.filter(x => x.type === 'Avarie Marchandise').length;
-      const sinistres = driverInc.filter(x => x.type === 'Sinistre Camion').length;
-      const total = driverInc.length;
-      
-      driverStats.push({
-        name,
-        avaries,
-        sinistres,
-        total,
-        modifs: driverMod.length
-      });
-    });
-
-    driverStats.sort((a,b) => b.total - a.total || b.modifs - a.modifs);
-
-    const leadBody = document.getElementById('perf-leaderboard-body');
-    if (driverStats.length === 0) {
-      leadBody.innerHTML = `<tr><td colspan="6" style="text-align:center;color:var(--txt3)">Aucun chauffeur enregistré</td></tr>`;
-    } else {
-      leadBody.innerHTML = driverStats.map(s => {
-        let statusBadge = '';
-        if (s.total >= 3) {
-          statusBadge = '<span class="badge badge-red" style="font-weight:bold;animation:pulse-eye 0.8s infinite alternate;">🚨 Focus Absolu</span>';
-        } else if (s.total >= 1) {
-          statusBadge = '<span class="badge badge-org" style="font-weight:bold;">🔍 À Surveiller</span>';
-        } else {
-          statusBadge = '<span class="badge badge-grn">✅ Performant</span>';
-        }
-
-        return `
-          <tr style="cursor:pointer" onclick="document.getElementById('perf-search-chauffeur').value='${s.name.replace(/'/g, "\'")}';renderPerformanceChauffeur()">
-            <td style="font-weight:bold;color:var(--acc)">${s.name}</td>
-            <td class="mono" style="text-align:center">${s.avaries > 0 ? `<b style="color:var(--red)">${s.avaries}</b>` : '0'}</td>
-            <td class="mono" style="text-align:center">${s.sinistres > 0 ? `<b style="color:var(--org)">${s.sinistres}</b>` : '0'}</td>
-            <td class="mono" style="text-align:center;font-weight:bold">${s.total > 0 ? `<span style="background:rgba(239,68,68,0.15);padding:2px 8px;border-radius:4px;color:var(--red)">${s.total}</span>` : '0'}</td>
-            <td class="mono" style="text-align:center">${s.modifs > 0 ? `<b>${s.modifs}</b>` : '0'}</td>
-            <td>${statusBadge}</td>
-          </tr>
-        `;
-      }).join('');
-    }
-
-    document.getElementById('perf-stat-total-incidents').textContent = uniqueIncidents.length;
-    document.getElementById('perf-stat-avaries').textContent = uniqueIncidents.filter(x => x.type === 'Avarie Marchandise').length;
-    document.getElementById('perf-stat-sinistres').textContent = uniqueIncidents.filter(x => x.type === 'Sinistre Camion').length;
-    
-    const nonRespTotal = uniqueIncidents.filter(x => x.resp && x.resp.includes('Non responsable')).length;
-    const respPctTotal = uniqueIncidents.length > 0 ? Math.round((nonRespTotal / uniqueIncidents.length) * 100) : 100;
-    document.getElementById('perf-stat-non-responsable').textContent = respPctTotal + '%';
-    document.getElementById('perf-stat-modifs').textContent = uniqueModifs.length;
-  }
-}
-window.renderPerformanceChauffeur = renderPerformanceChauffeur;
 
 function toggleGeoloc(idx) {
   if (!_checkActionsLibres('toggleGeoloc')) return;
