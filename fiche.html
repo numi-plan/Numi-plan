@@ -1880,40 +1880,35 @@ mark.hl { background: rgba(56,189,248,.25); color: var(--acc); border-radius: 3p
 
 <!-- ══════════════ ANALYSES ══════════════ -->
 <div id="page-analytics" class="page">
-  <div class="stats-row" id="analytics-global"></div>
-  <div class="analytics-grid">
-    <div class="analytics-card">
-      <h4>🔧 Top pannes par véhicule</h4>
-      <div id="chart-pannes-vehicule"></div>
-    </div>
-    <div class="analytics-card">
-      <h4>⚠️ Top NC par chauffeur</h4>
-      <div id="chart-nc-chauffeur"></div>
-    </div>
-    <div class="analytics-card">
-      <h4>📊 Répartition états parc</h4>
-      <div id="chart-etat-parc"></div>
-    </div>
-    <div class="analytics-card">
-      <h4>🔧 Pannes par type</h4>
-      <div id="chart-pannes-type"></div>
-    </div>
-    <div class="analytics-card">
-      <h4>⛽ Gasoil par chauffeur</h4>
-      <div id="chart-gasoil-ch"></div>
-    </div>
-    <div class="analytics-card">
-      <h4>📅 Pannes par mois</h4>
-      <div id="chart-pannes-mois"></div>
+  <div class="filter-bar">
+    <label>Filtre</label>
+    <input type="text" class="filter-input" id="an-search" placeholder="Chauffeur / Véhicule…" oninput="renderAnalytics()">
+    <input type="date" class="filter-input" id="an-date-from" onchange="renderAnalytics()">
+    <input type="date" class="filter-input" id="an-date-to" onchange="renderAnalytics()">
+    <button class="btn btn-reset" onclick="document.getElementById('an-search').value='';document.getElementById('an-date-from').value='';document.getElementById('an-date-to').value='';renderAnalytics()">↺ Reset</button>
+  </div>
+  <div style="padding-top:20px">
+    <div class="sec-title">Performance Globale Camion & Chauffeur</div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Véhicule</th>
+            <th>Chauffeur</th>
+            <th style="text-align:center">Pannes</th>
+            <th style="text-align:center">Non-conformités</th>
+            <th style="text-align:center">Incidents</th>
+            <th style="text-align:right;padding-right:15px">Gasoil</th>
+            <th style="text-align:right;padding-right:15px">Distance (Odo)</th>
+            <th style="text-align:right;padding-right:15px">RAC</th>
+          </tr>
+        </thead>
+        <tbody id="an-table-body"></tbody>
+      </table>
     </div>
   </div>
 </div>
 
-<!-- PERF CAMIONS DELETED -->
-
-
-<!-- ARCHIVES DELETED -->
-<!-- ══════════════ INCIDENTS DE LIVRAISON ══════════════ -->
 <div id="page-incidents-livraison" class="page">
   <div class="filter-bar">
     <label>Filtre</label>
@@ -3536,7 +3531,7 @@ function getTeamRACStats(db) {
   
   for (let w = numWeeks - 1; w >= 0; w--) {
     if (counts[w] > 0) {
-      const stats = getTeamRACStatsForWeek(db, w, counts);
+      const stats = getTeamRACStatsForWeek(db, w);
       if (stats.odo > 0 && stats.fact > 0) {
         return stats;
       }
@@ -3545,122 +3540,49 @@ function getTeamRACStats(db) {
   
   for (let w = numWeeks - 1; w >= 0; w--) {
     if (counts[w] > 0) {
-      return getTeamRACStatsForWeek(db, w, counts);
+      return getTeamRACStatsForWeek(db, w);
     }
   }
   
   return { fact: 0, odo: 0 };
 }
 
-function getTeamRACStatsForWeek(db, lastWeekIdx, counts) {
-  const targetDateStr = db.odo_weeks[lastWeekIdx];
-  const parts = targetDateStr.split('-');
-  const day = parseInt(parts[2]);
-  const isEndOfMonth = (day >= 27 || day === 1);
-  
+function getTeamRACStatsForWeek(db, lastWeekIdx) {
   let fact = 0;
   let odo = 0;
-  
+
   db.odo.forEach(r => {
-    if (isEndOfMonth) {
-      let targetYearMonth = targetDateStr.substring(0, 7);
-      if (day === 1) {
-        const dt = new Date(targetDateStr);
-        dt.setDate(dt.getDate() - 2);
-        const yr = dt.getFullYear();
-        const mo = String(dt.getMonth() + 1).padStart(2, '0');
-        targetYearMonth = yr + '-' + mo;
-      }
-      
-      const monthIndices = [];
-      db.odo_weeks.forEach((w, idx) => {
-        if (w && w.substring(0, 7) === targetYearMonth) {
-          monthIndices.push(idx);
-        }
-      });
-      
-      if (monthIndices.length > 0) {
-        const startIdx = monthIndices[0];
-        let firstIdx = -1;
-        
-        if (startIdx > 0 && r.vals && r.vals[startIdx - 1] && r.vals[startIdx - 1] > 1000) {
-          firstIdx = startIdx - 1;
-        } else {
-          for (let i = 0; i < monthIndices.length; i++) {
-            const idx = monthIndices[i];
-            if (r.vals && r.vals[idx] && r.vals[idx] > 1000) {
-              firstIdx = idx;
-              break;
-            }
-          }
-        }
-        
-        let lastIdx = -1;
-        for (let i = monthIndices.length - 1; i >= 0; i--) {
-          const idx = monthIndices[i];
-          if (idx <= lastWeekIdx && r.vals && r.vals[idx] && r.vals[idx] > 1000) {
-            lastIdx = idx;
-            break;
-          }
-        }
-        
-        if (firstIdx !== -1 && lastIdx !== -1 && lastIdx > firstIdx) {
-          const delta = r.vals[lastIdx] - r.vals[firstIdx];
-          
-          if (delta > 0 && delta <= 50000) {
-            let sumFact = 0;
-            const factIndices = [];
-            monthIndices.forEach(idx => {
-              if (idx <= lastWeekIdx) factIndices.push(idx);
-            });
-            if (!factIndices.includes(lastWeekIdx)) {
-              factIndices.push(lastWeekIdx);
-            }
-            
-            factIndices.forEach(i => {
-              if (r.kmFactures && r.kmFactures[i] !== undefined && r.kmFactures[i] !== null) {
-                sumFact += r.kmFactures[i];
-              } else if (i === lastWeekIdx && r.kmFacture !== undefined && r.kmFacture !== null) {
-                sumFact += r.kmFacture;
-              }
-            });
-            
-            if (sumFact > 0) {
-              fact += sumFact;
-              odo += delta;
-            }
-          }
+    const vLast = r.vals ? r.vals[lastWeekIdx] : null;
+    if (vLast && vLast > 1000) {
+      let prevIdx = -1;
+      for (let k = lastWeekIdx - 1; k >= 0; k--) {
+        if (r.vals && r.vals[k] && r.vals[k] > 1000) {
+          prevIdx = k;
+          break;
         }
       }
-    } else {
-      const vLast = r.vals ? r.vals[lastWeekIdx] : null;
-      if (vLast && vLast > 1000) {
-        let prevIdx = -1;
-        for (let k = lastWeekIdx - 1; k >= 0; k--) {
-          if (r.vals && r.vals[k] && r.vals[k] > 1000) {
-            prevIdx = k;
-            break;
+      if (prevIdx !== -1) {
+        const vPrev = r.vals[prevIdx];
+        const delta = vLast - vPrev;
+        if (delta > 0 && delta <= 10000) {
+          let kmF = 0;
+          if (r.kmFactures && r.kmFactures[lastWeekIdx] !== undefined && r.kmFactures[lastWeekIdx] !== null) {
+            kmF = r.kmFactures[lastWeekIdx];
+          } else if (r.kmFacture !== undefined && r.kmFacture !== null) {
+            kmF = r.kmFacture;
           }
-        }
-        if (prevIdx !== -1) {
-          const vPrev = r.vals[prevIdx];
-          const delta = vLast - vPrev;
-          if (delta > 0 && delta <= 10000) {
-            let kmF = 0;
-            if (r.kmFactures && r.kmFactures[lastWeekIdx] !== undefined && r.kmFactures[lastWeekIdx] !== null) {
-              kmF = r.kmFactures[lastWeekIdx];
-            }
-            if (kmF > 0) {
-              fact += kmF;
-              odo += delta;
-            }
+          if (kmF > 0) {
+            fact += kmF;
+            odo += delta;
           }
         }
       }
     }
   });
+
   return { fact, odo };
 }
+
 function updateHeaderRAC() {
   const curEq = typeof CURRENT_EQUIPE !== 'undefined' ? CURRENT_EQUIPE : 'A';
   
@@ -11258,6 +11180,169 @@ function toggleGeoloc(idx) {
   renderDispo();
   showToast(`🛰️ Géolocalisation de ${r.v} définie sur ${newVal}`);
 }
+window.toggleGeoloc = toggleGeoloc;
+
+function renderAnalytics() {
+  const q = document.getElementById('an-search')?.value.trim().toLowerCase() || '';
+  const dateFromStr = document.getElementById('an-date-from')?.value || '';
+  const dateToStr = document.getElementById('an-date-to')?.value || '';
+
+  const vehiclesMap = {};
+  
+  (DB.dispo || []).forEach(r => {
+    if (r.v) {
+      vehiclesMap[r.v.toUpperCase()] = {
+        v: r.v.toUpperCase(),
+        chauffeur: r.chauffeur || '—',
+        pannesCount: 0,
+        ncCount: 0,
+        incCount: 0,
+        sinistreCount: 0,
+        gasoilLiters: 0,
+        odoDelta: 0,
+        kmFacture: 0
+      };
+    }
+  });
+
+  (DB.pannes || []).forEach(p => {
+    if (!p.immat) return;
+    const vKey = p.immat.trim().toUpperCase();
+    if (dateFromStr && p.date && p.date < dateFromStr) return;
+    if (dateToStr && p.date && p.date > dateToStr) return;
+    if (!vehiclesMap[vKey]) {
+      vehiclesMap[vKey] = { v: vKey, chauffeur: '—', pannesCount: 0, ncCount: 0, incCount: 0, sinistreCount: 0, gasoilLiters: 0, odoDelta: 0, kmFacture: 0 };
+    }
+    vehiclesMap[vKey].pannesCount++;
+  });
+
+  (DB.nc || []).forEach(n => {
+    const chName = (n.sharik || '').trim().toUpperCase();
+    if (!chName) return;
+    if (dateFromStr && n.date && n.date < dateFromStr) return;
+    if (dateToStr && n.date && n.date > dateToStr) return;
+    
+    const foundV = Object.values(vehiclesMap).find(x => x.chauffeur.trim().toUpperCase() === chName);
+    if (foundV) {
+      foundV.ncCount++;
+    }
+  });
+
+  (DB.incidentsLivraison || []).forEach(inc => {
+    if (!inc.v) return;
+    const vKey = inc.v.trim().toUpperCase();
+    const debutDate = inc.debut ? inc.debut.slice(0, 10) : '';
+    if (dateFromStr && debutDate < dateFromStr) return;
+    if (dateToStr && debutDate > dateToStr) return;
+    
+    if (!vehiclesMap[vKey]) {
+      vehiclesMap[vKey] = { v: vKey, chauffeur: inc.chauffeur || '—', pannesCount: 0, ncCount: 0, incCount: 0, sinistreCount: 0, gasoilLiters: 0, odoDelta: 0, kmFacture: 0 };
+    }
+    vehiclesMap[vKey].incCount++;
+    if (inc.type === 'Sinistre / Avarie') {
+      vehiclesMap[vKey].sinistreCount++;
+    }
+  });
+
+  (DB.gasoil || []).forEach(g => {
+    if (!g.vehicule) return;
+    const vKey = g.vehicule.trim().toUpperCase();
+    if (dateFromStr && g.date && g.date < dateFromStr) return;
+    if (dateToStr && g.date && g.date > dateToStr) return;
+    
+    if (!vehiclesMap[vKey]) {
+      vehiclesMap[vKey] = { v: vKey, chauffeur: g.chauffeur || '—', pannesCount: 0, ncCount: 0, incCount: 0, sinistreCount: 0, gasoilLiters: 0, odoDelta: 0, kmFacture: 0 };
+    }
+    const qty = parseFloat(g.litres) || 0;
+    vehiclesMap[vKey].gasoilLiters += qty;
+  });
+
+  const odoWeeks = DB.odo_weeks || [];
+  const filteredWeekIndices = [];
+  odoWeeks.forEach((w, idx) => {
+    if (!w) return;
+    if (dateFromStr && w < dateFromStr) return;
+    if (dateToStr && w > dateToStr) return;
+    filteredWeekIndices.push(idx);
+  });
+
+  (DB.odo || []).forEach(r => {
+    if (!r.v) return;
+    const vKey = r.v.trim().toUpperCase();
+    if (!vehiclesMap[vKey]) {
+      vehiclesMap[vKey] = { v: vKey, chauffeur: r.chauffeur || '—', pannesCount: 0, ncCount: 0, incCount: 0, sinistreCount: 0, gasoilLiters: 0, odoDelta: 0, kmFacture: 0 };
+    }
+
+    const rangeVals = filteredWeekIndices.map(idx => r.vals ? r.vals[idx] : null).filter(val => val && val > 1000);
+    let delta = 0;
+    if (rangeVals.length >= 2) {
+      delta = rangeVals[rangeVals.length - 1] - rangeVals[0];
+    }
+    vehiclesMap[vKey].odoDelta = delta;
+
+    let fact = 0;
+    let hasExplicit = false;
+    filteredWeekIndices.forEach(idx => {
+      if (r.kmFactures && r.kmFactures[idx] !== undefined && r.kmFactures[idx] !== null) {
+        fact += r.kmFactures[idx];
+        hasExplicit = true;
+      }
+    });
+    if (!hasExplicit) {
+      const lastW = odoWeeks[odoWeeks.length - 1];
+      if (dateFromStr && lastW >= dateFromStr && (!dateToStr || lastW <= dateToStr)) {
+        fact = (r.kmFacture !== undefined && r.kmFacture !== null) ? r.kmFacture : 0;
+      }
+    }
+    vehiclesMap[vKey].kmFacture = fact;
+  });
+
+  const list = Object.values(vehiclesMap).filter(item => {
+    const v = item.v.toLowerCase();
+    const ch = item.chauffeur.toLowerCase();
+    return !q || v.includes(q) || ch.includes(q);
+  });
+
+  list.sort((a, b) => (b.pannesCount + b.ncCount + b.incCount) - (a.pannesCount + a.ncCount + a.incCount));
+
+  const body = document.getElementById('an-table-body');
+  if (!body) return;
+
+  if (list.length === 0) {
+    body.innerHTML = '<tr><td colspan="8" style="text-align:center;color:var(--txt3)">Aucun résultat trouvé</td></tr>';
+    return;
+  }
+
+  body.innerHTML = list.map(item => {
+    const rac = item.odoDelta > 0 ? (item.kmFacture / item.odoDelta) * 100 : 0;
+    const racStr = item.odoDelta > 0 && item.kmFacture > 0 ? `${rac.toFixed(1)}%` : '—';
+    
+    let racBadgeStyle = 'color:var(--txt3)';
+    if (rac > 0) {
+      if (rac < 40) racBadgeStyle = 'color:var(--red);font-weight:700';
+      else if (rac < 50) racBadgeStyle = 'color:var(--org);font-weight:700';
+      else racBadgeStyle = 'color:var(--grn);font-weight:700';
+    }
+
+    return `
+      <tr>
+        <td class="mono" style="color:var(--acc);cursor:pointer;font-weight:600" onclick="switchTab('vehicule');setTimeout(()=>showVehicleProfile('${item.v}'),150)">${item.v}</td>
+        <td style="font-weight:600">${item.chauffeur}</td>
+        <td class="mono" style="text-align:center;color:\${item.pannesCount > 0 ? 'var(--red)' : 'var(--txt3)'}">\${item.pannesCount > 0 ? `<b>\${item.pannesCount}</b>` : '0'}</td>
+        <td class="mono" style="text-align:center;color:\${item.ncCount > 0 ? 'var(--org)' : 'var(--txt3)'}">\${item.ncCount > 0 ? `<b>\${item.ncCount}</b>` : '0'}</td>
+        <td class="mono" style="text-align:center;color:\${item.incCount > 0 ? 'var(--yel)' : 'var(--txt3)'}">
+          \${item.incCount > 0 ? `<b>\${item.incCount}</b>` : '0'}
+          \${item.sinistreCount > 0 ? `<span style="font-size:9px;color:var(--red);background:rgba(239,68,68,0.15);padding:1px 4px;border-radius:3px;margin-left:4px" title="Sinistre / Avarie">⚠️ \${item.sinistreCount}</span>` : ''}
+        </td>
+        <td class="mono" style="text-align:right;padding-right:15px;color:var(--txt2)">\${item.gasoilLiters > 0 ? `\${item.gasoilLiters.toLocaleString('fr-FR')} L` : '—'}</td>
+        <td class="mono" style="text-align:right;padding-right:15px;color:var(--txt2)">\${item.odoDelta > 0 ? `\${item.odoDelta.toLocaleString('fr-FR')} km` : '—'}</td>
+        <td class="mono" style="text-align:right;padding-right:15px;\${racBadgeStyle}">\${racStr}</td>
+      </tr>
+    `;
+  }).join('');
+}
+window.renderAnalytics = renderAnalytics;
+
 window.toggleGeoloc = toggleGeoloc;
 </script>
 
