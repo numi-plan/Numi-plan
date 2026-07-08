@@ -5120,21 +5120,32 @@ checkBascule();
 // DATALISTS (autocomplete)
 // ═══════════════════════════════════════════════════════════════
 function updateDataLists() {
-  const vehicles = [...new Set([
-    ...DB.dispo.map(r=>r.v),
-    ...DB.pannes.map(r=>r.immat),
-    ...DB.gasoil.map(r=>r.vehicule),
-    ...DB.equip.map(r=>r.tr),
-  ])].filter(Boolean).sort();
-  const chauffeurs = [...new Set([
-    ...DB.dispo.map(r=>r.chauffeur),
-    ...DB.pannes.map(r=>r.chauffeur),
-    ...DB.nc.map(r=>r.sharik),
-    ...DB.gasoil.map(r=>r.chauffeur),
-    ...DB.equip.map(r=>r.sharik),
-  ])].filter(Boolean).sort();
-  document.getElementById('dl-vehicules').innerHTML = vehicles.map(v=>`<option value="${v}">`).join('');
-  document.getElementById('dl-chauffeurs').innerHTML = chauffeurs.map(c=>`<option value="${c}">`).join('');
+  const vehicles = new Set();
+  const chauffeurs = new Set();
+  const EQUIPES = ['A', 'B', 'C', 'D'];
+
+  EQUIPES.forEach(eq => {
+    const db = (eq === CURRENT_EQUIPE && typeof window.DB !== 'undefined') ? window.DB : window['DB_' + eq];
+    if (db) {
+      if (db.dispo) db.dispo.forEach(r => { if (r.v) vehicles.add(r.v.toUpperCase()); if (r.chauffeur) chauffeurs.add(r.chauffeur.toUpperCase()); });
+      if (db.pannes) db.pannes.forEach(r => { if (r.immat) vehicles.add(r.immat.toUpperCase()); if (r.chauffeur) chauffeurs.add(r.chauffeur.toUpperCase()); });
+      if (db.gasoil) db.gasoil.forEach(r => { if (r.vehicule) vehicles.add(r.vehicule.toUpperCase()); if (r.chauffeur) chauffeurs.add(r.chauffeur.toUpperCase()); });
+      if (db.equip) db.equip.forEach(r => { if (r.tr) vehicles.add(r.tr.toUpperCase()); if (r.rm) vehicles.add(r.rm.toUpperCase()); if (r.sharik) chauffeurs.add(r.sharik.toUpperCase()); });
+      if (db.nc) db.nc.forEach(r => { if (r.v) vehicles.add(r.v.toUpperCase()); if (r.sharik) chauffeurs.add(r.sharik.toUpperCase()); });
+      if (db.activite) db.activite.forEach(r => { if (r.tr) vehicles.add(r.tr.toUpperCase()); if (r.rm) vehicles.add(r.rm.toUpperCase()); if (r.sharik) chauffeurs.add(r.sharik.toUpperCase()); });
+      if (db.bl) db.bl.forEach(r => { if (r.chauffeur) chauffeurs.add(r.chauffeur.toUpperCase()); });
+      if (db.odo) db.odo.forEach(r => { if (r.v) vehicles.add(r.v.toUpperCase()); if (r.chauffeur) chauffeurs.add(r.chauffeur.toUpperCase()); });
+    }
+  });
+
+  const sortedVehicles = [...vehicles].filter(Boolean).sort();
+  const sortedChauffeurs = [...chauffeurs].filter(Boolean).sort();
+
+  const dlVehicules = document.getElementById('dl-vehicules');
+  if (dlVehicules) dlVehicules.innerHTML = sortedVehicles.map(v => `<option value="${v}">`).join('');
+
+  const dlChauffeurs = document.getElementById('dl-chauffeurs');
+  if (dlChauffeurs) dlChauffeurs.innerHTML = sortedChauffeurs.map(c => `<option value="${c}">`).join('');
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -5465,6 +5476,14 @@ function deleteDispo(idx) {
 function saveDispo() {
   if (!_checkActionsLibres('saveDispo')) return;
   const v = document.getElementById('f-dispo-v').value.trim();
+  if (!v) { showToast('?? Immatriculation requise', true); return; }
+  const hor_str = document.getElementById('f-dispo-hor').value;
+  let hor = 0;
+  if (hor_str) { const [h,m] = hor_str.split(':').map(Number); hor = (h*60+m)/1440; }
+  const idx = parseInt(document.getElementById('dispo-edit-idx').value);
+  const prev = (idx>=0 && DB.dispo[idx]) ? DB.dispo[idx] : {};
+  if (!_checkActionsLibres('saveDispo')) return;
+  const v = document.getElementById('f-dispo-v').value.trim();
   if (!v) { showToast('⚠️ Immatriculation requise', true); return; }
   const hor_str = document.getElementById('f-dispo-hor').value;
   let hor = 0;
@@ -5501,7 +5520,6 @@ function saveDispo() {
     }
   }
 
-  const prev = (idx>=0 && DB.dispo[idx]) ? DB.dispo[idx] : {};
   const readFile = (input, cb) => {
     if (input && input.files && input.files[0]) {
       const f = input.files[0]; const rd = new FileReader();
