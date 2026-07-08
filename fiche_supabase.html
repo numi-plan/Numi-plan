@@ -4873,9 +4873,7 @@ function loadDB() {
     window['DB_' + eq] = cloneTeamData(window['DB_' + eq], eq === 'A' ? INITIAL_DATA : emptyTeamData());
   });
   // RÈGLE 3 : Réinitialiser le timestamp local à 0 au démarrage pour forcer l'alignement sur le cloud Firestore au premier Snapshot
-  ['A', 'B', 'C', 'D'].forEach(eq => {
-    if (window['DB_' + eq]) window['DB_' + eq]._localTs = 0;
-  });
+    // RÉGLE 3 : Suppression du reset de timestamp pour permettre la conservation et la poussée des modifications hors-ligne vers le cloud
   
   if (typeof alignOdoWeeksGlobal === 'function') {
     alignOdoWeeksGlobal();
