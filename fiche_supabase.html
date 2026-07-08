@@ -417,7 +417,7 @@
 
   window._loadAllArchivesFromFirebase = async function() {
     try {
-      showFirebaseBadge('🗂️ Chargement de tout l'historique...');
+      showFirebaseBadge("🗂️ Chargement de tout l'historique...");
       const { data, error } = await supabase
         .from('numiplan_archives')
         .select('*');
@@ -440,7 +440,7 @@
       }
       if (typeof renderArchives === 'function') renderArchives();
       const total = Object.values(cache).reduce((s, eq) => s + Object.keys(eq).length, 0);
-      showFirebaseBadge('⚡ ' + total + ' jours d'archives chargés depuis Supabase');
+      showFirebaseBadge("⚡ " + total + " jours d'archives chargés depuis Supabase");
     } catch(e) {
       console.error('loadAllArchives error:', e);
       showFirebaseBadge('⚠️ Erreur chargement historique complet', true);
@@ -5482,13 +5482,6 @@ function saveDispo() {
   if (hor_str) { const [h,m] = hor_str.split(':').map(Number); hor = (h*60+m)/1440; }
   const idx = parseInt(document.getElementById('dispo-edit-idx').value);
   const prev = (idx>=0 && DB.dispo[idx]) ? DB.dispo[idx] : {};
-  if (!_checkActionsLibres('saveDispo')) return;
-  const v = document.getElementById('f-dispo-v').value.trim();
-  if (!v) { showToast('⚠️ Immatriculation requise', true); return; }
-  const hor_str = document.getElementById('f-dispo-hor').value;
-  let hor = 0;
-  if (hor_str) { const [h,m] = hor_str.split(':').map(Number); hor = (h*60+m)/1440; }
-  const idx = parseInt(document.getElementById('dispo-edit-idx').value);
   const obj = {
     ...prev,
     v, etat: document.getElementById('f-dispo-etat').value,
