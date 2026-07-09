@@ -835,12 +835,12 @@ tr.dragging {
         <line x1="5" y1="50" x2="95" y2="50" stroke="#38bdf8" stroke-width="1" stroke-dasharray="4 4"/>
       </svg>
       <div style="font-family:'Outfit','Orbitron',sans-serif;font-size:26px;font-weight:900;letter-spacing:3px;background:linear-gradient(135deg, #38bdf8, #00f5ff);-webkit-background-clip:text;-webkit-text-fill-color:transparent;text-transform:uppercase;">
-        Dak digital
+        Numi-Plan
       </div>
     </div>
     </div>
     <div style="font-size:10px;color:#94a3b8;letter-spacing:3px;text-transform:uppercase;margin-bottom:32px;">
-      Dak digital · Suivi Chauffeur · Accès sécurisé
+      Numi-Plan · Suivi Chauffeur · Accès sécurisé
     </div>
     <div style="margin-bottom:16px;text-align:left;">
       <label style="font-size:10px;font-weight:700;letter-spacing:2px;color:#94a3b8;text-transform:uppercase;">
@@ -862,7 +862,7 @@ tr.dragging {
       ACCÉDER →
     </button>
     <div style="margin-top:20px;font-size:10px;color:#475569;">
-      Dak digital · Accès réservé aux collaborateurs autorisés
+      Numi-Plan · Accès réservé aux collaborateurs autorisés
     </div>
   </div>
 </div>
@@ -877,7 +877,7 @@ tr.dragging {
         <polygon points="50,5 95,27.5 95,72.5 50,95 5,72.5 5,27.5" stroke="#38bdf8" stroke-width="6" fill="rgba(56,189,248,0.1)"/>
         <circle cx="50" cy="50" r="12" fill="#00f5ff"/>
       </svg>
-      <span style="font-family:'Outfit',sans-serif;font-size:22px;font-weight:900;color:#38bdf8;letter-spacing:1px;">Dak digital</span>
+      <span style="font-family:'Outfit',sans-serif;font-size:22px;font-weight:900;color:#38bdf8;letter-spacing:1px;">Numi-Plan</span>
     </div>
         <div>
           <h1 style="font-size: 20px; color: var(--txt); font-weight: 700; letter-spacing: 1px; margin: 0;">SUIVI DES RETOURS BL</h1>
@@ -1206,7 +1206,7 @@ tr.dragging {
         <polygon points="50,5 95,27.5 95,72.5 50,95 5,72.5 5,27.5" stroke="#38bdf8" stroke-width="6" fill="rgba(56,189,248,0.1)"/>
         <circle cx="50" cy="50" r="12" fill="#00f5ff"/>
       </svg>
-      <span style="font-family:'Outfit','Orbitron',sans-serif;font-size:20px;font-weight:800;color:#38bdf8;letter-spacing:2px;text-transform:uppercase;">Dak digital</span>
+      <span style="font-family:'Outfit','Orbitron',sans-serif;font-size:20px;font-weight:800;color:#38bdf8;letter-spacing:2px;text-transform:uppercase;">Numi-Plan</span>
     </div>
     <div class="header-sub">Suivi Chauffeur · Équipe A</div>
   </div>
@@ -8220,7 +8220,7 @@ function saveIncidentLivraison() {
   showToast('✅ Incident enregistré');
   
   // Envoi email
-  const emailDest = 'GRP_Dak digital_SRC@cevital.com;GRP_Dak digital_TRANSPORT_SYNCRO@cevital.com';
+  const emailDest = 'GRP_Numi-Plan_SRC@cevital.com;GRP_Numi-Plan_TRANSPORT_SYNCRO@cevital.com';
   const equipe = typeof CURRENT_EQUIPE !== 'undefined' ? CURRENT_EQUIPE : 'A';
   const dateStr = new Date(debut).toLocaleString('fr-FR', {
     weekday: 'long', day: '2-digit', month: 'long', year: 'numeric',
@@ -10374,7 +10374,7 @@ async function exportAllData() {
   // FEUILLE MÉTA — infos export
   // ══════════════════════════════════════════════════════
   const metaWs = XLSX.utils.aoa_to_sheet([
-    ['Dak digital — Extraction complète des données'],
+    ['Numi-Plan — Extraction complète des données'],
     ['Date export', new Date().toLocaleString('fr-FR')],
     ['Équipes exportées', ['A','B','C','D'].filter(eq => sources[eq]).join(', ')],
     [''],
@@ -10393,7 +10393,7 @@ async function exportAllData() {
   XLSX.utils.book_append_sheet(wb, metaWs, '📋 Infos Export');
 
   const dateStr = new Date().toISOString().slice(0,10).replace(/-/g,'');
-  XLSX.writeFile(wb, `Dak digital_EXTRACTION_COMPLETE_${dateStr}.xlsx`, { bookType:'xlsx', cellStyles:true });
+  XLSX.writeFile(wb, `Numi-Plan_EXTRACTION_COMPLETE_${dateStr}.xlsx`, { bookType:'xlsx', cellStyles:true });
   if (typeof showToast === 'function') showToast('✅ Extraction complète générée — toutes équipes, tous champs');
 }
 
@@ -11745,7 +11745,7 @@ window.toggleGeoloc = toggleGeoloc;
 
 <div id="tour-overlay" style="display:none;position:fixed;bottom:80px;left:20px;width:380px;background:rgba(15,23,42,0.95);border:2px solid rgba(56,189,248,0.4);border-radius:16px;padding:20px;box-shadow:0 20px 50px rgba(0,0,0,0.85);z-index:10000;font-family:'IBM Plex Sans',sans-serif;color:#f1f5f9;transition:all 0.3s ease;">
   <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
-    <h4 style="margin:0;font-size:13px;color:#38bdf8;text-transform:uppercase;letter-spacing:1px;font-weight:700;">Présentation Dak digital</h4>
+    <h4 style="margin:0;font-size:13px;color:#38bdf8;text-transform:uppercase;letter-spacing:1px;font-weight:700;">Présentation Numi-Plan</h4>
     <button onclick="stopDemoTour()" style="background:none;border:none;color:#94a3b8;cursor:pointer;font-size:18px;line-height:1;">✕</button>
   </div>
   <div id="tour-text" style="font-size:14px;line-height:1.6;min-height:90px;margin-bottom:16px;color:#e2e8f0;"></div>
@@ -11780,7 +11780,7 @@ window.toggleGeoloc = toggleGeoloc;
   let tourTimer = null;
   const tourSteps = [
     {
-      text: "<b>Bienvenue sur Dak digital ERP !</b><br>La plateforme intégrée nouvelle génération pour la gestion et la planification de votre flotte de véhicules en temps réel.",
+      text: "<b>Bienvenue sur Numi-Plan ERP !</b><br>La plateforme intégrée nouvelle génération pour la gestion et la planification de votre flotte de véhicules en temps réel.",
       target: ".header-left",
       action: () => {}
     },
@@ -11821,7 +11821,7 @@ window.toggleGeoloc = toggleGeoloc;
       }
     },
     {
-      text: "<b>🚀 Solution 100% Personnalisable !</b><br>Dak digital s'adapte à vos processus métiers. Champs de saisie, formulaires, règles d'attribution des chauffeurs, tout est modifiable sur demande.",
+      text: "<b>🚀 Solution 100% Personnalisable !</b><br>Numi-Plan s'adapte à vos processus métiers. Champs de saisie, formulaires, règles d'attribution des chauffeurs, tout est modifiable sur demande.",
       target: "#tour-overlay",
       action: () => {
         const btn = document.querySelector("button[onclick*='dispo']");
@@ -11958,7 +11958,7 @@ window.toggleGeoloc = toggleGeoloc;
         const a = document.createElement('a');
         a.style.display = 'none';
         a.href = url;
-        a.download = 'Dak digital_Demo_Publicitaire.webm';
+        a.download = 'Numi-Plan_Demo_Publicitaire.webm';
         document.body.appendChild(a);
         a.click();
         setTimeout(() => {
