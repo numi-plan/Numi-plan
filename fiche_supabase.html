@@ -157,6 +157,7 @@
     mergeList('bl',        item => item.chauffeur);
     mergeList('odo',       item => item.v);
     mergeList('cspc',      item => item.v);
+    mergeList('cspc_archives', item => item.v && item.date ? `${item.v}|${item.date}` : null);
     mergeList('blacklist', item => item.chauffeur && item.destination ? `${item.chauffeur}|${item.destination}` : null);
     mergeList('tracabilite', item => item.timestamp && item.type ? `${item.timestamp}|${item.type}|${item.target||''}` : null);
     mergeList('flashInfos', item => item.id);
@@ -283,6 +284,7 @@
       if (typeof renderTracabilite === 'function') renderTracabilite();
       if (typeof renderFlashInfos  === 'function') renderFlashInfos();
       if (typeof updateDataLists === 'function') updateDataLists();
+  if (typeof window.setupBlacklistListeners === 'function') window.setupBlacklistListeners();
       if (typeof renderIncidentsLivraisonPage === 'function') renderIncidentsLivraisonPage();
       if (typeof renderAnalytics === 'function') renderAnalytics();
       if (DB.perfRaw && DB.perfRaw.length && DB.perfImportTs !== _prevPerfTs) {
@@ -491,13 +493,7 @@
     if (eq === getCurrentEquipe()) {
       Object.assign(window.DB, payload);
     }
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify({
-        version: 3,
-        active: getCurrentEquipe(),
-        teams: { A: window.DB_A, B: window.DB_B, C: window.DB_C, D: window.DB_D }
-      }));
-    } catch(e) { console.warn('LocalStorage save team error', e); }
+    // LocalStorage bypassed
 
     const FILE_KEYS = ['assuranceTrFile','assuranceRmFile','assuranceTrFileType','assuranceRmFileType'];
     const stripFiles = (arr) => (arr || []).map(item => {
@@ -580,6 +576,7 @@
 
   window._showFirebaseBadge = showFirebaseBadge;
 </script>
+
 <style>
 @keyframes blink-kpi {
   0%, 100% { background: rgba(248,113,113,.06); border-color: rgba(248,113,113,.2); box-shadow: 0 0 4px rgba(248,113,113,.1); }
@@ -829,11 +826,21 @@ tr.dragging {
     background:#111827;border:1px solid #2d3f65;border-radius:16px;
     padding:40px 48px;width:380px;max-width:95vw;text-align:center;
     box-shadow:0 20px 60px rgba(0,0,0,.8);">
-    <div style="font-family:'IBM Plex Mono',monospace;font-size:22px;font-weight:700;color:#38bdf8;margin-bottom:4px;">
-      <img src="data:image/png;base64,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" style="height:44px;border-radius:6px;margin-bottom:4px;" alt="NUMILOG">
+    <div style="display:flex;flex-direction:column;align-items:center;gap:12px;margin-bottom:20px;filter:drop-shadow(0 0 15px rgba(56,189,248,0.4));">
+      <svg width="60" height="60" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <polygon points="50,5 95,27.5 95,72.5 50,95 5,72.5 5,27.5" stroke="#38bdf8" stroke-width="4" fill="rgba(56,189,248,0.08)"/>
+        <polygon points="50,20 80,35 80,65 50,80 20,65 20,35" stroke="#00f5ff" stroke-width="2" fill="rgba(0,245,255,0.05)"/>
+        <circle cx="50" cy="50" r="10" fill="#ffffff" style="filter:drop-shadow(0 0 8px #ffffff);"/>
+        <line x1="50" y1="5" x2="50" y2="95" stroke="#38bdf8" stroke-width="1" stroke-dasharray="4 4"/>
+        <line x1="5" y1="50" x2="95" y2="50" stroke="#38bdf8" stroke-width="1" stroke-dasharray="4 4"/>
+      </svg>
+      <div style="font-family:'Outfit','Orbitron',sans-serif;font-size:26px;font-weight:900;letter-spacing:3px;background:linear-gradient(135deg, #38bdf8, #00f5ff);-webkit-background-clip:text;-webkit-text-fill-color:transparent;text-transform:uppercase;">
+        Dak digital
+      </div>
+    </div>
     </div>
     <div style="font-size:10px;color:#94a3b8;letter-spacing:3px;text-transform:uppercase;margin-bottom:32px;">
-      Numi-Plan · Suivi Chauffeur · Accès sécurisé
+      Dak digital · Suivi Chauffeur · Accès sécurisé
     </div>
     <div style="margin-bottom:16px;text-align:left;">
       <label style="font-size:10px;font-weight:700;letter-spacing:2px;color:#94a3b8;text-transform:uppercase;">
@@ -855,7 +862,7 @@ tr.dragging {
       ACCÉDER →
     </button>
     <div style="margin-top:20px;font-size:10px;color:#475569;">
-      NUMILOG · Accès réservé aux collaborateurs autorisés
+      Dak digital · Accès réservé aux collaborateurs autorisés
     </div>
   </div>
 </div>
@@ -865,7 +872,13 @@ tr.dragging {
   <div style="padding: 40px; max-width: 1200px; margin: 0 auto;">
     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; border-bottom: 1px solid var(--border); padding-bottom: 20px;">
       <div style="display: flex; align-items: center; gap: 16px;">
-        <img id="admin-bl-logo" style="height: 48px; border-radius: 6px;" alt="NUMILOG">
+        <div id="admin-bl-logo" style="display:flex;align-items:center;gap:10px;filter:drop-shadow(0 0 8px rgba(56,189,248,0.3));">
+      <svg width="36" height="36" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <polygon points="50,5 95,27.5 95,72.5 50,95 5,72.5 5,27.5" stroke="#38bdf8" stroke-width="6" fill="rgba(56,189,248,0.1)"/>
+        <circle cx="50" cy="50" r="12" fill="#00f5ff"/>
+      </svg>
+      <span style="font-family:'Outfit',sans-serif;font-size:22px;font-weight:900;color:#38bdf8;letter-spacing:1px;">Dak digital</span>
+    </div>
         <div>
           <h1 style="font-size: 20px; color: var(--txt); font-weight: 700; letter-spacing: 1px; margin: 0;">SUIVI DES RETOURS BL</h1>
           <div style="font-size: 11px; color: var(--txt2); letter-spacing: 2px; text-transform: uppercase; margin-top: 4px;">Accès Personnel Administratif</div>
@@ -899,6 +912,14 @@ tr.dragging {
       <button class="btn btn-numiflow" onclick="exporterOTNonRealises()" style="margin-top: 18px; padding: 10px 18px; font-size: 12px; font-weight: 700; border-radius: 8px; cursor: pointer; display: flex; align-items: center; gap: 6px;">
         <span>📥 Fichier OT non réalisés</span>
       </button>
+    </div>
+
+    <!-- Tableau de bord de conformité par agence -->
+    <div style="background: var(--bg2); border: 1px solid var(--border); border-radius: 16px; padding: 24px; margin-bottom: 24px;">
+      <h3 style="font-family:'Outfit',sans-serif;font-size:16px;color:var(--acc);margin-top:0;margin-bottom:16px;display:flex;align-items:center;gap:8px">📊 RESPECT DE L'UTILISATION & UTILISATION DES OUTILS</h3>
+      <div id="admin-indicators-dashboard" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px;">
+        <!-- Dynamically rendered via JS -->
+      </div>
     </div>
 
     <div id="admin-bl-alerts-container"></div>
@@ -967,7 +988,7 @@ tr.dragging {
         const mainLogo = document.querySelector('#login-screen img');
         const blLogo = document.getElementById('admin-bl-logo');
         if (mainLogo && blLogo) {
-          blLogo.src = mainLogo.src;
+          /* blLogo.src = mainLogo.src; */
         }
       }
       
@@ -1180,9 +1201,12 @@ tr.dragging {
 
 <div class="header">
   <div style="display: flex; flex-direction: column; gap: 4px;">
-    <div style="display: flex; align-items: center; gap: 12px;">
-    <img src="data:image/png;base64,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" style="height:54px;border-radius:6px;" alt="NUMILOG">
-      <span style="font-family:'IBM Plex Sans',sans-serif;font-size:20px;font-weight:700;color:var(--acc);letter-spacing:1px;text-transform:uppercase;">Numi-Plan</span>
+    <div style="display: flex; align-items: center; gap: 10px; filter: drop-shadow(0 0 8px rgba(56,189,248,0.3));">
+      <svg width="32" height="32" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <polygon points="50,5 95,27.5 95,72.5 50,95 5,72.5 5,27.5" stroke="#38bdf8" stroke-width="6" fill="rgba(56,189,248,0.1)"/>
+        <circle cx="50" cy="50" r="12" fill="#00f5ff"/>
+      </svg>
+      <span style="font-family:'Outfit','Orbitron',sans-serif;font-size:20px;font-weight:800;color:#38bdf8;letter-spacing:2px;text-transform:uppercase;">Dak digital</span>
     </div>
     <div class="header-sub">Suivi Chauffeur · Équipe A</div>
   </div>
@@ -1600,7 +1624,7 @@ mark.hl { background: rgba(56,189,248,.25); color: var(--acc); border-radius: 3p
         <option value="BOUMERDES">BOUMERDES</option>
         <option value="TIPAZA">TIPAZA</option>
         <option value="MEDEA">MEDEA</option>
-        <option value="BOUIRA">BOUIRA</option>
+        <option value="LILLE">LILLE</option>
         <option value="TIZI OUZOU">TIZI OUZOU</option>
       </optgroup>
       <optgroup label="── Est ──">
@@ -1617,7 +1641,7 @@ mark.hl { background: rgba(56,189,248,.25); color: var(--acc); border-radius: 3p
         <option value="TEBESSA">TEBESSA</option>
         <option value="SOUK AHRAS">SOUK AHRAS</option>
         <option value="MILA">MILA</option>
-        <option value="BOUIRA">BOUIRA</option>
+        <option value="LILLE">LILLE</option>
         <option value="BORDJ BOU ARRERIDJ">BORDJ BOU ARRERIDJ</option>
         <option value="MSILA">MSILA</option>
       </optgroup>
@@ -1828,13 +1852,14 @@ mark.hl { background: rgba(56,189,248,.25); color: var(--acc); border-radius: 3p
     <input type="text" class="filter-input" id="cspc-search" placeholder="Chauffeur / Véhicule / Lieu…" oninput="renderCSPC()">
     <button class="btn btn-reset" onclick="resetFilters('cspc-search');renderCSPC()">↺ Reset</button>
     <button class="btn btn-add" onclick="openModal('modal-cspc')">＋ Ajouter</button>
+    <button class="btn btn-info" id="btn-cspc-toggle-archive" onclick="toggleCspcArchive()" style="background:var(--pur);color:#fff;margin-left:4px">📦 Voir Archives</button>
   </div>
   <div style="padding-top:20px">
     <div class="stats-row" id="cspc-stats"></div>
     <div class="sec-title">Programme CSPC – véhicules figés</div>
     <div class="table-wrap">
       <table>
-        <thead><tr><th>Véhicule</th><th>État</th><th>Chauffeur</th><th>Horaire</th><th>Lieu Jour</th><th>Lieu J+1</th><th>Équipement</th><th>Programme</th><th>Action</th></tr></thead>
+        <thead><tr id="cspc-table-header"><th>Véhicule</th><th>État</th><th>Chauffeur</th><th>Horaire</th><th>Lieu Jour</th><th>Lieu J+1</th><th>Équipement</th><th>Programme</th><th>Action</th></tr></thead>
         <tbody id="cspc-body"></tbody>
       </table>
     </div>
@@ -2393,7 +2418,7 @@ mark.hl { background: rgba(56,189,248,.25); color: var(--acc); border-radius: 3p
         </select></div>
       <div class="form-group"><label>Type</label>
         <select id="f-dispo-type"><option>TRACTEUR</option><option>REMORQUE</option><option>CELLULE</option></select></div>
-      <div class="form-group"><label>Chauffeur</label><input id="f-dispo-chauffeur" list="dl-chauffeurs" placeholder="NOM PRÉNOM"></div>
+      <div class="form-group"><label>Chauffeur</label><input id="f-dispo-chauffeur" oninput="checkChauffeurBlacklist(this)" list="dl-chauffeurs" placeholder="NOM PRÉNOM"></div>
       <div class="form-group"><label>Horaire (ex: 06:30)</label><input id="f-dispo-hor" placeholder="06:30" type="time"></div>
       <div class="form-group"><label>Équipement</label>
         <select id="f-dispo-equip"><option>OK</option><option>NON</option><option value=""></option></select></div>
@@ -2427,7 +2452,7 @@ mark.hl { background: rgba(56,189,248,.25); color: var(--acc); border-radius: 3p
     <div class="form-grid">
       <div class="form-group"><label>Date</label><input id="f-panne-date" type="date"></div>
       <div class="form-group"><label>Immatriculation</label><input id="f-panne-immat" list="dl-vehicules" placeholder="000900-514-16"></div>
-      <div class="form-group"><label>Chauffeur</label><input id="f-panne-chauffeur" list="dl-chauffeurs" placeholder="NOM PRÉNOM"></div>
+      <div class="form-group"><label>Chauffeur</label><input id="f-panne-chauffeur" oninput="checkChauffeurBlacklist(this)" list="dl-chauffeurs" placeholder="NOM PRÉNOM"></div>
       <div class="form-group"><label>Type</label>
         <select id="f-panne-type"><option>TRACTEUR</option><option>REMORQUE</option><option>CELLULE</option></select></div>
       <div class="form-group"><label>N° DI</label><input id="f-panne-di" placeholder="DI2605005999"></div>
@@ -2480,14 +2505,14 @@ mark.hl { background: rgba(56,189,248,.25); color: var(--acc); border-radius: 3p
     <div class="form-grid">
       <div class="form-group"><label>Date</label><input id="f-gasoil-date" type="date"></div>
       <div class="form-group"><label>Véhicule</label><input id="f-gasoil-vehicule" list="dl-vehicules" placeholder="001079-514-16"></div>
-      <div class="form-group"><label>Chauffeur</label><input id="f-gasoil-chauffeur" list="dl-chauffeurs" placeholder="NOM PRÉNOM"></div>
+      <div class="form-group"><label>Chauffeur</label><input id="f-gasoil-chauffeur" oninput="checkChauffeurBlacklist(this)" list="dl-chauffeurs" placeholder="NOM PRÉNOM"></div>
       <div class="form-group"><label>Station</label><input id="f-gasoil-station" placeholder="PARTNER ALGER"></div>
       <div class="form-group"><label>Type</label>
         <select id="f-gasoil-type"><option>Interne</option><option>Externe</option></select></div>
       <div class="form-group"><label>Opération</label>
         <select id="f-gasoil-operation"><option>PLEIN</option><option>PARTIEL</option><option>VIDANGE</option></select></div>
       <div class="form-group full"><label>Responsable</label><input id="f-gasoil-resp" placeholder="DAHOUMANE ABDESLEM"></div>
-      <div class="form-group full"><label>📧 Notification envoyée à</label><div style="background:rgba(99,102,241,.08);border:1px solid rgba(99,102,241,.3);border-radius:8px;padding:8px 12px;font-size:11px;color:var(--txt2);line-height:1.8">Grp_numilog_Bouira_planification_transport@cevital.com<br>GRP_Num_Acroche_Decroche_Bouira@cevital.com</div></div>
+      <div class="form-group full"><label>📧 Notification envoyée à</label><div style="background:rgba(99,102,241,.08);border:1px solid rgba(99,102,241,.3);border-radius:8px;padding:8px 12px;font-size:11px;color:var(--txt2);line-height:1.8">planning@numiplan-demo.com<br>operations@numiplan-demo.com</div></div>
     </div>
     <div class="modal-actions">
       <button class="btn btn-reset" onclick="closeModal('modal-gasoil')">Annuler</button>
@@ -2531,7 +2556,7 @@ mark.hl { background: rgba(56,189,248,.25); color: var(--acc); border-radius: 3p
       <div class="form-group"><label>Extension</label>
         <select id="f-act-ext"><option value="">—</option><option>EXTENSION</option><option>Réintégration</option></select></div>
       <div class="form-group"><label>Site</label>
-        <select id="f-act-site"><option value="">—</option><option>BEJAIA</option><option>BOUIRA</option><option>SETIF</option></select></div>
+        <select id="f-act-site"><option value="">—</option><option>BEJAIA</option><option>LILLE</option><option>SETIF</option></select></div>
       <div class="form-group"><label>État TR</label>
         <select id="f-act-etatTR"><option>opérationnel</option><option>en panne</option></select></div>
       <div class="form-group"><label>Actif</label>
@@ -2587,7 +2612,7 @@ mark.hl { background: rgba(56,189,248,.25); color: var(--acc); border-radius: 3p
     <input type="hidden" id="odo-edit-idx">
     <div class="form-grid">
       <div class="form-group"><label>Véhicule</label><input id="f-odo-v" list="dl-vehicules" placeholder="001079-514-16"></div>
-      <div class="form-group"><label>Chauffeur</label><input id="f-odo-chauffeur" list="dl-chauffeurs" placeholder="NOM PRÉNOM"></div>
+      <div class="form-group"><label>Chauffeur</label><input id="f-odo-chauffeur" oninput="checkChauffeurBlacklist(this)" list="dl-chauffeurs" placeholder="NOM PRÉNOM"></div>
       <div class="form-group"><label>KM Facturé</label><input id="f-odo-km-facture" type="number" placeholder="ex. 1200"></div>
       <div class="form-group full" style="background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:12px">
         <label style="margin-bottom:8px;display:block">Relevés par semaine (laisser vide si inconnu)</label>
@@ -2666,13 +2691,15 @@ mark.hl { background: rgba(56,189,248,.25); color: var(--acc); border-radius: 3p
       <div class="form-group"><label>Immatriculation</label><input id="f-cspc-v" list="dl-vehicules" placeholder="000422-523-16"></div>
       <div class="form-group"><label>État</label>
         <select id="f-cspc-etat"><option>DISPONIBLE</option><option>En mission</option><option>En panne</option></select></div>
-      <div class="form-group"><label>Chauffeur</label><input id="f-cspc-chauffeur" list="dl-chauffeurs" placeholder="NOM PRÉNOM"></div>
+      <div class="form-group"><label>Chauffeur</label><input id="f-cspc-chauffeur" oninput="checkChauffeurBlacklist(this)" list="dl-chauffeurs" placeholder="NOM PRÉNOM"></div>
       <div class="form-group"><label>Horaire</label><input id="f-cspc-hor" type="time"></div>
       <div class="form-group"><label>Lieu Jour</label><input id="f-cspc-lieuJ" placeholder="TIZI OUZOU"></div>
       <div class="form-group"><label>Lieu J+1</label><input id="f-cspc-lieuJ1" placeholder="TLEMCEN"></div>
       <div class="form-group"><label>Équipement</label>
         <select id="f-cspc-equip"><option>OK</option><option>NON</option></select></div>
       <div class="form-group"><label>Programme</label><input id="f-cspc-prog" value="CSPC"></div>
+      <div class="form-group"><label>Date de saisie</label><input type="date" id="f-cspc-date"></div>
+      <div class="form-group"><label>Date de saisie</label><input type="date" id="f-cspc-date"></div>
     </div>
     <div class="modal-actions">
       <button class="btn btn-reset" onclick="closeModal('modal-cspc')">Annuler</button>
@@ -2931,271 +2958,266 @@ const STORAGE_KEY = 'numiplan_data_v2';
 const ARCHIVE_KEY = 'numiplan_archives_v2';
 
 const INITIAL_DATA = {
-  blacklist: [],
-  incidentsLivraison: [],
-  dispo: [
-    {v:'000791-524-16',etat:'En mission',type:'TRACTEUR',chauffeur:'BELAHDJER TOUFIK',hor:0.625,lieuJ:'TUNISIE',lieuJ1:'TUNISIE',equip:'OK',prog:''},
-    {v:'000914-514-16',etat:'En mission',type:'TRACTEUR',chauffeur:'BELAHDJER TOUFIK',hor:0,lieuJ:'—',lieuJ1:'—',equip:'OK',prog:'SBA'},
-    {v:'000848-514-16',etat:'En mission',type:'TRACTEUR',chauffeur:'BELAHDJER TOUFIK',hor:0.5,lieuJ:'—',lieuJ1:'ALGER',equip:'OK',prog:''},
-    {v:'001060-514-16',etat:'En mission',type:'TRACTEUR',chauffeur:'BELSKEM MOUHAMED',hor:0.583,lieuJ:'—',lieuJ1:'ORAN',equip:'ok',prog:''},
-    {v:'001006-514-16',etat:'DISPONIBLE',type:'TRACTEUR',chauffeur:'BENMASSAOUD ADEL',hor:0.542,lieuJ:'BEJAIA',lieuJ1:'AFLOU',equip:'OK',prog:''},
-    {v:'000692-524-16',etat:'En mission',type:'TRACTEUR',chauffeur:'BOUDRISSA RABAH',hor:0.75,lieuJ:'—',lieuJ1:'TUNISIE',equip:'OK',prog:''},
-    {v:'001076-524-16',etat:'En mission',type:'TRACTEUR',chauffeur:'BOUDRISSA RABAH',hor:0.75,lieuJ:'—',lieuJ1:'TUNISIE',equip:'OK',prog:''},
-    {v:'000900-514-16',etat:'En panne',type:'TRACTEUR',chauffeur:'BOUDRISSA RABAH',hor:0,lieuJ:'—',lieuJ1:'KHENCHELA',equip:'OK',prog:''},
-    {v:'000313-516-16',etat:'DISPONIBLE',type:'TRACTEUR',chauffeur:'BOUDRISSA RABAH',hor:0.583,lieuJ:'—',lieuJ1:'TIRET',equip:'OK',prog:''},
-    {v:'000422-523-16',etat:'DISPONIBLE',type:'TRACTEUR',chauffeur:'BOUDRISSA RABAH',hor:0.458,lieuJ:'—',lieuJ1:'TLEMCEN',equip:'OK',prog:''},
-    {v:'000870-523-16',etat:'DISPONIBLE',type:'TRACTEUR',chauffeur:'BOUDRISSA RABAH',hor:0.417,lieuJ:'—',lieuJ1:'EL BAYADH',equip:'OK',prog:''},
-    {v:'001417-513-16',etat:'En panne',type:'TRACTEUR',chauffeur:'DACHIR MUSTAPHA',hor:0.708,lieuJ:'BEJAI',lieuJ1:'BEJAIA',equip:'OK',prog:''},
-    {v:'000816-524-16',etat:'DISPONIBLE',type:'TRACTEUR',chauffeur:'DACHIR MUSTAPHA',hor:0.667,lieuJ:'ORAN',lieuJ1:'TIZI OUZOU',equip:'OK',prog:''},
-    {v:'001059-524-16',etat:'En mission',type:'TRACTEUR',chauffeur:'DACHIR MUSTAPHA',hor:0.417,lieuJ:'—',lieuJ1:'TUNISIE',equip:'OK',prog:''},
-    {v:'000974-514-16',etat:'En mission',type:'TRACTEUR',chauffeur:'DACHIR MUSTAPHA',hor:0.5,lieuJ:'—',lieuJ1:'SETIF',equip:'OK',prog:''},
-    {v:'001032-523-16',etat:'DISPONIBLE',type:'TRACTEUR',chauffeur:'DACHIR MUSTAPHA',hor:0.667,lieuJ:'—',lieuJ1:'TIZI OUZOU',equip:'OK',prog:''},
-    {v:'000718-524-16',etat:'DISPONIBLE',type:'TRACTEUR',chauffeur:'DJOUAD ABDELHAFID',hor:0.5,lieuJ:'—',lieuJ1:'SETIF',equip:'',prog:''},
-    {v:'001224-514-16',etat:'En panne',type:'TRACTEUR',chauffeur:'DJOUAD ABDELHAFID',hor:0.417,lieuJ:'—',lieuJ1:'TEBESSA',equip:'',prog:''},
-    {v:'000988-514-16',etat:'En mission',type:'TRACTEUR',chauffeur:'DJOUAD ABDELHAFID',hor:0.5,lieuJ:'—',lieuJ1:'SETIF',equip:'',prog:''},
-    {v:'001273-514-16',etat:'En panne',type:'TRACTEUR',chauffeur:'FEROUDJ NABIL',hor:0.833,lieuJ:'',lieuJ1:'',equip:'OK',prog:''},
-    {v:'000372-516-16',etat:'DISPONIBLE',type:'TRACTEUR',chauffeur:'FERROUDJ NABIL',hor:0.5,lieuJ:'—',lieuJ1:'TOUGGOURT',equip:'OK',prog:''},
-    {v:'000772-515-16',etat:'En mission',type:'TRACTEUR',chauffeur:'HADJ MOUSSA',hor:0.667,lieuJ:'—',lieuJ1:'DJELFA',equip:'OK',prog:''},
-    {v:'000321-516-16',etat:'En panne',type:'TRACTEUR',chauffeur:'KEBIR DANI SAID',hor:0.917,lieuJ:'',lieuJ1:'',equip:'',prog:''},
-    {v:'001127-514-16',etat:'Manque chauffeur',type:'TRACTEUR',chauffeur:'LAAMARA REDHA',hor:0.458,lieuJ:'',lieuJ1:'',equip:'',prog:''},
-    {v:'000379-516-16',etat:'DISPONIBLE',type:'TRACTEUR',chauffeur:'LABDI HABIB 2',hor:0.458,lieuJ:'TIZI OUZOU',lieuJ1:'ORAN',equip:'OK',prog:''},
-    {v:'001075-514-16',etat:'En mission',type:'TRACTEUR',chauffeur:'LABDI HABIB 2',hor:1.625,lieuJ:'—',lieuJ1:'TLEMCEN',equip:'OK',prog:''},
-    {v:'001228-514-16',etat:'Manque chauffeur',type:'TRACTEUR',chauffeur:'MAAMAR IDIR',hor:0.5,lieuJ:'',lieuJ1:'',equip:'',prog:''},
-    {v:'000364-516-16',etat:'DISPONIBLE',type:'TRACTEUR',chauffeur:'NAGHZA AMAR',hor:0.542,lieuJ:'—',lieuJ1:'BEJAIA',equip:'OK',prog:''},
-    {v:'000788-524-16',etat:'En mission',type:'TRACTEUR',chauffeur:'NAGHZA AMAR',hor:0,lieuJ:'—',lieuJ1:'SAIDA',equip:'OK',prog:''},
-    {v:'001125-514-16',etat:'En panne',type:'TRACTEUR',chauffeur:'NAGHZA AMAR',hor:0.417,lieuJ:'—',lieuJ1:'BEJAIA',equip:'OK',prog:''},
-    {v:'000939-523-16',etat:'En mission',type:'TRACTEUR',chauffeur:'NAGHZA AMAR',hor:0.375,lieuJ:'—',lieuJ1:'TUNISIE',equip:'OK',prog:''},
-    {v:'000945-523-16',etat:'DISPONIBLE',type:'TRACTEUR',chauffeur:'NAGHZA AMAR',hor:0.667,lieuJ:'—',lieuJ1:'BORDJ BORIRIDJ',equip:'OK',prog:''},
-    {v:'000890-514-16',etat:'DISPONIBLE',type:'TRACTEUR',chauffeur:'RACHID KHELLIF',hor:0.667,lieuJ:'—',lieuJ1:'CHLEF',equip:'OK',prog:''},
-    {v:'000423-516-16',etat:'DISPONIBLE',type:'TRACTEUR',chauffeur:'RAHAL YAHIA',hor:0.667,lieuJ:'—',lieuJ1:'SETIF',equip:'OK',prog:''},
-    {v:'000926-514-16',etat:'Manque chauffeur',type:'TRACTEUR',chauffeur:'RHOUI HABIB',hor:0.5,lieuJ:'',lieuJ1:'',equip:'',prog:''},
-    {v:'000774-515-16',etat:'Manque chauffeur',type:'TRACTEUR',chauffeur:'ROUABHIA KHALED',hor:0.5,lieuJ:'',lieuJ1:'',equip:'',prog:''},
-    {v:'001079-514-16',etat:'DISPONIBLE',type:'TRACTEUR',chauffeur:'TABLI CHAFIK',hor:0.417,lieuJ:'—',lieuJ1:'TIZI OZOU',equip:'OK',prog:''},
-    {v:'000916-523-16',etat:'En mission',type:'TRACTEUR',chauffeur:'TABLI CHAFIK',hor:0.542,lieuJ:'—',lieuJ1:'BEJAIA',equip:'OK',prog:''},
-    {v:'000920-523-16',etat:'DISPONIBLE',type:'TRACTEUR',chauffeur:'TABLI CHAFIK',hor:0.5,lieuJ:'—',lieuJ1:'ALGER',equip:'OK',prog:''},
-    {v:'001047-524-16',etat:'DISPONIBLE',type:'TRACTEUR',chauffeur:'TABLI CHAFIK',hor:0.417,lieuJ:'—',lieuJ1:'ALGER',equip:'OK',prog:''},
-    {v:'001045-524-16',etat:'En mission',type:'TRACTEUR',chauffeur:'TABLI CHAFIK',hor:0.583,lieuJ:'—',lieuJ1:'TUNISIE',equip:'OK',prog:''},
-    {v:'001044-514-16',etat:'En mission',type:'TRACTEUR',chauffeur:'TOUMI NACER',hor:0.667,lieuJ:'—',lieuJ1:'ORAN',equip:'OK',prog:''},
-    {v:'000363-516-16',etat:'DISPONIBLE',type:'TRACTEUR',chauffeur:'YAHIAOUI DJAMEL',hor:0.708,lieuJ:'—',lieuJ1:'TEBESSA',equip:'OK',prog:''},
-    {v:'001234-514-16',etat:'En panne',type:'TRACTEUR',chauffeur:'YAHIAOUI DJAMEL',hor:0.708,lieuJ:'—',lieuJ1:'MAGHNIA',equip:'OK',prog:''},
+  "blacklist": [
+    {
+      "destination": "EXPORT SUISSE",
+      "motif": "Infraction temps de conduite",
+      "chauffeur": "David Bertrand"
+    }
   ],
-  pannes: [
-    {date:'2026-04-08',chauffeur:'KEBIR DANI SAID',immat:'000321-516-16',type:'TRACTEUR',di:'DI2604003168',desc:"LES VAGUES TRIE TRACTEUR (remplacement d'un camion si c'est possible)",cet:'ABDO .D',rex:'SIDALI.D'},
-    {date:'2026-04-08',chauffeur:'FEROUDJ NABIL',immat:'001273-514-16',type:'TRACTEUR',di:'DI2603001390',desc:"façade avant (Doté d'un camion de remplacement 000372)",cet:'ABDO .D',rex:'SIDALI.D'},
-    {date:'2026-04-08',chauffeur:'DJOUAD ABDELHAFID',immat:'001397-813-16',type:'REMORQUE',di:'DI2604004518',desc:'vérification essieu',cet:'ABDO .D',rex:'SIDALI.D'},
-    {date:'2026-04-08',chauffeur:'BOUDRISSA RABAH',immat:'000900-514-16',type:'TRACTEUR',di:'DI2605005059',desc:"vérification fuite d'huile + vérification manque de pression",cet:'ABDO .D',rex:'SIDALI.D'},
-    {date:'2026-04-09',chauffeur:'YAHIAOUI DJAMEL',immat:'001234-514-16',type:'TRACTEUR',di:'DI2605005142',desc:"changement de 4 disc de frein + changement de plaque de frein + dotation de 2 batterie + changement de flexible d'huile",cet:'ABDO .D',rex:'SIDALI.D'},
-    {date:'2026-04-09',chauffeur:'TABLI CHAFIK',immat:'000091-823-16',type:'REMORQUE',di:'DI2605005143',desc:'vérification remorque inclinée + vérification ballon soir',cet:'ABDO .D',rex:'SIDALI.D'},
+  "incidentsLivraison": [
+    {
+      "destination": "LYON",
+      "id": "inc_1",
+      "refCommande": "CMD-8839",
+      "obs": "Avarie mineure lors du déchargement",
+      "debut": "2026-07-06T10:00:00.000Z",
+      "client": "LOGIS-RHONE",
+      "fin": "2026-07-06T10:15:00.000Z",
+      "type": "Avarie marchandises",
+      "chauffeur": "Jean Dupont",
+      "equipe": "A",
+      "dureeHeures": 0.25,
+      "v": "AA-123-AA"
+    }
   ],
-  nc: [
-    {n:1,sharik:'DJOUAD ABDELHAFID',fausse:'',chgt:'LES EUCALIPTUS-BBA',refus:'',date:'2026-02-22',mise:'',commission:''},
-    {n:2,sharik:'BEMASSAOUD ADEL',fausse:'',chgt:'BECHAR-HASSI MESSAOUD',refus:'',date:'2026-02-23',mise:'',commission:''},
-    {n:3,sharik:'FEROUDJ NABIL',fausse:'',chgt:'ORAN- MANSOURA',refus:'',date:'2026-02-27',mise:'',commission:''},
-    {n:4,sharik:'RAHAL YAHIA',fausse:'',chgt:'TEBESSA- SAIDA',refus:'',date:'2026-02-28',mise:'',commission:''},
-    {n:5,sharik:'HADJ MOUSSA NOURDDINE',fausse:'',chgt:'MANSOURA-ORAN',refus:'',date:'2026-03-01',mise:'',commission:''},
-    {n:6,sharik:'DJOUAD ABDELHAFID',fausse:'',chgt:'LAGHOUAT-ORAN',refus:'',date:'2026-02-28',mise:'',commission:''},
-    {n:7,sharik:'BEMASSAOUD ADEL',fausse:'',chgt:'',refus:'départ de LLK',date:'2024-12-28',mise:'',commission:''},
-    {n:8,sharik:'BELAHDJAR TOUFIK',fausse:'',chgt:'SAIDA-ALGER',refus:'',date:'2026-03-02',mise:'',commission:''},
-    {n:9,sharik:'DJOUAD ABDELHAFID',fausse:'',chgt:'',refus:'ORAN-TIARET',date:'2026-03-01',mise:'',commission:''},
-    {n:10,sharik:'RAHAL YAHIA',fausse:'',chgt:'FRUITAL-SAIDA',refus:'',date:'2026-03-05',mise:'',commission:''},
-    {n:11,sharik:'TABLI CHAFIK',fausse:'',chgt:'NAAMA - ALGER',refus:'',date:'2026-04-14',mise:'',commission:''},
-    {n:12,sharik:'DJOUAD ABDELHAFID',fausse:'',chgt:'LAFHOUAT - ALGER',refus:'',date:'2026-03-08',mise:'',commission:''},
-    {n:13,sharik:'DJOUAD ABDELHAFID',fausse:'',chgt:'EL BAYADH - ALGER',refus:'',date:'2026-03-08',mise:'',commission:''},
-    {n:14,sharik:'RAHAL YAHIA',fausse:'',chgt:'CONSTANTINE - DJELFA',refus:'',date:'2026-03-09',mise:'',commission:''},
-    {n:15,sharik:'NEGHZA AMAR',fausse:'',chgt:'DJELFA - BBA',refus:'',date:'2026-03-09',mise:'',commission:''},
-    {n:16,sharik:'NEGHZA AMAR',fausse:'',chgt:'BBA-RELIZANE',refus:'',date:'2026-04-17',mise:'',commission:''},
-    {n:17,sharik:'BELASKEM MOUHAMED',fausse:'',chgt:'ORAN-SETIF',refus:'',date:'2026-03-11',mise:'',commission:''},
-    {n:18,sharik:'FEROUDJ NABIL',fausse:'',chgt:'ORAN - HASSI MESSAOUD',refus:'',date:'2026-03-12',mise:'',commission:''},
-    {n:19,sharik:'KHELIF RACHID',fausse:'',chgt:'ORAN - AIN TEMOUCHENT',refus:'',date:'2026-03-12',mise:'',commission:''},
-    {n:20,sharik:'YAHIAOUI DJAMEL',fausse:'',chgt:'RELIZANE-KHEMIS EL KHECHNA',refus:'',date:'2026-03-14',mise:'',commission:''},
-    {n:21,sharik:'DJOUAD ABDELHAFID',fausse:'',chgt:'ADRAR-RELIZAN',refus:'',date:'2026-03-14',mise:'',commission:''},
-    {n:22,sharik:'NEGHZA AMAR',fausse:'',chgt:'MAGHNIA-BATNA',refus:'',date:'2026-03-15',mise:'',commission:''},
-    {n:23,sharik:'BELAHDJAR TOUFIK',fausse:'',chgt:'CONSTANTINE-SAIDA',refus:'',date:'2026-03-21',mise:'',commission:''},
-    {n:24,sharik:'BOUDRISSA RABAH',fausse:'',chgt:'DJELFA - ORAN',refus:'',date:'2026-03-21',mise:'',commission:''},
-    {n:25,sharik:'NEGHZA AMAR',fausse:'',chgt:'SETIF-CHLEF',refus:'',date:'2026-03-21',mise:'',commission:''},
-    {n:26,sharik:'DJOUAD ABDELHAFID',fausse:'',chgt:'LAGHOUAT-ORAN',refus:'',date:'2026-04-22',mise:'',commission:''},
-    {n:27,sharik:'TABLI CHAFIK',fausse:'',chgt:'ORAN - ALGER',refus:'',date:'2026-03-25',mise:'',commission:''},
-    {n:28,sharik:'TABLI CHAFIK',fausse:'',chgt:'MOSTAGANEM-BOUIRA',refus:'',date:'2026-03-25',mise:'',commission:''},
-    {n:29,sharik:'DJOUAD ABDELHAFID',fausse:'',chgt:'TLEMCEN-MOSTAGANEM',refus:'',date:'2026-03-25',mise:'',commission:''},
-    {n:30,sharik:'DJOUAD ABDELHAFID',fausse:'',chgt:'',refus:'départ de HASSI-AMEUR',date:'2026-03-25',mise:'',commission:''},
-    {n:31,sharik:'DJOUAD ABDELHAFID',fausse:'',chgt:'ORAN-BEJAIA',refus:'',date:'2026-03-26',mise:'',commission:''},
-    {n:32,sharik:'RAHAL YAHIA',fausse:'',chgt:'ORAN-BOUIRA',refus:'',date:'2026-04-08',mise:'',commission:''},
+  "dispo": [
+    {
+      "v": "AA-123-AA",
+      "etat": "En mission",
+      "type": "TRACTEUR",
+      "chauffeur": "Jean Dupont",
+      "hor": 0.625,
+      "lieuJ": "PARIS",
+      "lieuJ1": "LYON",
+      "equip": "OK",
+      "prog": ""
+    },
+    {
+      "v": "BB-456-BB",
+      "etat": "En mission",
+      "type": "TRACTEUR",
+      "chauffeur": "Pierre Martin",
+      "hor": 0.708,
+      "lieuJ": "LILLE",
+      "lieuJ1": "BRUXELLES",
+      "equip": "OK",
+      "prog": "EXP-BEL"
+    },
+    {
+      "v": "CC-789-CC",
+      "etat": "En mission",
+      "type": "TRACTEUR",
+      "chauffeur": "Michel Bernard",
+      "hor": 0.5,
+      "lieuJ": "STRASBOURG",
+      "lieuJ1": "GENEVE",
+      "equip": "OK",
+      "prog": ""
+    },
+    {
+      "v": "DD-101-DD",
+      "etat": "En mission",
+      "type": "TRACTEUR",
+      "chauffeur": "Marie Dubois",
+      "hor": 0.583,
+      "lieuJ": "ROUEN",
+      "lieuJ1": "BORDEAUX",
+      "equip": "ok",
+      "prog": ""
+    },
+    {
+      "v": "EE-202-EE",
+      "etat": "DISPONIBLE",
+      "type": "TRACTEUR",
+      "chauffeur": "Thomas Leroy",
+      "hor": 0.542,
+      "lieuJ": "NANTES",
+      "lieuJ1": "TOULOUSE",
+      "equip": "OK",
+      "prog": ""
+    },
+    {
+      "v": "FF-303-FF",
+      "etat": "En mission",
+      "type": "TRACTEUR",
+      "chauffeur": "Lucas Petit",
+      "hor": 0.75,
+      "lieuJ": "MARSEILLE",
+      "lieuJ1": "NICE",
+      "equip": "OK",
+      "prog": ""
+    },
+    {
+      "v": "GG-404-GG",
+      "etat": "En mission",
+      "type": "TRACTEUR",
+      "chauffeur": "Arthur Girard",
+      "hor": 0.75,
+      "lieuJ": "MONTPELLIER",
+      "lieuJ1": "TOULOUSE",
+      "equip": "OK",
+      "prog": ""
+    },
+    {
+      "v": "HH-505-HH",
+      "etat": "En panne",
+      "type": "TRACTEUR",
+      "chauffeur": "Nicolas Roux",
+      "hor": 0,
+      "lieuJ": "RENNES",
+      "lieuJ1": "RENNES",
+      "equip": "OK",
+      "prog": ""
+    },
+    {
+      "v": "II-606-II",
+      "etat": "DISPONIBLE",
+      "type": "TRACTEUR",
+      "chauffeur": "François Vincent",
+      "hor": 0.583,
+      "lieuJ": "DIJON",
+      "lieuJ1": "LYON",
+      "equip": "OK",
+      "prog": ""
+    },
+    {
+      "v": "JJ-707-JJ",
+      "etat": "DISPONIBLE",
+      "type": "TRACTEUR",
+      "chauffeur": "Antoine Morel",
+      "hor": 0.458,
+      "lieuJ": "REIMS",
+      "lieuJ1": "LILLE",
+      "equip": "OK",
+      "prog": ""
+    }
   ],
-  gasoil: [
-    {date:'2026-04-09',vehicule:'001079-514-16',station:'PARTNER ALGER',chauffeur:'TABLI CHAFIK',type:'Interne',operation:'PLEIN',resp:'DAHOUMANE ABDESLEM'},
-    {date:'2026-04-09',vehicule:'000920-523-16',station:'PARTNER ALGER',chauffeur:'TABLI CHAFIK',type:'Interne',operation:'PLEIN',resp:'DAHOUMANE ABDESLEM'},
-    {date:'2026-04-09',vehicule:'001047-524-16',station:'PARTNER ALGER',chauffeur:'TABLI CHAFIK',type:'Interne',operation:'PLEIN',resp:'DAHOUMANE ABDESLEM'},
-    {date:'2026-04-09',vehicule:'000379-516-16',station:'PARTNER ALGER',chauffeur:'LABDI HABIB',type:'Interne',operation:'PLEIN',resp:'DAHOUMANE ABDESLEM'},
-    {date:'2026-04-09',vehicule:'001075-514-16',station:'PARTNER ALGER',chauffeur:'LABDI HABIB',type:'Interne',operation:'PLEIN',resp:'DAHOUMANE ABDESLEM'},
-    {date:'2026-04-09',vehicule:'000816-524-16',station:'PARTNER ALGER',chauffeur:'DECHIR MUSTAPHA',type:'Interne',operation:'PLEIN',resp:'DAHOUMANE ABDESLEM'},
+  "pannes": [
+    {
+      "date": "2026-07-06",
+      "immat": "HH-505-HH",
+      "chauffeur": "Nicolas Roux",
+      "type": "TRACTEUR",
+      "di": "DI-990",
+      "desc": "PROBLÈME ALTERNATEUR",
+      "cet": "N. DUBOIS",
+      "kpi": "OUI",
+      "etat": "En cours",
+      "rex": "S. FONTAINE"
+    }
   ],
-  equip: [
-    {n:1,sharik:'BELAHDJER TOUFIK',tr:'000791-524-16',rm:'000551-824-16',barre:'OUI',cable:'OUI',tel:'770309257'},
-    {n:2,sharik:'BELAHDJER TOUFIK',tr:'000914-514-16',rm:'000256-816-16',barre:'OUI',cable:'OUI',tel:'770309257'},
-    {n:3,sharik:'BELAHDJER TOUFIK',tr:'000848-514-16',rm:'000731-814-16',barre:'OUI',cable:'OUI',tel:'770309257'},
-    {n:4,sharik:'BELSKEM MOUHAMED',tr:'001060-514-16',rm:'000469-816-16',barre:'OUI',cable:'NON',tel:'782399030'},
-    {n:5,sharik:'BENMASSAOUD ADEL',tr:'001006-514-16',rm:'000351-816-16',barre:'OUI',cable:'OUI',tel:'770143524'},
-    {n:6,sharik:'BOUDRISSA RABAH',tr:'000692-524-16',rm:'000655-824-16',barre:'NON',cable:'OUI',tel:'770999163'},
-    {n:7,sharik:'BOUDRISSA RABAH',tr:'001076-524-16',rm:'000633-824-16',barre:'NON',cable:'OUI',tel:'770999163'},
-    {n:8,sharik:'BOUDRISSA RABAH',tr:'000313-516-16',rm:'000377-816-16',barre:'NON',cable:'OUI',tel:'770999163'},
-    {n:9,sharik:'BOUDRISSA RABAH',tr:'000900-514-16',rm:'000488-814-16',barre:'NON',cable:'OUI',tel:'770999163'},
-    {n:10,sharik:'BOUDRISSA RABAH',tr:'000422-523-16',rm:'000777-823-16',barre:'NON',cable:'NON',tel:'780806418'},
-    {n:11,sharik:'BOUDRISSA RABAH',tr:'000870-523-16',rm:'000790-823-16',barre:'NON',cable:'NON',tel:'780806418'},
-    {n:12,sharik:'DACHIR MUSTAPHA',tr:'001417-513-16',rm:'001642-813-16',barre:'OUI',cable:'OUI',tel:'780806418'},
-    {n:13,sharik:'DACHIR MUSTAPHA',tr:'000974-514-16',rm:'000708-814-16',barre:'NON',cable:'OUI',tel:'780806418'},
-    {n:14,sharik:'DACHIR MUSTAPHA',tr:'000816-524-16',rm:'000697-824-16',barre:'OUI',cable:'OUI',tel:'782203059'},
-    {n:15,sharik:'DACHIR MUSTAPHA',tr:'001059-524-16',rm:'000668-824-16',barre:'OUI',cable:'OUI',tel:'782203059'},
-    {n:16,sharik:'DECHIR MUSTAPHA',tr:'001032-523-16',rm:'000378-823-16',barre:'NON',cable:'NON',tel:'782203059'},
-    {n:17,sharik:'DJOUAD ABDELHAFID',tr:'000718-524-16',rm:'000587-824-16',barre:'OUI',cable:'OUI',tel:'770140663'},
-    {n:18,sharik:'DJOUAD ABDELHAFID',tr:'001224-514-16',rm:'001397-813-16',barre:'OUI',cable:'OUI',tel:'770140663'},
-    {n:19,sharik:'DJOUAD ABDELHAFID',tr:'000988-514-16',rm:'000795-814-16',barre:'OUI',cable:'OUI',tel:'782547991'},
-    {n:20,sharik:'FEROUDJ NABIL',tr:'001273-514-16',rm:'',barre:'NON',cable:'NON',tel:'770142867'},
-    {n:21,sharik:'FERROUDJ NABIL',tr:'000372-516-16',rm:'000656-814-16',barre:'OUI',cable:'OUI',tel:'770141236'},
-    {n:22,sharik:'KEBIR DANI SAID',tr:'000321-516-16',rm:'000287-816-16',barre:'NON',cable:'NON',tel:'770141236'},
-    {n:23,sharik:'LAAMARA REDHA',tr:'001127-514-16',rm:'001259-814-16',barre:'NON',cable:'NON',tel:'656201321'},
-    {n:24,sharik:'LABDI HABIB 2',tr:'001075-514-16',rm:'000388-816-16',barre:'OUI',cable:'OUI',tel:'656201321'},
-    {n:25,sharik:'LABDI HABIB 2',tr:'000379-516-16',rm:'000783-814-16',barre:'OUI',cable:'OUI',tel:'656201321'},
-    {n:26,sharik:'MAAMAR IDIR',tr:'001228-514-16',rm:'000718-814-16',barre:'NON',cable:'NON',tel:'662290097'},
-    {n:27,sharik:'NAGHZA AMAR',tr:'000788-524-16',rm:'000553-824-16',barre:'NON',cable:'OUI',tel:'780806414'},
-    {n:28,sharik:'NAGHZA AMAR',tr:'000364-516-16',rm:'000565-814-16',barre:'OUI',cable:'OUI',tel:'770429581'},
-    {n:29,sharik:'NAGHZA AMAR',tr:'001125-514-16',rm:'000658-814-16',barre:'NON',cable:'NON',tel:'770429581'},
-    {n:41,sharik:'NAGHZA AMAR',tr:'000939-523-16',rm:'000382-823-16',barre:'NON',cable:'NON',tel:'770429581'},
-    {n:42,sharik:'NAGHZA AMAR',tr:'000945-523-16',rm:'000819-823-16',barre:'NON',cable:'NON',tel:'770437136'},
-    {n:30,sharik:'NOURREDINE HADJ MOUSSA',tr:'000772-515-16',rm:'000660-814-16',barre:'NON',cable:'NON',tel:'770437136'},
-    {n:31,sharik:'RACHID KHELLIF',tr:'000890-514-16',rm:'000531-814-16',barre:'NON',cable:'NON',tel:'770747191'},
-    {n:32,sharik:'RAHAL YAHIA',tr:'000423-516-16',rm:'000216-816-16',barre:'OUI',cable:'OUI',tel:'770813925'},
-    {n:33,sharik:'RHOUI HABIB',tr:'000926-514-16',rm:'001261-814-16',barre:'NON',cable:'NON',tel:'782203133'},
-    {n:34,sharik:'ROUABHIA KHALED',tr:'000774-515-16',rm:'000340-816-16',barre:'NON',cable:'NON',tel:'696964682'},
-    {n:35,sharik:'TABLI CHAFIK',tr:'001079-514-16',rm:'000525-814-16',barre:'NON',cable:'OUI',tel:'770143705'},
-    {n:'',sharik:'TABLI CHAFIK',tr:'000916-523-16',rm:'000086-823-16',barre:'NON',cable:'NON',tel:'770429581'},
-    {n:'',sharik:'TABLI CHAFIK',tr:'000920-523-16',rm:'000091-823-16',barre:'NON',cable:'NON',tel:'770429581'},
-    {n:36,sharik:'TABLI CHAFIK',tr:'001047-524-16',rm:'000642-824-16',barre:'NON',cable:'OUI',tel:'770429581'},
-    {n:37,sharik:'TABLI CHAFIK',tr:'001045-524-16',rm:'000647-824-16',barre:'NON',cable:'OUI',tel:'770429581'},
-    {n:38,sharik:'TOUMI NACER',tr:'001044-514-16',rm:'000215-816-16',barre:'NON',cable:'NON',tel:'770429581'},
-    {n:39,sharik:'YAHIAOUI DJAMEL',tr:'001234-514-16',rm:'000773-814-16',barre:'OUI',cable:'OUI',tel:'799240954'},
-    {n:40,sharik:'YAHIAOUI DJAMEL',tr:'000363-516-16',rm:'000627-814-16',barre:'OUI',cable:'OUI',tel:'799240954'},
+  "nc": [
+    {
+      "n": 1,
+      "date": "2026-07-05",
+      "sharik": "Jean Dupont",
+      "type": "Fausse décl.",
+      "chgt": "",
+      "fausse": "ABSENCE NON JUSTIFIÉE",
+      "refus": "",
+      "autre": "",
+      "mise": "OUI",
+      "commission": ""
+    }
   ],
-  activite: [
-    {sharik:'BELAHDJER TOUFIK',tr:'000848-514-16',rm:'000256-816-16',debut:'2025-08-02',fin:'',ext:'EXTENSION',site:'BEJAIA',etatTR:'opérationnel',actif:'actif',obs:''},
-    {sharik:'BELAHDJER TOUFIK',tr:'000791-524-16',rm:'000551-824-16',debut:'2025-08-24',fin:'',ext:'',site:'BEJAIA',etatTR:'opérationnel',actif:'actif',obs:''},
-    {sharik:'BELAHDJER TOUFIK',tr:'000914-514-16',rm:'000731-814-16',debut:'',fin:'',ext:'',site:'BEJAIA',etatTR:'opérationnel',actif:'actif',obs:''},
-    {sharik:'BELESKAM MOHAMED',tr:'001060-514-16',rm:'000469-816-16',debut:'',fin:'',ext:'',site:'BOUIRA',etatTR:'opérationnel',actif:'actif',obs:''},
-    {sharik:'BELKACEMI MED',tr:'',rm:'',debut:'2026-01-12',fin:'2026-04-26',ext:'',site:'BEJAIA',etatTR:'',actif:'actif',obs:''},
-    {sharik:'BEN MESSAOUD ADEL',tr:'001066-514-16',rm:'000666-814-16',debut:'',fin:'',ext:'',site:'BEJAIA',etatTR:'opérationnel',actif:'actif',obs:''},
-    {sharik:'BOUDRISSA RABAH',tr:'001076-524-16',rm:'000655-824-16',debut:'2025-05-06',fin:'',ext:'EXTENSION',site:'BEJAIA',etatTR:'opérationnel',actif:'actif',obs:''},
-    {sharik:'BOUDRISSA RABAH',tr:'000900-514-16',rm:'000488-814-16',debut:'',fin:'',ext:'',site:'BEJAIA',etatTR:'opérationnel',actif:'actif',obs:''},
-    {sharik:'BOUDRISSA RABAH',tr:'000692-524-16',rm:'000633-824-16',debut:'2025-08-21',fin:'',ext:'',site:'BEJAIA',etatTR:'opérationnel',actif:'actif',obs:''},
-    {sharik:'BOUDRISSA RABAH',tr:'000313-516-16',rm:'000377-816-16',debut:'2026-04-05',fin:'',ext:'',site:'BEJAIA',etatTR:'opérationnel',actif:'actif',obs:''},
-    {sharik:'BOUKHEDIMI MOHAMED',tr:'000890-514-16',rm:'000531-814-16',debut:'',fin:'',ext:'',site:'SETIF',etatTR:'opérationnel',actif:'actif',obs:''},
-    {sharik:'DECHIR MUSTAPHA',tr:'001417-513-16',rm:'001642-813-16',debut:'2025-08-22',fin:'',ext:'EXTENSION',site:'BEJAIA',etatTR:'opérationnel',actif:'actif',obs:''},
-    {sharik:'DECHIR MUSTAPHA',tr:'000974-514-16',rm:'000708-814-16',debut:'',fin:'',ext:'',site:'BEJAIA',etatTR:'opérationnel',actif:'actif',obs:''},
-    {sharik:'DECHIR MUSTAPHA',tr:'001059-524-16',rm:'000688-824-16',debut:'2025-05-06',fin:'',ext:'',site:'BEJAIA',etatTR:'opérationnel',actif:'actif',obs:''},
-    {sharik:'DECHIR MUSTAPHA',tr:'000816-524-16',rm:'000697-824-16',debut:'2025-10-07',fin:'',ext:'',site:'BEJAIA',etatTR:'opérationnel',actif:'actif',obs:''},
-    {sharik:'DJOUAD ABDELHAFID',tr:'001224-514-16',rm:'001397-813-16',debut:'2025-08-20',fin:'',ext:'EXTENSION',site:'BOUIRA',etatTR:'opérationnel',actif:'actif',obs:''},
-    {sharik:'DJOUAD ABDELHAFID',tr:'000718-524-16',rm:'000587-824-16',debut:'2025-08-30',fin:'',ext:'',site:'BOUIRA',etatTR:'opérationnel',actif:'actif',obs:''},
-    {sharik:'DJOUAD ABDELHAFID',tr:'000988-514-16',rm:'000795-814-16',debut:'',fin:'',ext:'',site:'BOUIRA',etatTR:'opérationnel',actif:'actif',obs:''},
-    {sharik:'FERROUDJ NABIL',tr:'000772-516-16',rm:'',debut:'2026-02-19',fin:'',ext:'',site:'BEJAIA',etatTR:'opérationnel',actif:'actif',obs:''},
-    {sharik:'HADJ MOUSSA NOURREDINE',tr:'000772-516-16',rm:'000467-816-16',debut:'',fin:'',ext:'',site:'',etatTR:'opérationnel',actif:'actif',obs:''},
-    {sharik:'LABDI HABIB',tr:'000379-516-16',rm:'000388-816-16',debut:'2025-11-25',fin:'',ext:'EXTENSION',site:'BOUIRA',etatTR:'opérationnel',actif:'actif',obs:''},
-    {sharik:'LABDI HABIB',tr:'001075-514-16',rm:'000783-814-16',debut:'',fin:'',ext:'',site:'BOUIRA',etatTR:'opérationnel',actif:'actif',obs:''},
-    {sharik:'NEGHZA AMAR',tr:'000788-524-16',rm:'000553-824-16',debut:'2025-08-21',fin:'',ext:'EXTENSION',site:'SETIF',etatTR:'opérationnel',actif:'actif',obs:''},
-    {sharik:'NEGHZA AMAR',tr:'000364-516-16',rm:'000565-814-16',debut:'2025-09-19',fin:'',ext:'',site:'SETIF',etatTR:'opérationnel',actif:'actif',obs:''},
-    {sharik:'NEGHZA AMAR',tr:'001125-514-16',rm:'000658-814-16',debut:'',fin:'',ext:'',site:'SETIF',etatTR:'opérationnel',actif:'actif',obs:''},
-    {sharik:'RAHAL YAHIA',tr:'000423-516-16',rm:'000216-816-16',debut:'2025-12-29',fin:'',ext:'',site:'BOUIRA',etatTR:'opérationnel',actif:'actif',obs:''},
-    {sharik:'TABLI CHAFIK',tr:'001079-514-16',rm:'000525-814-16',debut:'2026-01-12',fin:'',ext:'EXTENSION',site:'BEJAIA',etatTR:'opérationnel',actif:'actif',obs:''},
-    {sharik:'TABLI CHAFIK',tr:'001045-524-16',rm:'000647-824-16',debut:'2025-05-06',fin:'',ext:'',site:'BEJAIA',etatTR:'opérationnel',actif:'actif',obs:''},
-    {sharik:'TABLI CHAFIK',tr:'001047-524-16',rm:'000642-824-16',debut:'2026-01-12',fin:'',ext:'',site:'BEJAIA',etatTR:'opérationnel',actif:'actif',obs:''},
-    {sharik:'DANI KEBIR SAID',tr:'000321-516-16',rm:'001259-814-16',debut:'2026-02-08',fin:'',ext:'',site:'BOUIRA',etatTR:'opérationnel',actif:'',obs:''},
-    {sharik:'YAHIAOUI DJAMAL',tr:'000363-516-16',rm:'000226-816-16',debut:'2025-11-18',fin:'',ext:'EXTENSION',site:'BOUIRA',etatTR:'opérationnel',actif:'actif',obs:''},
-    {sharik:'YAHIAOUI DJAMAL',tr:'001234-514-16',rm:'000627-814-16',debut:'',fin:'',ext:'',site:'BOUIRA',etatTR:'opérationnel',actif:'actif',obs:''},
-    {sharik:'TOUMI NACER',tr:'001044-514-16',rm:'000215-816-16',debut:'',fin:'',ext:'Réintégration',site:'SETIF',etatTR:'opérationnel',actif:'affecté à la flotte propre',obs:''},
-    {sharik:'',tr:'001228-514-16',rm:'',debut:'',fin:'',ext:'',site:'',etatTR:'opérationnel',actif:'',obs:''},
-    {sharik:'RHOUI HABIB',tr:'000926-514-16',rm:'001261-814-16',debut:'',fin:'',ext:'Réintégration',site:'',etatTR:'opérationnel',actif:'',obs:''},
-    {sharik:'LAMARA REDHA',tr:'001127-514-16',rm:'001259-814-16',debut:'',fin:'',ext:'extension',site:'',etatTR:'opérationnel',actif:'',obs:''},
+  "gasoil": [
+    {
+      "date": "2026-07-06",
+      "immat": "AA-123-AA",
+      "vehicule": "AA-123-AA",
+      "chauffeur": "Jean Dupont",
+      "station": "PARIS HUB",
+      "type": "Interne",
+      "operation": "PLEIN",
+      "resp": "LOGISTIQUE",
+      "agence": "PARIS",
+      "site": "NORD"
+    }
   ],
-  bl: [
-    {chauffeur:'BELAHDJER TOUFIK',mars:'',avril:'déposer',mai:'',juin:'',juil:'',aout:'',sep:'',oct:'',nov:'',dec:''},
-    {chauffeur:'BOUKHDEMMI',mars:'',avril:'',mai:'',juin:'',juil:'',aout:'',sep:'',oct:'',nov:'',dec:''},
-    {chauffeur:'BENMASSAOUD ADEL',mars:'',avril:'déposer',mai:'',juin:'',juil:'',aout:'',sep:'',oct:'',nov:'',dec:''},
-    {chauffeur:'BOUDRISSA',mars:'',avril:'déposer',mai:'',juin:'',juil:'',aout:'',sep:'',oct:'',nov:'',dec:''},
-    {chauffeur:'DACHIR MUSTAPHA',mars:'',avril:'déposer',mai:'',juin:'',juil:'',aout:'',sep:'',oct:'',nov:'',dec:''},
-    {chauffeur:'DJOUAD ABDELHAFID',mars:'',avril:'déposer',mai:'',juin:'',juil:'',aout:'',sep:'',oct:'',nov:'',dec:''},
-    {chauffeur:'HADJ MOUSSA',mars:'',avril:'déposer',mai:'',juin:'',juil:'',aout:'',sep:'',oct:'',nov:'',dec:''},
-    {chauffeur:'KEBIR DANI SAID',mars:'',avril:'camion en panne',mai:'',juin:'',juil:'',aout:'',sep:'',oct:'',nov:'',dec:''},
-    {chauffeur:'KHALIF RASHID',mars:'',avril:'déposer',mai:'',juin:'',juil:'',aout:'',sep:'',oct:'',nov:'',dec:''},
-    {chauffeur:'MOHAMED BELESKAM',mars:'',avril:'',mai:'',juin:'',juil:'',aout:'',sep:'',oct:'',nov:'',dec:''},
-    {chauffeur:'NAGHZA AMAR',mars:'',avril:'déposer',mai:'',juin:'',juil:'',aout:'',sep:'',oct:'',nov:'',dec:''},
-    {chauffeur:'TABLI',mars:'',avril:'déposer',mai:'',juin:'',juil:'',aout:'',sep:'',oct:'',nov:'',dec:''},
-    {chauffeur:'LABDI HABIB 2',mars:'',avril:'déposer',mai:'',juin:'',juil:'',aout:'',sep:'',oct:'',nov:'',dec:''},
-    {chauffeur:'YAHIAOUI DJAMEL',mars:'',avril:'déposer',mai:'',juin:'',juil:'',aout:'',sep:'',oct:'',nov:'',dec:''},
-    {chauffeur:'RAHAL YAHIA',mars:'',avril:'déposer',mai:'',juin:'',juil:'',aout:'',sep:'',oct:'',nov:'',dec:''},
-    {chauffeur:'FERROUDJ NABIL',mars:'',avril:'déposer',mai:'',juin:'',juil:'',aout:'',sep:'',oct:'',nov:'',dec:''},
-    {chauffeur:'LAAMARA REDHA',mars:'',avril:'',mai:'',juin:'',juil:'',aout:'',sep:'',oct:'',nov:'',dec:''},
-    {chauffeur:'MAAMAR IDIR',mars:'',avril:'',mai:'',juin:'',juil:'',aout:'',sep:'',oct:'',nov:'',dec:''},
-    {chauffeur:'RHOUI HABIB',mars:'',avril:'',mai:'',juin:'',juil:'',aout:'',sep:'',oct:'',nov:'',dec:''},
-    {chauffeur:'ROUABHIA KHALED',mars:'',avril:'',mai:'',juin:'',juil:'',aout:'',sep:'',oct:'',nov:'',dec:''},
-    {chauffeur:'TOUMI NACER',mars:'',avril:'',mai:'',juin:'',juil:'',aout:'',sep:'',oct:'',nov:'',dec:''},
+  "equip": [
+    {
+      "n": 1,
+      "sharik": "Jean Dupont",
+      "tr": "AA-123-AA",
+      "rm": "RM-001-AA",
+      "barre": "OUI",
+      "cable": "OUI",
+      "tel": "0601020304"
+    }
   ],
-  odo_weeks: ['2026-01-21','2026-01-31','2026-02-07','2026-02-14','2026-02-19','2026-02-28','2026-03-07','2026-03-14','2026-03-22'],
-  odo: [
-    {v:'000791-524-16',chauffeur:'BELAHDJER TOUFIK',vals:[175229,181313,184627,187762,190594,194270,null,null,null]},
-    {v:'000914-514-16',chauffeur:'BELAHDJER TOUFIK',vals:[1242816,1247712,1250385,1252328,1254429,1256199,null,null,null]},
-    {v:'000848-514-16',chauffeur:'BELAHDJER TOUFIK',vals:[995718,1000602,1003733,1006044,1009103,1012529,null,null,null]},
-    {v:'001006-514-16',chauffeur:'BENMASSAOUD ADEL',vals:[1099945,1105340,1107354,1107354,1108416,1111545,null,null,null]},
-    {v:'000692-524-16',chauffeur:'BOUDRISSA',vals:[161361,166644,168555,171168,174662,177579,null,null,null]},
-    {v:'001076-524-16',chauffeur:'BOUDRISSA',vals:[164249,169282,172951,176500,179947,182948,null,null,null]},
-    {v:'000313-516-16',chauffeur:'BOUDRISSA',vals:[1005508,1009026,1011692,1014760,1017837,1021280,null,null,null]},
-    {v:'000900-514-16',chauffeur:'BOUDRISSA',vals:[1280289,1281639,1282515,1284782,1288131,1290512,null,null,null]},
-    {v:'000422-523-16',chauffeur:'BOUDRISSA',vals:[null,null,null,null,247000,249864,null,null,null]},
-    {v:'000870-523-16',chauffeur:'BOUDRISSA',vals:[null,null,null,null,261000,263453,null,null,null]},
-    {v:'000890-514-16',chauffeur:'RASHID KHELIF',vals:[1198252,1198494,1199147,1200428,1202580,1205012,null,null,null]},
-    {v:'001417-513-16',chauffeur:'DACHIR',vals:[1111176,1116893,1119617,1123528,1126559,1129689,null,null,null]},
-    {v:'000974-514-16',chauffeur:'DACHIR',vals:[1274048,1280101,1283790,1284827,1288215,1291926,null,null,null]},
-    {v:'000816-524-16',chauffeur:'DACHIR',vals:[168882,174436,177423,180973,183770,187558,null,null,null]},
-    {v:'001059-524-16',chauffeur:'DACHIR',vals:[163183,168693,171244,173919,176633,179283,null,null,null]},
-    {v:'001032-523-16',chauffeur:'DACHIR',vals:[null,null,null,null,236104,238006,null,null,null]},
-    {v:'000718-524-16',chauffeur:'DJOUAD ABDELHAFID',vals:[201025,209729,212770,217668,219409,223365,null,null,null]},
-    {v:'001224-514-16',chauffeur:'DJOUAD ABDELHAFID',vals:[932601,937671,940368,945276,946639,944974,null,null,null]},
-    {v:'000988-514-16',chauffeur:'DJOUAD ABDELHAFID',vals:[857696,857696,857696,857676,857696,957696,null,null,null]},
-    {v:'000372-516-16',chauffeur:'FEROUDJ NABIL',vals:[1112847,1117487,1117642,null,1123709,1129670,null,null,null]},
-    {v:'000772-515-16',chauffeur:'HADJ MOUSSA',vals:[1107513,1112581,1114816,1116291,1118441,1122077,null,null,null]},
-    {v:'000321-516-16',chauffeur:'KEBIR DANI SAID',vals:[1079105,1081435,1081435,1081434,1081435,1081435,null,null,null]},
-    {v:'001044-514-16',chauffeur:'TOUMI NACER',vals:[0,null,null,1137831,1137925,1140214,null,null,null]},
-    {v:'001075-514-16',chauffeur:'LABDI HABIB 2',vals:[1268459,1261301,1272525,1275255,1277093,1280396,null,null,null]},
-    {v:'000379-516-16',chauffeur:'LABDI HABIB 2',vals:[971119,975929,977752,979006,981789,985442,null,null,null]},
-    {v:'001060-514-16',chauffeur:'MOHAMED BELESKAM',vals:[1239151,1241580,1244667,1247330,1249300,1251784,null,null,null]},
-    {v:'000788-524-16',chauffeur:'NAGHZA AMAR',vals:[168323,173327,null,null,180947,184824,null,null,null]},
-    {v:'000364-516-16',chauffeur:'NAGHZA AMAR',vals:[1055073,1057497,null,1063897,1065959,1069264,null,null,null]},
-    {v:'001125-514-16',chauffeur:'NAGHZA AMAR',vals:[0,null,null,0,0,null,null,null,null]},
-    {v:'000939-523-16',chauffeur:'NAGHZA AMAR',vals:[null,null,null,null,220148,223089,null,null,null]},
-    {v:'000945-523-16',chauffeur:'NAGHZA AMAR',vals:[null,null,null,null,250484,252752,null,null,null]},
-    {v:'000423-516-16',chauffeur:'RAHAL YAHIA',vals:[1067085,1073373,1076239,1078494,1081643,1085357,null,null,null]},
-    {v:'001047-524-16',chauffeur:'TABLI',vals:[137280,143218,146128,146128,148894,152680,null,null,null]},
-    {v:'001045-524-16',chauffeur:'TABLI',vals:[167568,172762,174804,177450,181604,183237,null,null,null]},
-    {v:'001079-514-16',chauffeur:'TABLI',vals:[1428038,1433318,1437982,1439748,1443228,1446789,null,null,null]},
-    {v:'000916-523-16',chauffeur:'TABLI',vals:[0,null,null,null,258639,259384,null,null,null]},
-    {v:'000920-523-16',chauffeur:'TABLI',vals:[0,null,null,null,247626,250097,null,null,null]},
-    {v:'000774-515-16',chauffeur:'YAHIAOUI DJAMEL',vals:[1198700,null,null,1202698,1202698,0,null,null,null]},
-    {v:'000363-516-16',chauffeur:'YAHIAOUI DJAMEL 2',vals:[1038657,1011374,1011374,1051406,1053692,1059741,null,null,null]},
-    {v:'001234-514-16',chauffeur:'YAHIAOUI DJAMEL 3',vals:[1234217,1149234,1149234,1234217,1235244,1237518,null,null,null]},
-    {v:'001273-514-16',chauffeur:'',vals:[0,null,null,1184070,1184070,0,null,null,null]},
-    {v:'001228-514-16',chauffeur:'MAAMAR IDIR',vals:[0,null,null,0,0,0,null,null,null]},
-    {v:'000926-514-16',chauffeur:'RHOUI HABIB',vals:[0,null,null,0,0,0,null,null,null]},
-    {v:'001127-514-16',chauffeur:'LAAMARA REDHA',vals:[0,null,null,0,0,0,null,null,null]},
+  "activite": [
+    {
+      "sharik": "Jean Dupont",
+      "tr": "AA-123-AA",
+      "rm": "RM-001-AA",
+      "debut": "2026-07-01",
+      "fin": "2026-07-31",
+      "ext": "",
+      "site": "PARIS",
+      "etatTR": "opérationnel",
+      "actif": "actif",
+      "obs": ""
+    }
   ],
-  cspc: [
-    {v:'000422-523-16',etat:'DISPONIBLE',chauffeur:'BOUDRISSA RABAH',hor:0.458,lieuJ:'TIZI OUZOU',lieuJ1:'TLEMCEN',equip:'OK',prog:'CSPC'},
-    {v:'000816-524-16',etat:'DISPONIBLE',chauffeur:'DACHIR MUSTAPHA',hor:0.458,lieuJ:'BOUIRA',lieuJ1:'MAGHNIA',equip:'OK',prog:'CSPC'},
-    {v:'001032-523-16',etat:'DISPONIBLE',chauffeur:'DACHIR MUSTAPHA',hor:0.542,lieuJ:'TIZI OUZOU',lieuJ1:'ORAN',equip:'OK',prog:'CSPC'},
-    {v:'000364-516-16',etat:'DISPONIBLE',chauffeur:'NAGHZA AMAR',hor:0.75,lieuJ:'BOUIRA',lieuJ1:'GUELMA',equip:'OK',prog:'CSPC'},
-    {v:'000945-523-16',etat:'DISPONIBLE',chauffeur:'NAGHZA AMAR',hor:0.5,lieuJ:'BORDJ BOU ARRERIDJ',lieuJ1:'SKIKDA',equip:'OK',prog:'CSPC'},
+  "bl": [
+    {
+      "chauffeur": "Jean Dupont",
+      "mars": "déposer",
+      "avril": "déposer",
+      "mai": "déposer",
+      "juin": "déposer",
+      "juil": "déposer",
+      "aout": "",
+      "sep": "",
+      "oct": "",
+      "nov": "",
+      "dec": "",
+      "alerts": {}
+    }
   ],
+  "odo_weeks": [
+    "2026-05-30",
+    "2026-06-06",
+    "2026-06-13",
+    "2026-06-20",
+    "2026-06-27",
+    "2026-07-04",
+    "2026-07-11"
+  ],
+  "odo": [
+    {
+      "v": "AA-123-AA",
+      "chauffeur": "Jean Dupont",
+      "vals": [
+        100200,
+        101100,
+        102050,
+        103000,
+        104010,
+        104950,
+        105820
+      ],
+      "kmFacture": 940,
+      "kmFactures": [
+        null,
+        null,
+        950,
+        950,
+        1010,
+        940,
+        870
+      ]
+    }
+  ],
+  "cspc": [],
+  "anomaliesPointees": {},
+  "clientModifs": [],
+  "perfRaw": [],
+  "perfImportTs": "",
+  "perfFileName": "",
+  "last_bascule": "2026-07-04"
 };
-
-
-// ═══════════════════════════════════════════════════════════════
-// STATE
-// ═══════════════════════════════════════════════════════════════
 window.INITIAL_DATA = INITIAL_DATA;
 let DB = {};
 let ARCHIVES = {};
@@ -4218,11 +4240,7 @@ window.showBLAlertPopover = showBLAlertPopover;
 function saveTeamDB(eq, dbData) {
   dbData._localTs = Date.now();
   window['DB_' + eq] = cloneTeamData(dbData, eq === 'A' ? INITIAL_DATA : emptyTeamData());
-  localStorage.setItem(STORAGE_KEY, JSON.stringify({
-    version: 3,
-    active: CURRENT_EQUIPE || 'A',
-    teams: { A: window.DB_A, B: window.DB_B, C: window.DB_C, D: window.DB_D }
-  }));
+  // LocalStorage bypassed
 
   if (typeof window._firebaseSaveDB === 'function') {
     const FILE_KEYS = ['assuranceTrFile','assuranceRmFile','assuranceTrFileType','assuranceRmFileType'];
@@ -4552,6 +4570,7 @@ window.resetAdminBLFilters = resetAdminBLFilters;
 
 function renderGlobalBLAlerts() {
   const container = document.getElementById('admin-bl-alerts-container');
+  if (typeof renderAdminComplianceDashboard === 'function') renderAdminComplianceDashboard();
   if (!container) return;
 
   if (typeof alignDriversBlTeams === 'function') alignDriversBlTeams();
@@ -4841,28 +4860,7 @@ window.renderTracabilite = renderTracabilite;
 function loadDB() {
   ensureTeamCaches();
   let active = (typeof CURRENT_EQUIPE !== 'undefined' && CURRENT_EQUIPE) ? CURRENT_EQUIPE : 'A';
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (raw) {
-      const parsed = JSON.parse(raw);
-      if (parsed && parsed.teams && typeof parsed.teams === 'object') {
-        ['A', 'B', 'C', 'D'].forEach(eq => {
-          if (parsed.teams[eq] && parsed.teams[eq].dispo) {
-            window['DB_' + eq] = cloneTeamData(parsed.teams[eq], eq === 'A' ? INITIAL_DATA : emptyTeamData());
-          }
-        });
-        if (parsed.active && ['A', 'B', 'C', 'D'].includes(parsed.active)) active = parsed.active;
-      } else if (parsed && parsed.dispo) {
-        // Ancien format (1 seul blob) : en pratique = dernière équipe sauvegardée (souvent D)
-        const legacyEq = (parsed._savedEquipe && ['A', 'B', 'C', 'D'].includes(parsed._savedEquipe))
-          ? parsed._savedEquipe : 'D';
-        window['DB_' + legacyEq] = cloneTeamData(parsed, legacyEq === 'A' ? INITIAL_DATA : emptyTeamData());
-        active = 'A'; // au démarrage on affiche toujours l'équipe A
-      }
-    }
-  } catch (e) {
-    console.warn('loadDB', e);
-  }
+  // LocalStorage bypassed on load to enforce cloud database truth
   if (!window.DB_A.dispo || !window.DB_A.dispo.length) {
     window.DB_A = cloneTeamData(INITIAL_DATA, INITIAL_DATA);
   }
@@ -4888,12 +4886,8 @@ function loadDB() {
   Object.keys(DB).forEach(k => delete DB[k]);
   Object.assign(DB, targetData);
 
-  try {
-    const raw2 = localStorage.getItem(ARCHIVE_KEY);
-    const localArc = raw2 ? JSON.parse(raw2) : {};
-    Object.keys(ARCHIVES).forEach(k => delete ARCHIVES[k]);
-    Object.assign(ARCHIVES, localArc);
-  } catch (e) { Object.keys(ARCHIVES).forEach(k => delete ARCHIVES[k]); }
+  // LocalStorage archives loading bypassed to avoid stale cache
+  Object.keys(ARCHIVES).forEach(k => delete ARCHIVES[k]);
   window.DB = DB;
   window.ARCHIVES = ARCHIVES;
   if (typeof updateHeaderRAC === 'function') {
@@ -4912,7 +4906,7 @@ window._syncArchives = function(data) {
     });
   });
   window.ARCHIVES = ARCHIVES;
-  try { localStorage.setItem('numiplan_archives_v2', JSON.stringify(ARCHIVES)); } catch(e) {}
+  // LocalStorage bypassed
 };
 
 function saveDB() {
@@ -4928,15 +4922,7 @@ function saveDB() {
   // 1. Sauvegarde locale par équipe (évite qu'un F5 sur A affiche les données de D)
   DB._localTs = Date.now();
   window['DB_' + eq] = cloneTeamData(DB, eq === 'A' ? INITIAL_DATA : emptyTeamData());
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify({
-      version: 3,
-      active: eq,
-      teams: { A: window.DB_A, B: window.DB_B, C: window.DB_C, D: window.DB_D }
-    }));
-  } catch(e) {
-    console.warn('LocalStorage save error (likely quota exceeded):', e);
-  }
+  // LocalStorage bypassed
   // 2. Sauvegarde cloud Firebase — on RETIRE les fichiers base64 (trop volumineux)
   //    Firestore limite les documents à 1 Mo. Les PDF/images d'assurance restent en local uniquement.
   if (typeof window._firebaseSaveDB === 'function') {
@@ -4973,12 +4959,8 @@ function saveArchives() {
     return;
   }
 
-  // 1. Sauvegarde locale complète
-  try {
-    localStorage.setItem(ARCHIVE_KEY, JSON.stringify(ARCHIVES));
-  } catch(e) {
-    console.warn('LocalStorage save error for archives (likely quota exceeded):', e);
-  }
+  // 1. Sauvegarde locale complète bypassed
+  // LocalStorage bypassed
   // 2. Sauvegarde cloud Firebase — uniquement la clé équipe active (merge)
   if (typeof window._firebaseSaveArchives === 'function') {
     window._firebaseSaveArchives(eq, ARCHIVES[eq] || {});
@@ -5078,6 +5060,25 @@ function openModal(id, editIdx=-1) {
       document.getElementById('f-panne-kpi').value = '';
     }
   }
+  if (id === 'modal-cspc' && editIdx === -1) {
+    document.getElementById('f-cspc-v').value = '';
+    document.getElementById('f-cspc-etat').value = 'DISPONIBLE';
+    document.getElementById('f-cspc-chauffeur').value = '';
+    document.getElementById('f-cspc-hor').value = '';
+    document.getElementById('f-cspc-lieuJ').value = '';
+    document.getElementById('f-cspc-lieuJ1').value = '';
+    document.getElementById('f-cspc-equip').value = 'OK';
+    document.getElementById('f-cspc-prog').value = 'CSPC';
+    const dateInput = document.getElementById('f-cspc-date');
+    if (dateInput) dateInput.value = new Date().toISOString().split('T')[0];
+  }
+  // Check blacklist on open
+  setTimeout(() => {
+    const chInput = document.querySelector(`#${id} input[id$=-chauffeur]`);
+    if (chInput && typeof checkChauffeurBlacklist === 'function') {
+      checkChauffeurBlacklist(chInput);
+    }
+  }, 50);
 }
 
 function closeModal(id) {
@@ -5158,7 +5159,7 @@ function renderDispo() {
   // Map région groupée → wilayas membres
   const REGIONS = {
     'CENTRE': ['ALGER','BLIDA','BOUMERDES','TIPAZA','MEDEA'],
-    'EST': ['BEJAIA','SETIF','JIJEL','SKIKDA','ANNABA','CONSTANTINE','GUELMA','BATNA','OUM EL BOUAGHI','TEBESSA','SOUK AHRAS','MILA','BOUIRA','BORDJ BOU ARRERIDJ','MSILA'],
+    'EST': ['BEJAIA','SETIF','JIJEL','SKIKDA','ANNABA','CONSTANTINE','GUELMA','BATNA','OUM EL BOUAGHI','TEBESSA','SOUK AHRAS','MILA','LILLE','BORDJ BOU ARRERIDJ','MSILA'],
     'OUEST': ['ORAN','SBA','SIDI BEL ABBES','TLEMCEN','MOSTAGANEM','MASCARA','RELIZANE','CHLEF','AIN TEMOUCHENT','TIARET'],
     'SUD': ['GHARDAIA','OUARGLA','LAGHOUAT','BISKRA','BECHAR','TAMANRASSET','ADRAR','TINDOUF','ILLIZI']
   };
@@ -5473,6 +5474,11 @@ function deleteDispo(idx) {
 
 function saveDispo() {
   if (!_checkActionsLibres('saveDispo')) return;
+  const ch = document.getElementById('f-dispo-chauffeur').value.trim();
+  if (ch && typeof isDriverBlacklisted === 'function' && isDriverBlacklisted(ch)) {
+    showToast(`❌ Saisie bloquée : Le chauffeur ${ch} est sur liste noire !`, true);
+    return;
+  }
   const v = document.getElementById('f-dispo-v').value.trim();
   if (!v) { showToast('?? Immatriculation requise', true); return; }
   const hor_str = document.getElementById('f-dispo-hor').value;
@@ -5554,6 +5560,11 @@ function saveDispo() {
           if (obj.chauffeur && obj.chauffeur !== '—') {
             logMouvement('Entrée Chauffeur', 'Chauffeur', obj.chauffeur, 'Nouvelle affectation');
           }
+        }
+        
+        // Log changes to availability locations (Lieu Jour or Lieu J+1)
+        if (prev.lieuJ !== obj.lieuJ || prev.lieuJ1 !== obj.lieuJ1) {
+          logMouvement('Modif dispo', 'Camion', obj.v, 'Changement de lieu : ' + (prev.lieuJ || '—') + ' ➔ ' + obj.lieuJ + ' (J+1: ' + (prev.lieuJ1 || '—') + ' ➔ ' + obj.lieuJ1 + ')');
         }
         
         DB.dispo[idx] = obj;
@@ -5781,6 +5792,11 @@ function deletePanne(idx) {
 
 function savePanne() {
   if (!_checkActionsLibres('savePanne')) return;
+  const ch = document.getElementById('f-panne-chauffeur').value.trim();
+  if (ch && typeof isDriverBlacklisted === 'function' && isDriverBlacklisted(ch)) {
+    showToast(`❌ Saisie bloquée : Le chauffeur ${ch} est sur liste noire !`, true);
+    return;
+  }
   const immat = document.getElementById('f-panne-immat').value.trim();
   if (!immat) { showToast('⚠️ Immatriculation requise', true); return; }
   
@@ -6104,6 +6120,11 @@ function deleteGasoil(idx) {
 
 function saveGasoil() {
   if (!_checkActionsLibres('saveGasoil')) return;
+  const ch = document.getElementById('f-gasoil-chauffeur').value.trim();
+  if (ch && typeof isDriverBlacklisted === 'function' && isDriverBlacklisted(ch)) {
+    showToast(`❌ Saisie bloquée : Le chauffeur ${ch} est sur liste noire !`, true);
+    return;
+  }
   const vehicule = document.getElementById('f-gasoil-vehicule').value.trim();
   if (!vehicule) { showToast('⚠️ Véhicule requis', true); return; }
   const obj = {
@@ -6114,7 +6135,7 @@ function saveGasoil() {
     operation: document.getElementById('f-gasoil-operation').value,
     resp: document.getElementById('f-gasoil-resp').value.trim()
   };
-  const emailDest = 'Grp_numilog_Bouira_planification_transport@cevital.com;GRP_Num_Acroche_Decroche_Bouira@cevital.com';
+  const emailDest = 'planning@numiplan-demo.com;operations@numiplan-demo.com';
   const idx = parseInt(document.getElementById('gasoil-edit-idx').value);
   if (idx >= 0) DB.gasoil[idx] = obj; else DB.gasoil.push(obj);
   saveDB(); closeModal('modal-gasoil'); renderGasoil(); showToast('✅ Gasoil enregistré');
@@ -6272,7 +6293,7 @@ function showVehicleProfile(immat) {
   const teamArchives = ARCHIVES[eqArch] || {};
   Object.entries(teamArchives).sort().forEach(([date,snap])=>{
     const d = (snap.dispo||[]).find(r=>r.v===immat);
-    if (d) histFromArchives.push({date, etat:d.etat, chauffeur:d.chauffeur, lieuJ1:d.lieuJ1});
+    if (d) histFromArchives.push({date, etat:d.etat, chauffeur:d.chauffeur, lieuJ:d.lieuJ, lieuJ_initial:d.lieuJ_initial || '—', lieuJ1:d.lieuJ1});
   });
 
   const chauffeur = dispo[0]?.chauffeur || equip?.sharik || '—';
@@ -6372,7 +6393,11 @@ function showVehicleProfile(immat) {
             <div>
               <div class="timeline-date">${fmtDate(h.date)}</div>
               <div class="timeline-info">${stateBadge(h.etat)}</div>
-              <div class="timeline-info" style="font-size:11px;color:var(--txt2)">${h.chauffeur} → ${h.lieuJ1||'—'}</div>
+              <div class="timeline-info" style="font-size:11px;color:var(--txt2)">
+                ${h.chauffeur} | 
+                Lieu Jour : ${h.lieuJ || '—'}${h.lieuJ_initial && h.lieuJ_initial !== '—' && h.lieuJ_initial !== h.lieuJ ? ` <span style="color:var(--org);font-size:10px" title="Modifié après la bascule">(basculé: ${h.lieuJ_initial} ➔ modifié: ${h.lieuJ})</span>` : ''} 
+                ➔ J+1: ${h.lieuJ1 || '—'}
+              </div>
             </div>
           </div>`).join('')}
       </div>
@@ -6825,8 +6850,8 @@ function filterOdoAnomalies() {
 window.CITY_DISTANCES = {
   "BEJAIA_TLEMCEN": 734,
   "TLEMCEN_BEJAIA": 734,
-  "BOUIRA_ORAN": 508,
-  "ORAN_BOUIRA": 508,
+  "LILLE_ORAN": 508,
+  "ORAN_LILLE": 508,
   "BEJAIA_MASCARA": 611,
   "MASCARA_BEJAIA": 611,
   "SETIF_JIJEL": 159,
@@ -6843,14 +6868,14 @@ window.CITY_DISTANCES = {
   "ALGER_TLEMCEN": 516,
   "BEJAIA_TIARET": 435,
   "TIARET_BEJAIA": 435,
-  "BOUIRA_MAGHNIA": 643,
-  "MAGHNIA_BOUIRA": 643,
+  "LILLE_MAGHNIA": 643,
+  "MAGHNIA_LILLE": 643,
   "BEJAIA_SAIDA": 672,
   "SAIDA_BEJAIA": 672,
-  "BOUIRA_DJELFA": 263,
-  "DJELFA_BOUIRA": 263,
-  "BOUIRA_TLEMCEN": 611,
-  "TLEMCEN_BOUIRA": 611,
+  "LILLE_DJELFA": 263,
+  "DJELFA_LILLE": 263,
+  "LILLE_TLEMCEN": 611,
+  "TLEMCEN_LILLE": 611,
   "BEJAIA_DJELFA": 392,
   "DJELFA_BEJAIA": 392,
   "TIZIOUZOU_GUELMA": 551,
@@ -6861,16 +6886,16 @@ window.CITY_DISTANCES = {
   "AKBOU_BEJAIA": 75,
   "TIZIOUZOU_SIDIBELABBES": 570,
   "SIDIBELABBES_TIZIOUZOU": 570,
-  "BOUIRA_NAAMA": 749,
-  "NAAMA_BOUIRA": 749,
+  "LILLE_NAAMA": 749,
+  "NAAMA_LILLE": 749,
   "TIZIOUZOU_NAAMA": 789,
   "NAAMA_TIZIOUZOU": 789,
-  "BOUIRA_SAIDA": 544,
-  "SAIDA_BOUIRA": 544,
+  "LILLE_SAIDA": 544,
+  "SAIDA_LILLE": 544,
   "BEJAIA_ELBAYADH": 642,
   "ELBAYADH_BEJAIA": 642,
-  "BOUIRA_ELBAYADH": 521,
-  "ELBAYADH_BOUIRA": 521,
+  "LILLE_ELBAYADH": 521,
+  "ELBAYADH_LILLE": 521,
   "BEJAIA_ALGER": 227,
   "ALGER_BEJAIA": 227,
   "BEJAIA_SKIKDA": 469,
@@ -6941,18 +6966,18 @@ window.CITY_DISTANCES = {
   "ALGER_SETIF": 267,
   "ORAN_RELIZANE": 135,
   "RELIZANE_ORAN": 135,
-  "BOUIRA_RELIZANE": 339,
-  "RELIZANE_BOUIRA": 339,
+  "LILLE_RELIZANE": 339,
+  "RELIZANE_LILLE": 339,
   "TIZIOUZOU_TISSEMSILT": 353,
   "TISSEMSILT_TIZIOUZOU": 353,
   "TIZIOUZOU_CHLEF": 336,
   "CHLEF_TIZIOUZOU": 336,
   "BEJAIA_OUZELLAGUEN": 56,
   "OUZELLAGUEN_BEJAIA": 56,
-  "BOUIRA_LAGHOUAT": 266,
-  "LAGHOUAT_BOUIRA": 266,
-  "BOUIRA_MILA": 291,
-  "MILA_BOUIRA": 291,
+  "LILLE_LAGHOUAT": 266,
+  "LAGHOUAT_LILLE": 266,
+  "LILLE_MILA": 291,
+  "MILA_LILLE": 291,
   "TIZIOUZOU_ORAN": 526,
   "ORAN_TIZIOUZOU": 526,
   "OUEDRHIOU_CHLEF": 54,
@@ -6981,8 +7006,8 @@ window.CITY_DISTANCES = {
   "TEBESSA_KHEMISELKHECHNA": 564,
   "KHEMISELKHECHNA_BATNA": 376,
   "BATNA_KHEMISELKHECHNA": 376,
-  "BOUIRA_MOSTAGANEM": 422,
-  "MOSTAGANEM_BOUIRA": 422,
+  "LILLE_MOSTAGANEM": 422,
+  "MOSTAGANEM_LILLE": 422,
   "ORAN_SETIF": 667,
   "SETIF_ORAN": 667,
   "ORAN_CONSTANTINE": 769,
@@ -7010,8 +7035,8 @@ window.CITY_DISTANCES = {
   "SIDIBELABBES_ORAN": 97,
   "BEJAIA_BOUFARIK": 255,
   "BOUFARIK_BEJAIA": 255,
-  "BOUIRA_OUEDRHIOU": 358,
-  "OUEDRHIOU_BOUIRA": 358,
+  "LILLE_OUEDRHIOU": 358,
+  "OUEDRHIOU_LILLE": 358,
   "KHEMISELKHECHNA_MSILA": 207,
   "MSILA_KHEMISELKHECHNA": 207,
   "KHEMISELKHECHNA_BEJAIA": 217,
@@ -7038,8 +7063,8 @@ window.CITY_DISTANCES = {
   "AINDEFLA_TIZIOUZOU": 244,
   "TIZIOUZOU_ANNABA": 542,
   "ANNABA_TIZIOUZOU": 542,
-  "BOUIRA_ANNABA": 438,
-  "ANNABA_BOUIRA": 438,
+  "LILLE_ANNABA": 438,
+  "ANNABA_LILLE": 438,
   "ALGER_ELKSEUR": 0,
   "ELKSEUR_ALGER": 0,
   "ELKHROUB_DJELFA": 444,
@@ -7072,8 +7097,8 @@ window.CITY_DISTANCES = {
   "ADRAR_ORAN": 1146,
   "BEJAIA_MENAA": 379,
   "MENAA_BEJAIA": 379,
-  "BOUIRA_GUELMA": 399,
-  "GUELMA_BOUIRA": 399,
+  "LILLE_GUELMA": 399,
+  "GUELMA_LILLE": 399,
   "ANNABA_BOUMERDES": 513,
   "BOUMERDES_ANNABA": 513,
   "SETIF_TEBESSA": 321,
@@ -7088,24 +7113,24 @@ window.CITY_DISTANCES = {
   "TIPAZA_DJELFA": 334,
   "ORAN_LESEUCALYPTUS": 404,
   "LESEUCALYPTUS_ORAN": 404,
-  "BOUIRA_BOUMERDES": 90,
-  "BOUMERDES_BOUIRA": 90,
+  "LILLE_BOUMERDES": 90,
+  "BOUMERDES_LILLE": 90,
   "BEJAIA_BOUMERDES": 218,
   "BOUMERDES_BEJAIA": 218,
-  "BOUIRA_TEBESSA": 478,
-  "TEBESSA_BOUIRA": 478,
+  "LILLE_TEBESSA": 478,
+  "TEBESSA_LILLE": 478,
   "BEJAIA_BENITHOUR": 753,
   "BENITHOUR_BEJAIA": 753,
   "ORAN_TISSEMSILT": 292,
   "TISSEMSILT_ORAN": 292,
-  "BEJAIA_BOUIRA": 145,
-  "BOUIRA_BEJAIA": 145,
+  "BEJAIA_LILLE": 145,
+  "LILLE_BEJAIA": 145,
   "KHENCHELA_ALGER": 522,
   "ALGER_KHENCHELA": 522,
   "ANNABA_AINTEMOUCHENT": 1009,
   "AINTEMOUCHENT_ANNABA": 1009,
-  "KHEMISELKHECHNA_BOUIRA": 79,
-  "BOUIRA_KHEMISELKHECHNA": 79,
+  "KHEMISELKHECHNA_LILLE": 79,
+  "LILLE_KHEMISELKHECHNA": 79,
   "BOUFARIK_KHEMISELKHECHNA": 44,
   "KHEMISELKHECHNA_BOUFARIK": 44,
   "ANNABA_CHLEF": 723,
@@ -7189,8 +7214,8 @@ window.CITY_DISTANCES = {
   "TIARET_ALGER": 314,
   "TIZIOUZOU_TIARET": 459,
   "TIARET_TIZIOUZOU": 459,
-  "SETIF_BOUIRA": 165,
-  "BOUIRA_SETIF": 165,
+  "SETIF_LILLE": 165,
+  "LILLE_SETIF": 165,
   "ELOUED_LESEUCALYPTUS": 623,
   "LESEUCALYPTUS_ELOUED": 623,
   "TIZIOUZOU_TIZIOUZOU": 58,
@@ -7456,6 +7481,11 @@ function deleteOdo(idx) {
 
 function saveOdo() {
   if (!_checkActionsLibres('saveOdo')) return;
+  const ch = document.getElementById('f-odo-chauffeur').value.trim();
+  if (ch && typeof isDriverBlacklisted === 'function' && isDriverBlacklisted(ch)) {
+    showToast(`❌ Saisie bloquée : Le chauffeur ${ch} est sur liste noire !`, true);
+    return;
+  }
   const v = document.getElementById('f-odo-v').value.trim();
   if (!v) { showToast('⚠️ Véhicule requis', true); return; }
   const vals = (DB.odo_weeks||[]).map((_,i)=>{
@@ -7906,18 +7936,55 @@ function renderRacHistoryTable() {
 // ═══════════════════════════════════════════════════════════════
 function renderCSPC() {
   const q = document.getElementById('cspc-search').value;
-  let data = DB.cspc.filter(r => !q || JSON.stringify(r).toLowerCase().includes(q.toLowerCase()));
-  document.getElementById('cnt-cspc').textContent = DB.cspc.length;
-  const cspcDispo = DB.cspc.filter(r=>(r.etat||'').toLowerCase()==='disponible').length;
-  const cspcMission = DB.cspc.filter(r=>(r.etat||'').toLowerCase().includes('mission')).length;
+  const isArchivedMode = !!window._cspcShowArchived;
+  const listToUse = isArchivedMode ? (DB.cspc_archives || []) : (DB.cspc || []);
+  
+  let data = listToUse.filter(r => !q || JSON.stringify(r).toLowerCase().includes(q.toLowerCase()));
+  document.getElementById('cnt-cspc').textContent = listToUse.length;
+  
+  const cspcDispo = listToUse.filter(r=>(r.etat||'').toLowerCase()==='disponible').length;
+  const cspcMission = listToUse.filter(r=>(r.etat||'').toLowerCase().includes('mission')).length;
+  
   document.getElementById('cspc-stats').innerHTML = `
-    <div class="stat-card blue" onclick="resetFilters('cspc-search');renderCSPC()" title="Tous les véhicules CSPC" style="cursor:pointer"><div class="stat-num">${DB.cspc.length}</div><div class="stat-lbl">Total ↺</div></div>
-    <div class="stat-card green" onclick="document.getElementById('cspc-search').value='DISPONIBLE';renderCSPC()" title="Filtrer Disponibles" style="cursor:pointer"><div class="stat-num">${cspcDispo}</div><div class="stat-lbl">Disponibles</div></div>
-    <div class="stat-card" onclick="document.getElementById('cspc-search').value='mission';renderCSPC()" title="Filtrer En mission" style="cursor:pointer"><div class="stat-num">${cspcMission}</div><div class="stat-lbl">En mission</div></div>`;
+    <div class="stat-card blue" onclick="resetFilters('cspc-search');renderCSPC()" title="${isArchivedMode ? 'Tous les archivés' : 'Tous les véhicules CSPC'}" style="cursor:pointer">
+      <div class="stat-num">${listToUse.length}</div>
+      <div class="stat-lbl">${isArchivedMode ? 'Total Archives ↺' : 'Total CSPC ↺'}</div>
+    </div>
+    <div class="stat-card green" onclick="document.getElementById('cspc-search').value='DISPONIBLE';renderCSPC()" title="Filtrer Disponibles" style="cursor:pointer">
+      <div class="stat-num">${cspcDispo}</div>
+      <div class="stat-lbl">Disponibles</div>
+    </div>
+    <div class="stat-card" onclick="document.getElementById('cspc-search').value='mission';renderCSPC()" title="Filtrer En mission" style="cursor:pointer">
+      <div class="stat-num">${cspcMission}</div>
+      <div class="stat-lbl">En mission</div>
+    </div>
+  `;
+  
+  // Render table headers dynamically
+  const headerRow = document.getElementById('cspc-table-header');
+  if (headerRow) {
+    if (isArchivedMode) {
+      headerRow.innerHTML = '<th>Véhicule</th><th>État</th><th>Chauffeur</th><th>Horaire</th><th>Lieu Jour</th><th>Lieu J+1</th><th>Équipement</th><th>Programme</th><th>Date</th><th>Action</th>';
+    } else {
+      headerRow.innerHTML = '<th>Véhicule</th><th>État</th><th>Chauffeur</th><th>Horaire</th><th>Lieu Jour</th><th>Lieu J+1</th><th>Équipement</th><th>Programme</th><th>Action</th>';
+    }
+  }
+
   const body = document.getElementById('cspc-body');
-  if (!data.length) { body.innerHTML = `<tr><td colspan="9"><div class="empty-state"><div class="icon">🔍</div>Aucun résultat</div></td></tr>`; return; }
+  if (!data.length) { 
+    body.innerHTML = `<tr><td colspan="${isArchivedMode ? 10 : 9}"><div class="empty-state"><div class="icon">🔍</div>Aucun résultat</div></td></tr>`; 
+    return; 
+  }
+  
   body.innerHTML = data.map(r => {
-    const realIdx = DB.cspc.indexOf(r);
+    const realIdx = listToUse.indexOf(r);
+    const dateCol = isArchivedMode ? `<td><span class="badge" style="background:var(--border)">${r.date || '—'}</span></td>` : '';
+    
+    // In archived mode, show restore icon and delete icon. In active mode, show edit and delete icons.
+    const actionBtns = isArchivedMode ? 
+      `<button class="del-btn" onclick="restoreCSPC(${realIdx})" title="Restaurer">📥</button><button class="del-btn" onclick="deleteCSPC(${realIdx})" title="Supprimer définitivement">🗑</button>` :
+      `<button class="del-btn" onclick="editCSPC(${realIdx})" title="Modifier">✏️</button><button class="del-btn" onclick="deleteCSPC(${realIdx})" title="Supprimer">🗑</button>`;
+      
     return `<tr>
       <td class="mono" style="color:var(--acc)">${r.v}</td>
       <td>${stateBadge(r.etat)}</td>
@@ -7927,13 +7994,17 @@ function renderCSPC() {
       <td>${r.lieuJ1||'—'}</td>
       <td>${equipBadge(r.equip)}</td>
       <td><span class="badge badge-pur">🔷 ${r.prog}</span></td>
-      <td><button class="del-btn" onclick="editCSPC(${realIdx})">✏️</button><button class="del-btn" onclick="deleteCSPC(${realIdx})">🗑</button></td>
+      ${dateCol}
+      <td>${actionBtns}</td>
     </tr>`;
   }).join('');
 }
 
+
 function editCSPC(idx) {
-  const r = DB.cspc[idx];
+  const listToUse = window._cspcShowArchived ? DB.cspc_archives : DB.cspc;
+  const r = listToUse[idx];
+  if (!r) return;
   document.getElementById('f-cspc-v').value = r.v||'';
   document.getElementById('f-cspc-etat').value = r.etat||'DISPONIBLE';
   document.getElementById('f-cspc-chauffeur').value = r.chauffeur||'';
@@ -7942,15 +8013,29 @@ function editCSPC(idx) {
   document.getElementById('f-cspc-lieuJ1').value = r.lieuJ1||'';
   document.getElementById('f-cspc-equip').value = r.equip||'OK';
   document.getElementById('f-cspc-prog').value = r.prog||'CSPC';
+  
+  // Set date field
+  const dateInput = document.getElementById('f-cspc-date');
+  if (dateInput) dateInput.value = r.date || '';
+  
   openModal('modal-cspc', idx);
 }
 
 function deleteCSPC(idx) {
   if (!_checkActionsLibres('deleteCSPC')) return;
-  if (!confirm('Supprimer ?')) return;
+  if (!confirm('Supprimer cet enregistrement CSPC ?')) return;
+  
+  if (window._cspcShowArchived) {
+    if (DB.cspc_archives) {
+      DB.cspc_archives.splice(idx, 1);
+    }
+    saveDB(); renderCSPC();
+    showToast('✅ CSPC archivé supprimé définitivement');
+    return;
+  }
+  
   const v = DB.cspc[idx] ? DB.cspc[idx].v : null;
   DB.cspc.splice(idx, 1);
-  // Sync → retirer flag cspc dans Disponibilité
   if (v) {
     const dispoR = DB.dispo.find(d => d.v === v);
     if (dispoR) { dispoR.cspc = false; dispoR.prog = ''; }
@@ -7958,11 +8043,7 @@ function deleteCSPC(idx) {
   saveDB(); renderCSPC();
   if (typeof renderDispo === 'function') renderDispo();
   showToast('✅ Supprimé — véhicule retiré du programme CSPC');
-}
-
-function saveCSPC() {
-  if (!_checkActionsLibres('saveCSPC')) return;
-  const v = document.getElementById('f-cspc-v').value.trim();
+} v = document.getElementById('f-cspc-v').value.trim();
   if (!v) { showToast('⚠️ Véhicule requis', true); return; }
   const hor_str = document.getElementById('f-cspc-hor').value;
   let hor = 0;
@@ -8139,7 +8220,7 @@ function saveIncidentLivraison() {
   showToast('✅ Incident enregistré');
   
   // Envoi email
-  const emailDest = 'GRP_NUMILOG_SRC@cevital.com;GRP_NUMILOG_TRANSPORT_SYNCRO@cevital.com';
+  const emailDest = 'GRP_Dak digital_SRC@cevital.com;GRP_Dak digital_TRANSPORT_SYNCRO@cevital.com';
   const equipe = typeof CURRENT_EQUIPE !== 'undefined' ? CURRENT_EQUIPE : 'A';
   const dateStr = new Date(debut).toLocaleString('fr-FR', {
     weekday: 'long', day: '2-digit', month: 'long', year: 'numeric',
@@ -9878,7 +9959,7 @@ function switchEquipe(eq) {
   const sub = document.querySelector('.app-subtitle') || document.querySelector('.subtitle');
   if (sub) sub.textContent = 'FICHE DISPONIBILITÉ · ÉQUIPE ' + eq + ' · V2.0';
   // Update subtitle
-  document.querySelector('.header-sub').textContent = 'SUIVI CHAUFFEUR · ÉQUIPE ' + eq;
+  document.querySelector('.header-sub').textContent = 'SUIVI DE FLOTTE · ÉQUIPE ' + eq;
   // Re-render all tabs
   _arcEq = eq;
   renderDispo(); renderPannes(); renderNC(); renderGasoil();
@@ -10293,7 +10374,7 @@ async function exportAllData() {
   // FEUILLE MÉTA — infos export
   // ══════════════════════════════════════════════════════
   const metaWs = XLSX.utils.aoa_to_sheet([
-    ['NUMILOG — Extraction complète des données'],
+    ['Dak digital — Extraction complète des données'],
     ['Date export', new Date().toLocaleString('fr-FR')],
     ['Équipes exportées', ['A','B','C','D'].filter(eq => sources[eq]).join(', ')],
     [''],
@@ -10312,7 +10393,7 @@ async function exportAllData() {
   XLSX.utils.book_append_sheet(wb, metaWs, '📋 Infos Export');
 
   const dateStr = new Date().toISOString().slice(0,10).replace(/-/g,'');
-  XLSX.writeFile(wb, `NUMILOG_EXTRACTION_COMPLETE_${dateStr}.xlsx`, { bookType:'xlsx', cellStyles:true });
+  XLSX.writeFile(wb, `Dak digital_EXTRACTION_COMPLETE_${dateStr}.xlsx`, { bookType:'xlsx', cellStyles:true });
   if (typeof showToast === 'function') showToast('✅ Extraction complète générée — toutes équipes, tous champs');
 }
 
@@ -11420,6 +11501,164 @@ function renderAnalytics() {
 window.renderAnalytics = renderAnalytics;
 
 window.toggleGeoloc = toggleGeoloc;
+
+  // Global compliance functions
+  window.isDriverBlacklisted = function(name) {
+    if (!name || !DB || !DB.blacklist) return false;
+    const nameUpper = name.trim().toUpperCase();
+    return DB.blacklist.some(rule => rule.chauffeur === nameUpper);
+  };
+
+  window.checkChauffeurBlacklist = function(inputEl) {
+    if (!inputEl) return;
+    const name = inputEl.value.trim();
+    const modal = inputEl.closest('.modal, .modal-overlay, #modal-cspc, #modal-dispo, #modal-panne, #modal-gasoil, #modal-odo');
+    if (!modal) return;
+    
+    let warnEl = inputEl.parentNode.querySelector('.bl-warn-text');
+    const isBlocked = name && isDriverBlacklisted(name);
+    
+    if (isBlocked) {
+      inputEl.style.borderColor = 'var(--red)';
+      inputEl.style.color = 'var(--red)';
+      if (!warnEl) {
+        warnEl = document.createElement('span');
+        warnEl.className = 'bl-warn-text';
+        warnEl.style.color = 'var(--red)';
+        warnEl.style.fontWeight = 'bold';
+        warnEl.style.fontSize = '11px';
+        warnEl.style.marginTop = '4px';
+        warnEl.style.display = 'block';
+        warnEl.textContent = '⚠️ CHAUFFEUR SUR LISTE NOIRE - SAISIE BLOQUÉE !';
+        inputEl.parentNode.appendChild(warnEl);
+      }
+      const saveBtn = modal.querySelector('.btn-save');
+      if (saveBtn) {
+        saveBtn.disabled = true;
+        saveBtn.style.opacity = '0.5';
+        saveBtn.style.cursor = 'not-allowed';
+      }
+    } else {
+      inputEl.style.borderColor = '';
+      inputEl.style.color = '';
+      if (warnEl) warnEl.remove();
+      const saveBtn = modal.querySelector('.btn-save');
+      if (saveBtn) {
+        saveBtn.disabled = false;
+        saveBtn.style.opacity = '';
+        saveBtn.style.cursor = '';
+      }
+    }
+  };
+
+  window.toggleCspcArchive = function() {
+    window._cspcShowArchived = !window._cspcShowArchived;
+    const btn = document.getElementById('btn-cspc-toggle-archive');
+    if (btn) {
+      btn.textContent = window._cspcShowArchived ? '🚛 Voir Actifs' : '📦 Voir Archives';
+      btn.style.background = window._cspcShowArchived ? 'var(--grn)' : 'var(--pur)';
+    }
+    renderCSPC();
+  };
+
+  window.restoreCSPC = function(idx) {
+    if (!DB.cspc_archives || !DB.cspc_archives[idx]) return;
+    if (!confirm('Restaurer ce CSPC dans la liste active ?')) return;
+    const r = DB.cspc_archives[idx];
+    DB.cspc_archives.splice(idx, 1);
+    if (!DB.cspc) DB.cspc = [];
+    DB.cspc.push(r);
+    saveDB(); renderCSPC();
+    showToast('📥 CSPC restauré dans la liste active');
+  };
+
+  window.renderAdminComplianceDashboard = function() {
+    const container = document.getElementById('admin-indicators-dashboard');
+    if (!container) return;
+    
+    const agencies = [
+      { code: 'A', name: 'BÉJAÏA', color: 'var(--acc)' },
+      { code: 'B', name: 'SÉTIF', color: 'var(--grn)' },
+      { code: 'C', name: 'ALGER', color: 'var(--org)' },
+      { code: 'D', name: 'ORAN', color: 'var(--pur)' }
+    ];
+    
+    let html = '';
+    
+    agencies.forEach(ag => {
+      // Get DB for agency
+      const curEq = typeof CURRENT_EQUIPE !== 'undefined' ? CURRENT_EQUIPE : 'A';
+      const db = (ag.code === curEq && typeof window.DB !== 'undefined') ? window.DB : window['DB_' + ag.code];
+      if (!db) {
+        html += `
+          <div style="background: var(--bg3); border: 1px solid var(--border); border-radius: 12px; padding: 18px; text-align:center; color:var(--txt3)">
+            <strong>${ag.name}</strong><br>Base de données indisponible
+          </div>
+        `;
+        return;
+      }
+      
+      // Calculate indicators
+      // 1. CSPC non traité
+      const cspcTotal = (db.cspc || []).length;
+      const cspcNonTraite = (db.cspc || []).filter(r => !r.lieuJ || r.lieuJ === '?' || r.etat === 'DISPONIBLE').length;
+      
+      // 2. Geoloc non pointé
+      const dispoTotal = (db.dispo || []).length;
+      const geolocNonPointe = (db.dispo || []).filter(r => !r.geoloc).length;
+      
+      // 3. Matériel oui pour tous
+      const totalDrivers = (db.dispo || []).filter(r => r.chauffeur).length;
+      const driversWithEquip = (db.dispo || []).filter(r => r.chauffeur && r.equip === 'OK').length;
+      const materielRespect = totalDrivers > 0 ? (driversWithEquip === totalDrivers) : true;
+      
+      // 4. Roulage à charge
+      const stats = typeof getTeamRACStats === 'function' ? getTeamRACStats(db) : { fact: 0, odo: 0 };
+      const rac = stats.odo > 0 ? (stats.fact / stats.odo) * 100 : 0;
+      
+      // 5. Chargement à son compte
+      const chgtCompte = (db.nc || []).filter(r => r.type === 'chgt' || r.type === 'autorise' || (r.type || '').toLowerCase().includes('compte')).length;
+      
+      html += `
+        <div style="background: var(--bg3); border: 1px solid var(--border); border-radius: 12px; padding: 18px; display: flex; flex-direction: column; gap: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.1)">
+          <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border); padding-bottom: 8px;">
+            <span style="font-family:'Outfit',sans-serif;font-size:14px;font-weight:900;color:${ag.color}">${ag.name} (Équipe ${ag.code})</span>
+            <span class="badge" style="background:${ag.color};color:#000;font-size:9px;font-weight:bold;padding:2px 6px;border-radius:4px">KPI</span>
+          </div>
+          
+          <div style="display: flex; flex-direction: column; gap: 8px; font-size: 12px;">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+              <span style="color:var(--txt2)">📌 CSPC non traités :</span>
+              <span style="font-weight:bold;color:${cspcNonTraite > 0 ? 'var(--red)' : 'var(--grn)'}">${cspcNonTraite} / ${cspcTotal}</span>
+            </div>
+            
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+              <span style="color:var(--txt2)">🛰️ Geoloc non pointés :</span>
+              <span style="font-weight:bold;color:${geolocNonPointe > 0 ? 'var(--org)' : 'var(--grn)'}">${geolocNonPointe} / ${dispoTotal}</span>
+            </div>
+            
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+              <span style="color:var(--txt2)">🔩 Matériel conforme :</span>
+              <span style="font-weight:bold;color:${materielRespect ? 'var(--grn)' : 'var(--red)'}">${driversWithEquip} / ${totalDrivers} ${materielRespect ? '🟢' : '🔴'}</span>
+            </div>
+            
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+              <span style="color:var(--txt2)">📈 Roulage à charge :</span>
+              <span style="font-weight:bold;color:var(--acc)">${rac.toFixed(1)}%</span>
+            </div>
+            
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+              <span style="color:var(--txt2)">⚠️ Chargements compte :</span>
+              <span style="font-weight:bold;color:${chgtCompte > 0 ? 'var(--org)' : 'var(--txt)'}">${chgtCompte}</span>
+            </div>
+          </div>
+        </div>
+      `;
+    });
+    
+    container.innerHTML = html;
+  };
+
 </script>
 
 <!-- MODAL EXPORT NUMIFLOW + ARCHIVAGE AUTO -->
@@ -11470,64 +11709,291 @@ window.toggleGeoloc = toggleGeoloc;
 
 
 <datalist id="dl-wilayas">
-  <option value="ADRAR">
-  <option value="CHLEF">
-  <option value="LAGHOUAT">
-  <option value="OUM EL BOUAGHI">
-  <option value="BATNA">
-  <option value="BEJAIA">
-  <option value="BISKRA">
-  <option value="BECHAR">
-  <option value="BLIDA">
-  <option value="BOUIRA">
-  <option value="TAMANRASSET">
-  <option value="TEBESSA">
-  <option value="TLEMCEN">
-  <option value="TIARET">
-  <option value="TIZI OUZOU">
-  <option value="ALGER">
-  <option value="DJELFA">
-  <option value="JIJEL">
-  <option value="SETIF">
-  <option value="SAIDA">
-  <option value="SKIKDA">
-  <option value="SIDI BEL ABBES">
-  <option value="ANNABA">
-  <option value="GUELMA">
-  <option value="CONSTANTINE">
-  <option value="MEDEA">
-  <option value="MOSTAGANEM">
-  <option value="MSILA">
-  <option value="MASCARA">
-  <option value="OUARGLA">
-  <option value="ORAN">
-  <option value="EL BAYADH">
-  <option value="ILLIZI">
-  <option value="BORDJ BOU ARRERIDJ">
-  <option value="BOUMERDES">
-  <option value="EL TARF">
-  <option value="TINDOUF">
-  <option value="TISSEMSILT">
-  <option value="EL OUED">
-  <option value="KHENCHELA">
-  <option value="SOUK AHRAS">
-  <option value="TIPAZA">
-  <option value="MILA">
-  <option value="AIN DEFLA">
-  <option value="NAAMA">
-  <option value="AIN TEMOUCHENT">
-  <option value="GHARDAIA">
-  <option value="RELIZANE">
-  <option value="TIMIMOUN">
-  <option value="BORDJ BADJI MOKHTAR">
-  <option value="OULED DJELLAL">
-  <option value="BENI ABBES">
-  <option value="IN SALAH">
-  <option value="IN GUEZZAM">
-  <option value="TOUGGOURT">
-  <option value="DJANET">
-  <option value="EL MGHAIER">
-  <option value="EL MENIAA">
+  <option value="PARIS">
+  <option value="LYON">
+  <option value="MARSEILLE">
+  <option value="LILLE">
+  <option value="BRUXELLES">
+  <option value="GENEVE">
+  <option value="BORDEAUX">
+  <option value="NANTES">
+  <option value="STRASBOURG">
+  <option value="TOULOUSE">
+  <option value="NICE">
+  <option value="MONTPELLIER">
+  <option value="RENNES">
+  <option value="ROUEN">
+  <option value="REIMS">
+  <option value="DIJON">
+  <option value="ANGERS">
+  <option value="LE MANS">
+  <option value="BREST">
+  <option value="GRENOBLE">
 </datalist>
+
+<!-- ========================================== -->
+<!-- INTERACTIVE GUIDED DEMO TOUR WITH MUSIC     -->
+<!-- ========================================== -->
+<div id="tour-controls-container" style="position:fixed;bottom:20px;left:20px;z-index:10000;display:flex;gap:12px;align-items:center;">
+  <button id="start-tour-btn" onclick="startDemoTour()" style="background:linear-gradient(135deg, #38bdf8, #0284c7);color:#fff;border:none;border-radius:30px;padding:12px 24px;font-size:14px;font-weight:700;box-shadow:0 10px 25px rgba(56,189,248,0.4);cursor:pointer;display:flex;align-items:center;gap:8px;transition:all 0.3s ease;animation: pulse_tour 2s infinite;">
+    <span>🎬</span> Lancer la Démo
+  </button>
+  <button id="record-tour-btn" onclick="startDemoRecording()" style="background:linear-gradient(135deg, #ef4444, #b91c1c);color:#fff;border:none;border-radius:30px;padding:12px 24px;font-size:14px;font-weight:700;box-shadow:0 10px 25px rgba(239,68,68,0.4);cursor:pointer;display:flex;align-items:center;gap:8px;transition:all 0.3s ease;">
+    <span>📹</span> Enregistrer la Vidéo (HD)
+  </button>
+</div>
+
+<div id="tour-overlay" style="display:none;position:fixed;bottom:80px;left:20px;width:380px;background:rgba(15,23,42,0.95);border:2px solid rgba(56,189,248,0.4);border-radius:16px;padding:20px;box-shadow:0 20px 50px rgba(0,0,0,0.85);z-index:10000;font-family:'IBM Plex Sans',sans-serif;color:#f1f5f9;transition:all 0.3s ease;">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+    <h4 style="margin:0;font-size:13px;color:#38bdf8;text-transform:uppercase;letter-spacing:1px;font-weight:700;">Présentation Dak digital</h4>
+    <button onclick="stopDemoTour()" style="background:none;border:none;color:#94a3b8;cursor:pointer;font-size:18px;line-height:1;">✕</button>
+  </div>
+  <div id="tour-text" style="font-size:14px;line-height:1.6;min-height:90px;margin-bottom:16px;color:#e2e8f0;"></div>
+  <div style="display:flex;justify-content:space-between;align-items:center;border-top:1px solid rgba(255,255,255,0.08);padding-top:12px;">
+    <span id="tour-step-num" style="font-size:11px;color:#64748b;font-weight:600;">Étape 1/7</span>
+    <div style="display:flex;gap:8px;align-items:center;">
+      <button id="tour-audio-toggle" onclick="toggleTourAudio()" style="background:none;border:none;color:#38bdf8;cursor:pointer;font-size:14px;padding:4px;">🔊 Musique</button>
+      <button onclick="nextTourStep()" style="background:#38bdf8;color:#0f172a;border:none;border-radius:8px;padding:6px 14px;font-size:12px;font-weight:700;cursor:pointer;transition:all 0.2s;">Suivant ➔</button>
+    </div>
+  </div>
+</div>
+
+<audio id="tour-audio" loop preload="auto">
+  <source src="https://assets.mixkit.co/music/preview/mixkit-tech-house-vibes-130.mp3" type="audio/mpeg">
+</audio>
+
+<style>
+  @keyframes pulse_tour {
+    0% { transform: scale(1); box-shadow: 0 10px 25px rgba(56,189,248,0.4); }
+    50% { transform: scale(1.05); box-shadow: 0 10px 35px rgba(56,189,248,0.7); }
+    100% { transform: scale(1); box-shadow: 0 10px 25px rgba(56,189,248,0.4); }
+  }
+  .tour-highlight {
+    outline: 3px solid #38bdf8 !important;
+    outline-offset: 4px;
+    transition: all 0.3s ease;
+  }
+</style>
+
+<script>
+  let tourCurrentStep = 0;
+  let tourTimer = null;
+  const tourSteps = [
+    {
+      text: "<b>Bienvenue sur Dak digital ERP !</b><br>La plateforme intégrée nouvelle génération pour la gestion et la planification de votre flotte de véhicules en temps réel.",
+      target: ".header-left",
+      action: () => {}
+    },
+    {
+      text: "<b>1. Suivi des Disponibilités</b><br>Visualisez instantanément l'état opérationnel de chaque camion, son chauffeur assigné, son programme de livraison, ainsi que ses heures de départ.",
+      target: "button[onclick*='dispo']",
+      action: () => {
+        const btn = document.querySelector("button[onclick*='dispo']");
+        if (btn) btn.click();
+      }
+    },
+    {
+      text: "<b>2. Gestion Multitâche</b><br>Basculez instantanément d'une équipe à une autre en haut de l'écran pour planifier les tournées des différentes agences ou régions en temps réel.",
+      target: ".header-right",
+      action: () => {
+        const btnB = document.getElementById('btn-eqB');
+        if (btnB) btnB.click();
+        setTimeout(() => {
+          const btnA = document.getElementById('btn-eqA');
+          if (btnA) btnA.click();
+        }, 2500);
+      }
+    },
+    {
+      text: "<b>3. Journal des Pannes & Entretien</b><br>Centralisez les déclarations de pannes, suivez le statut des réparations de vos tracteurs/remorques, et historisez les coûts d'entretien.",
+      target: "button[onclick*='pannes']",
+      action: () => {
+        const btn = document.querySelector("button[onclick*='pannes']");
+        if (btn) btn.click();
+      }
+    },
+    {
+      text: "<b>4. Contrôle de Performance & Kilomètres</b><br>Calculez automatiquement le taux de Roulage à Charge (RAC) de vos camions semaine par semaine pour optimiser la rentabilité de votre parc.",
+      target: "button[onclick*='odo']",
+      action: () => {
+        const btn = document.querySelector("button[onclick*='odo']");
+        if (btn) btn.click();
+      }
+    },
+    {
+      text: "<b>🚀 Solution 100% Personnalisable !</b><br>Dak digital s'adapte à vos processus métiers. Champs de saisie, formulaires, règles d'attribution des chauffeurs, tout est modifiable sur demande.",
+      target: "#tour-overlay",
+      action: () => {
+        const btn = document.querySelector("button[onclick*='dispo']");
+        if (btn) btn.click();
+      }
+    },
+    {
+      text: "<b>💼 Module Facturation en Option</b><br>Un volet facturation client complet (génération de factures selon les kilomètres facturés par période, gestion des tarifs par trajet) est ajoutable sur demande.",
+      target: "#tour-overlay",
+      action: () => {}
+    }
+  ];
+
+  function startDemoTour() {
+    tourCurrentStep = 0;
+    document.getElementById('tour-overlay').style.display = 'block';
+    document.getElementById('start-tour-btn').style.display = 'none';
+    
+    // Play audio
+    const audio = document.getElementById('tour-audio');
+    if (audio) {
+      audio.volume = 0.35;
+      audio.play().catch(e => console.log("Audio autoplay blocked by browser policy"));
+    }
+    
+    showTourStep();
+  }
+
+  function stopDemoTour() {
+    clearTimeout(tourTimer);
+    document.getElementById('tour-overlay').style.display = 'none';
+    document.getElementById('start-tour-btn').style.display = 'block';
+    
+    // Remove highlights
+    document.querySelectorAll('.tour-highlight').forEach(el => el.classList.remove('tour-highlight'));
+    
+    // Pause audio
+    const audio = document.getElementById('tour-audio');
+    if (audio) audio.pause();
+  }
+
+  function toggleTourAudio() {
+    const audio = document.getElementById('tour-audio');
+    const btn = document.getElementById('tour-audio-toggle');
+    if (audio.paused) {
+      audio.play();
+      btn.textContent = "🔊 Musique";
+    } else {
+      audio.pause();
+      btn.textContent = "🔇 Musique";
+    }
+  }
+
+  function showTourStep() {
+    // Remove previous highlights
+    document.querySelectorAll('.tour-highlight').forEach(el => el.classList.remove('tour-highlight'));
+    
+    if (tourCurrentStep >= tourSteps.length) {
+      stopDemoTour();
+      if (typeof window.onTourEnd === 'function') {
+        window.onTourEnd();
+      }
+      return;
+    }
+    
+    const step = tourSteps[tourCurrentStep];
+    document.getElementById('tour-text').innerHTML = step.text;
+    document.getElementById('tour-step-num').textContent = "Étape " + (tourCurrentStep + 1) + "/" + tourSteps.length;
+    
+    // Execute action
+    step.action();
+    
+    // Highlight target
+    if (step.target && step.target !== "#tour-overlay") {
+      const targetEl = document.querySelector(step.target);
+      if (targetEl) {
+        targetEl.classList.add('tour-highlight');
+        targetEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+    }
+    
+    // Auto-advance after 8 seconds
+    clearTimeout(tourTimer);
+    tourTimer = setTimeout(() => {
+      nextTourStep();
+    }, 7500);
+  }
+
+  function nextTourStep() {
+    tourCurrentStep++;
+    showTourStep();
+  }
+
+  let mediaRecorder = null;
+  let recordedChunks = [];
+
+  async function startDemoRecording() {
+    try {
+      // Prompt user to select screen/tab and enable tab audio sharing
+      const stream = await navigator.mediaDevices.getDisplayMedia({
+        video: { 
+          width: { ideal: 1920 },
+          height: { ideal: 1080 },
+          frameRate: { ideal: 30 }
+        },
+        audio: {
+          echoCancellation: false,
+          noiseSuppression: false,
+          autoGainControl: false
+        }
+      });
+
+      recordedChunks = [];
+      
+      let options = { mimeType: 'video/webm;codecs=vp9,opus' };
+      if (!MediaRecorder.isTypeSupported(options.mimeType)) {
+        options = { mimeType: 'video/webm;codecs=vp8,opus' };
+      }
+      if (!MediaRecorder.isTypeSupported(options.mimeType)) {
+        options = { mimeType: 'video/webm' };
+      }
+
+      mediaRecorder = new MediaRecorder(stream, options);
+      
+      mediaRecorder.ondataavailable = function(e) {
+        if (e.data && e.data.size > 0) {
+          recordedChunks.push(e.data);
+        }
+      };
+
+      mediaRecorder.onstop = function() {
+        const blob = new Blob(recordedChunks, { type: 'video/webm' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.style.display = 'none';
+        a.href = url;
+        a.download = 'Dak digital_Demo_Publicitaire.webm';
+        document.body.appendChild(a);
+        a.click();
+        setTimeout(() => {
+          document.body.removeChild(a);
+          window.URL.revokeObjectURL(url);
+        }, 100);
+        
+        // Stop all tracks
+        stream.getTracks().forEach(track => track.stop());
+        
+        // Restore controls container
+        document.getElementById('tour-controls-container').style.display = 'flex';
+      };
+
+      // Hide controls container so it is not visible in the recorded video
+      document.getElementById('tour-controls-container').style.display = 'none';
+
+      // Start the media recorder
+      mediaRecorder.start();
+
+      // Launch the tour
+      startDemoTour();
+
+      // Hook to stop recording when the tour ends
+      window.onTourEnd = function() {
+        if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+          mediaRecorder.stop();
+        }
+      };
+
+    } catch (err) {
+      console.error("Error starting screen recording: ", err);
+      alert("Pour enregistrer la vidéo, veuillez autoriser le partage d'écran, sélectionner l'onglet courant et cocher la case 'Partager l'audio de l'onglet'.");
+    }
+  }
+</script>
 </body>
 </html>
