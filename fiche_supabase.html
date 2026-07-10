@@ -4496,37 +4496,7 @@ function imprimerListeBLManquants() {
         </div>
         <br><br>
         <button onclick="window.print()" style="padding: 10px 20px; font-size: 14px; background: #38bdf8; border: none; border-radius: 4px; cursor: pointer; font-weight: bold;">Imprimer la fiche</button>
-      <!-- Modal Tableau de bord Conformite -->
-<div class="modal-overlay" id="modal-compliance-dashboard" style="z-index:10000">
-  <div class="modal" style="width:900px; max-width:95vw; background:var(--bg2); border:1px solid var(--border); border-radius:16px; padding:24px;">
-    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; border-bottom:1px solid var(--border); padding-bottom:12px;">
-      <h3 style="margin:0; font-size:16px; color:var(--acc); display:flex; align-items:center; gap:8px;">📊 Tableau de bord Respect &amp; Utilisation (Par Équipe)</h3>
-      <button class="del-btn" onclick="closeModal('modal-compliance-dashboard')" style="background:none; border:none; color:var(--txt2); font-size:20px; cursor:pointer">✕</button>
-    </div>
-    
-    <div class="table-wrap" style="max-height:60vh; overflow-y:auto; border-radius:8px;">
-      <table style="width:100%; border-collapse:collapse; text-align:left; font-size:12px;">
-        <thead>
-          <tr style="background:var(--bg3); border-bottom:2px solid var(--border); color:var(--txt2)">
-            <th style="padding:10px 12px; font-weight:700">Équipe</th>
-            <th style="padding:10px 12px; font-weight:700; text-align:center">CSPC Non Traité</th>
-            <th style="padding:10px 12px; font-weight:700; text-align:center">Géoloc Non Pointée</th>
-            <th style="padding:10px 12px; font-weight:700; text-align:center">Matériel Non Renseigné</th>
-            <th style="padding:10px 12px; font-weight:700; text-align:center">Roulage à Charge (RAC)</th>
-            <th style="padding:10px 12px; font-weight:700; text-align:center">Chgt à leur Compte</th>
-            <th style="padding:10px 12px; font-weight:700; text-align:center">Chgt Autorisé</th>
-          </tr>
-        </thead>
-        <tbody id="compliance-dashboard-body"></tbody>
-      </table>
-    </div>
-    <div style="margin-top:20px; text-align:right">
-      <button class="btn btn-reset" onclick="closeModal('modal-compliance-dashboard')">Fermer</button>
-    </div>
-  </div>
-</div>
-
-</body>
+      </body>
     </html>
   `);
   printWindow.document.close();
@@ -12236,7 +12206,35 @@ setInterval(() => {
   <option value="EL MGHAIER">
   <option value="EL MENIAA">
 </datalist>
-
+<!-- Modal Tableau de bord Conformite -->
+<div class="modal-overlay" id="modal-compliance-dashboard" style="z-index:10000">
+  <div class="modal" style="width:900px; max-width:95vw; background:var(--bg2); border:1px solid var(--border); border-radius:16px; padding:24px;">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; border-bottom:1px solid var(--border); padding-bottom:12px;">
+      <h3 style="margin:0; font-size:16px; color:var(--acc); display:flex; align-items:center; gap:8px;">📊 Tableau de bord Respect &amp; Utilisation (Par Équipe)</h3>
+      <button class="del-btn" onclick="closeModal('modal-compliance-dashboard')" style="background:none; border:none; color:var(--txt2); font-size:20px; cursor:pointer">✕</button>
+    </div>
+    
+    <div class="table-wrap" style="max-height:60vh; overflow-y:auto; border-radius:8px;">
+      <table style="width:100%; border-collapse:collapse; text-align:left; font-size:12px;">
+        <thead>
+          <tr style="background:var(--bg3); border-bottom:2px solid var(--border); color:var(--txt2)">
+            <th style="padding:10px 12px; font-weight:700">Équipe</th>
+            <th style="padding:10px 12px; font-weight:700; text-align:center">CSPC Non Traité</th>
+            <th style="padding:10px 12px; font-weight:700; text-align:center">Géoloc Non Pointée</th>
+            <th style="padding:10px 12px; font-weight:700; text-align:center">Matériel Non Renseigné</th>
+            <th style="padding:10px 12px; font-weight:700; text-align:center">Roulage à Charge (RAC)</th>
+            <th style="padding:10px 12px; font-weight:700; text-align:center">Chgt à leur Compte</th>
+            <th style="padding:10px 12px; font-weight:700; text-align:center">Chgt Autorisé</th>
+          </tr>
+        </thead>
+        <tbody id="compliance-dashboard-body"></tbody>
+      </table>
+    </div>
+    <div style="margin-top:20px; text-align:right">
+      <button class="btn btn-reset" onclick="closeModal('modal-compliance-dashboard')">Fermer</button>
+    </div>
+  </div>
+</div>
 
 </body>
 </html>
