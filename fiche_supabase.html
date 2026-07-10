@@ -1060,11 +1060,7 @@ tr.dragging {
 
     const tabOdo = document.getElementById('tab-odo');
     if (tabOdo) {
-      if (lock) {
-        tabOdo.style.setProperty('display', 'none', 'important');
-      } else {
-        tabOdo.style.removeProperty('display');
-      }
+      tabOdo.style.removeProperty('display');
     }
 
   }
