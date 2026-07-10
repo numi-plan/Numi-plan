@@ -1889,6 +1889,7 @@ mark.hl { background: rgba(56,189,248,.25); color: var(--acc); border-radius: 3p
   <div class="filter-bar">
     <label>Filtre</label>
     <input type="text" class="filter-input" id="inc-search" placeholder="Chauffeur / Véhicule / Client / Obs…" oninput="renderIncidentsLivraisonPage()">
+    <input type="text" class="filter-input" id="inc-ref-search" placeholder="Réf Commande…" oninput="renderIncidentsLivraisonPage()" style="max-width:140px;background:rgba(255,255,255,.05);color:inherit;border:1px solid var(--border);padding:6px 12px;border-radius:8px">
     <select class="filter-input" id="inc-type-filter" onchange="renderIncidentsLivraisonPage()" style="background:rgba(255,255,255,.05);color:inherit;border:1px solid var(--border);padding:6px 12px;border-radius:8px">
       <option value="">Tous les types d'incidents</option>
       <option value="Immobilisation chez le client">Immobilisation chez le client</option>
@@ -2000,7 +2001,18 @@ mark.hl { background: rgba(56,189,248,.25); color: var(--acc); border-radius: 3p
   <div class="filter-bar">
     <label>Filtre</label>
     <input type="text" class="filter-input" id="tracabilite-search" placeholder="Rechercher camion, chauffeur, motif, rôle…" oninput="renderTracabilite()">
-    <button class="btn btn-reset" onclick="resetFilters('tracabilite-search');renderTracabilite()">↺ Reset</button>
+    <select id="tracabilite-event-filter" class="filter-input" onchange="renderTracabilite()" style="max-width:200px;background:var(--bg3);color:var(--txt);border:1px solid var(--border);border-radius:8px;padding:8px 12px;outline:none;">
+      <option value="">— Tous les événements —</option>
+      <option value="Sortie Chauffeur">Sortie Chauffeur</option>
+      <option value="Entrée Chauffeur">Entrée Chauffeur</option>
+      <option value="Sortie Camion">Sortie Camion</option>
+      <option value="Entrée Camion">Entrée Camion</option>
+      <option value="Geoloc ON">Geoloc ON</option>
+      <option value="Geoloc OFF">Geoloc OFF</option>
+      <option value="Dépassement Limite 400km">Dépassement Limite 400km</option>
+      <option value="Émargement Flash">Émargement Flash</option>
+    </select>
+    <button class="btn btn-reset" onclick="resetFilters('tracabilite-search', 'tracabilite-event-filter');renderTracabilite()">↺ Reset</button>
   </div>
   <div style="padding-top:20px">
     <div class="sec-title">Historique des Entrées / Sorties (Traçabilité)</div>
@@ -4837,7 +4849,9 @@ window.renderGlobalBLAlerts = renderGlobalBLAlerts;
 function renderTracabilite() {
   if (!DB.tracabilite) DB.tracabilite = [];
   const q = document.getElementById('tracabilite-search')?.value || '';
+  const evFilter = document.getElementById('tracabilite-event-filter')?.value || '';
   const filtered = DB.tracabilite.filter(r => {
+    if (evFilter && r.type !== evFilter) return false;
     if (!q) return true;
     const searchStr = `${r.date} ${r.type} ${r.v || ''} ${r.chauffeur || ''} ${r.operator || ''} ${r.motif || ''}`.toLowerCase();
     return searchStr.includes(q.toLowerCase());
@@ -4872,6 +4886,76 @@ function renderTracabilite() {
   }).join('');
 }
 window.renderTracabilite = renderTracabilite;
+
+function obtenirJustification(titre) {
+  return new Promise((resolve) => {
+    document.getElementById('justif-modal-title').textContent = titre;
+    document.getElementById('justif-modal-select').value = 'Nouveau Sharik';
+    const textInput = document.getElementById('justif-modal-text');
+    textInput.value = '';
+    textInput.style.display = 'none';
+    
+    openModal('modal-justification-custom');
+    
+    window._onJustifValidate = function() {
+      const selectVal = document.getElementById('justif-modal-select').value;
+      const textVal = textInput.value.trim();
+      let finalJustif = '';
+      if (selectVal === 'autre') {
+        if (!textVal) {
+          showToast('⚠️ Précisez le motif', true);
+          textInput.focus();
+          return;
+        }
+        finalJustif = textVal;
+      } else {
+        finalJustif = selectVal + (textVal ? ' — ' + textVal : '');
+      }
+      closeModal('modal-justification-custom');
+      resolve(finalJustif);
+    };
+    
+    window._onJustifCancel = function() {
+      closeModal('modal-justification-custom');
+      resolve(null);
+    };
+  });
+}
+
+function obtenirJustification(titre) {
+  return new Promise((resolve) => {
+    document.getElementById('justif-modal-title').textContent = titre;
+    document.getElementById('justif-modal-select').value = 'Nouveau Sharik';
+    const textInput = document.getElementById('justif-modal-text');
+    textInput.value = '';
+    textInput.style.display = 'none';
+    
+    openModal('modal-justification-custom');
+    
+    window._onJustifValidate = function() {
+      const selectVal = document.getElementById('justif-modal-select').value;
+      const textVal = textInput.value.trim();
+      let finalJustif = '';
+      if (selectVal === 'autre') {
+        if (!textVal) {
+          showToast('⚠️ Précisez le motif', true);
+          textInput.focus();
+          return;
+        }
+        finalJustif = textVal;
+      } else {
+        finalJustif = selectVal + (textVal ? ' — ' + textVal : '');
+      }
+      closeModal('modal-justification-custom');
+      resolve(finalJustif);
+    };
+    
+    window._onJustifCancel = function() {
+      closeModal('modal-justification-custom');
+      resolve(null);
+    };
+  });
+}
 
 function loadDB() {
   ensureTeamCaches();
@@ -5483,7 +5567,7 @@ function editDispo(idx) {
   openModal('modal-dispo', idx);
 }
 
-function deleteDispo(idx) {
+async function deleteDispo(idx) {
   if (!_checkActionsLibres('deleteDispo')) return;
   const r = DB.dispo[idx];
   const label = r ? (r.v + ' — ' + (r.chauffeur||'')) : 'cette entrée';
@@ -5495,7 +5579,7 @@ function deleteDispo(idx) {
     return;
   }
   // Demander justification obligatoire
-  const justification = prompt('Justification obligatoire pour la suppression du camion ' + r.v + ' :');
+  const justification = await obtenirJustification('Suppression du camion ' + r.v);
   if (justification === null) return; // Annulé
   const finalJustif = justification.trim();
   if (!finalJustif) {
@@ -5562,7 +5646,7 @@ function saveDispo() {
     } else { cb(null); }
   };
   readFile(document.getElementById('f-dispo-assurance-tr-file'), resTr => {
-    readFile(document.getElementById('f-dispo-assurance-rm-file'), resRm => {
+    readFile(document.getElementById('f-dispo-assurance-rm-file'), async resRm => {
       if (resTr) { obj.assuranceTrFile = resTr.data; obj.assuranceTrFileName = resTr.name; obj.assuranceTrFileType = resTr.type; }
       else { obj.assuranceTrFile = prev.assuranceTrFile||null; obj.assuranceTrFileName = prev.assuranceTrFileName||null; obj.assuranceTrFileType = prev.assuranceTrFileType||null; }
       if (resRm) { obj.assuranceRmFile = resRm.data; obj.assuranceRmFileName = resRm.name; obj.assuranceRmFileType = resRm.type; }
@@ -5572,7 +5656,7 @@ function saveDispo() {
       if (idx >= 0) {
         // Mode édition
         if (prev.v && prev.v !== obj.v) {
-          const motif = prompt('Veuillez justifier le changement d\'immatriculation du camion de ' + prev.v + ' à ' + obj.v + ' :');
+          const motif = await obtenirJustification('Changement d\'immatriculation du camion de ' + prev.v + ' à ' + obj.v);
           if (motif === null || !motif.trim()) {
             showToast('⚠️ Justification obligatoire — modification annulée', true);
             return;
@@ -5583,7 +5667,7 @@ function saveDispo() {
         
         if (prev.chauffeur !== obj.chauffeur) {
           if (prev.chauffeur && prev.chauffeur !== '—') {
-            const motif = prompt('Veuillez justifier le retrait/remplacement du chauffeur ' + prev.chauffeur + ' :');
+            const motif = await obtenirJustification('Retrait/remplacement du chauffeur ' + prev.chauffeur);
             if (motif === null) {
               showToast('⚠️ Justification requise — modification annulée', true);
               return;
@@ -8321,6 +8405,7 @@ function cloturerIncidentLivraison(incId) {
 
 function renderIncidentsLivraisonPage() {
   const q = document.getElementById('inc-search')?.value.trim().toLowerCase() || '';
+  const refQuery = document.getElementById('inc-ref-search')?.value.trim().toLowerCase() || '';
   const typeFilter = document.getElementById('inc-type-filter')?.value || '';
   const dateFromStr = document.getElementById('inc-date-from')?.value || '';
   const dateToStr = document.getElementById('inc-date-to')?.value || '';
@@ -8333,9 +8418,12 @@ function renderIncidentsLivraisonPage() {
     const cl = (r.client || '').toLowerCase();
     const dest = (r.destination || '').toLowerCase();
     const obs = (r.obs || '').toLowerCase();
+    const refCmd = (r.refCommande || '').toLowerCase();
+    
     const matchText = !q || v.includes(q) || ch.includes(q) || cl.includes(q) || dest.includes(q) || obs.includes(q);
     if (!matchText) return false;
     
+    if (refQuery && !refCmd.includes(refQuery)) return false;
     if (typeFilter && r.type !== typeFilter) return false;
     
     const debutDate = r.debut ? r.debut.slice(0, 10) : '';
@@ -8427,10 +8515,12 @@ function renderIncidentsLivraisonPage() {
 
 function resetIncFilters() {
   const searchInput = document.getElementById('inc-search');
+  const refSearchInput = document.getElementById('inc-ref-search');
   const typeFilter = document.getElementById('inc-type-filter');
   const dateFromInput = document.getElementById('inc-date-from');
   const dateToInput = document.getElementById('inc-date-to');
   if (searchInput) searchInput.value = '';
+  if (refSearchInput) refSearchInput.value = '';
   if (typeFilter) typeFilter.value = '';
   if (dateFromInput) dateFromInput.value = '';
   if (dateToInput) dateToInput.value = '';
@@ -11972,6 +12062,70 @@ window.renderComplianceDashboard = function() {
 </script>
 
 <!-- MODAL EXPORT NUMIFLOW + ARCHIVAGE AUTO -->
+<!-- Modal Justification Personnalisée -->
+<div class="modal-overlay" id="modal-justification-custom" style="z-index: 100002;">
+  <div class="modal" style="max-width: 450px; background: var(--bg2); border: 1.5px solid var(--border); border-radius: 16px; padding: 24px;">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; border-bottom: 1px solid var(--border); padding-bottom: 12px;">
+      <h3 id="justif-modal-title" style="margin: 0; font-size: 14px; color: var(--acc);">Justification requise</h3>
+      <button class="del-btn" onclick="_onJustifCancel()" style="background: none; border: none; color: var(--txt2); font-size: 20px; cursor: pointer">✕</button>
+    </div>
+    
+    <div style="margin-bottom: 20px;">
+      <div class="form-group" style="margin-bottom: 16px;">
+        <label style="display: block; margin-bottom: 6px; font-weight: 600; font-size: 12px; color: var(--txt2);">Motif principal</label>
+        <select id="justif-modal-select" onchange="document.getElementById('justif-modal-text').style.display = (this.value === 'autre') ? 'block' : 'none'; if(this.value === 'autre') document.getElementById('justif-modal-text').focus();" style="width: 100%; background: var(--bg3); border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; color: var(--txt); font-size: 13px; outline: none; box-sizing: border-box;">
+          <option value="Nouveau Sharik">👤 Nouveau Sharik</option>
+          <option value="Résiliation">❌ Résiliation</option>
+          <option value="Démission">🚪 Démission</option>
+          <option value="Transfert équipe">🔄 Transfert équipe</option>
+          <option value="autre">✏️ Autre (Préciser...)</option>
+        </select>
+      </div>
+      
+      <div class="form-group">
+        <input id="justif-modal-text" type="text" placeholder="Saisir la justification..." style="width: 100%; background: var(--bg3); border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; color: var(--txt); font-size: 13px; outline: none; box-sizing: border-box; display: none;">
+      </div>
+    </div>
+    
+    <div class="modal-actions" style="display: flex; gap: 12px; justify-content: flex-end;">
+      <button class="btn btn-reset" onclick="_onJustifCancel()">Annuler</button>
+      <button class="btn" onclick="_onJustifValidate()" style="background: var(--acc); color: #000; font-weight: 700;">Valider</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal Justification Personnalisée -->
+<div class="modal-overlay" id="modal-justification-custom" style="z-index: 100002;">
+  <div class="modal" style="max-width: 450px; background: var(--bg2); border: 1.5px solid var(--border); border-radius: 16px; padding: 24px;">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; border-bottom: 1px solid var(--border); padding-bottom: 12px;">
+      <h3 id="justif-modal-title" style="margin: 0; font-size: 14px; color: var(--acc);">Justification requise</h3>
+      <button class="del-btn" onclick="_onJustifCancel()" style="background: none; border: none; color: var(--txt2); font-size: 20px; cursor: pointer">✕</button>
+    </div>
+    
+    <div style="margin-bottom: 20px;">
+      <div class="form-group" style="margin-bottom: 16px;">
+        <label style="display: block; margin-bottom: 6px; font-weight: 600; font-size: 12px; color: var(--txt2);">Motif principal</label>
+        <select id="justif-modal-select" onchange="document.getElementById('justif-modal-text').style.display = (this.value === 'autre') ? 'block' : 'none'; if(this.value === 'autre') document.getElementById('justif-modal-text').focus();" style="width: 100%; background: var(--bg3); border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; color: var(--txt); font-size: 13px; outline: none; box-sizing: border-box;">
+          <option value="Nouveau Sharik">👤 Nouveau Sharik</option>
+          <option value="Résiliation">❌ Résiliation</option>
+          <option value="Démission">🚪 Démission</option>
+          <option value="Transfert équipe">🔄 Transfert équipe</option>
+          <option value="autre">✏️ Autre (Préciser...)</option>
+        </select>
+      </div>
+      
+      <div class="form-group">
+        <input id="justif-modal-text" type="text" placeholder="Saisir la justification..." style="width: 100%; background: var(--bg3); border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; color: var(--txt); font-size: 13px; outline: none; box-sizing: border-box; display: none;">
+      </div>
+    </div>
+    
+    <div class="modal-actions" style="display: flex; gap: 12px; justify-content: flex-end;">
+      <button class="btn btn-reset" onclick="_onJustifCancel()">Annuler</button>
+      <button class="btn" onclick="_onJustifValidate()" style="background: var(--acc); color: #000; font-weight: 700;">Valider</button>
+    </div>
+  </div>
+</div>
+
 <div class="modal-overlay" id="modal-export-numiflow">
   <div class="modal" style="max-width:460px;text-align:center;">
     <div style="font-size:46px;margin-bottom:10px;">📊</div>
