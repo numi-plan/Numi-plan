@@ -1916,7 +1916,8 @@ mark.hl { background: rgba(56,189,248,.25); color: var(--acc); border-radius: 3p
             <th>Chauffeur</th>
             <th>Type d'incident</th>
             <th>Client</th>
-            <th>Destination</th>
+            <th>Dest. Prévue</th>
+            <th>Destination d'Incident</th>
             <th>Réf Commande</th>
             <th>Date/Heure</th>
             <th>Clôture / Durée</th>
@@ -1949,9 +1950,10 @@ mark.hl { background: rgba(56,189,248,.25); color: var(--acc); border-radius: 3p
           <option value="Autre incident">Autre incident</option>
         </select>
       </div>
-      <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px">
+      <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:12px">
         <div class="form-group"><label>Client</label><input id="f-inc-liv-client" placeholder="Nom du client" style="text-transform:uppercase"></div>
-        <div class="form-group"><label>Destination</label><input id="f-inc-liv-destination" placeholder="ex: ALGER, ORAN..." style="text-transform:uppercase"></div>
+        <div class="form-group"><label>Destination prévue</label><input id="f-inc-liv-dest-prevue" placeholder="—" style="text-transform:uppercase; background:rgba(255,255,255,.02); color:var(--txt3)" readonly disabled></div>
+        <div class="form-group"><label>Destination réelle/incidents</label><input id="f-inc-liv-destination" placeholder="ex: ALGER, ORAN..." style="text-transform:uppercase"></div>
       </div>
       <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px">
         <div class="form-group"><label>Référence Commande</label><input id="f-inc-liv-ref-commande" placeholder="N° Commande / BL" style="text-transform:uppercase"></div>
@@ -4498,7 +4500,7 @@ function imprimerListeBLManquants() {
 <div class="modal-overlay" id="modal-compliance-dashboard" style="z-index:10000">
   <div class="modal" style="width:900px; max-width:95vw; background:var(--bg2); border:1px solid var(--border); border-radius:16px; padding:24px;">
     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; border-bottom:1px solid var(--border); padding-bottom:12px;">
-      <h3 style="margin:0; font-size:16px; color:var(--acc); display:flex; align-items:center; gap:8px;">📊 Tableau de bord Respect &amp; Utilisation (Par Agence)</h3>
+      <h3 style="margin:0; font-size:16px; color:var(--acc); display:flex; align-items:center; gap:8px;">📊 Tableau de bord Respect &amp; Utilisation (Par Équipe)</h3>
       <button class="del-btn" onclick="closeModal('modal-compliance-dashboard')" style="background:none; border:none; color:var(--txt2); font-size:20px; cursor:pointer">✕</button>
     </div>
     
@@ -4506,7 +4508,7 @@ function imprimerListeBLManquants() {
       <table style="width:100%; border-collapse:collapse; text-align:left; font-size:12px;">
         <thead>
           <tr style="background:var(--bg3); border-bottom:2px solid var(--border); color:var(--txt2)">
-            <th style="padding:10px 12px; font-weight:700">Agence</th>
+            <th style="padding:10px 12px; font-weight:700">Équipe</th>
             <th style="padding:10px 12px; font-weight:700; text-align:center">CSPC Non Traité</th>
             <th style="padding:10px 12px; font-weight:700; text-align:center">Géoloc Non Pointée</th>
             <th style="padding:10px 12px; font-weight:700; text-align:center">Matériel Non Renseigné</th>
@@ -4922,41 +4924,6 @@ function obtenirJustification(titre) {
   });
 }
 
-function obtenirJustification(titre) {
-  return new Promise((resolve) => {
-    document.getElementById('justif-modal-title').textContent = titre;
-    document.getElementById('justif-modal-select').value = 'Nouveau Sharik';
-    const textInput = document.getElementById('justif-modal-text');
-    textInput.value = '';
-    textInput.style.display = 'none';
-    
-    openModal('modal-justification-custom');
-    
-    window._onJustifValidate = function() {
-      const selectVal = document.getElementById('justif-modal-select').value;
-      const textVal = textInput.value.trim();
-      let finalJustif = '';
-      if (selectVal === 'autre') {
-        if (!textVal) {
-          showToast('⚠️ Précisez le motif', true);
-          textInput.focus();
-          return;
-        }
-        finalJustif = textVal;
-      } else {
-        finalJustif = selectVal + (textVal ? ' — ' + textVal : '');
-      }
-      closeModal('modal-justification-custom');
-      resolve(finalJustif);
-    };
-    
-    window._onJustifCancel = function() {
-      closeModal('modal-justification-custom');
-      resolve(null);
-    };
-  });
-}
-
 function loadDB() {
   ensureTeamCaches();
   let active = (typeof CURRENT_EQUIPE !== 'undefined' && CURRENT_EQUIPE) ? CURRENT_EQUIPE : 'A';
@@ -5017,6 +4984,9 @@ function loadDB() {
   window.ARCHIVES = ARCHIVES;
   if (typeof updateHeaderRAC === 'function') {
     updateHeaderRAC();
+  }
+  if (typeof verifierImmobilisationsActives === 'function') {
+    verifierImmobilisationsActives();
   }
 }
 
@@ -5079,6 +5049,9 @@ function saveDB() {
   }
   if (typeof updateHeaderRAC === 'function') {
     updateHeaderRAC();
+  }
+  if (typeof verifierImmobilisationsActives === 'function') {
+    verifierImmobilisationsActives();
   }
 }
 
@@ -8274,6 +8247,7 @@ function openIncidentLivraisonModal(idx) {
   document.getElementById('f-inc-liv-idx').value = idx;
   document.getElementById('f-inc-liv-type').value = 'Immobilisation chez le client';
   document.getElementById('f-inc-liv-client').value = '';
+  document.getElementById('f-inc-liv-dest-prevue').value = r.lieuJ1 && r.lieuJ1 !== '?' ? r.lieuJ1 : '—';
   document.getElementById('f-inc-liv-destination').value = r.lieuJ1 && r.lieuJ1 !== '?' ? r.lieuJ1 : '';
   document.getElementById('f-inc-liv-ref-commande').value = '';
   document.getElementById('f-inc-liv-obs').value = '';
@@ -8315,6 +8289,7 @@ function saveIncidentLivraison() {
     chauffeur: r.chauffeur || '—',
     type,
     client,
+    destPrevue: document.getElementById('f-inc-liv-dest-prevue').value || '—',
     destination: destination || '—',
     refCommande: refCommande || '—',
     debut: new Date(debut).toISOString(),
@@ -8331,6 +8306,9 @@ function saveIncidentLivraison() {
   closeModal('modal-incident-livraison');
   renderDispo();
   showToast('✅ Incident enregistré');
+  if (type === 'Immobilisation chez le client' && typeof verifierImmobilisationsActives === 'function') {
+    verifierImmobilisationsActives(true);
+  }
   
   // Envoi email
   const emailDest = 'GRP_NUMILOG_SRC@cevital.com;GRP_NUMILOG_TRANSPORT_SYNCRO@cevital.com';
@@ -8349,15 +8327,16 @@ Un incident de livraison a été déclaré sur SHARIK.
 ----------------------------------
   DÉTAIL DE L'INCIDENT
 ----------------------------------
-  Type d'incident : ${obj.type}
-  Date / Heure    : ${dateStr}
-  Équipe          : ÉQUIPE ${equipe}
-  Véhicule        : ${obj.v}
-  Chauffeur       : ${obj.chauffeur}
-  Client          : ${obj.client}
-  Destination     : ${obj.destination}
-  Réf Commande    : ${obj.refCommande}
-  Observations    : ${obj.obs}
+  Type d'incident    : ${obj.type}
+  Date / Heure       : ${dateStr}
+  Équipe             : ÉQUIPE ${equipe}
+  Véhicule           : ${obj.v}
+  Chauffeur          : ${obj.chauffeur}
+  Client             : ${obj.client}
+  Destination prévue : ${obj.destPrevue}
+  Dest. d'Incident   : ${obj.destination}
+  Réf Commande       : ${obj.refCommande}
+  Observations       : ${obj.obs}
 ----------------------------------
 
 Ce message a été généré automatiquement par SHARIK.`
@@ -8466,7 +8445,7 @@ function renderIncidentsLivraisonPage() {
   if (!body) return;
   
   if (!data.length) {
-    body.innerHTML = '<tr><td colspan="10"><div class="empty-state"><div class="icon">🔍</div>Aucun incident enregistré</div></td></tr>';
+    body.innerHTML = '<tr><td colspan="11"><div class="empty-state"><div class="icon">🔍</div>Aucun incident enregistré</div></td></tr>';
     return;
   }
   
@@ -8501,6 +8480,7 @@ function renderIncidentsLivraisonPage() {
       <td style="font-weight:600">${r.chauffeur}</td>
       <td style="font-weight:700; color:var(--yel)">${r.type}</td>
       <td>${r.client}</td>
+      <td style="color:var(--txt3)">${r.destPrevue || '—'}</td>
       <td>${r.destination}</td>
       <td class="mono" style="font-size:11px">${r.refCommande}</td>
       <td class="mono" style="font-size:11px">${debutFormatted}</td>
@@ -10323,6 +10303,9 @@ function switchEquipe(eq) {
   if (typeof updateHeaderRAC === 'function') {
     updateHeaderRAC();
   }
+  if (typeof verifierImmobilisationsActives === 'function') {
+    verifierImmobilisationsActives();
+  }
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -11940,114 +11923,100 @@ window.ouvrirComplianceDashboard = function() {
 };
 
 window.renderComplianceDashboard = function() {
-  const agencies = ['BEJAIA', 'BOUIRA', 'SETIF', 'SBA', 'SANS AGENCE'];
+  const teams = ['A', 'B', 'C', 'D'];
   const body = document.getElementById('compliance-dashboard-body');
   if (!body) return;
   
-  const odoByAgency = {};
-  agencies.forEach(a => odoByAgency[a] = { fact: 0, odo: 0 });
-  
-  const db = DB;
-  if (db.odo && db.odo_weeks && db.odo_weeks.length >= 2) {
-    const numWeeks = db.odo_weeks.length;
-    const counts = Array(numWeeks).fill(0);
-    db.odo.forEach(item => {
-      if (item.vals) {
-        for (let i = 0; i < numWeeks; i++) {
-          if (item.vals[i] && item.vals[i] > 1000) counts[i]++;
-        }
-      }
-    });
-    
-    let activeWeekIdx = -1;
-    for (let w = numWeeks - 1; w >= 0; w--) {
-      if (counts[w] > 0) {
-        const stats = getTeamRACStatsForWeek(db, w);
-        if (stats.odo > 0 && stats.fact > 0) {
-          activeWeekIdx = w;
-          break;
-        }
-      }
-    }
-    if (activeWeekIdx === -1) {
-      for (let w = numWeeks - 1; w >= 0; w--) {
-        if (counts[w] > 0) { activeWeekIdx = w; break; }
-      }
+  body.innerHTML = teams.map(eq => {
+    const db = (eq === CURRENT_EQUIPE && typeof window.DB !== 'undefined') ? window.DB : window['DB_' + eq];
+    if (!db) {
+      return `
+        <tr style="border-bottom:1px solid var(--border); height:38px;">
+          <td style="padding:8px 12px; font-weight:600">Équipe ${eq}</td>
+          <td colspan="6" style="padding:8px 12px; text-align:center; color:var(--txt3)">Données non chargées</td>
+        </tr>
+      `;
     }
     
-    if (activeWeekIdx !== -1) {
-      db.odo.forEach(r => {
-        const agency = window.getRecordAgency(r.v, r.chauffeur);
-        const targetAg = agencies.includes(agency) ? agency : 'SANS AGENCE';
-        
-        const vLast = r.vals ? r.vals[activeWeekIdx] : null;
-        if (vLast && vLast > 1000) {
-          let prevIdx = -1;
-          for (let k = activeWeekIdx - 1; k >= 0; k--) {
-            if (r.vals && r.vals[k] && r.vals[k] > 1000) { prevIdx = k; break; }
-          }
-          if (prevIdx !== -1) {
-            const vPrev = r.vals[prevIdx];
-            const delta = vLast - vPrev;
-            if (delta > 0 && delta <= 10000) {
-              let kmF = 0;
-              if (r.kmFactures && r.kmFactures[activeWeekIdx] !== undefined && r.kmFactures[activeWeekIdx] !== null) {
-                kmF = r.kmFactures[activeWeekIdx];
-              } else if (r.kmFacture !== undefined && r.kmFacture !== null) {
-                kmF = r.kmFacture;
-              }
-              if (kmF > 0) {
-                odoByAgency[targetAg].fact += kmF;
-                odoByAgency[targetAg].odo += delta;
-              }
-            }
+    const cspcCount = db.cspc ? db.cspc.filter(r => {
+      const etat = (r.etat || '').toLowerCase();
+      return etat === 'disponible' || !etat.trim();
+    }).length : 0;
+    
+    const geolocCount = db.dispo ? db.dispo.filter(r => {
+      return !r.geoloc || (r.geoloc !== 'ON' && r.geoloc !== 'OFF');
+    }).length : 0;
+    
+    const equipCount = db.dispo ? db.dispo.filter(r => {
+      const hasChauf = r.chauffeur && r.chauffeur !== '?' && !r.chauffeur.includes('MANQUE CHAUFFEUR');
+      return hasChauf && (!r.equip || r.equip === 'NON');
+    }).length : 0;
+    
+    let odoFact = 0;
+    let odoDelta = 0;
+    if (db.odo && db.odo_weeks && db.odo_weeks.length >= 2) {
+      const numWeeks = db.odo_weeks.length;
+      const counts = Array(numWeeks).fill(0);
+      db.odo.forEach(item => {
+        if (item.vals) {
+          for (let i = 0; i < numWeeks; i++) {
+            if (item.vals[i] && item.vals[i] > 1000) counts[i]++;
           }
         }
       });
+      
+      let activeWeekIdx = -1;
+      for (let w = numWeeks - 1; w >= 0; w--) {
+        if (counts[w] > 0) {
+          const stats = getTeamRACStatsForWeek(db, w);
+          if (stats.odo > 0 && stats.fact > 0) { activeWeekIdx = w; break; }
+        }
+      }
+      if (activeWeekIdx === -1) {
+        for (let w = numWeeks - 1; w >= 0; w--) {
+          if (counts[w] > 0) { activeWeekIdx = w; break; }
+        }
+      }
+      
+      if (activeWeekIdx !== -1) {
+        db.odo.forEach(r => {
+          const vLast = r.vals ? r.vals[activeWeekIdx] : null;
+          if (vLast && vLast > 1000) {
+            let prevIdx = -1;
+            for (let k = activeWeekIdx - 1; k >= 0; k--) {
+              if (r.vals && r.vals[k] && r.vals[k] > 1000) { prevIdx = k; break; }
+            }
+            if (prevIdx !== -1) {
+              const vPrev = r.vals[prevIdx];
+              const delta = vLast - vPrev;
+              if (delta > 0 && delta <= 10000) {
+                let kmF = 0;
+                if (r.kmFactures && r.kmFactures[activeWeekIdx] !== undefined && r.kmFactures[activeWeekIdx] !== null) {
+                  kmF = r.kmFactures[activeWeekIdx];
+                } else if (r.kmFacture !== undefined && r.kmFacture !== null) {
+                  kmF = r.kmFacture;
+                }
+                if (kmF > 0) {
+                  odoFact += kmF;
+                  odoDelta += delta;
+                }
+              }
+            }
+          }
+        });
+      }
     }
-  }
-  
-  body.innerHTML = agencies.map(ag => {
-    const cspcCount = DB.cspc.filter(r => {
-      const targetAg = window.getRecordAgency(r.v, r.chauffeur);
-      if (targetAg !== ag) return false;
-      const etat = (r.etat || '').toLowerCase();
-      return etat === 'disponible' || !targetAg || !etat.trim();
-    }).length;
     
-    const geolocCount = DB.dispo.filter(r => {
-      const targetAg = window.getRecordAgency(r.v, r.chauffeur);
-      if (targetAg !== ag) return false;
-      return !r.geoloc || (r.geoloc !== 'ON' && r.geoloc !== 'OFF');
-    }).length;
-    
-    const equipCount = DB.dispo.filter(r => {
-      const targetAg = window.getRecordAgency(r.v, r.chauffeur);
-      if (targetAg !== ag) return false;
-      const hasChauf = r.chauffeur && r.chauffeur !== '?' && !r.chauffeur.includes('MANQUE CHAUFFEUR');
-      return hasChauf && (!r.equip || r.equip === 'NON');
-    }).length;
-    
-    const agRacStats = odoByAgency[ag];
-    const racVal = agRacStats.odo > 0 ? (agRacStats.fact / agRacStats.odo) * 100 : null;
+    const racVal = odoDelta > 0 ? (odoFact / odoDelta) * 100 : null;
     const racStr = racVal !== null ? `${racVal.toFixed(1)}%` : '—';
     const racColor = racVal === null ? 'var(--txt3)' : racVal >= 80 ? 'var(--grn)' : 'var(--red)';
     
-    const ncChgtCount = DB.nc.filter(r => {
-      const targetAg = window.getRecordAgency(r.v, r.sharik);
-      if (targetAg !== ag) return false;
-      return r.chgt && r.chgt.trim() !== '';
-    }).length;
-    
-    const ncAutCount = DB.nc.filter(r => {
-      const targetAg = window.getRecordAgency(r.v, r.sharik);
-      if (targetAg !== ag) return false;
-      return r.autorise && r.autorise.trim() !== '';
-    }).length;
+    const ncChgtCount = db.nc ? db.nc.filter(r => r.chgt && r.chgt.trim() !== '').length : 0;
+    const ncAutCount = db.nc ? db.nc.filter(r => r.autorise && r.autorise.trim() !== '').length : 0;
     
     return `
       <tr style="border-bottom:1px solid var(--border); height:38px;">
-        <td style="padding:8px 12px; font-weight:600">${ag}</td>
+        <td style="padding:8px 12px; font-weight:600">Équipe ${eq}</td>
         <td style="padding:8px 12px; text-align:center; font-family:monospace; color:${cspcCount > 0 ? 'var(--red)' : 'var(--grn)'}; font-weight:${cspcCount > 0 ? '700' : '400'}">${cspcCount}</td>
         <td style="padding:8px 12px; text-align:center; font-family:monospace; color:${geolocCount > 0 ? 'var(--red)' : 'var(--grn)'}; font-weight:${geolocCount > 0 ? '700' : '400'}">${geolocCount}</td>
         <td style="padding:8px 12px; text-align:center; font-family:monospace; color:${equipCount > 0 ? 'var(--red)' : 'var(--grn)'}; font-weight:${equipCount > 0 ? '700' : '400'}">${equipCount}</td>
@@ -12058,6 +12027,56 @@ window.renderComplianceDashboard = function() {
     `;
   }).join('');
 };
+
+
+function verifierImmobilisationsActives(forceShow = false) {
+  if (!DB.incidentsLivraison) return;
+  const activeImmos = DB.incidentsLivraison.filter(im => im.type === 'Immobilisation chez le client' && !im.fin);
+  if (activeImmos.length === 0) return;
+  
+  const eq = CURRENT_EQUIPE || 'A';
+  const now = Date.now();
+  const lastShown = sessionStorage.getItem('immo_alert_last_shown_' + eq);
+  
+  // 30 minutes = 30 * 60 * 1000 ms
+  const interval = 30 * 60 * 1000;
+  
+  if (!forceShow && lastShown && (now - parseInt(lastShown) < interval)) {
+    return;
+  }
+  
+  const listContainer = document.getElementById('active-immo-list-container');
+  if (!listContainer) return;
+  
+  listContainer.innerHTML = activeImmos.map(im => {
+    const dateFormatted = new Date(im.debut).toLocaleString('fr-FR', {
+      day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit'
+    });
+    return `
+      <div style="border-bottom: 1px solid var(--border); padding: 8px 0; display: flex; justify-content: space-between; align-items: center; font-size: 12px;">
+        <div>
+          <b style="color: var(--txt);">👤 ${im.chauffeur}</b> 
+          <span style="font-size: 11px; color: var(--acc); font-family: monospace;">(Camion ${im.v})</span>
+          <div style="font-size: 10px; color: var(--txt3); margin-top: 2px;">Client : ${im.client} | Dest. Prévue : ${im.destPrevue || '—'} | Cmd : ${im.refCommande || '—'}</div>
+        </div>
+        <div style="text-align: right;">
+          <span style="font-size: 10px; background: rgba(239,68,68,0.2); color: #ef4444; padding: 2px 6px; border-radius: 4px; font-weight: 700;">Immobilisé</span>
+          <div style="font-size: 9px; color: var(--txt3); margin-top: 2px;">Depuis le ${dateFormatted}</div>
+        </div>
+      </div>
+    `;
+  }).join('');
+  
+  sessionStorage.setItem('immo_alert_last_shown_' + eq, String(now));
+  openModal('modal-active-immo-alert');
+}
+
+// Background checker for recurring reminders every 30 seconds
+setInterval(() => {
+  if (typeof verifierImmobilisationsActives === 'function') {
+    verifierImmobilisationsActives(false);
+  }
+}, 30 * 1000);
 
 </script>
 
@@ -12094,34 +12113,19 @@ window.renderComplianceDashboard = function() {
   </div>
 </div>
 
-<!-- Modal Justification Personnalisée -->
-<div class="modal-overlay" id="modal-justification-custom" style="z-index: 100002;">
-  <div class="modal" style="max-width: 450px; background: var(--bg2); border: 1.5px solid var(--border); border-radius: 16px; padding: 24px;">
-    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; border-bottom: 1px solid var(--border); padding-bottom: 12px;">
-      <h3 id="justif-modal-title" style="margin: 0; font-size: 14px; color: var(--acc);">Justification requise</h3>
-      <button class="del-btn" onclick="_onJustifCancel()" style="background: none; border: none; color: var(--txt2); font-size: 20px; cursor: pointer">✕</button>
+<!-- Modal Alerte Immobilisation Active -->
+<div class="modal-overlay" id="modal-active-immo-alert" style="z-index: 100010;">
+  <div class="modal" style="max-width: 500px; background: var(--bg2); border: 2px solid #ef4444; border-radius: 16px; padding: 24px; text-align: center; box-shadow: 0 0 25px rgba(239,68,68,0.3);">
+    <div style="font-size: 40px; margin-bottom: 12px; animation: pulse-eye 0.8s infinite alternate;">⚠️</div>
+    <h3 style="margin: 0 0 16px 0; color: #ef4444; font-size: 16px; font-weight: 800;">Chauffeur(s) en cours d'immobilisation</h3>
+    <p style="font-size: 13px; color: var(--txt2); margin-bottom: 20px; line-height: 1.5;">
+      Les chauffeurs suivants sont toujours déclarés **en cours d'immobilisation chez le client** suite à un incident de livraison :
+    </p>
+    <div id="active-immo-list-container" style="background: var(--bg3); border: 1px solid var(--border); border-radius: 10px; padding: 12px; margin-bottom: 20px; text-align: left; max-height: 200px; overflow-y: auto;">
+      <!-- Liste peuplée dynamiquement -->
     </div>
-    
-    <div style="margin-bottom: 20px;">
-      <div class="form-group" style="margin-bottom: 16px;">
-        <label style="display: block; margin-bottom: 6px; font-weight: 600; font-size: 12px; color: var(--txt2);">Motif principal</label>
-        <select id="justif-modal-select" onchange="document.getElementById('justif-modal-text').style.display = (this.value === 'autre') ? 'block' : 'none'; if(this.value === 'autre') document.getElementById('justif-modal-text').focus();" style="width: 100%; background: var(--bg3); border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; color: var(--txt); font-size: 13px; outline: none; box-sizing: border-box;">
-          <option value="Nouveau Sharik">👤 Nouveau Sharik</option>
-          <option value="Résiliation">❌ Résiliation</option>
-          <option value="Démission">🚪 Démission</option>
-          <option value="Transfert équipe">🔄 Transfert équipe</option>
-          <option value="autre">✏️ Autre (Préciser...)</option>
-        </select>
-      </div>
-      
-      <div class="form-group">
-        <input id="justif-modal-text" type="text" placeholder="Saisir la justification..." style="width: 100%; background: var(--bg3); border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; color: var(--txt); font-size: 13px; outline: none; box-sizing: border-box; display: none;">
-      </div>
-    </div>
-    
-    <div class="modal-actions" style="display: flex; gap: 12px; justify-content: flex-end;">
-      <button class="btn btn-reset" onclick="_onJustifCancel()">Annuler</button>
-      <button class="btn" onclick="_onJustifValidate()" style="background: var(--acc); color: #000; font-weight: 700;">Valider</button>
+    <div style="display: flex; gap: 12px; justify-content: center;">
+      <button class="btn btn-save" onclick="closeModal('modal-active-immo-alert')" style="background: #ef4444; color: #fff; border: none; font-weight: 700;">D'accord</button>
     </div>
   </div>
 </div>
@@ -12232,35 +12236,7 @@ window.renderComplianceDashboard = function() {
   <option value="EL MGHAIER">
   <option value="EL MENIAA">
 </datalist>
-<!-- Modal Tableau de bord Conformite -->
-<div class="modal-overlay" id="modal-compliance-dashboard" style="z-index:10000">
-  <div class="modal" style="width:900px; max-width:95vw; background:var(--bg2); border:1px solid var(--border); border-radius:16px; padding:24px;">
-    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; border-bottom:1px solid var(--border); padding-bottom:12px;">
-      <h3 style="margin:0; font-size:16px; color:var(--acc); display:flex; align-items:center; gap:8px;">📊 Tableau de bord Respect &amp; Utilisation (Par Agence)</h3>
-      <button class="del-btn" onclick="closeModal('modal-compliance-dashboard')" style="background:none; border:none; color:var(--txt2); font-size:20px; cursor:pointer">✕</button>
-    </div>
-    
-    <div class="table-wrap" style="max-height:60vh; overflow-y:auto; border-radius:8px;">
-      <table style="width:100%; border-collapse:collapse; text-align:left; font-size:12px;">
-        <thead>
-          <tr style="background:var(--bg3); border-bottom:2px solid var(--border); color:var(--txt2)">
-            <th style="padding:10px 12px; font-weight:700">Agence</th>
-            <th style="padding:10px 12px; font-weight:700; text-align:center">CSPC Non Traité</th>
-            <th style="padding:10px 12px; font-weight:700; text-align:center">Géoloc Non Pointée</th>
-            <th style="padding:10px 12px; font-weight:700; text-align:center">Matériel Non Renseigné</th>
-            <th style="padding:10px 12px; font-weight:700; text-align:center">Roulage à Charge (RAC)</th>
-            <th style="padding:10px 12px; font-weight:700; text-align:center">Chgt à leur Compte</th>
-            <th style="padding:10px 12px; font-weight:700; text-align:center">Chgt Autorisé</th>
-          </tr>
-        </thead>
-        <tbody id="compliance-dashboard-body"></tbody>
-      </table>
-    </div>
-    <div style="margin-top:20px; text-align:right">
-      <button class="btn btn-reset" onclick="closeModal('modal-compliance-dashboard')">Fermer</button>
-    </div>
-  </div>
-</div>
+
 
 </body>
 </html>
