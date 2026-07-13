@@ -455,7 +455,9 @@
       const months = [];
       for (let i = 0; i < 4; i++) {
         const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-        months.push(d.toISOString().slice(0,7));
+        const y = d.getFullYear();
+        const m = String(d.getMonth() + 1).padStart(2, '0');
+        months.push(`${y}-${m}`);
       }
       const ids = [];
       const lock = sessionStorage.getItem('numiplan_team_lock');
@@ -597,7 +599,7 @@
   window._firebaseSaveArchives = async function(eq, snapData) {
     const byMonth = {};
     Object.entries(snapData).forEach(([date, snap]) => {
-      const mois = (typeof date === 'string' && date.length >= 7) ? date.slice(0,7) : new Date().toISOString().slice(0,7);
+      const mois = (typeof date === 'string' && date.length >= 7) ? date.slice(0,7) : ((new Date().getFullYear()) + '-' + String(new Date().getMonth()+1).padStart(2,'0'));
       if (!byMonth[mois]) byMonth[mois] = {};
       byMonth[mois][date] = snap;
     });
@@ -5592,6 +5594,21 @@ function updateDataLists() {
 function renderDispo() {
   const q = document.getElementById('dispo-search').value;
   const etatF = document.getElementById('dispo-etat').value;
+  
+  // Compter le nombre d'occurrences globales de chaque chauffeur dans TOUTES les équipes pour identifier les extensions
+  const driverCounts = {};
+  const teams = ['A', 'B', 'C', 'D', 'E', 'F'];
+  teams.forEach(eq => {
+    const db = window['DB_' + eq];
+    if (db && db.dispo) {
+      db.dispo.forEach(row => {
+        const ch = (row.chauffeur || '').trim().toUpperCase();
+        if (ch && ch !== '—' && ch !== '' && !ch.includes('MANQUE CHAUFFEUR')) {
+          driverCounts[ch] = (driverCounts[ch] || 0) + 1;
+        }
+      });
+    }
+  });
   const regionF = document.getElementById('dispo-region') ? document.getElementById('dispo-region').value : '';
   const regionJF = document.getElementById('dispo-region-j') ? document.getElementById('dispo-region-j').value : '';
 
@@ -5678,21 +5695,17 @@ function renderDispo() {
       <div class="stat-lbl" style="color:#fbbf24">BL Manquants Éq. ${CURRENT_EQUIPE}</div>
     </div>`;
 
-    // Calculate unique extension drivers count (drivers with > 1 truck in DB.dispo)
+    // Calculate unique extension drivers count in current team (using global counts)
     const extDrivers = new Set();
-    const tempCounts = {};
     if (DB && DB.dispo) {
       DB.dispo.forEach(row => {
         const ch = (row.chauffeur || '').trim().toUpperCase();
         if (ch && ch !== '—' && ch !== '' && !ch.includes('MANQUE CHAUFFEUR')) {
-          tempCounts[ch] = (tempCounts[ch] || 0) + 1;
+          if (driverCounts[ch] >= 2) {
+            extDrivers.add(ch);
+          }
         }
       });
-      for (const [ch, count] of Object.entries(tempCounts)) {
-        if (count >= 2) {
-          extDrivers.add(ch);
-        }
-      }
     }
     const extCount = extDrivers.size;
 
@@ -5724,31 +5737,18 @@ function renderDispo() {
        ${adminComplianceCardHtml}`;
   document.getElementById('cnt-dispo').textContent = data.length;
   
-  // Compter le nombre de chauffeurs uniques dans la liste filtrée
-  const uniqueChauffeurs = new Set();
+  // Compter le nombre de chauffeurs en extension actifs dans l'équipe (ceux qui ont >= 2 camions au total)
+  const extDriversInTeam = new Set();
   data.forEach(r => {
     const ch = (r.chauffeur || '').trim().toUpperCase();
     if (ch && ch !== '—' && ch !== '' && !ch.includes('MANQUE CHAUFFEUR')) {
-      uniqueChauffeurs.add(ch);
+      if (driverCounts[ch] >= 2) {
+        extDriversInTeam.add(ch);
+      }
     }
   });
   const cntChauffeursEl = document.getElementById('cnt-dispo-chauffeurs');
-  if (cntChauffeursEl) cntChauffeursEl.textContent = uniqueChauffeurs.size;
-
-  // Compter le nombre d'occurrences globales de chaque chauffeur dans TOUTES les équipes pour identifier les extensions
-  const driverCounts = {};
-  const teams = ['A', 'B', 'C', 'D', 'E', 'F'];
-  teams.forEach(eq => {
-    const db = window['DB_' + eq];
-    if (db && db.dispo) {
-      db.dispo.forEach(row => {
-        const ch = (row.chauffeur || '').trim().toUpperCase();
-        if (ch && ch !== '—' && ch !== '' && !ch.includes('MANQUE CHAUFFEUR')) {
-          driverCounts[ch] = (driverCounts[ch] || 0) + 1;
-        }
-      });
-    }
-  });
+  if (cntChauffeursEl) cntChauffeursEl.textContent = extDriversInTeam.size;
 
   const body = document.getElementById('dispo-body');
   const lock = sessionStorage.getItem('numiplan_team_lock');
