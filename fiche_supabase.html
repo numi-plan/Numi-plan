@@ -11182,7 +11182,7 @@ async function exportAllData() {
     // IDENTIFIANTS ÉQUIPES
     // ══════════════════════════════════════════════════════
     addSheet('Identifiants_'+eq,
-      ['Identifiant / Chef d'Équipe'],
+      ['Identifiant / Chef d\'Équipe'],
       (src.users||[]).map(u => [u])
     );
   });
@@ -11209,7 +11209,7 @@ async function exportAllData() {
     ['Incidents_A/B/C/D', 'Suivi des incidents / Avaries et Sinistres — tous champs'],
     ['Tracabilite_A/B/C/D', 'Historique des logs de traçabilité'],
     ['FlashInfo_A/B/C/D', 'Diffusions de Flash Info et publications'],
-    ['Identifiants_A/B/C/D', 'Identifiants de chefs d'équipe configurés'],
+    ['Identifiants_A/B/C/D', "Identifiants de chefs d'équipe configurés"],
   ]);
   metaWs['!cols'] = [{wch:30},{wch:50}];
   XLSX.utils.book_append_sheet(wb, metaWs, '📋 Infos Export');
