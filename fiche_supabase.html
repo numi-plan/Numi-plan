@@ -22,7 +22,7 @@
   let _fbReady      = false;
   let _fbLoaded     = {};
   let _initialCloudLoadCompleted = {};
-  const EQUIPES = ['A', 'B', 'C', 'D'];
+  const EQUIPES = ['A', 'B', 'C', 'D', 'E', 'F'];
 
   function getCurrentEquipe() {
     return (typeof window.CURRENT_EQUIPE !== 'undefined') ? window.CURRENT_EQUIPE : 'A';
@@ -320,13 +320,37 @@
     _doRender(eq);
   };
 
-  // Chargement Initial depuis Supabase
-  async function loadInitialTeams() {
+  // Chargement léger de la liste des utilisateurs uniquement pour le login
+  async function loadDropdownUsersOnly() {
     try {
       const { data, error } = await supabase
         .from('numiplan_teams')
-        .select('*');
+        .select('team, payload->users');
+      if (error) throw error;
+      if (data) {
+        data.forEach(row => {
+          const eq = row.team;
+          const users = row.users || (row.payload ? row.payload.users : []) || [];
+          if (!window['DB_' + eq]) window['DB_' + eq] = { users: [] };
+          window['DB_' + eq].users = users;
+        });
+        populateLoginUserDropdown();
+      }
+    } catch (e) {
+      console.error("Error loading dropdown users:", e);
+    }
+  }
+
+  // Chargement Initial depuis Supabase (Ciblé par équipe ou complet pour Admin)
+  async function loadInitialTeams() {
+    try {
+      const lock = sessionStorage.getItem('numiplan_team_lock');
+      let query = supabase.from('numiplan_teams').select('*');
+      if (lock && lock !== 'BL') {
+        query = query.eq('team', lock);
+      }
       
+      const { data, error } = await query;
       if (error) throw error;
       
       if (data) {
@@ -340,6 +364,7 @@
           }
           applyEquipeData(eq, payload);
         });
+        populateLoginUserDropdown();
       }
     } catch (e) {
       console.error("Error loading initial teams:", e);
@@ -347,32 +372,45 @@
     }
   }
   
-  // Abonnement Temps Réel avec Supabase Realtime Channels
-  const channel = supabase
-    .channel('supabase-realtime-teams')
-    .on(
-      'postgres_changes',
-      { event: '*', schema: 'public', table: 'numiplan_teams' },
-      payload => {
-        // En cas d'insert ou update
-        if (payload.new && payload.new.team) {
-          const eq = payload.new.team;
-          const data = payload.new.payload;
-          _fbLoaded[eq] = true;
-          const currentEq = getCurrentEquipe();
-          if (eq === currentEq) {
-            _fbReady = true;
+  // Abonnement Temps Réel ciblé ou global selon authentification
+  const lock = sessionStorage.getItem('numiplan_team_lock');
+  const isAuthed = sessionStorage.getItem('numiplan_auth') === 'ok';
+  
+  if (isAuthed) {
+    let filterConfig = { event: '*', schema: 'public', table: 'numiplan_teams' };
+    if (lock && lock !== 'BL') {
+      filterConfig.filter = `team=eq.${lock}`;
+    }
+    
+    const channel = supabase
+      .channel('supabase-realtime-teams')
+      .on(
+        'postgres_changes',
+        filterConfig,
+        payload => {
+          if (payload.new && payload.new.team) {
+            const eq = payload.new.team;
+            const data = payload.new.payload;
+            _fbLoaded[eq] = true;
+            const currentEq = getCurrentEquipe();
+            if (eq === currentEq) {
+              _fbReady = true;
+            }
+            applyEquipeData(eq, data);
+            populateLoginUserDropdown();
           }
-          applyEquipeData(eq, data);
         }
-      }
-    )
-    .subscribe((status) => {
-      if (status === 'SUBSCRIBED') {
-        console.log("Supabase Realtime Channel successfully connected!");
-        loadInitialTeams();
-      }
-    });
+      )
+      .subscribe((status) => {
+        if (status === 'SUBSCRIBED') {
+          console.log("Supabase Realtime Channel connected!");
+          loadInitialTeams();
+        }
+      });
+  } else {
+    // Non connecté : charger uniquement les utilisateurs pour le login (presque 0 octets)
+    loadDropdownUsersOnly();
+  }
 
   // Archives - Chargement depuis Supabase
   async function loadArchivesFromFirebase() {
@@ -384,7 +422,7 @@
         months.push(d.toISOString().slice(0,7));
       }
       const ids = [];
-      ['A','B','C','D'].forEach(eq => {
+      ['A','B','C','D','E','F'].forEach(eq => {
         months.forEach(m => {
           ids.push(eq + '_' + m);
         });
@@ -414,7 +452,6 @@
       console.warn('Archive load error:', e);
     }
   }
-  loadArchivesFromFirebase();
   window._reloadArchives = loadArchivesFromFirebase;
 
   window._loadAllArchivesFromFirebase = async function() {
@@ -433,7 +470,7 @@
       data.forEach(row => {
         const id = row.id;
         const eq = id.charAt(0);
-        if (!['A','B','C','D'].includes(eq)) return;
+        if (!['A','B','C','D','E','F'].includes(eq)) return;
         if (!cache[eq]) cache[eq] = {};
         Object.assign(cache[eq], row.payload);
       });
@@ -497,7 +534,7 @@
       localStorage.setItem(STORAGE_KEY, JSON.stringify({
         version: 3,
         active: getCurrentEquipe(),
-        teams: { A: window.DB_A, B: window.DB_B, C: window.DB_C, D: window.DB_D }
+        teams: { A: window.DB_A, B: window.DB_B, C: window.DB_C, D: window.DB_D, E: window.DB_E, F: window.DB_F }
       }));
     } catch(e) { console.warn('LocalStorage save team error', e); }
 
@@ -839,6 +876,19 @@ tr.dragging {
     </div>
     <div style="margin-bottom:16px;text-align:left;">
       <label style="font-size:10px;font-weight:700;letter-spacing:2px;color:#94a3b8;text-transform:uppercase;">
+        Identifiant / Nom
+      </label>
+      <select id="username-input"
+        style="
+          display:block;width:100%;margin-top:6px;padding:10px 14px;
+          background:#1a2236;border:1px solid #2d3f65;border-radius:8px;
+          color:#e2e8f0;font-size:14px;
+          outline:none;box-sizing:border-box;">
+        <option value="">Chargement des identifiants...</option>
+      </select>
+    </div>
+    <div style="margin-bottom:16px;text-align:left;">
+      <label style="font-size:10px;font-weight:700;letter-spacing:2px;color:#94a3b8;text-transform:uppercase;">
         Mot de passe
       </label>
       <input id="pwd-input" type="password" placeholder="••••••••••••"
@@ -947,6 +997,8 @@ tr.dragging {
     'SharikB@2026': 'B',
     'SharikC@2026': 'C',
     'SharikD@2026': 'D',
+    'SharikE@2026': 'E',
+    'SharikF@2026': 'F',
     'SharikBL@2026': 'BL'
   };
 
@@ -1037,7 +1089,7 @@ tr.dragging {
     });
 
     // 4. Masquer les autres équipes dans le header et archives si verrouillé
-    ['A', 'B', 'C', 'D'].forEach(team => {
+    ['A', 'B', 'C', 'D', 'E', 'F'].forEach(team => {
       const btnHeader = document.getElementById('btn-eq' + team);
       const btnArchive = document.getElementById('arc-btn-' + team);
       if (lock && lock !== team) {
@@ -1055,6 +1107,14 @@ tr.dragging {
         tabFlash.style.setProperty('display', 'none', 'important');
       } else {
         tabFlash.style.removeProperty('display');
+      }
+    }
+    const tabUsersConfig = document.getElementById('tab-users-config');
+    if (tabUsersConfig) {
+      if (lock) {
+        tabUsersConfig.style.setProperty('display', 'none', 'important');
+      } else {
+        tabUsersConfig.style.removeProperty('display');
       }
     }
 
@@ -1085,70 +1145,71 @@ tr.dragging {
   }
 
   function checkPassword() {
+    const usernameInput = document.getElementById('username-input');
+    const username = usernameInput ? usernameInput.value : '';
+    if (!username) {
+      document.getElementById('pwd-error').textContent = '⚠️ Identifiant requis';
+      setTimeout(() => { document.getElementById('pwd-error').textContent = ''; }, 3000);
+      return;
+    }
+    
     const val = document.getElementById('pwd-input').value;
-    if (val === 'Sharik@admin') {
-      sessionStorage.setItem('numiplan_auth', 'ok');
-      sessionStorage.removeItem('numiplan_team_lock'); // Admin : pas de verrou d'équipe
-      document.getElementById('login-screen').style.display = 'none';
-      startSessionTimers();
-      
-      const current = (typeof window.CURRENT_EQUIPE !== 'undefined') ? window.CURRENT_EQUIPE : 'A';
-      applyTeamLockUI(current);
-      if (typeof window.checkPointageRequired === 'function') {
-        window.checkPointageRequired();
-      }
-    } else if (TEAM_PASSWORDS[val]) {
-      const eq = TEAM_PASSWORDS[val];
-      sessionStorage.setItem('numiplan_auth', 'ok');
-      sessionStorage.setItem('numiplan_team_lock', eq); // Verrouillé sur l'équipe eq
-      document.getElementById('login-screen').style.display = 'none';
-      startSessionTimers();
-      
-      // Forcer l'application active à basculer sur l'équipe affectée
-      if (eq === 'BL') {
-        applyTeamLockUI('BL');
-      } else if (typeof window.switchEquipe === 'function') {
-        window.switchEquipe(eq);
+    
+    if (username === 'ADMIN') {
+      if (val === 'Sharik@admin') {
+        sessionStorage.setItem('numiplan_auth', 'ok');
+        sessionStorage.setItem('numiplan_username', 'ADMIN');
+        sessionStorage.removeItem('numiplan_team_lock');
+        window.location.reload();
+        return;
+      } else if (val === 'SharikBL@2026') {
+        sessionStorage.setItem('numiplan_auth', 'ok');
+        sessionStorage.setItem('numiplan_username', 'ADMIN');
+        sessionStorage.setItem('numiplan_team_lock', 'BL');
+        window.location.reload();
+        return;
       } else {
-        applyTeamLockUI(eq);
+        document.getElementById('pwd-error').textContent = '⚠️ Mot de passe incorrect pour ADMIN';
+        setTimeout(() => { document.getElementById('pwd-error').textContent = ''; }, 3000);
+        return;
       }
-      if (typeof window.checkPointageRequired === 'function') {
-        window.checkPointageRequired();
+    }
+    
+    // Trouver l'équipe pour l'utilisateur
+    let userTeam = null;
+    ['A', 'B', 'C', 'D', 'E', 'F'].forEach(eq => {
+      const db = window['DB_' + eq];
+      if (db && db.users && db.users.includes(username)) {
+        userTeam = eq;
       }
+    });
+    
+    if (!userTeam) {
+      document.getElementById('pwd-error').textContent = '⚠️ Identifiant non trouvé';
+      setTimeout(() => { document.getElementById('pwd-error').textContent = ''; }, 3000);
+      return;
+    }
+    
+    // Valider le mot de passe de cette équipe
+    if (TEAM_PASSWORDS[val] === userTeam) {
+      sessionStorage.setItem('numiplan_auth', 'ok');
+      sessionStorage.setItem('numiplan_username', username);
+      sessionStorage.setItem('numiplan_team_lock', userTeam);
+      window.location.reload();
     } else {
-      document.getElementById('pwd-error').textContent = '⚠️ Mot de passe incorrect';
+      document.getElementById('pwd-error').textContent = '⚠️ Mot de passe incorrect pour cette équipe';
       document.getElementById('pwd-input').value = '';
       document.getElementById('pwd-input').focus();
-      setTimeout(() => {
-        document.getElementById('pwd-error').textContent = '';
-      }, 3000);
+      setTimeout(() => { document.getElementById('pwd-error').textContent = ''; }, 3000);
     }
   }
 
   function doLogout() {
     sessionStorage.removeItem('numiplan_auth');
     sessionStorage.removeItem('numiplan_team_lock');
-    document.getElementById('login-screen').style.display = '';
-    document.getElementById('pwd-input').value = '';
-    document.getElementById('pwd-input').focus();
-    const err = document.getElementById('pwd-error');
-    if (err) { err.textContent = '🔒 Session expirée — veuillez vous reconnecter.'; }
-    
-    // Rétablir l'affichage normal
-    const header = document.querySelector('.header');
-    if (header) header.style.removeProperty('display');
-    const searchBar = document.querySelector('.global-search-bar');
-    if (searchBar) searchBar.style.removeProperty('display');
-    const appLayout = document.querySelector('.app-layout');
-    if (appLayout) appLayout.style.removeProperty('display');
-    const pageAdminBL = document.getElementById('page-admin-bl');
-    if (pageAdminBL) pageAdminBL.style.display = 'none';
-    
-    // Réinitialiser les filtres
-    const ch = document.getElementById('admin-bl-search-chauffeur');
-    if (ch) ch.value = '';
-    const tm = document.getElementById('admin-bl-search-team');
-    if (tm) tm.value = '';
+    sessionStorage.removeItem('numiplan_username');
+    sessionStorage.setItem('numiplan_session_expired', 'true');
+    window.location.reload();
   }
 
   var _inactivityTimer = null;
@@ -1166,10 +1227,26 @@ tr.dragging {
     resetInactivityTimer();
   }
 
-  // Focus automatique sur le champ
+  // Focus automatique sur le champ et alerte d'expiration
   window.addEventListener('load', () => {
     if (sessionStorage.getItem('numiplan_auth') !== 'ok') {
-      setTimeout(() => document.getElementById('pwd-input').focus(), 100);
+      setTimeout(() => {
+        populateLoginUserDropdown();
+        const uInput = document.getElementById('username-input');
+        if (uInput) uInput.focus();
+        
+        if (sessionStorage.getItem('numiplan_session_expired') === 'true') {
+          sessionStorage.removeItem('numiplan_session_expired');
+          const err = document.getElementById('pwd-error');
+          if (err) {
+            err.textContent = '🔒 Session déconnectée / expirée — veuillez vous reconnecter.';
+            setTimeout(() => { err.textContent = ''; }, 5000);
+          }
+        }
+      }, 100);
+    }
+    if (typeof initAutoExportScheduler === 'function') {
+      initAutoExportScheduler();
     }
   });
 </script>
@@ -1190,6 +1267,8 @@ tr.dragging {
       <button id="btn-eqB" onclick="switchEquipe('B')" ondragover="handleTeamDragOver(event)" ondragenter="handleTeamDragEnter(this)" ondragleave="handleTeamDragLeave(this)" ondrop="handleTeamDrop(event, 'B')" style="padding:7px 18px;font-size:11px;font-weight:700;letter-spacing:1px;border:none;cursor:pointer;background:transparent;color:var(--txt2);transition:all .2s">ÉQUIPE B</button>
       <button id="btn-eqC" onclick="switchEquipe('C')" ondragover="handleTeamDragOver(event)" ondragenter="handleTeamDragEnter(this)" ondragleave="handleTeamDragLeave(this)" ondrop="handleTeamDrop(event, 'C')" style="padding:7px 18px;font-size:11px;font-weight:700;letter-spacing:1px;border:none;cursor:pointer;background:transparent;color:var(--txt2);transition:all .2s">ÉQUIPE C</button>
       <button id="btn-eqD" onclick="switchEquipe('D')" ondragover="handleTeamDragOver(event)" ondragenter="handleTeamDragEnter(this)" ondragleave="handleTeamDragLeave(this)" ondrop="handleTeamDrop(event, 'D')" style="padding:7px 18px;font-size:11px;font-weight:700;letter-spacing:1px;border:none;cursor:pointer;background:transparent;color:var(--txt2);transition:all .2s">ÉQUIPE D</button>
+      <button id="btn-eqE" onclick="switchEquipe('E')" ondragover="handleTeamDragOver(event)" ondragenter="handleTeamDragEnter(this)" ondragleave="handleTeamDragLeave(this)" ondrop="handleTeamDrop(event, 'E')" style="padding:7px 18px;font-size:11px;font-weight:700;letter-spacing:1px;border:none;cursor:pointer;background:transparent;color:var(--txt2);transition:all .2s">ÉQUIPE E</button>
+      <button id="btn-eqF" onclick="switchEquipe('F')" ondragover="handleTeamDragOver(event)" ondragenter="handleTeamDragEnter(this)" ondragleave="handleTeamDragLeave(this)" ondrop="handleTeamDrop(event, 'F')" style="padding:7px 18px;font-size:11px;font-weight:700;letter-spacing:1px;border:none;cursor:pointer;background:transparent;color:var(--txt2);transition:all .2s">ÉQUIPE F</button>
     </div>
 
     <div class="date-badge" id="todayBadge"></div>
@@ -1381,7 +1460,7 @@ mark.hl { background: rgba(56,189,248,.25); color: var(--acc); border-radius: 3p
   function collectResults(q) {
     const results = [];
     const lock = sessionStorage.getItem('numiplan_team_lock');
-    ['A','B','C','D'].forEach(eq => {
+    ['A','B','C','D','E','F'].forEach(eq => {
       if (lock && lock !== eq) return;
       const src = window['DB_' + eq] || (window.CURRENT_EQUIPE === eq ? window.DB : null);
       if (!src) return;
@@ -1519,6 +1598,7 @@ mark.hl { background: rgba(56,189,248,.25); color: var(--acc); border-radius: 3p
   <button class="tab-btn" onclick="switchTab('tracabilite',this)">📜 Traçabilité <span class="tab-count" id="cnt-tracabilite" style="display:none;">—</span></button>
   <button class="tab-btn" id="tab-flashinfo" onclick="switchTab('flashinfo',this)">📢 Flash Info</button>
   <button class="tab-btn" onclick="ouvrirHistoriqueAnomalies()" style="color:#fbbf24;border-color:rgba(251,191,36,.3)">📊 Historique Anomalies</button>
+  <button class="tab-btn" id="tab-users-config" onclick="switchTab('users-config',this)" style="display:none;color:var(--pur);border-left-color:var(--pur);">⚙️ Identifiants Équipes</button>
 </div>
 
 <!-- ══════════════ DISPO ══════════════ -->
@@ -1655,7 +1735,7 @@ mark.hl { background: rgba(56,189,248,.25); color: var(--acc); border-radius: 3p
     <div class="sec-title">État du parc véhicules</div>
     <div class="table-wrap">
       <table>
-        <thead><tr><th>Véhicule</th><th>État</th><th>Chauffeur</th><th>Horaire</th><th>Lieu Jour</th><th>Lieu J+1</th><th>Barre</th><th>Câble</th><th>Affecté</th><th>KM</th><th>RAC (S-1)</th><th>Observation</th><th style="color:var(--grn)">🛡 Ass. TR</th><th style="color:var(--acc)">🛡 Ass. RM</th><th style="color:#f87171">👁️ Surveillance</th><th>Actions</th></tr></thead>
+        <thead><tr><th>Véhicule</th><th>État</th><th>Chauffeur</th><th>Horaire</th><th>Lieu Jour</th><th>Lieu J+1</th><th>Barre</th><th>Câble</th><th>Affecté</th><th>KM</th><th>RAC (S-1)</th><th>Observation</th><th class="col-assurance" style="color:var(--grn)">🛡 Ass. TR</th><th class="col-assurance" style="color:var(--acc)">🛡 Ass. RM</th><th style="color:#f87171">👁️ Surveillance</th><th>Actions</th></tr></thead>
         <tbody id="dispo-body"></tbody>
       </table>
     </div>
@@ -1710,7 +1790,7 @@ mark.hl { background: rgba(56,189,248,.25); color: var(--acc); border-radius: 3p
     <div class="sec-title">Non-conformités SHA</div>
     <div class="table-wrap">
       <table>
-        <thead><tr><th>N°</th><th>Sharik</th><th>Véhicule</th><th>Type</th><th>Détail / Trajet</th><th>Date</th><th>Mise en demeure</th><th>Action</th></tr></thead>
+        <thead><tr><th>N°</th><th>Sharik</th><th>Véhicule</th><th>Type</th><th>Détail / Trajet</th><th>Date</th><th>Mise en demeure</th><th>CET</th><th>Action</th></tr></thead>
         <tbody id="nc-body"></tbody>
       </table>
     </div>
@@ -1734,7 +1814,7 @@ mark.hl { background: rgba(56,189,248,.25); color: var(--acc); border-radius: 3p
     <div class="sec-title">Suivi ravitaillement gasoil</div>
     <div class="table-wrap">
       <table>
-        <thead><tr><th>Date</th><th>Véhicule</th><th>Station</th><th>Chauffeur</th><th>Type</th><th>Opération</th><th>Responsable</th><th>Action</th></tr></thead>
+        <thead><tr><th>Date</th><th>Véhicule</th><th>Station</th><th>Chauffeur</th><th>Type</th><th>Opération</th><th>Responsable</th><th>CET</th><th>Action</th></tr></thead>
         <tbody id="gasoil-body"></tbody>
       </table>
     </div>
@@ -1785,7 +1865,7 @@ mark.hl { background: rgba(56,189,248,.25); color: var(--acc); border-radius: 3p
     <div class="sec-title">Suivi des bons de livraison par chauffeur</div>
     <div class="table-wrap">
       <table>
-        <thead><tr><th>Chauffeur</th><th>Mars</th><th>Avril</th><th>Mai</th><th>Juin</th><th>Juillet</th><th>Août</th><th>Sep.</th><th>Oct.</th><th>Nov.</th><th>Déc.</th><th>Action</th></tr></thead>
+        <thead><tr><th>Chauffeur</th><th>Mars</th><th>Avril</th><th>Mai</th><th>Juin</th><th>Juillet</th><th>Août</th><th>Sep.</th><th>Oct.</th><th>Nov.</th><th>Déc.</th><th>CET</th><th>Action</th></tr></thead>
         <tbody id="bl-body"></tbody>
       </table>
     </div>
@@ -1832,7 +1912,7 @@ mark.hl { background: rgba(56,189,248,.25); color: var(--acc); border-radius: 3p
     <div class="sec-title">Programme CSPC – véhicules figés</div>
     <div class="table-wrap">
       <table>
-        <thead><tr><th>Véhicule</th><th>État</th><th>Chauffeur</th><th>Horaire</th><th>Lieu Jour</th><th>Lieu J+1</th><th>Équipement</th><th>Programme</th><th>Date</th><th>Action</th></tr></thead>
+        <thead><tr><th>Véhicule</th><th>État</th><th>Chauffeur</th><th>Horaire</th><th>Lieu Jour</th><th>Lieu J+1</th><th>Équipement</th><th>Programme</th><th>Date</th><th>CET</th><th>Action</th></tr></thead>
         <tbody id="cspc-body"></tbody>
       </table>
     </div>
@@ -1918,6 +1998,7 @@ mark.hl { background: rgba(56,189,248,.25); color: var(--acc); border-radius: 3p
             <th>Date/Heure</th>
             <th>Clôture / Durée</th>
             <th>Observations</th>
+            <th>CET</th>
             <th>Actions</th>
           </tr>
         </thead>
@@ -1943,16 +2024,54 @@ mark.hl { background: rgba(56,189,248,.25); color: var(--acc); border-radius: 3p
           <option value="Panne sur route">Panne sur route</option>
           <option value="Changement de destination">Changement de destination</option>
           <option value="Changement de référence commande">Changement de référence commande</option>
+          <option value="Manque produit">Manque produit</option>
           <option value="Autre incident">Autre incident</option>
         </select>
       </div>
-      <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:12px">
+      <div style="display:grid; grid-template-columns:1fr; gap:12px">
         <div class="form-group"><label>Client</label><input id="f-inc-liv-client" placeholder="Nom du client" style="text-transform:uppercase"></div>
-        <div class="form-group"><label>Destination prévue</label><input id="f-inc-liv-dest-prevue" placeholder="—" style="text-transform:uppercase; background:rgba(255,255,255,.02); color:var(--txt3)" readonly disabled></div>
-        <div class="form-group"><label>Destination réelle</label><input id="f-inc-liv-destination" placeholder="ex: ALGER, ORAN..." style="text-transform:uppercase"></div>
+      </div>
+      
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px">
+        <div class="form-group">
+          <label>Destination prévue - Chargement</label>
+          <select id="f-inc-liv-dest-prevue-site" style="background:rgba(255,255,255,.05);color:inherit;border:1px solid var(--border);padding:8px 12px;border-radius:8px;outline:none;box-sizing:border-box;width:100%">
+            <option value="">— Choisir la ville —</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Destination prévue - Livraison</label>
+          <select id="f-inc-liv-dest-prevue-ville" style="background:rgba(255,255,255,.05);color:inherit;border:1px solid var(--border);padding:8px 12px;border-radius:8px;outline:none;box-sizing:border-box;width:100%">
+            <option value="">— Choisir la ville —</option>
+          </select>
+        </div>
+      </div>
+      
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px">
+        <div class="form-group">
+          <label>Destination réelle - Chargement</label>
+          <select id="f-inc-liv-dest-reelle-site" style="background:rgba(255,255,255,.05);color:inherit;border:1px solid var(--border);padding:8px 12px;border-radius:8px;outline:none;box-sizing:border-box;width:100%">
+            <option value="">— Choisir la ville —</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Destination réelle - Livraison</label>
+          <select id="f-inc-liv-dest-reelle-ville" style="background:rgba(255,255,255,.05);color:inherit;border:1px solid var(--border);padding:8px 12px;border-radius:8px;outline:none;box-sizing:border-box;width:100%">
+            <option value="">— Choisir la ville —</option>
+          </select>
+        </div>
       </div>
       <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px">
-        <div class="form-group"><label>Référence Commande</label><input id="f-inc-liv-ref-commande" placeholder="N° Commande / BL" style="text-transform:uppercase"></div>
+        <div class="form-group">
+          <label id="lbl-inc-liv-ref-commande">Référence Commande</label>
+          <input id="f-inc-liv-ref-commande" placeholder="N° Commande / BL" style="text-transform:uppercase">
+        </div>
+        <div class="form-group" id="group-ref-commande-initiale" style="display:none">
+          <label>Référence Commande Initiale</label>
+          <input id="f-inc-liv-ref-commande-initiale" placeholder="N° Commande / BL Initial" style="text-transform:uppercase">
+        </div>
+      </div>
+      <div style="display:grid; grid-template-columns:1fr; gap:12px">
         <div class="form-group"><label>Date/Heure de début (déclaration)</label><input type="datetime-local" id="f-inc-liv-debut"></div>
       </div>
       <div class="form-group" style="display:flex; flex-direction:column; gap:4px">
@@ -2096,6 +2215,97 @@ mark.hl { background: rgba(56,189,248,.25); color: var(--acc); border-radius: 3p
 </div>
 
 <!-- ══════════════ PERFORMANCE CHAUFFEUR ══════════════ -->
+
+<!-- ══════════════ CONFIGURATION IDENTIFIANTS ══════════════ -->
+<div id="page-users-config" class="page" style="display:none">
+  <div class="sec-title" style="margin-bottom:20px">⚙️ Configuration des Identifiants Chefs d'Équipe</div>
+  <div class="form-grid" style="grid-template-columns: 300px 1fr; gap:30px; align-items: start;">
+    
+    <!-- Formulaire d'ajout -->
+    <div style="background:var(--bg2); border:1px solid var(--border); border-radius:12px; padding:20px;">
+      <h3 style="margin-top:0; font-size:13px; color:var(--acc); margin-bottom:15px; letter-spacing:1px; text-transform:uppercase">Ajouter un Chef d'Équipe</h3>
+      <div class="form-group" style="margin-bottom:12px">
+        <label>Équipe Cible</label>
+        <select id="config-user-team" style="width:100%">
+          <option value="A">ÉQUIPE A</option>
+          <option value="B">ÉQUIPE B</option>
+          <option value="C">ÉQUIPE C</option>
+          <option value="D">ÉQUIPE D</option>
+          <option value="E">ÉQUIPE E</option>
+          <option value="F">ÉQUIPE F</option>
+        </select>
+      </div>
+      <div class="form-group" style="margin-bottom:16px">
+        <label>Identifiant / Nom</label>
+        <input id="config-user-name" type="text" placeholder="Ex: AHMED" style="width:100%">
+      </div>
+      <button class="btn btn-save" onclick="addUserConfig()" style="width:100%">＋ Ajouter à l'équipe</button>
+    </div>
+
+    <!-- Paramètres d'affichage -->
+    <div style="background:var(--bg2); border:1px solid var(--border); border-radius:12px; padding:20px; margin-top:20px;">
+      <h3 style="margin-top:0; font-size:13px; color:var(--acc); margin-bottom:15px; letter-spacing:1px; text-transform:uppercase">Paramètres d'affichage Équipes</h3>
+      <div style="display:flex; flex-direction:column; gap:12px;">
+        <div style="font-size:11px; color:var(--txt3)">Activez ou désactivez l'affichage des colonnes d'Assurance (ASS. TR / ASS. RM) pour chaque équipe :</div>
+        <div style="display:grid; grid-template-columns: repeat(3, 1fr); gap:10px;">
+          <label style="display:flex; align-items:center; gap:10px; cursor:pointer; font-size:12px;">
+            <input type="checkbox" id="config-show-insurance-A" onchange="toggleTeamInsuranceConfig('A')" style="width:auto; cursor:pointer;"> Équipe A
+          </label>
+          <label style="display:flex; align-items:center; gap:10px; cursor:pointer; font-size:12px;">
+            <input type="checkbox" id="config-show-insurance-B" onchange="toggleTeamInsuranceConfig('B')" style="width:auto; cursor:pointer;"> Équipe B
+          </label>
+          <label style="display:flex; align-items:center; gap:10px; cursor:pointer; font-size:12px;">
+            <input type="checkbox" id="config-show-insurance-C" onchange="toggleTeamInsuranceConfig('C')" style="width:auto; cursor:pointer;"> Équipe C
+          </label>
+          <label style="display:flex; align-items:center; gap:10px; cursor:pointer; font-size:12px;">
+            <input type="checkbox" id="config-show-insurance-D" onchange="toggleTeamInsuranceConfig('D')" style="width:auto; cursor:pointer;"> Équipe D
+          </label>
+          <label style="display:flex; align-items:center; gap:10px; cursor:pointer; font-size:12px;">
+            <input type="checkbox" id="config-show-insurance-E" onchange="toggleTeamInsuranceConfig('E')" style="width:auto; cursor:pointer;"> Équipe E
+          </label>
+          <label style="display:flex; align-items:center; gap:10px; cursor:pointer; font-size:12px;">
+            <input type="checkbox" id="config-show-insurance-F" onchange="toggleTeamInsuranceConfig('F')" style="width:auto; cursor:pointer;"> Équipe F
+          </label>
+        </div>
+      </div>
+    </div>
+
+    <!-- Tableaux des utilisateurs par équipe -->
+    <div style="display:grid; grid-template-columns: repeat(2, 1fr); gap:20px;">
+      <!-- A -->
+      <div style="background:var(--bg2); border:1px solid var(--border); border-radius:12px; padding:16px;">
+        <h4 style="margin:0 0 12px 0; font-size:12px; color:var(--yel)">Équipe A</h4>
+        <div id="config-users-list-A" style="display:flex; flex-direction:column; gap:6px;"></div>
+      </div>
+      <!-- B -->
+      <div style="background:var(--bg2); border:1px solid var(--border); border-radius:12px; padding:16px;">
+        <h4 style="margin:0 0 12px 0; font-size:12px; color:var(--acc)">Équipe B</h4>
+        <div id="config-users-list-B" style="display:flex; flex-direction:column; gap:6px;"></div>
+      </div>
+      <!-- C -->
+      <div style="background:var(--bg2); border:1px solid var(--border); border-radius:12px; padding:16px;">
+        <h4 style="margin:0 0 12px 0; font-size:12px; color:var(--grn)">Équipe C</h4>
+        <div id="config-users-list-C" style="display:flex; flex-direction:column; gap:6px;"></div>
+      </div>
+      <!-- D -->
+      <div style="background:var(--bg2); border:1px solid var(--border); border-radius:12px; padding:16px;">
+        <h4 style="margin:0 0 12px 0; font-size:12px; color:var(--pur)">Équipe D</h4>
+        <div id="config-users-list-D" style="display:flex; flex-direction:column; gap:6px;"></div>
+      </div>
+      <!-- E -->
+      <div style="background:var(--bg2); border:1px solid var(--border); border-radius:12px; padding:16px;">
+        <h4 style="margin:0 0 12px 0; font-size:12px; color:var(--acc)">Équipe E</h4>
+        <div id="config-users-list-E" style="display:flex; flex-direction:column; gap:6px;"></div>
+      </div>
+      <!-- F -->
+      <div style="background:var(--bg2); border:1px solid var(--border); border-radius:12px; padding:16px;">
+        <h4 style="margin:0 0 12px 0; font-size:12px; color:var(--grn)">Équipe F</h4>
+        <div id="config-users-list-F" style="display:flex; flex-direction:column; gap:6px;"></div>
+      </div>
+    </div>
+
+  </div>
+</div>
 
 </div><!-- /page-area -->
 </div><!-- /app-layout -->
@@ -2307,6 +2517,45 @@ mark.hl { background: rgba(56,189,248,.25); color: var(--acc); border-radius: 3p
     </div>
     <div id="historique-anomalies-body" style="overflow-y:auto;flex:1;padding:16px 28px"></div>
     <div style="padding:12px 28px;border-top:1px solid rgba(129,140,248,.15);font-size:10px;color:#475569;flex-shrink:0" id="hist-footer-count"></div>
+  </div>
+</div>
+
+<!-- Modal Modifier Anomalie -->
+<div class="modal-overlay" id="modal-modifier-anomalie" style="z-index:100020">
+  <div class="modal" style="width:400px; max-width:90vw; background:var(--bg2); border:1px solid var(--border); border-radius:16px; padding:24px;">
+    <h3 style="margin:0 0 16px 0; color:var(--acc); display:flex; align-items:center; gap:8px;">✏️ Modifier l'anomalie</h3>
+    <input type="hidden" id="edit-anom-eq">
+    <input type="hidden" id="edit-anom-key">
+    
+    <div style="font-size:12px; color:var(--txt2); margin-bottom:16px; display:flex; flex-direction:column; gap:4px; background:var(--bg3); padding:10px; border-radius:8px;">
+      <div><strong>Véhicule :</strong> <span id="edit-anom-v" class="mono" style="color:var(--acc)"></span></div>
+      <div><strong>Chauffeur :</strong> <span id="edit-anom-chauf" style="color:var(--txt)"></span></div>
+    </div>
+    
+    <div class="form-group" style="margin-bottom:12px">
+      <label style="display:block; margin-bottom:4px; font-weight:700; font-size:11px">Motif de l'anomalie</label>
+      <select id="edit-anom-motif" style="width:100%; background:var(--bg3); color:var(--txt); border:1px solid var(--border); border-radius:8px; padding:8px 12px; outline:none">
+        <option value="Orientation">Orientation</option>
+        <option value="Chargement à son compte">Chargement à son compte</option>
+        <option value="Chargement à son compte autorisé">Chargement à son compte autorisé</option>
+        <option value="Retard">Retard</option>
+        <option value="Panne en route">Panne en route</option>
+        <option value="Changement client">Changement client</option>
+        <option value="Embouteillage / Route coupée">Embouteillage / Route coupée</option>
+        <option value="Erreur planning">Erreur planning</option>
+        <option value="Autre">Autre</option>
+      </select>
+    </div>
+    
+    <div class="form-group" style="margin-bottom:20px">
+      <label style="display:block; margin-bottom:4px; font-weight:700; font-size:11px">Précision / Détail</label>
+      <textarea id="edit-anom-detail" placeholder="Saisir des précisions..." style="width:100%; background:var(--bg3); color:var(--txt); border:1px solid var(--border); border-radius:8px; padding:10px 12px; min-height:70px; resize:vertical; outline:none; font-family:inherit; font-size:12px"></textarea>
+    </div>
+    
+    <div class="modal-actions" style="display:flex; justify-content:flex-end; gap:12px">
+      <button class="btn btn-reset" onclick="closeModal('modal-modifier-anomalie')">Annuler</button>
+      <button class="btn btn-save" onclick="saveModifiedAnomalie()" style="background:var(--acc); color:#000; font-weight:700">💾 Enregistrer</button>
+    </div>
   </div>
 </div>
 
@@ -2943,6 +3192,62 @@ mark.hl { background: rgba(56,189,248,.25); color: var(--acc); border-radius: 3p
 const STORAGE_KEY = 'numiplan_data_v2';
 const ARCHIVE_KEY = 'numiplan_archives_v2';
 
+
+// ── RÉPARTITION INITIALE DE L'ÉQUIPE E ──
+const INITIAL_DATA_E = {
+  blacklist: [], incidentsLivraison: [],
+  dispo: [
+    {v:'000882-514-16',etat:'DISPONIBLE',type:'TRACTEUR',chauffeur:'AC/DC',hor:0.5,lieuJ:'—',lieuJ1:'—',equip:'OK',prog:''},
+    {v:'000852-514-16',etat:'DISPONIBLE',type:'TRACTEUR',chauffeur:'AC/DC',hor:0.5,lieuJ:'—',lieuJ1:'—',equip:'OK',prog:''},
+    {v:'001540-513-16',etat:'DISPONIBLE',type:'TRACTEUR',chauffeur:'AC/DC',hor:0.5,lieuJ:'—',lieuJ1:'—',equip:'OK',prog:''},
+    {v:'000957-513-16',etat:'DISPONIBLE',type:'TRACTEUR',chauffeur:'AC/DC',hor:0.5,lieuJ:'—',lieuJ1:'—',equip:'OK',prog:''},
+    {v:'000264-516-16',etat:'En mission',type:'TRACTEUR',chauffeur:'SALHI BRAHIM',hor:0.5,lieuJ:'—',lieuJ1:'—',equip:'OK',prog:''},
+    {v:'000952-514-16',etat:'DISPONIBLE',type:'TRACTEUR',chauffeur:'RABIA MESSAOUD',hor:0.5,lieuJ:'—',lieuJ1:'—',equip:'OK',prog:''},
+    {v:'001145-514-16',etat:'DISPONIBLE',type:'TRACTEUR',chauffeur:'OUBERNINE ABDELGHANI',hor:0.5,lieuJ:'—',lieuJ1:'—',equip:'OK',prog:''},
+    {v:'000894-514-16',etat:'DISPONIBLE',type:'TRACTEUR',chauffeur:'NASRI ABDESSALAM',hor:0.5,lieuJ:'—',lieuJ1:'—',equip:'OK',prog:''},
+    {v:'001000-514-16',etat:'En mission',type:'TRACTEUR',chauffeur:'MOUZAOUI MOURAD',hor:0.5,lieuJ:'—',lieuJ1:'—',equip:'OK',prog:''},
+    {v:'000912-514-16',etat:'DISPONIBLE',type:'TRACTEUR',chauffeur:'MOUSSAOUI HAKIM',hor:0.5,lieuJ:'—',lieuJ1:'—',equip:'OK',prog:''},
+    {v:'000863-514-16',etat:'DISPONIBLE',type:'TRACTEUR',chauffeur:'MEKKID LYES',hor:0.5,lieuJ:'—',lieuJ1:'—',equip:'OK',prog:''},
+    {v:'001058-514-16',etat:'En mission',type:'TRACTEUR',chauffeur:'LEFSIHANE MOHAMED',hor:0.5,lieuJ:'—',lieuJ1:'—',equip:'OK',prog:''},
+    {v:'000493-523-16',etat:'DISPONIBLE',type:'CELLULE',chauffeur:'LEFSIHANE MOHAMED',hor:0.5,lieuJ:'—',lieuJ1:'—',equip:'OK',prog:''},
+    {v:'000370-516-16',etat:'DISPONIBLE',type:'TRACTEUR',chauffeur:'LEFSIHANE MOHAMED',hor:0.5,lieuJ:'—',lieuJ1:'—',equip:'OK',prog:''}
+  ],
+  pannes: [], nc: [], gasoil: [], equip: [], activite: [],
+  bl: [], odo: [], odo_weeks: [], cspc_archives: [], cspc: [],
+  tracabilite: [], flashInfos: [], anomaliesPointees: {},
+  clientModifs: [], incidents: []
+};
+
+// ── RÉPARTITION INITIALE DE L'ÉQUIPE F ──
+const INITIAL_DATA_F = {
+  blacklist: [], incidentsLivraison: [],
+  dispo: [
+    {v:'001054-514-16',etat:'En panne',type:'TRACTEUR',chauffeur:'LAGAB RABAH',hor:0.5,lieuJ:'—',lieuJ1:'—',equip:'OK',prog:''},
+    {v:'000322-516-16',etat:'DISPONIBLE',type:'TRACTEUR',chauffeur:'LACHTER NABIL',hor:0.5,lieuJ:'—',lieuJ1:'—',equip:'OK',prog:''},
+    {v:'000876-514-16',etat:'DISPONIBLE',type:'TRACTEUR',chauffeur:'KHEBAT FARES',hor:0.5,lieuJ:'—',lieuJ1:'—',equip:'OK',prog:''},
+    {v:'000984-514-16',etat:'En panne',type:'TRACTEUR',chauffeur:'IHAMOUCHENE HILAL',hor:0.5,lieuJ:'—',lieuJ1:'—',equip:'OK',prog:''},
+    {v:'001143-514-16',etat:'DISPONIBLE',type:'TRACTEUR',chauffeur:'IHAMOUCHENE HILAL',hor:0.5,lieuJ:'—',lieuJ1:'—',equip:'OK',prog:''},
+    {v:'000956-514-16',etat:'DISPONIBLE',type:'TRACTEUR',chauffeur:'IHAMOUCHENE HILAL',hor:0.5,lieuJ:'—',lieuJ1:'—',equip:'OK',prog:''},
+    {v:'000926-514-16',etat:'DISPONIBLE',type:'TRACTEUR',chauffeur:'HEMICHE DJAMEL',hor:0.5,lieuJ:'—',lieuJ1:'—',equip:'OK',prog:''},
+    {v:'000916-514-16',etat:'DISPONIBLE',type:'TRACTEUR',chauffeur:'HEMICHE DJAMEL',hor:0.5,lieuJ:'—',lieuJ1:'—',equip:'OK',prog:''},
+    {v:'000968-514-16',etat:'En mission',type:'TRACTEUR',chauffeur:'GUENNOUCHE MD CHRIF',hor:0.5,lieuJ:'—',lieuJ1:'—',equip:'OK',prog:''},
+    {v:'000992-514-16',etat:'DISPONIBLE',type:'TRACTEUR',chauffeur:'GOUFI SLIMANE',hor:0.5,lieuJ:'—',lieuJ1:'—',equip:'OK',prog:''},
+    {v:'000151-515-16',etat:'DISPONIBLE',type:'TRACTEUR',chauffeur:'DEGHDICHE AMAR',hor:0.5,lieuJ:'—',lieuJ1:'—',equip:'OK',prog:''},
+    {v:'000980-514-16',etat:'DISPONIBLE',type:'TRACTEUR',chauffeur:'CHEBBOUT MOHAMED',hor:0.5,lieuJ:'—',lieuJ1:'—',equip:'OK',prog:''},
+    {v:'001205-514-16',etat:'DISPONIBLE',type:'TRACTEUR',chauffeur:'BOUKHENFIR LYAZID',hor:0.5,lieuJ:'—',lieuJ1:'—',equip:'OK',prog:''},
+    {v:'001062-514-16',etat:'En mission',type:'TRACTEUR',chauffeur:'BILAL IKKEN',hor:0.5,lieuJ:'—',lieuJ1:'—',equip:'OK',prog:''},
+    {v:'000161-515-16',etat:'DISPONIBLE',type:'TRACTEUR',chauffeur:'BELHADI MOURAD',hor:0.5,lieuJ:'—',lieuJ1:'—',equip:'OK',prog:''},
+    {v:'000779-515-16',etat:'En panne',type:'TRACTEUR',chauffeur:'BANOUH BOUALEM',hor:0.5,lieuJ:'—',lieuJ1:'—',equip:'OK',prog:''},
+    {v:'000320-516-16',etat:'En panne',type:'TRACTEUR',chauffeur:'AMAR ABBAS',hor:0.5,lieuJ:'—',lieuJ1:'—',equip:'OK',prog:''},
+    {v:'500158-514-16',etat:'DISPONIBLE',type:'TRACTEUR',chauffeur:'AKKOUCHE LARBI',hor:0.5,lieuJ:'—',lieuJ1:'—',equip:'OK',prog:''},
+    {v:'000910-514-16',etat:'DISPONIBLE',type:'TRACTEUR',chauffeur:'AIT TOUATI NADJIM',hor:0.5,lieuJ:'—',lieuJ1:'—',equip:'OK',prog:''}
+  ],
+  pannes: [], nc: [], gasoil: [], equip: [], activite: [],
+  bl: [], odo: [], odo_weeks: [], cspc_archives: [], cspc: [],
+  tracabilite: [], flashInfos: [], anomaliesPointees: {},
+  clientModifs: [], incidents: []
+};
+
 const INITIAL_DATA = {
   blacklist: [],
   incidentsLivraison: [],
@@ -3196,7 +3501,6 @@ const INITIAL_DATA = {
     {v:'000926-514-16',chauffeur:'RHOUI HABIB',vals:[0,null,null,0,0,0,null,null,null]},
     {v:'001127-514-16',chauffeur:'LAAMARA REDHA',vals:[0,null,null,0,0,0,null,null,null]},
   ],
-  cspc_archives: [],
   cspc: [
     {v:'000422-523-16',etat:'DISPONIBLE',chauffeur:'BOUDRISSA RABAH',hor:0.458,lieuJ:'TIZI OUZOU',lieuJ1:'TLEMCEN',equip:'OK',prog:'CSPC'},
     {v:'000816-524-16',etat:'DISPONIBLE',chauffeur:'DACHIR MUSTAPHA',hor:0.458,lieuJ:'BOUIRA',lieuJ1:'MAGHNIA',equip:'OK',prog:'CSPC'},
@@ -3205,6 +3509,8 @@ const INITIAL_DATA = {
     {v:'000945-523-16',etat:'DISPONIBLE',chauffeur:'NAGHZA AMAR',hor:0.5,lieuJ:'BORDJ BOU ARRERIDJ',lieuJ1:'SKIKDA',equip:'OK',prog:'CSPC'},
   ],
 };
+window.INITIAL_DATA = INITIAL_DATA;
+
 
 
 // ═══════════════════════════════════════════════════════════════
@@ -3240,7 +3546,7 @@ function normalizeOdoDate(dStr) {
 }
 
 function alignOdoWeeksGlobal() {
-  const EQUIPES = ['A', 'B', 'C', 'D'];
+  const EQUIPES = ['A', 'B', 'C', 'D', 'E', 'F'];
   const allWeeks = new Set();
   
   // 1. Gather all weeks from all databases
@@ -3577,7 +3883,7 @@ function updateHeaderRAC() {
   let totalFact = 0;
   let totalOdo = 0;
   
-  ['A', 'B', 'C', 'D'].forEach(eq => {
+  ['A', 'B', 'C', 'D', 'E', 'F'].forEach(eq => {
     const db = (eq === curEq && typeof window.DB !== 'undefined') ? window.DB : window['DB_' + eq];
     const stats = getTeamRACStats(db);
     totalFact += stats.fact;
@@ -3644,14 +3950,16 @@ function ensureTeamCaches() {
   window.DB_B = cloneTeamData(window.DB_B, emptyTeamData());
   window.DB_C = cloneTeamData(window.DB_C, emptyTeamData());
   window.DB_D = cloneTeamData(window.DB_D, emptyTeamData());
+  window.DB_E = cloneTeamData(window.DB_E, INITIAL_DATA_E);
+  window.DB_F = cloneTeamData(window.DB_F, INITIAL_DATA_F);
 }
 
 function restaurerDonneesInitialesDispo() {
   const eq = (typeof window.CURRENT_EQUIPE !== 'undefined') ? window.CURRENT_EQUIPE : 'A';
   if (confirm(`Voulez-vous restaurer la liste par défaut des camions/chauffeurs pour l'Équipe ${eq} ?\nCette opération remplacera la liste de disponibilité actuelle par la liste initiale, mais conservera toutes vos autres données (pannes, non-conformités, odomètres, etc.).`)) {
-    DB.dispo = JSON.parse(JSON.stringify(INITIAL_DATA.dispo));
+    const initData = eq === 'A' ? INITIAL_DATA : emptyTeamData() || INITIAL_DATA_A; DB.dispo = JSON.parse(JSON.stringify(initData.dispo));
     if (window['DB_' + eq]) {
-      window['DB_' + eq].dispo = JSON.parse(JSON.stringify(INITIAL_DATA.dispo));
+      const initData = eq === 'A' ? INITIAL_DATA : emptyTeamData() || INITIAL_DATA_A; window['DB_' + eq].dispo = JSON.parse(JSON.stringify(initData.dispo));
     }
     saveDB();
     renderDispo();
@@ -3885,8 +4193,10 @@ function handleTeamDrop(event, destEq) {
 window.restaurerDonneesInitialesDispo = restaurerDonneesInitialesDispo;
 
 function getOperatorRole() {
+  const username = sessionStorage.getItem('numiplan_username') || '';
   const lock = sessionStorage.getItem('numiplan_team_lock');
-  return lock ? `Chef d'équipe ${lock}` : 'Superviseur Admin';
+  const role = lock ? `Chef d'équipe ${lock}` : 'Superviseur Admin';
+  return username ? `${username} (${role})` : role;
 }
 
 function logMouvement(type, targetType, target, motif) {
@@ -4236,7 +4546,7 @@ function saveTeamDB(eq, dbData) {
   localStorage.setItem(STORAGE_KEY, JSON.stringify({
     version: 3,
     active: CURRENT_EQUIPE || 'A',
-    teams: { A: window.DB_A, B: window.DB_B, C: window.DB_C, D: window.DB_D }
+    teams: { A: window.DB_A, B: window.DB_B, C: window.DB_C, D: window.DB_D, E: window.DB_E, F: window.DB_F }
   }));
 
   if (typeof window._firebaseSaveDB === 'function') {
@@ -4580,7 +4890,7 @@ function renderGlobalBLAlerts() {
   const months = ['mars','avril','mai','juin','juil','aout','sep','oct','nov','dec'];
   const alerts = [];
 
-  ['A', 'B', 'C', 'D'].forEach(eq => {
+  ['A', 'B', 'C', 'D', 'E', 'F'].forEach(eq => {
     // Appliquer le filtre par équipe dès le départ pour de meilleures performances
     if (qTeam && eq !== qTeam) return;
 
@@ -4898,15 +5208,15 @@ function loadDB() {
     if (raw) {
       const parsed = JSON.parse(raw);
       if (parsed && parsed.teams && typeof parsed.teams === 'object') {
-        ['A', 'B', 'C', 'D'].forEach(eq => {
+        ['A', 'B', 'C', 'D', 'E', 'F'].forEach(eq => {
           if (parsed.teams[eq] && parsed.teams[eq].dispo) {
             window['DB_' + eq] = cloneTeamData(parsed.teams[eq], eq === 'A' ? INITIAL_DATA : emptyTeamData());
           }
         });
-        if (parsed.active && ['A', 'B', 'C', 'D'].includes(parsed.active)) active = parsed.active;
+        if (parsed.active && ['A', 'B', 'C', 'D', 'E', 'F'].includes(parsed.active)) active = parsed.active;
       } else if (parsed && parsed.dispo) {
         // Ancien format (1 seul blob) : en pratique = dernière équipe sauvegardée (souvent D)
-        const legacyEq = (parsed._savedEquipe && ['A', 'B', 'C', 'D'].includes(parsed._savedEquipe))
+        const legacyEq = (parsed._savedEquipe && ['A', 'B', 'C', 'D', 'E', 'F'].includes(parsed._savedEquipe))
           ? parsed._savedEquipe : 'D';
         window['DB_' + legacyEq] = cloneTeamData(parsed, legacyEq === 'A' ? INITIAL_DATA : emptyTeamData());
         active = 'A'; // au démarrage on affiche toujours l'équipe A
@@ -4921,7 +5231,7 @@ function loadDB() {
   if (!window.DB_A.bl || !window.DB_A.bl.length) {
     window.DB_A.bl = cloneTeamData(INITIAL_DATA, INITIAL_DATA).bl;
   }
-  ['A', 'B', 'C', 'D'].forEach(eq => {
+  ['A', 'B', 'C', 'D', 'E', 'F'].forEach(eq => {
     window['DB_' + eq] = cloneTeamData(window['DB_' + eq], eq === 'A' ? INITIAL_DATA : emptyTeamData());
   });
   // RÈGLE 3 : Réinitialiser le timestamp local à 0 au démarrage pour forcer l'alignement sur le cloud Firestore au premier Snapshot
@@ -4954,12 +5264,15 @@ function loadDB() {
   if (typeof verifierImmobilisationsActives === 'function') {
     verifierImmobilisationsActives();
   }
+  if (typeof verifierCspcNonTraite === 'function') {
+    verifierCspcNonTraite();
+  }
 }
 
 // Fonction exposée au module Firebase pour sync propre sans casser la référence
 // data = { A: { '2025-01-01': {dispo,pannes,...}, ... }, B: {...}, ... }
 window._syncArchives = function(data) {
-  ['A','B','C','D'].forEach(function(eq) {
+  ['A','B','C','D','E','F'].forEach(function(eq) {
     if (!data[eq]) return;
     if (!ARCHIVES[eq]) ARCHIVES[eq] = {};
     Object.keys(data[eq]).forEach(function(dateKey) {
@@ -4987,7 +5300,7 @@ function saveDB() {
     localStorage.setItem(STORAGE_KEY, JSON.stringify({
       version: 3,
       active: eq,
-      teams: { A: window.DB_A, B: window.DB_B, C: window.DB_C, D: window.DB_D }
+      teams: { A: window.DB_A, B: window.DB_B, C: window.DB_C, D: window.DB_D, E: window.DB_E, F: window.DB_F }
     }));
   } catch(e) {
     console.warn('LocalStorage save error (likely quota exceeded):', e);
@@ -5018,6 +5331,9 @@ function saveDB() {
   }
   if (typeof verifierImmobilisationsActives === 'function') {
     verifierImmobilisationsActives();
+  }
+  if (typeof verifierCspcNonTraite === 'function') {
+    verifierCspcNonTraite();
   }
 }
 
@@ -5162,12 +5478,24 @@ function switchTab(name, btn) {
   if (btn) btn.classList.add('active');
   else document.querySelector(`[onclick*="switchTab('${name}"]`)?.classList.add('active');
   if (name==='analytics') renderAnalytics();
-  if (name==='archives') renderArchives();
+  if (name==='archives') {
+    if (!window._archivesLoaded) {
+      window._archivesLoaded = true;
+      if (typeof window._reloadArchives === 'function') {
+        window._reloadArchives();
+      } else {
+        renderArchives();
+      }
+    } else {
+      renderArchives();
+    }
+  }
   if (name==='vehicule') updateDataLists();
   if (typeof window.setupBlacklistListeners === 'function') window.setupBlacklistListeners();
   if (name==='blacklist') renderBlacklist();
   if (name==='tracabilite') renderTracabilite();
   if (name==='flashinfo') renderAdminFlashList();
+  if (name==='users-config') renderUsersConfigLists();
   
   if (name === 'incidents-livraison') renderIncidentsLivraisonPage();
 checkBascule();
@@ -5179,7 +5507,7 @@ checkBascule();
 function updateDataLists() {
   const vehicles = new Set();
   const chauffeurs = new Set();
-  const EQUIPES = ['A', 'B', 'C', 'D'];
+  const EQUIPES = ['A', 'B', 'C', 'D', 'E', 'F'];
 
   EQUIPES.forEach(eq => {
     const db = (eq === CURRENT_EQUIPE && typeof window.DB !== 'undefined') ? window.DB : window['DB_' + eq];
@@ -5364,7 +5692,16 @@ function renderDispo() {
   });
 
   const body = document.getElementById('dispo-body');
-  if (!data.length) { body.innerHTML = `<tr><td colspan="16"><div class="empty-state"><div class="icon">🔍</div>Aucun résultat</div></td></tr>`; return; }
+  const lock = sessionStorage.getItem('numiplan_team_lock');
+  const showInsurance = DB.config_ui ? DB.config_ui.showInsurance !== false : true;
+  const shouldHide = lock && !showInsurance;
+  if (!data.length) { 
+    body.innerHTML = `<tr><td colspan="${shouldHide ? 14 : 16}"><div class="empty-state"><div class="icon">🔍</div>Aucun résultat</div></td></tr>`; 
+    document.querySelectorAll('.col-assurance').forEach(el => {
+      el.style.display = 'none';
+    });
+    return; 
+  }
   const isDraggable = !sessionStorage.getItem('numiplan_team_lock');
   body.innerHTML = data.map((r,i) => {
     const realIdx = DB.dispo.indexOf(r);
@@ -5465,8 +5802,8 @@ function renderDispo() {
       </td>
       <td style="text-align:center;white-space:nowrap">${getSingleVehicleRACStr(r.v)}</td>
       <td style="max-width:150px;font-size:11px"><span class="cell-edit" contenteditable="true" data-field="obs" data-idx="${realIdx}" onblur="saveInline(this)" onkeydown="if(event.key==='Enter'){event.preventDefault();this.blur()}" style="color:var(--txt2);font-style:${r.obs?'normal':'italic'}">${r.obs||'—'}</span></td>
-      <td>${buildAssuranceCell(r, realIdx, 'dispo', 'tr')}</td>
-      <td>${buildAssuranceCell(r, realIdx, 'dispo', 'rm')}</td>
+      <td class="col-assurance">${buildAssuranceCell(r, realIdx, 'dispo', 'tr')}</td>
+      <td class="col-assurance">${buildAssuranceCell(r, realIdx, 'dispo', 'rm')}</td>
       <td style="max-width:130px;font-size:11px;white-space:nowrap">${r.surveillance ? `<span style="color:#f87171;font-weight:600;font-size:10px;display:flex;align-items:center;gap:4px"><span style="animation:pulse-eye .8s ease-in-out infinite alternate;display:inline-block">👁️</span><span style="color:#f87171;font-style:italic;overflow:hidden;text-overflow:ellipsis;max-width:110px" title="${r.surveillanceCause||''}">${r.surveillanceCause||'Sous surveillance'}</span></span>` : '<span style="color:var(--txt3);font-size:10px">—</span>'}</td>
       <td style="white-space:nowrap">
         ${r.cspc ? '<button class=\"del-btn\" style=\"color:var(--pur);font-size:10px;padding:1px 6px;border:1px solid rgba(167,139,250,.5);border-radius:4px;background:rgba(167,139,250,.15)\" onclick=\"undeclCSPC('+realIdx+')\" title=\"Retirer du programme CSPC\">🔷 CSPC ✕</button>' : '<button class=\"del-btn\" style=\"color:var(--pur);font-size:10px;padding:1px 5px;border:1px solid rgba(167,139,250,.3);border-radius:4px\" onclick=\"declCSPC('+realIdx+')\" title=\"Déclarer CSPC\">🔷</button>'}
@@ -5483,6 +5820,11 @@ function renderDispo() {
       </td>
     </tr>`;
   }).join('');
+  
+  // Appliquer le masquage dynamique des colonnes assurances pour les équipes
+  document.querySelectorAll('.col-assurance').forEach(el => {
+    el.style.display = shouldHide ? 'none' : '';
+  });
 }
 
 function editDispo(idx) {
@@ -5976,7 +6318,7 @@ function renderNC() {
     ${top.map(t=>`<div class="stat-card" style="cursor:pointer" onclick="filterNC('${t[0]}')" title="Filtrer ${t[0]}"><div class="stat-num" style="font-size:18px">${t[1]}×</div><div class="stat-lbl" style="font-size:9px;max-width:100px;overflow:hidden;text-overflow:ellipsis">${t[0]}</div></div>`).join('')}`;
   document.getElementById('cnt-nc').textContent = DB.nc.length;
   const body = document.getElementById('nc-body');
-  if (!data.length) { body.innerHTML = `<tr><td colspan="8"><div class="empty-state"><div class="icon">🔍</div>Aucun résultat</div></td></tr>`; return; }
+  if (!data.length) { body.innerHTML = `<tr><td colspan="9"><div class="empty-state"><div class="icon">🔍</div>Aucun résultat</div></td></tr>`; return; }
   body.innerHTML = data.map(r => {
     const realIdx = DB.nc.indexOf(r);
     let type = '', detail = '';
@@ -5993,6 +6335,7 @@ function renderNC() {
       <td style="font-size:11px">${detail}</td>
       <td class="mono" style="color:var(--txt2)">${fmtDate(r.date)}</td>
       <td>${r.mise?`<span class="badge badge-panne">${r.mise}</span>`:'<span class="no-data">—</span>'}</td>
+      <td>${r.cet || '—'}</td>
       <td><button class="del-btn" onclick="editNC(${realIdx})">✏️</button><button class="del-btn" onclick="deleteNC(${realIdx})">🗑</button></td>
     </tr>`;
   }).join('');
@@ -6046,7 +6389,8 @@ function saveNC() {
     autre: type==='autre'?autreDetail:'',
     date: document.getElementById('f-nc-date').value||today(),
     mise: document.getElementById('f-nc-mise').value.trim(),
-    commission: document.getElementById('f-nc-commission').value.trim()
+    commission: document.getElementById('f-nc-commission').value.trim(),
+    cet: sessionStorage.getItem('numiplan_username') || ''
   };
   // Validation de distance limite 400km pour les chargements autorisés
   if (type === 'autorise') {
@@ -6061,7 +6405,13 @@ function saveNC() {
     }
   }
   const idx = parseInt(document.getElementById('nc-edit-idx').value);
-  if (idx >= 0) { obj.n = DB.nc[idx].n; DB.nc[idx] = obj; } else DB.nc.push(obj);
+  if (idx >= 0) {
+    obj.n = DB.nc[idx].n;
+    obj.cet = DB.nc[idx].cet || sessionStorage.getItem('numiplan_username') || '';
+    DB.nc[idx] = obj;
+  } else {
+    DB.nc.push(obj);
+  }
   saveDB(); closeModal('modal-nc'); renderNC(); showToast('✅ Non-conformité enregistrée');
 }
 
@@ -6131,7 +6481,7 @@ function renderGasoil() {
   document.getElementById('gasoil-alerts').innerHTML = alertHtml;
 
   const body = document.getElementById('gasoil-body');
-  if (!data.length) { body.innerHTML = `<tr><td colspan="8"><div class="empty-state"><div class="icon">⛽</div>Aucun résultat</div></td></tr>`; return; }
+  if (!data.length) { body.innerHTML = `<tr><td colspan="9"><div class="empty-state"><div class="icon">⛽</div>Aucun résultat</div></td></tr>`; return; }
   body.innerHTML = data.map(r => {
     const realIdx = DB.gasoil.indexOf(r);
     const recCount = countByVeh[r.vehicule] || 0;
@@ -6145,6 +6495,7 @@ function renderGasoil() {
       <td><span class="badge badge-ok">${r.type}</span></td>
       <td><span class="badge badge-dispo">⛽ ${r.operation}</span></td>
       <td style="font-size:11px;color:var(--txt2)">${r.resp}</td>
+      <td>${r.cet || '—'}</td>
       <td><button class="del-btn" onclick="editGasoil(${realIdx})">✏️</button><button class="del-btn" onclick="deleteGasoil(${realIdx})">🗑</button></td>
     </tr>`;
   }).join('');
@@ -6183,7 +6534,13 @@ function saveGasoil() {
   };
   const emailDest = 'Grp_numilog_Bouira_planification_transport@cevital.com;GRP_Num_Acroche_Decroche_Bouira@cevital.com';
   const idx = parseInt(document.getElementById('gasoil-edit-idx').value);
-  if (idx >= 0) DB.gasoil[idx] = obj; else DB.gasoil.push(obj);
+  if (idx >= 0) {
+    obj.cet = DB.gasoil[idx].cet || sessionStorage.getItem('numiplan_username') || '';
+    DB.gasoil[idx] = obj;
+  } else {
+    obj.cet = sessionStorage.getItem('numiplan_username') || '';
+    DB.gasoil.push(obj);
+  }
   saveDB(); closeModal('modal-gasoil'); renderGasoil(); showToast('✅ Gasoil enregistré');
 
   // ── Génération email de notification ──
@@ -6252,7 +6609,7 @@ function renderEquip() {
     <div class="stat-card red" style="cursor:pointer" onclick="filterEquip('','NON')" title="Câble manquant"><div class="stat-num">${data.length-cOui}</div><div class="stat-lbl">Câble manquant</div></div>`;
   document.getElementById('cnt-equip').textContent = DB.equip.length;
   const body = document.getElementById('equip-body');
-  if (!data.length) { body.innerHTML = `<tr><td colspan="8"><div class="empty-state"><div class="icon">🔍</div>Aucun résultat</div></td></tr>`; return; }
+  if (!data.length) { body.innerHTML = `<tr><td colspan="9"><div class="empty-state"><div class="icon">🔍</div>Aucun résultat</div></td></tr>`; return; }
   body.innerHTML = data.map(r => {
     const realIdx = DB.equip.indexOf(r);
     return `<tr>
@@ -6521,7 +6878,7 @@ let _arcEq = 'A'; // équipe affichée dans les archives
 
 function setArchiveEq(eq) {
   _arcEq = eq;
-  ['A','B','C','D'].forEach(e => {
+  ['A','B','C','D','E','F'].forEach(e => {
     const btn = document.getElementById('arc-btn-'+e);
     if (!btn) return;
     if (e === eq) {
@@ -6547,7 +6904,7 @@ function renderArchives() {
   const arcEq = ARCHIVES[eq] || {};
 
   // Compter les archives disponibles par équipe pour les badges
-  ['A','B','C','D'].forEach(e => {
+  ['A','B','C','D','E','F'].forEach(e => {
     const btn = document.getElementById('arc-btn-'+e);
     if (!btn) return;
     const n = Object.keys(ARCHIVES[e]||{}).length;
@@ -6563,7 +6920,7 @@ function renderArchives() {
   document.getElementById('archive-stats').innerHTML = `
     <div class="stat-card pur"><div class="stat-num">${Object.keys(arcEq).length}</div><div class="stat-lbl">Jours archivés (Éq. ${eq})</div></div>
     <div class="stat-card"><div class="stat-num">${entries.length}</div><div class="stat-lbl">Affichés</div></div>
-    ${['A','B','C','D'].map(e=>`<div class="stat-card" style="cursor:pointer;border-left-color:${e===eq?'var(--acc)':'var(--border)'}" onclick="setArchiveEq('${e}')"><div class="stat-num" style="font-size:18px">${Object.keys(ARCHIVES[e]||{}).length}</div><div class="stat-lbl">Éq. ${e}</div></div>`).join('')}`;
+    ${['A','B','C','D','E','F'].map(e=>`<div class="stat-card" style="cursor:pointer;border-left-color:${e===eq?'var(--acc)':'var(--border)'}" onclick="setArchiveEq('${e}')"><div class="stat-num" style="font-size:18px">${Object.keys(ARCHIVES[e]||{}).length}</div><div class="stat-lbl">Éq. ${e}</div></div>`).join('')}`;
 
   const list = document.getElementById('archives-list');
   if (!entries.length) {
@@ -6743,7 +7100,7 @@ function renderActivite() {
     <div class="stat-card" onclick="resetFilters('act-search','act-site','act-etat');renderActivite()" title="Afficher tout" style="cursor:pointer"><div class="stat-num">${data.length}</div><div class="stat-lbl">Total ↺</div></div>`;
   document.getElementById('cnt-act').textContent = DB.activite.length;
   const body = document.getElementById('act-body');
-  if (!data.length) { body.innerHTML = `<tr><td colspan="12"><div class="empty-state"><div class="icon">🔍</div>Aucun résultat</div></td></tr>`; return; }
+  if (!data.length) { body.innerHTML = `<tr><td colspan="13"><div class="empty-state"><div class="icon">🔍</div>Aucun résultat</div></td></tr>`; return; }
   body.innerHTML = data.map(r => {
     const realIdx = DB.activite.indexOf(r);
     const extBadge = r.ext ? `<span class="badge badge-pur">${r.ext}</span>` : '—';
@@ -6837,7 +7194,7 @@ function renderBL() {
   let data = DB.bl.filter(r => !q || r.chauffeur.toLowerCase().includes(q.toLowerCase()));
   const months = ['mars','avril','mai','juin','juil','aout','sep','oct','nov','dec'];
   const body = document.getElementById('bl-body');
-  if (!data.length) { body.innerHTML = `<tr><td colspan="12"><div class="empty-state"><div class="icon">📄</div>Aucun résultat</div></td></tr>`; return; }
+  if (!data.length) { body.innerHTML = `<tr><td colspan="13"><div class="empty-state"><div class="icon">📄</div>Aucun résultat</div></td></tr>`; return; }
   body.innerHTML = data.map(r => {
     const realIdx = DB.bl.indexOf(r);
     const cells = months.map(m => {
@@ -6852,7 +7209,7 @@ function renderBL() {
       }
       return `<td style="font-size:11px">${v}</td>`;
     }).join('');
-    return `<tr><td style="font-weight:600">${r.chauffeur}</td>${cells}<td><button class="del-btn" onclick="editBL(${realIdx})">✏️</button><button class="del-btn" onclick="deleteBL(${realIdx})">🗑</button></td></tr>`;
+    return `<tr><td style="font-weight:600">${r.chauffeur}</td>${cells}<td>${r.cet || '—'}</td><td><button class="del-btn" onclick="editBL(${realIdx})">✏️</button><button class="del-btn" onclick="deleteBL(${realIdx})">🗑</button></td></tr>`;
   }).join('');
 }
 
@@ -6880,7 +7237,13 @@ function saveBL() {
     obj[m] = document.getElementById('f-bl-'+m).value.trim();
   });
   const idx = parseInt(document.getElementById('bl-edit-idx').value);
-  if (idx >= 0) DB.bl[idx] = obj; else DB.bl.push(obj);
+  if (idx >= 0) {
+    obj.cet = DB.bl[idx].cet || sessionStorage.getItem('numiplan_username') || '';
+    DB.bl[idx] = obj;
+  } else {
+    obj.cet = sessionStorage.getItem('numiplan_username') || '';
+    DB.bl.push(obj);
+  }
   saveDB(); closeModal('modal-bl'); renderBL(); showToast('✅ BL enregistré');
 }
 
@@ -7306,7 +7669,7 @@ function getVehicleAnomalyKm(immat, motifName, startVal, endVal) {
   if (!immat) return 0;
   const vKey = immat.trim().toUpperCase();
   const anomalies = [];
-  ['A','B','C','D'].forEach(eq => {
+  ['A','B','C','D','E','F'].forEach(eq => {
     const dbEq = window['DB_' + eq] || (eq === (window.CURRENT_EQUIPE||'A') ? window.DB : null);
     if (dbEq && dbEq.anomaliesPointees) {
       Object.entries(dbEq.anomaliesPointees).forEach(([key, anom]) => {
@@ -7605,7 +7968,7 @@ function importKmFacture(input) {
     reader.onload = e => {
       try {
         // Clear all existing billed km for all databases to overwrite completely
-        const EQUIPS = ['A', 'B', 'C', 'D'];
+        const EQUIPS = ['A', 'B', 'C', 'D', 'E', 'F'];
         EQUIPS.forEach(eq => {
           const eqDb = (eq === CURRENT_EQUIPE && typeof window.DB !== 'undefined') ? window.DB : window['DB_' + eq];
           if (eqDb && eqDb.odo) {
@@ -7731,7 +8094,7 @@ function importKmFacture(input) {
           }
         });
 
-        const EQUIPS_TO_SAVE = ['A', 'B', 'C', 'D'];
+        const EQUIPS_TO_SAVE = ['A', 'B', 'C', 'D', 'E', 'F'];
         EQUIPS_TO_SAVE.forEach(eq => {
           const eqDb = (eq === CURRENT_EQUIPE && typeof window.DB !== 'undefined') ? window.DB : window['DB_' + eq];
           if (eqDb) {
@@ -8038,15 +8401,16 @@ function renderCSPC() {
     <div class="stat-card" onclick="document.getElementById('cspc-search').value='mission';renderCSPC()" title="Filtrer En mission" style="cursor:pointer"><div class="stat-num">${cspcMission}</div><div class="stat-lbl">En mission</div></div>`;
   
   const body = document.getElementById('cspc-body');
-  if (!data.length) { body.innerHTML = `<tr><td colspan="10"><div class="empty-state"><div class="icon">🔍</div>Aucun résultat</div></td></tr>`; return; }
+  if (!data.length) { body.innerHTML = `<tr><td colspan="12"><div class="empty-state"><div class="icon">🔍</div>Aucun résultat</div></td></tr>`; return; }
   
   body.innerHTML = data.map(r => {
     const realIdx = sourceList.indexOf(r);
     const actionHtml = _cspcViewMode === 'active' ? `
+      <td>${r.cet || '—'}</td>
       <td>
         <button class="del-btn" onclick="editCSPC(${realIdx})" title="Modifier">✏️</button>
         <button class="del-btn" onclick="deleteCSPC(${realIdx})" title="Retirer">❌</button>
-      </td>` : `<td>—</td>`;
+      </td>` : `<td>${r.cet || '—'}</td><td>—</td>`;
       
     return `<tr>
       <td class="mono" style="color:var(--acc)">${r.v}</td>
@@ -8109,8 +8473,15 @@ function saveCSPC() {
     prog: document.getElementById('f-cspc-prog').value.trim()
   };
   const idx = parseInt(document.getElementById('cspc-edit-idx').value);
-  if (idx >= 0) DB.cspc[idx] = obj; else DB.cspc.push(obj);
+  if (idx >= 0) {
+    obj.cet = DB.cspc[idx].cet || sessionStorage.getItem('numiplan_username') || '';
+    DB.cspc[idx] = obj;
+  } else {
+    obj.cet = sessionStorage.getItem('numiplan_username') || '';
+    DB.cspc.push(obj);
+  }
   saveDB(); closeModal('modal-cspc'); renderCSPC(); showToast('✅ CSPC enregistré');
+  if (typeof verifierCspcNonTraite === 'function') verifierCspcNonTraite(true);
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -8213,8 +8584,27 @@ function openIncidentLivraisonModal(idx) {
   document.getElementById('f-inc-liv-idx').value = idx;
   document.getElementById('f-inc-liv-type').value = 'Immobilisation chez le client';
   document.getElementById('f-inc-liv-client').value = '';
-  document.getElementById('f-inc-liv-dest-prevue').value = r.lieuJ1 && r.lieuJ1 !== '?' ? r.lieuJ1 : '—';
-  document.getElementById('f-inc-liv-destination').value = r.lieuJ1 && r.lieuJ1 !== '?' ? r.lieuJ1 : '';
+  
+  let plannedCity = '';
+  let realCity = '';
+  if (r.lieuJ1 && r.lieuJ1 !== '?') {
+    const parts = r.lieuJ1.split(/[/-]/);
+    const splitPart1 = parts[0].trim().toUpperCase();
+    const selectPrev = document.getElementById('f-inc-liv-dest-prevue');
+    if (selectPrev && Array.from(selectPrev.options).some(opt => opt.value === splitPart1)) {
+      plannedCity = splitPart1;
+    }
+    
+    if (parts.length > 1) {
+      const splitPart2 = parts[1].trim().toUpperCase();
+      const selectDest = document.getElementById('f-inc-liv-destination');
+      if (selectDest && Array.from(selectDest.options).some(opt => opt.value === splitPart2)) {
+        realCity = splitPart2;
+      }
+    }
+  }
+  document.getElementById('f-inc-liv-dest-prevue').value = plannedCity;
+  document.getElementById('f-inc-liv-destination').value = realCity || plannedCity;
   document.getElementById('f-inc-liv-ref-commande').value = '';
   document.getElementById('f-inc-liv-obs').value = '';
   
@@ -8234,10 +8624,17 @@ function saveIncidentLivraison() {
   
   const type = document.getElementById('f-inc-liv-type').value;
   const client = document.getElementById('f-inc-liv-client').value.trim().toUpperCase();
-  const destination = document.getElementById('f-inc-liv-destination').value.trim().toUpperCase();
   const refCommande = document.getElementById('f-inc-liv-ref-commande').value.trim().toUpperCase();
   const debut = document.getElementById('f-inc-liv-debut').value;
   const obs = document.getElementById('f-inc-liv-obs').value.trim();
+  
+  const pSite = document.getElementById('f-inc-liv-dest-prevue-site').value;
+  const pVille = document.getElementById('f-inc-liv-dest-prevue-ville').value;
+  const rSite = document.getElementById('f-inc-liv-dest-reelle-site').value;
+  const rVille = document.getElementById('f-inc-liv-dest-reelle-ville').value;
+  
+  const destPrevue = pSite + (pVille ? '-' + pVille : '');
+  const destination = rSite + (rVille ? '-' + rVille : '');
   
   if (!client) {
     showToast('⚠️ Le nom du client est requis', true);
@@ -8246,6 +8643,42 @@ function saveIncidentLivraison() {
   if (!debut) {
     showToast('⚠️ La date/heure est requise', true);
     return;
+  }
+  
+  const refCommandeInitiale = document.getElementById('f-inc-liv-ref-commande-initiale') ? document.getElementById('f-inc-liv-ref-commande-initiale').value.trim().toUpperCase() : '';
+
+  if (type === 'Changement de destination') {
+    if (!pSite || !pVille) {
+      showToast('⚠️ La destination prévue complète (Chargement et Livraison) est obligatoire', true);
+      return;
+    }
+    if (!rSite || !rVille) {
+      showToast('⚠️ La destination réelle complète (Chargement et Livraison) est obligatoire', true);
+      return;
+    }
+    if (!refCommande || refCommande === '—') {
+      showToast('⚠️ La référence commande est obligatoire', true);
+      return;
+    }
+    if (!obs || obs === '—') {
+      showToast('⚠️ Les observations/description sont obligatoires', true);
+      return;
+    }
+  }
+
+  if (type === 'Changement de référence commande') {
+    if (!refCommandeInitiale) {
+      showToast('⚠️ La référence commande initiale est obligatoire', true);
+      return;
+    }
+    if (!refCommande || refCommande === '—') {
+      showToast('⚠️ La nouvelle référence commande est obligatoire', true);
+      return;
+    }
+    if (!obs || obs === '—') {
+      showToast('⚠️ Les observations/description sont obligatoires', true);
+      return;
+    }
   }
   
   const incId = 'inc_' + Date.now();
@@ -8258,11 +8691,13 @@ function saveIncidentLivraison() {
     destPrevue: document.getElementById('f-inc-liv-dest-prevue').value || '—',
     destination: destination || '—',
     refCommande: refCommande || '—',
+    refCommandeInitiale: refCommandeInitiale || '—',
     debut: new Date(debut).toISOString(),
     fin: null,
     dureeHeures: null,
     obs: obs || '—',
-    equipe: CURRENT_EQUIPE
+    equipe: CURRENT_EQUIPE,
+    cet: sessionStorage.getItem('numiplan_username') || ''
   };
   
   if (!DB.incidentsLivraison) DB.incidentsLivraison = [];
@@ -8284,6 +8719,11 @@ function saveIncidentLivraison() {
     hour: '2-digit', minute: '2-digit'
   });
   
+  let mailRef = `${mailRef}`;
+  if (obj.type === 'Changement de référence commande') {
+    mailRef = `Réf Commande Init  : ${obj.refCommandeInitiale}\n  Nouv. Réf Commande : ${obj.refCommande}`;
+  }
+
   const subject = encodeURIComponent(`[SHARIK] Incident Livraison - ${obj.type} - Camion ${obj.v}`);
   const body = encodeURIComponent(
 `Bonjour,
@@ -8301,7 +8741,7 @@ Un incident de livraison a été déclaré sur SHARIK.
   Client             : ${obj.client}
   Destination prévue : ${obj.destPrevue}
   Destination réelle  : ${obj.destination}
-  Réf Commande       : ${obj.refCommande}
+  ${mailRef}
   Observations       : ${obj.obs}
 ----------------------------------
 
@@ -8411,7 +8851,7 @@ function renderIncidentsLivraisonPage() {
   if (!body) return;
   
   if (!data.length) {
-    body.innerHTML = '<tr><td colspan="11"><div class="empty-state"><div class="icon">🔍</div>Aucun incident enregistré</div></td></tr>';
+    body.innerHTML = '<tr><td colspan="12"><div class="empty-state"><div class="icon">🔍</div>Aucun incident enregistré</div></td></tr>';
     return;
   }
   
@@ -8448,10 +8888,15 @@ function renderIncidentsLivraisonPage() {
       <td>${r.client}</td>
       <td style="color:var(--txt3)">${r.destPrevue || '—'}</td>
       <td>${r.destination}</td>
-      <td class="mono" style="font-size:11px">${r.refCommande}</td>
+      <td class="mono" style="font-size:11px">
+        ${r.type === 'Changement de référence commande' && r.refCommandeInitiale && r.refCommandeInitiale !== '—' 
+          ? `<span style="color:var(--txt3);text-decoration:line-through">${r.refCommandeInitiale}</span> ➔ <span style="color:var(--grn);font-weight:600">${r.refCommande}</span>` 
+          : r.refCommande}
+      </td>
       <td class="mono" style="font-size:11px">${debutFormatted}</td>
       <td>${finFormatted}</td>
       <td style="font-size:11px; max-width:200px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap" title="${r.obs}">${r.obs}</td>
+      <td>${r.cet || '—'}</td>
       <td>
         <button class="del-btn" onclick="deleteIncidentLivraison(${realIdx})" title="Supprimer" style="color:var(--red);border:none;background:transparent;cursor:pointer">🗑</button>
       </td>
@@ -8968,7 +9413,7 @@ function renderHistoriqueAnomalies() {
 
   // Collecter toutes les anomalies pointées de toutes les équipes
   const all = [];
-  ['A','B','C','D'].forEach(eq => {
+  ['A','B','C','D','E','F'].forEach(eq => {
     const dbEq = window['DB_' + eq] || (eq === (window.CURRENT_EQUIPE||'A') ? window.DB : null);
     if (!dbEq || !dbEq.anomaliesPointees) return;
     Object.entries(dbEq.anomaliesPointees).forEach(([k, v]) => {
@@ -9026,17 +9471,22 @@ function renderHistoriqueAnomalies() {
   // Tableau
   html += '<table style="width:100%;border-collapse:collapse;font-size:11px">';
   html += '<thead><tr style="color:#475569;font-size:10px;letter-spacing:1px;text-transform:uppercase;border-bottom:1px solid rgba(255,255,255,.08)">';
-  ['Date','Équipe','Véhicule','Chauffeur','Lieu prévu','Lieu actuel','Motif','Détail'].forEach(h => {
+  ['Date','Équipe','Véhicule','Chauffeur','Lieu prévu','Lieu actuel','Motif','Détail','Action'].forEach(h => {
     html += `<th style="padding:6px 10px;text-align:left;font-weight:700">${h}</th>`;
   });
   html += '</tr></thead><tbody>';
 
+  const lock = sessionStorage.getItem('numiplan_team_lock');
   filtered.forEach((a, i) => {
     const motif = a.motif || (a.justif || '—');
     const detail = a.detail || '';
     const c = motifColors[motif] || '#94a3b8';
     const eqColor = {A:'var(--acc)',B:'var(--grn)',C:'#a78bfa',D:'#f97316'}[a.equipe] || '#94a3b8';
     const bg = i % 2 === 0 ? 'rgba(255,255,255,.02)' : 'transparent';
+    
+    const canEdit = !lock || lock === a.equipe;
+    const editBtn = canEdit ? `<button onclick="modifierAnomalie('${a.equipe}', '${a.key.replace(/'/g, "\'")}')" style="background:transparent;border:none;color:var(--acc);cursor:pointer;font-size:14px;padding:0" title="Modifier">✏️</button>` : '—';
+    
     html += `<tr style="background:${bg};border-bottom:1px solid rgba(255,255,255,.04)">
       <td style="padding:7px 10px;color:#94a3b8">${a.date || a.ts?.slice(0,10) || '—'}</td>
       <td style="padding:7px 10px"><span style="color:${eqColor};font-weight:700">EQ ${a.equipe||'?'}</span></td>
@@ -9046,6 +9496,7 @@ function renderHistoriqueAnomalies() {
       <td style="padding:7px 10px"><span style="background:rgba(248,113,113,.12);color:#f87171;padding:1px 7px;border-radius:4px">${a.lieuActuel || '—'}</span></td>
       <td style="padding:7px 10px"><span style="color:${c};font-weight:700">${motif}</span></td>
       <td style="padding:7px 10px;color:#64748b">${detail || '—'}</td>
+      <td style="padding:7px 10px;text-align:center">${editBtn}</td>
     </tr>`;
   });
   html += '</tbody></table>';
@@ -9365,7 +9816,7 @@ window.isBlAlertPending = isBlAlertPending;
 
 function alignDriversBlTeams() {
   if (typeof CURRENT_EQUIPE === 'undefined') return;
-  const teams = ['A', 'B', 'C', 'D'];
+  const teams = ['A', 'B', 'C', 'D', 'E', 'F'];
   
   // 1. Map each unique driver to their current team based on dispo
   const driverToActiveTeam = {};
@@ -10225,7 +10676,7 @@ function switchEquipe(eq) {
   CURRENT_EQUIPE = eq;
   window.CURRENT_EQUIPE = eq;
   // Swap DB — cache cloud (window.DB_X) ou données locales par défaut
-  const rawSrc = window['DB_' + eq] || (eq==='B' ? DB_B : eq==='C' ? DB_C : eq==='D' ? DB_D : DB_A);
+  const rawSrc = window['DB_' + eq] || (eq==='B' ? DB_B : eq==='C' ? DB_C : eq==='D' ? DB_D : eq==='E' ? DB_E : eq==='F' ? DB_F : DB_A);
   const src = cloneTeamData(rawSrc, eq === 'A' ? INITIAL_DATA : emptyTeamData());
   
   // Vider les anciennes clés de DB pour éviter de garder des restes d'autres équipes
@@ -10236,7 +10687,7 @@ function switchEquipe(eq) {
   if (PERF_RAW && PERF_RAW.length > 0) setTimeout(buildPerfRows, 50);
 
   // Update buttons
-  ['A','B','C','D'].forEach(e => {
+  ['A','B','C','D','E','F'].forEach(e => {
     const btn = document.getElementById('btn-eq'+e);
     if (!btn) return;
     btn.style.background = eq===e ? 'var(--acc)' : 'transparent';
@@ -10272,12 +10723,16 @@ function switchEquipe(eq) {
   if (typeof verifierImmobilisationsActives === 'function') {
     verifierImmobilisationsActives();
   }
+  if (typeof verifierCspcNonTraite === 'function') {
+    verifierCspcNonTraite();
+  }
 }
 
 // ═══════════════════════════════════════════════════════════════
 // INIT (après définition des équipes + switchEquipe)
 // ═══════════════════════════════════════════════════════════════
 loadDB();
+populateIncidentDestinationSelects();
 const thirtyDaysAgo = new Date();
 thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 const startEl = document.getElementById('odo-filter-start');
@@ -10489,9 +10944,11 @@ async function exportAllData() {
   // ── Sources toutes équipes ──
   const sources = {
     A: window.DB_A || (CURRENT_EQUIPE==='A' ? JSON.parse(JSON.stringify(DB)) : null),
-    B: window.DB_B || null,
-    C: window.DB_C || null,
-    D: window.DB_D || null
+    B: window.DB_B || (CURRENT_EQUIPE==='B' ? JSON.parse(JSON.stringify(DB)) : null),
+    C: window.DB_C || (CURRENT_EQUIPE==='C' ? JSON.parse(JSON.stringify(DB)) : null),
+    D: window.DB_D || (CURRENT_EQUIPE==='D' ? JSON.parse(JSON.stringify(DB)) : null),
+    E: window.DB_E || (CURRENT_EQUIPE==='E' ? JSON.parse(JSON.stringify(DB)) : null),
+    F: window.DB_F || (CURRENT_EQUIPE==='F' ? JSON.parse(JSON.stringify(DB)) : null)
   };
 
   // ── Helper horaire décimal → HH:MM ──
@@ -10501,9 +10958,6 @@ async function exportAllData() {
     const m = Math.round(h * 24 * 60);
     return String(Math.floor(m/60)%24).padStart(2,'0')+':'+String(m%60).padStart(2,'0');
   }
-
-  // ── Helper booléen ──
-  function yn(v) { return v ? 'OUI' : (v===false?'NON':''); }
 
   // ── Helper : ajouter feuille stylisée ──
   function addSheet(name, headers, rowsData) {
@@ -10545,7 +10999,7 @@ async function exportAllData() {
     XLSX.utils.book_append_sheet(wb, ws, name);
   }
 
-  ['A','B','C','D'].forEach(eq => {
+  ['A','B','C','D','E','F'].forEach(eq => {
     const src = sources[eq];
     if (!src) return;
 
@@ -10580,12 +11034,12 @@ async function exportAllData() {
     // ══════════════════════════════════════════════════════
     addSheet('NC_'+eq,
       ['N°','Date','Sharik','Type NC','Chgt Compte','Fausse Décl.','Refus Travail',
-       'Autre','Mise en demeure','Commission'],
+       'Autre','Mise en demeure','Commission','CET'],
       (src.nc||[]).map(r => [
         r.n||'', r.date||'', r.sharik||'',
         r.chgt?'Chgt compte':r.fausse?'Fausse décl.':r.refus?'Refus travail':r.autre?'Autre':'',
         r.chgt||'', r.fausse||'', r.refus||'', r.autre||'',
-        r.mise||'', r.commission||''
+        r.mise||'', r.commission||'', r.cet||''
       ])
     );
 
@@ -10593,10 +11047,10 @@ async function exportAllData() {
     // GASOIL — tous les champs
     // ══════════════════════════════════════════════════════
     addSheet('Gasoil_'+eq,
-      ['Date','Immatriculation','Chauffeur','Station','Type','Opération','Responsable','Agence','Site'],
+      ['Date','Immatriculation','Chauffeur','Station','Type','Opération','Responsable','Agence','Site','CET'],
       (src.gasoil||[]).map(r => [
         r.date||'', r.immat||r.vehicule||'', r.chauffeur||'', r.station||r.agence||'',
-        r.type||'', r.operation||'', r.resp||'', r.agence||'', r.site||''
+        r.type||'', r.operation||'', r.resp||'', r.agence||'', r.site||'', r.cet||''
       ])
     );
 
@@ -10628,12 +11082,12 @@ async function exportAllData() {
     // SUIVI BL — tous les champs (mois complets)
     // ══════════════════════════════════════════════════════
     addSheet('BL_'+eq,
-      ['Chauffeur','Mars','Avril','Mai','Juin','Juillet','Août','Sep.','Oct.','Nov.','Déc.'],
+      ['Chauffeur','Mars','Avril','Mai','Juin','Juillet','Août','Sep.','Oct.','Nov.','Déc.','CET'],
       (src.bl||[]).map(r => [
         r.chauffeur||'',
         r.mars||'', r.avril||'', r.mai||'', r.juin||'',
         r.juil||'', r.aout||'', r.sep||'', r.oct||'',
-        r.nov||'', r.dec||''
+        r.nov||'', r.dec||'', r.cet||''
       ])
     );
 
@@ -10653,11 +11107,69 @@ async function exportAllData() {
     // CSPC — tous les champs
     // ══════════════════════════════════════════════════════
     addSheet('CSPC_'+eq,
-      ['Véhicule','État','Chauffeur','Horaire','Lieu Jour','Lieu J+1','Équipement','Programme'],
+      ['Véhicule','État','Chauffeur','Horaire','Lieu Jour','Lieu J+1','Équipement','Programme','CET'],
       (src.cspc||[]).map(r => [
         r.v||'', r.etat||'', r.chauffeur||'', fmtHor(r.hor),
-        r.lieuJ||'', r.lieuJ1||'', r.equip||'', r.prog||''
+        r.lieuJ||'', r.lieuJ1||'', r.equip||'', r.prog||'', r.cet||''
       ])
+    );
+
+    // ══════════════════════════════════════════════════════
+    // BLACKLIST
+    // ══════════════════════════════════════════════════════
+    addSheet('Blacklist_'+eq,
+      ['Chauffeur', 'Motif / Destination', 'Date', 'Actif'],
+      (src.blacklist||[]).map(r => [
+        r.chauffeur||'', r.destination||'', r.date||'', r.actif?'OUI':'NON'
+      ])
+    );
+
+    // ══════════════════════════════════════════════════════
+    // INCIDENTS
+    // ══════════════════════════════════════════════════════
+    if (src.incidentsLivraison) {
+      addSheet('Incidents_'+eq,
+        ['Véhicule', 'Chauffeur', 'Type d'incident', 'Client', 'Dest. Prévue', 'Destination réelle', 'Réf Commande', 'Date/Heure Début', 'Date/Heure Fin', 'Durée (h)', 'Observations', 'CET'],
+        (src.incidentsLivraison||[]).map(r => [
+          r.v||'', r.chauffeur||'', r.type||'', r.client||'', r.destPrevue||'', r.destination||'',
+          r.refCommande||'', r.debut||'', r.fin||'', r.dureeHeures||'', r.obs||'', r.cet||''
+        ])
+      );
+    } else if (src.incidents) {
+      addSheet('Incidents_'+eq,
+        ['Date', 'Véhicule', 'Chauffeur', 'Type d'incident', 'Description / Fait', 'Responsabilité', 'Observations', 'CET'],
+        (src.incidents||[]).map(r => [
+          r.date||'', r.v||'', r.chauffeur||'', r.type||'', r.desc||'', r.resp||'', r.obs||'', r.cet||''
+        ])
+      );
+    }
+
+    // ══════════════════════════════════════════════════════
+    // TRAÇABILITÉ
+    // ══════════════════════════════════════════════════════
+    addSheet('Tracabilite_'+eq,
+      ['Timestamp', 'Date/Heure', 'Type Événement', 'Type Cible', 'Cible', 'Opérateur', 'Motif / Détails'],
+      (src.tracabilite||[]).map(r => [
+        r.timestamp||'', r.date||'', r.type||'', r.targetType||'', r.target||'', r.operator||'', r.motif||''
+      ])
+    );
+
+    // ══════════════════════════════════════════════════════
+    // FLASH INFO
+    // ══════════════════════════════════════════════════════
+    addSheet('FlashInfo_'+eq,
+      ['ID', 'Date', 'Titre', 'Message', 'Auteur', 'Équipes Cibles'],
+      (src.flashInfos||[]).map(r => [
+        r.id||'', r.date||'', r.title||'', r.content||'', r.createdBy||'', (r.teams||[]).join(', ')
+      ])
+    );
+
+    // ══════════════════════════════════════════════════════
+    // IDENTIFIANTS ÉQUIPES
+    // ══════════════════════════════════════════════════════
+    addSheet('Identifiants_'+eq,
+      ['Identifiant / Chef d'Équipe'],
+      (src.users||[]).map(u => [u])
     );
   });
 
@@ -10667,7 +11179,7 @@ async function exportAllData() {
   const metaWs = XLSX.utils.aoa_to_sheet([
     ['NUMILOG — Extraction complète des données'],
     ['Date export', new Date().toLocaleString('fr-FR')],
-    ['Équipes exportées', ['A','B','C','D'].filter(eq => sources[eq]).join(', ')],
+    ['Équipes exportées', ['A','B','C','D','E','F'].filter(eq => sources[eq]).join(', ')],
     [''],
     ['Feuilles incluses'],
     ['Dispo_A/B/C/D', 'Disponibilité véhicules — tous champs'],
@@ -10679,6 +11191,11 @@ async function exportAllData() {
     ['BL_A/B/C/D', 'Suivi bons de livraison — tous mois'],
     ['Odo_A/B/C/D', 'Relevés odomètre — toutes semaines'],
     ['CSPC_A/B/C/D', 'Programme CSPC — tous champs'],
+    ['Blacklist_A/B/C/D', 'Chauffeurs interdits/blacklistés — tous champs'],
+    ['Incidents_A/B/C/D', 'Suivi des incidents / Avaries et Sinistres — tous champs'],
+    ['Tracabilite_A/B/C/D', 'Historique des logs de traçabilité'],
+    ['FlashInfo_A/B/C/D', 'Diffusions de Flash Info et publications'],
+    ['Identifiants_A/B/C/D', 'Identifiants de chefs d'équipe configurés'],
   ]);
   metaWs['!cols'] = [{wch:30},{wch:50}];
   XLSX.utils.book_append_sheet(wb, metaWs, '📋 Infos Export');
@@ -10843,8 +11360,8 @@ function normStr(s) { return String(s||'').trim().replace(/\s+/g,' '); }
 function buildTracteurEquipeMap() {
   const map = {};
   const dbs = { A: typeof DB_A!=='undefined'?DB_A:{}, B: typeof DB_B!=='undefined'?DB_B:{},
-                C: typeof DB_C!=='undefined'?DB_C:{}, D: typeof DB_D!=='undefined'?DB_D:{} };
-  ['A','B','C','D'].forEach(eq => {
+                C: typeof DB_C!=='undefined'?DB_C:{}, D: typeof DB_D!=='undefined'?DB_D:{}, E: typeof DB_E!=='undefined'?DB_E:{}, F: typeof DB_F!=='undefined'?DB_F:{} };
+  ['A','B','C','D','E','F'].forEach(eq => {
     const db = window['DB_'+eq] || dbs[eq];
     if (!db || !db.dispo) return;
     db.dispo.forEach(r => { if (r.v) map[r.v] = eq; });
@@ -10856,7 +11373,7 @@ function buildTracteurEquipeMap() {
 function getEqTracteurs(eq) {
   const db = window['DB_'+eq] || (typeof window['DB_'+eq]!=='undefined' ? window['DB_'+eq] : null);
   const fallback = { A: typeof DB_A!=='undefined'?DB_A:null, B: typeof DB_B!=='undefined'?DB_B:null,
-                     C: typeof DB_C!=='undefined'?DB_C:null, D: typeof DB_D!=='undefined'?DB_D:null };
+                     C: typeof DB_C!=='undefined'?DB_C:null, D: typeof DB_D!=='undefined'?DB_D:null, E: typeof DB_E!=='undefined'?DB_E:null, F: typeof DB_F!=='undefined'?DB_F:null };
   const src = db || fallback[eq];
   const set = new Set();
   if (src && src.dispo) src.dispo.forEach(r => { if (r.v) set.add(r.v); });
@@ -11187,7 +11704,7 @@ function checkKmBeforeExport() {
   // Vérifier uniquement l'équipe qui exporte
   const _eq = (typeof window.CURRENT_EQUIPE !== 'undefined') ? window.CURRENT_EQUIPE : 'A';
   const _dbs = { A: typeof DB_A!=='undefined'?DB_A:null, B: typeof DB_B!=='undefined'?DB_B:null,
-                 C: typeof DB_C!=='undefined'?DB_C:null, D: typeof DB_D!=='undefined'?DB_D:null };
+                 C: typeof DB_C!=='undefined'?DB_C:null, D: typeof DB_D!=='undefined'?DB_D:null, E: typeof DB_E!=='undefined'?DB_E:null, F: typeof DB_F!=='undefined'?DB_F:null };
   const _db = window['DB_'+_eq] || _dbs[_eq];
   const _dispo = (_db && _db.dispo) ? _db.dispo : [];
   const missing = _dispo.filter(r => !r.km || r.km === null || r.km === 0).length;
@@ -11240,7 +11757,7 @@ function getKmMissingByEquipe() {
     D: typeof DB_D !== 'undefined' ? DB_D : null,
   };
   const result = {};
-  ['A','B','C','D'].forEach(eq => {
+  ['A','B','C','D','E','F'].forEach(eq => {
     const db = window['DB_'+eq] || dbs[eq];
     if (!db || !db.dispo) { result[eq] = { missing: 0, total: 0 }; return; }
     const total = db.dispo.length;
@@ -11259,7 +11776,7 @@ function showKmHorairePopup() {
   const totalMissing = Object.values(stats).reduce((s, e) => s + e.missing, 0);
   if (totalMissing === 0) return; // tout OK, pas de popup
 
-  const rows = ['A','B','C','D'].map(eq => {
+  const rows = ['A','B','C','D','E','F'].map(eq => {
     const { missing, total } = stats[eq];
     const pct = total > 0 ? Math.round((total - missing) / total * 100) : 100;
     const color = missing === 0 ? '#22c55e' : missing < 5 ? '#fbbf24' : '#ef4444';
@@ -11368,7 +11885,7 @@ function renderAdminFlashList() {
   if (!body) return;
   
   const map = {};
-  ['A','B','C','D'].forEach(eq => {
+  ['A','B','C','D','E','F'].forEach(eq => {
     const db = window['DB_' + eq] || (eq === CURRENT_EQUIPE ? DB : null);
     if (db && db.flashInfos) {
       db.flashInfos.forEach(f => {
@@ -11415,7 +11932,7 @@ window.renderAdminFlashList = renderAdminFlashList;
 function supprimerFlashInfo(flashId) {
   if (!confirm('Supprimer ce Flash Info ? Il sera supprimé pour toutes les équipes cibles.')) return;
   
-  ['A','B','C','D'].forEach(eq => {
+  ['A','B','C','D','E','F'].forEach(eq => {
     const db = window['DB_' + eq] || (eq === CURRENT_EQUIPE ? DB : null);
     if (db && db.flashInfos) {
       const idx = db.flashInfos.findIndex(f => f.id === flashId);
@@ -11889,7 +12406,7 @@ window.ouvrirComplianceDashboard = function() {
 };
 
 window.renderComplianceDashboard = function() {
-  const teams = ['A', 'B', 'C', 'D'];
+  const teams = ['A', 'B', 'C', 'D', 'E', 'F'];
   const body = document.getElementById('compliance-dashboard-body');
   if (!body) return;
   
@@ -12042,7 +12559,317 @@ setInterval(() => {
   if (typeof verifierImmobilisationsActives === 'function') {
     verifierImmobilisationsActives(false);
   }
+  if (typeof verifierCspcNonTraite === 'function') {
+    verifierCspcNonTraite(false);
+  }
 }, 30 * 1000);
+
+
+function verifierCspcNonTraite(forceShow = false) {
+  if (!DB.cspc) return;
+  const untreatedCspc = DB.cspc.filter(r => {
+    const etat = (r.etat || '').toLowerCase();
+    return etat === 'disponible' || !r.etat || !etat.trim();
+  });
+  if (untreatedCspc.length === 0) return;
+  
+  const eq = CURRENT_EQUIPE || 'A';
+  const now = Date.now();
+  const lastShown = sessionStorage.getItem('cspc_alert_last_shown_' + eq);
+  
+  // 30 minutes = 30 * 60 * 1000 ms
+  const interval = 30 * 60 * 1000;
+  
+  if (!forceShow && lastShown && (now - parseInt(lastShown) < interval)) {
+    return;
+  }
+  
+  const listContainer = document.getElementById('active-cspc-list-container');
+  if (!listContainer) return;
+  
+  listContainer.innerHTML = untreatedCspc.map(r => {
+    const dateFormatted = r.date ? new Date(r.date).toLocaleDateString('fr-FR') : '—';
+    return `
+      <div style="border-bottom: 1px solid var(--border); padding: 8px 0; display: flex; justify-content: space-between; align-items: center; font-size: 12px;">
+        <div>
+          <b style="color: var(--txt);">🚛 Camion ${r.v}</b> 
+          <span style="font-size: 11px; color: var(--acc); font-family: monospace;">(${r.chauffeur || '—'})</span>
+          <div style="font-size: 10px; color: var(--txt3); margin-top: 2px;">Prog : ${r.prog || 'CSPC'} | Dest : ${r.lieuJ1 || '—'}</div>
+        </div>
+        <div style="text-align: right;">
+          <span style="font-size: 10px; background: rgba(167,139,250,0.2); color: var(--pur); padding: 2px 6px; border-radius: 4px; font-weight: 700;">Non Traité</span>
+          <div style="font-size: 9px; color: var(--txt3); margin-top: 2px;">Date : ${dateFormatted}</div>
+        </div>
+      </div>
+    `;
+  }).join('');
+  
+  sessionStorage.setItem('cspc_alert_last_shown_' + eq, String(now));
+  openModal('modal-active-cspc-alert');
+}
+
+
+
+function modifierAnomalie(eq, key) {
+  const lock = sessionStorage.getItem('numiplan_team_lock');
+  if (lock && lock !== eq) {
+    showToast(`⚠️ Lecture seule — vous ne pouvez modifier que les anomalies de l'Équipe ${lock}`, true);
+    return;
+  }
+  
+  const dbEq = (eq === CURRENT_EQUIPE && typeof window.DB !== 'undefined') ? window.DB : window['DB_' + eq];
+  if (!dbEq || !dbEq.anomaliesPointees || !dbEq.anomaliesPointees[key]) {
+    showToast("⚠️ Anomalie introuvable", true);
+    return;
+  }
+  
+  const item = dbEq.anomaliesPointees[key];
+  
+  document.getElementById('edit-anom-eq').value = eq;
+  document.getElementById('edit-anom-key').value = key;
+  document.getElementById('edit-anom-v').textContent = key.split('_')[0] || '—';
+  document.getElementById('edit-anom-chauf').textContent = item.chauffeur || '—';
+  document.getElementById('edit-anom-motif').value = item.motif || 'Orientation';
+  document.getElementById('edit-anom-detail').value = item.detail || '';
+  
+  openModal('modal-modifier-anomalie');
+}
+
+function saveModifiedAnomalie() {
+  const eq = document.getElementById('edit-anom-eq').value;
+  const key = document.getElementById('edit-anom-key').value;
+  const motif = document.getElementById('edit-anom-motif').value;
+  const detail = document.getElementById('edit-anom-detail').value.trim();
+  
+  const lock = sessionStorage.getItem('numiplan_team_lock');
+  if (lock && lock !== eq) {
+    showToast(`⚠️ Lecture seule — vous ne pouvez modifier que les anomalies de l'Équipe ${lock}`, true);
+    return;
+  }
+  
+  const dbEq = (eq === CURRENT_EQUIPE && typeof window.DB !== 'undefined') ? window.DB : window['DB_' + eq];
+  if (!dbEq || !dbEq.anomaliesPointees || !dbEq.anomaliesPointees[key]) {
+    showToast("⚠️ Anomalie introuvable", true);
+    return;
+  }
+  
+  // Update in memory
+  dbEq.anomaliesPointees[key].motif = motif;
+  dbEq.anomaliesPointees[key].detail = detail;
+  
+  // Save database
+  if (eq === CURRENT_EQUIPE) {
+    saveDB();
+  } else {
+    if (window.saveTeamDB) {
+      window.saveTeamDB(eq, dbEq);
+    } else {
+      try {
+        const raw = localStorage.getItem('numiplan_v2');
+        let parsed = raw ? JSON.parse(raw) : { teams: {} };
+        if (!parsed.teams) parsed.teams = {};
+        parsed.teams[eq] = dbEq;
+        localStorage.setItem('numiplan_v2', JSON.stringify(parsed));
+      } catch(e) { console.error(e); }
+    }
+  }
+  
+  closeModal('modal-modifier-anomalie');
+  renderHistoriqueAnomalies();
+  showToast('✅ Anomalie modifiée avec succès');
+}
+
+
+
+function populateIncidentDestinationSelects() {
+  const dl = document.getElementById('dl-wilayas');
+  const selPrevSite = document.getElementById('f-inc-liv-dest-prevue-site');
+  const selPrevVille = document.getElementById('f-inc-liv-dest-prevue-ville');
+  const selReelleSite = document.getElementById('f-inc-liv-dest-reelle-site');
+  const selReelleVille = document.getElementById('f-inc-liv-dest-reelle-ville');
+  if (!dl || !selPrevSite || !selPrevVille || !selReelleSite || !selReelleVille) return;
+  
+  const placeholder = '<option value="">— Choisir la ville —</option>';
+  selPrevSite.innerHTML = placeholder;
+  selPrevVille.innerHTML = placeholder;
+  selReelleSite.innerHTML = placeholder;
+  selReelleVille.innerHTML = placeholder;
+  
+  const options = Array.from(dl.options).map(opt => opt.value).sort();
+  options.forEach(val => {
+    const optHTML = `<option value="${val}">${val}</option>`;
+    selPrevSite.insertAdjacentHTML('beforeend', optHTML);
+    selPrevVille.insertAdjacentHTML('beforeend', optHTML);
+    selReelleSite.insertAdjacentHTML('beforeend', optHTML);
+    selReelleVille.insertAdjacentHTML('beforeend', optHTML);
+  });
+}
+
+
+
+// ── CONFIGURATION DES UTILISATEURS / CHEFS D'ÉQUIPE (ADMIN ONLY) ──
+function renderUsersConfigLists() {
+  const teams = ['A', 'B', 'C', 'D', 'E', 'F'];
+  // Peupler les cases d'affichage d'assurances
+  teams.forEach(eq => {
+    const cb = document.getElementById('config-show-insurance-' + eq);
+    if (cb) {
+      const db = window['DB_' + eq];
+      cb.checked = db && db.config_ui ? db.config_ui.showInsurance !== false : true;
+    }
+  });
+  teams.forEach(eq => {
+    const listDiv = document.getElementById('config-users-list-' + eq);
+    if (!listDiv) return;
+    const db = window['DB_' + eq];
+    const users = (db && db.users) ? db.users : [];
+    if (users.length === 0) {
+      listDiv.innerHTML = '<div style="color:var(--txt3); font-size:11px; font-style:italic">Aucun identifiant</div>';
+    } else {
+      listDiv.innerHTML = users.map((u, i) => `
+        <div style="display:flex; justify-content:space-between; align-items:center; background:var(--bg3); border:1px solid var(--border); padding:6px 12px; border-radius:8px; font-size:12px;">
+          <span style="font-weight:600; color:var(--txt)">${u}</span>
+          <button class="del-btn" onclick="deleteUserConfig('${eq}', ${i})" style="padding:2px 6px; font-size:10px; color:var(--red); border:none; background:transparent; cursor:pointer" title="Supprimer">🗑</button>
+        </div>
+      `).join('');
+    }
+  });
+}
+
+function addUserConfig() {
+  const eq = document.getElementById('config-user-team').value;
+  const nameInput = document.getElementById('config-user-name');
+  const name = nameInput.value.trim().toUpperCase();
+  if (!name) {
+    showToast('⚠️ Nom requis', true);
+    return;
+  }
+  const db = window['DB_' + eq];
+  if (!db) {
+    showToast('⚠️ Base de données non chargée', true);
+    return;
+  }
+  if (!db.users) db.users = [];
+  if (db.users.includes(name)) {
+    showToast('⚠️ Identifiant déjà existant pour cette équipe', true);
+    return;
+  }
+  db.users.push(name);
+  db._localTs = Date.now();
+  if (window.saveTeamDB) {
+    window.saveTeamDB(eq, db);
+  }
+  nameInput.value = '';
+  renderUsersConfigLists();
+  populateLoginUserDropdown();
+  showToast('✅ Identifiant ajouté avec succès');
+}
+
+function deleteUserConfig(eq, idx) {
+  const db = window['DB_' + eq];
+  if (!db || !db.users) return;
+  if (!confirm(`Supprimer l'identifiant ${db.users[idx]} de l'équipe ${eq} ?`)) return;
+  db.users.splice(idx, 1);
+  db._localTs = Date.now();
+  if (window.saveTeamDB) {
+    window.saveTeamDB(eq, db);
+  }
+  renderUsersConfigLists();
+  populateLoginUserDropdown();
+  showToast('✅ Identifiant supprimé');
+}
+
+function populateLoginUserDropdown() {
+  const dropdown = document.getElementById('username-input');
+  if (!dropdown) return;
+  
+  const currentSelected = dropdown.value;
+  dropdown.innerHTML = '<option value="">Sélectionnez votre identifiant...</option>';
+  
+  const adminOpt = document.createElement('option');
+  adminOpt.value = 'ADMIN';
+  adminOpt.textContent = 'ADMIN (Superviseur Admin)';
+  dropdown.appendChild(adminOpt);
+  
+  const teams = ['A', 'B', 'C', 'D', 'E', 'F'];
+  teams.forEach(eq => {
+    const db = window['DB_' + eq];
+    const users = (db && db.users) ? db.users : [];
+    users.forEach(u => {
+      const opt = document.createElement('option');
+      opt.value = u;
+      opt.textContent = `${u} (Équipe ${eq})`;
+      dropdown.appendChild(opt);
+    });
+  });
+  
+  if (currentSelected) {
+    dropdown.value = currentSelected;
+  }
+}
+window.addUserConfig = addUserConfig;
+window.deleteUserConfig = deleteUserConfig;
+window.populateLoginUserDropdown = populateLoginUserDropdown;
+
+
+// ── PLANIFICATEUR D'EXTRACTION DE DONNÉES AUTOMATIQUE ──
+function initAutoExportScheduler() {
+  const targetHours = [8, 10, 12, 14, 16, 19, 21];
+  
+  setInterval(() => {
+    // Exécuter uniquement si la session est active (authentifié)
+    if (sessionStorage.getItem('numiplan_auth') !== 'ok') return;
+    
+    const now = new Date();
+    const currentHour = now.getHours();
+    const todayStr = now.getFullYear() + '-' + String(now.getMonth()+1).padStart(2,'0') + '-' + String(now.getDate()).padStart(2,'0');
+    
+    if (targetHours.includes(currentHour)) {
+      const key = `numiplan_auto_export_${todayStr}_${currentHour}`;
+      if (!localStorage.getItem(key)) {
+        localStorage.setItem(key, 'done');
+        console.log(`[Auto-Export] Déclenchement automatique pour ${currentHour}h...`);
+        if (typeof showToast === 'function') {
+          showToast(`📥 Extraction automatique de ${currentHour}h en cours...`);
+        }
+        
+        setTimeout(() => {
+          if (typeof exportAllData === 'function') {
+            exportAllData().catch(err => console.error('[Auto-Export] Erreur:', err));
+          }
+        }, 1000);
+      }
+    }
+  }, 15000); // Vérification toutes les 15 secondes
+}
+window.initAutoExportScheduler = initAutoExportScheduler;
+
+
+function toggleTeamInsuranceConfig(eq) {
+  const cb = document.getElementById('config-show-insurance-' + eq);
+  if (!cb) return;
+  const db = window['DB_' + eq];
+  if (!db) {
+    showToast('⚠️ Base de données non chargée', true);
+    return;
+  }
+  if (!db.config_ui) db.config_ui = {};
+  db.config_ui.showInsurance = cb.checked;
+  db._localTs = Date.now();
+  if (window.saveTeamDB) {
+    window.saveTeamDB(eq, db);
+  }
+  showToast(`✅ Configuration affichage Assurances Équipe ${eq} mise à jour`);
+  
+  const currentEq = (typeof getCurrentEquipe === 'function') ? getCurrentEquipe() : (typeof window.CURRENT_EQUIPE !== 'undefined' ? window.CURRENT_EQUIPE : 'A');
+  if (eq === currentEq) {
+    if (typeof window.DB !== 'undefined') {
+      window.DB.config_ui = db.config_ui;
+    }
+    if (typeof renderDispo === 'function') renderDispo();
+  }
+}
+window.toggleTeamInsuranceConfig = toggleTeamInsuranceConfig;
 
 </script>
 
@@ -12092,6 +12919,23 @@ setInterval(() => {
     </div>
     <div style="display: flex; gap: 12px; justify-content: center;">
       <button class="btn btn-save" onclick="closeModal('modal-active-immo-alert')" style="background: #ef4444; color: #fff; border: none; font-weight: 700;">D'accord</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal Alerte CSPC Non Traité -->
+<div class="modal-overlay" id="modal-active-cspc-alert" style="z-index: 100011;">
+  <div class="modal" style="max-width: 500px; background: var(--bg2); border: 2px solid var(--pur); border-radius: 16px; padding: 24px; text-align: center; box-shadow: 0 0 25px rgba(167,139,250,0.3);">
+    <div style="font-size: 40px; margin-bottom: 12px; animation: pulse-eye 0.8s infinite alternate;">🔷</div>
+    <h3 style="margin: 0 0 16px 0; color: var(--pur); font-size: 16px; font-weight: 800;">Programme(s) CSPC Non Traité(s)</h3>
+    <p style="font-size: 13px; color: var(--txt2); margin-bottom: 20px; line-height: 1.5;">
+      Les véhicules suivants ont des programmes **CSPC non traités** (statut disponible ou non renseigné) :
+    </p>
+    <div id="active-cspc-list-container" style="background: var(--bg3); border: 1px solid var(--border); border-radius: 10px; padding: 12px; margin-bottom: 20px; text-align: left; max-height: 200px; overflow-y: auto;">
+      <!-- Liste peuplée dynamiquement -->
+    </div>
+    <div style="display: flex; gap: 12px; justify-content: center;">
+      <button class="btn btn-save" onclick="closeModal('modal-active-cspc-alert')" style="background: var(--pur); color: #000; border: none; font-weight: 700;">D'accord</button>
     </div>
   </div>
 </div>
