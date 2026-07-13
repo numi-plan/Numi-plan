@@ -1629,7 +1629,7 @@ mark.hl { background: rgba(56,189,248,.25); color: var(--acc); border-radius: 3p
     <span>🚛 Disponibilité</span>
     <span style="display:flex;gap:4px;align-items:center">
       <span class="tab-count" id="cnt-dispo" title="Nombre de camions (camions filtrés)">—</span>
-      <span class="tab-count" id="cnt-dispo-chauffeurs" style="background:var(--pur);color:#000" title="Nombre de chauffeurs uniques (sans doublons)">—</span>
+      <span class="tab-count" id="cnt-dispo-chauffeurs" style="background:var(--pur);color:#000" title="Nombre de chauffeurs en extension (avec plus de 1 camion)">—</span>
     </span>
   </button>
   <button class="tab-btn" onclick="switchTab('pannes',this)">🔧 Pannes <span class="tab-count red" id="cnt-pannes" style="display:none;">—</span></button>
@@ -5724,17 +5724,6 @@ function renderDispo() {
        ${adminComplianceCardHtml}`;
   document.getElementById('cnt-dispo').textContent = data.length;
   
-  // Compter le nombre de chauffeurs uniques dans la liste filtrée
-  const uniqueChauffeurs = new Set();
-  data.forEach(r => {
-    const ch = (r.chauffeur || '').trim().toUpperCase();
-    if (ch && ch !== '—' && ch !== '' && !ch.includes('MANQUE CHAUFFEUR')) {
-      uniqueChauffeurs.add(ch);
-    }
-  });
-  const cntChauffeursEl = document.getElementById('cnt-dispo-chauffeurs');
-  if (cntChauffeursEl) cntChauffeursEl.textContent = uniqueChauffeurs.size;
-
   // Compter le nombre d'occurrences globales de chaque chauffeur dans TOUTES les équipes pour identifier les extensions
   const driverCounts = {};
   const teams = ['A', 'B', 'C', 'D', 'E', 'F'];
@@ -5749,6 +5738,19 @@ function renderDispo() {
       });
     }
   });
+
+  // Compter le nombre de chauffeurs uniques en extension (plus de 1 camion) dans la liste filtrée
+  const uniqueExtChauffeurs = new Set();
+  data.forEach(r => {
+    const ch = (r.chauffeur || '').trim().toUpperCase();
+    if (ch && ch !== '—' && ch !== '' && !ch.includes('MANQUE CHAUFFEUR')) {
+      if (driverCounts[ch] >= 2) {
+        uniqueExtChauffeurs.add(ch);
+      }
+    }
+  });
+  const cntChauffeursEl = document.getElementById('cnt-dispo-chauffeurs');
+  if (cntChauffeursEl) cntChauffeursEl.textContent = uniqueExtChauffeurs.size;
 
   const body = document.getElementById('dispo-body');
   const lock = sessionStorage.getItem('numiplan_team_lock');
