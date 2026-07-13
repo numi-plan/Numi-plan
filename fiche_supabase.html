@@ -322,10 +322,20 @@
 
   // Chargement léger de la liste des utilisateurs uniquement pour le login
   async function loadDropdownUsersOnly() {
+    // Timeout de sécurité : si Supabase ne répond pas dans 3 secondes, afficher quand même le dropdown avec ADMIN
+    const fallbackTimer = setTimeout(() => {
+      const dd = document.getElementById('username-input');
+      if (dd && dd.options.length <= 1) {
+        console.warn('[Fallback] Supabase timeout — affichage du dropdown avec ADMIN uniquement');
+        populateLoginUserDropdown();
+      }
+    }, 3000);
+    
     try {
       const { data, error } = await supabase
         .from('numiplan_teams')
         .select('team, payload->users');
+      clearTimeout(fallbackTimer);
       if (error) throw error;
       if (data) {
         data.forEach(row => {
@@ -337,7 +347,10 @@
         populateLoginUserDropdown();
       }
     } catch (e) {
+      clearTimeout(fallbackTimer);
       console.error("Error loading dropdown users:", e);
+      // En cas d'erreur Supabase, afficher quand même ADMIN pour permettre la connexion
+      populateLoginUserDropdown();
     }
   }
 
