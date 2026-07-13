@@ -11143,7 +11143,7 @@ async function exportAllData() {
     // ══════════════════════════════════════════════════════
     if (src.incidentsLivraison) {
       addSheet('Incidents_'+eq,
-        ['Véhicule', 'Chauffeur', 'Type d'incident', 'Client', 'Dest. Prévue', 'Destination réelle', 'Réf Commande', 'Date/Heure Début', 'Date/Heure Fin', 'Durée (h)', 'Observations', 'CET'],
+        ['Véhicule', 'Chauffeur', "Type d'incident", 'Client', 'Dest. Prévue', 'Destination réelle', 'Réf Commande', 'Date/Heure Début', 'Date/Heure Fin', 'Durée (h)', 'Observations', 'CET'],
         (src.incidentsLivraison||[]).map(r => [
           r.v||'', r.chauffeur||'', r.type||'', r.client||'', r.destPrevue||'', r.destination||'',
           r.refCommande||'', r.debut||'', r.fin||'', r.dureeHeures||'', r.obs||'', r.cet||''
@@ -11151,7 +11151,7 @@ async function exportAllData() {
       );
     } else if (src.incidents) {
       addSheet('Incidents_'+eq,
-        ['Date', 'Véhicule', 'Chauffeur', 'Type d'incident', 'Description / Fait', 'Responsabilité', 'Observations', 'CET'],
+        ['Date', 'Véhicule', 'Chauffeur', "Type d'incident", 'Description / Fait', 'Responsabilité', 'Observations', 'CET'],
         (src.incidents||[]).map(r => [
           r.date||'', r.v||'', r.chauffeur||'', r.type||'', r.desc||'', r.resp||'', r.obs||'', r.cet||''
         ])
