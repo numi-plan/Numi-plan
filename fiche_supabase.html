@@ -354,6 +354,27 @@
     }
   }
 
+  // Chargement léger de la liste des dispos de toutes les équipes pour les extensions
+  async function loadGlobalDispoForExtensions() {
+    try {
+      const { data, error } = await supabase
+        .from('numiplan_teams')
+        .select('team, payload->dispo');
+      if (error) throw error;
+      if (data) {
+        data.forEach(row => {
+          const eq = row.team;
+          const dispo = row.dispo || (row.payload ? row.payload.dispo : []) || [];
+          if (!window['DB_' + eq]) window['DB_' + eq] = { dispo: [] };
+          window['DB_' + eq].dispo = dispo;
+        });
+        if (typeof renderDispo === 'function') renderDispo();
+      }
+    } catch (e) {
+      console.error("Error loading global dispo for extensions:", e);
+    }
+  }
+
   // Chargement Initial depuis Supabase (Ciblé par équipe ou complet pour Admin)
   async function loadInitialTeams() {
     try {
@@ -378,6 +399,8 @@
           applyEquipeData(eq, payload);
         });
         populateLoginUserDropdown();
+        loadGlobalDispoForExtensions();
+        loadArchivesFromFirebase();
       }
     } catch (e) {
       console.error("Error loading initial teams:", e);
@@ -435,7 +458,9 @@
         months.push(d.toISOString().slice(0,7));
       }
       const ids = [];
-      ['A','B','C','D','E','F'].forEach(eq => {
+      const lock = sessionStorage.getItem('numiplan_team_lock');
+      const targetEqs = (lock && lock !== 'BL') ? [lock] : ['A','B','C','D','E','F'];
+      targetEqs.forEach(eq => {
         months.forEach(m => {
           ids.push(eq + '_' + m);
         });
@@ -531,6 +556,10 @@
   };
 
   window.saveTeamDB = function(eq, dbData) {
+    if (typeof HISTORY_MODE !== 'undefined' && HISTORY_MODE) {
+      if (typeof showToast === 'function') showToast('⚠️ Mode historique — Modifications bloquées (Lecture seule)', true);
+      return;
+    }
     if (!_fbReady) {
       console.warn('[Supabase] saveTeamDB bloqué : Supabase pas encore prêt');
       return;
@@ -1285,7 +1314,12 @@ tr.dragging {
       <button id="btn-eqF" onclick="switchEquipe('F')" ondragover="handleTeamDragOver(event)" ondragenter="handleTeamDragEnter(this)" ondragleave="handleTeamDragLeave(this)" ondrop="handleTeamDrop(event, 'F')" style="padding:7px 18px;font-size:11px;font-weight:700;letter-spacing:1px;border:none;cursor:pointer;background:transparent;color:var(--txt2);transition:all .2s">ÉQUIPE F</button>
     </div>
 
-    <div class="date-badge" id="todayBadge"></div>
+    <div style="display:flex; align-items:center; gap:8px;">
+      <div class="date-badge" id="todayBadge" style="margin-right:0;"></div>
+      <select id="history-date-select" onchange="selectHistoryDate(this.value)" style="background:var(--bg3); border:1px solid var(--border); color:var(--txt); border-radius:8px; padding:6px 12px; font-size:11px; font-weight:700; cursor:pointer; outline:none; display:none; max-width:200px;">
+        <option value="">📅 En direct (Aujourd'hui)</option>
+      </select>
+    </div>
     <button id="theme-toggle-btn" onclick="toggleTheme()" class="date-badge" style="cursor:pointer; font-weight:700; display:flex; align-items:center; justify-content:center; gap:6px; transition:all 0.2s" title="Basculer le mode Sombre / Clair">
       🌓 Mode
     </button>
@@ -2231,7 +2265,7 @@ mark.hl { background: rgba(56,189,248,.25); color: var(--acc); border-radius: 3p
 <!-- ══════════════ PERFORMANCE CHAUFFEUR ══════════════ -->
 
 <!-- ══════════════ CONFIGURATION IDENTIFIANTS ══════════════ -->
-<div id="page-users-config" class="page" style="display:none">
+<div id="page-users-config" class="page">
   <div class="sec-title" style="margin-bottom:20px">⚙️ Configuration des Identifiants Chefs d'Équipe</div>
   <div class="form-grid" style="grid-template-columns: 300px 1fr; gap:30px; align-items: start;">
     
@@ -5295,9 +5329,14 @@ window._syncArchives = function(data) {
   });
   window.ARCHIVES = ARCHIVES;
   try { localStorage.setItem('numiplan_archives_v2', JSON.stringify(ARCHIVES)); } catch(e) {}
+  if (typeof populateHistoryDateSelect === 'function') populateHistoryDateSelect();
 };
 
 function saveDB() {
+  if (typeof HISTORY_MODE !== 'undefined' && HISTORY_MODE) {
+    if (typeof showToast === 'function') showToast('⚠️ Mode historique — Modifications bloquées (Lecture seule)', true);
+    return;
+  }
   const eq = CURRENT_EQUIPE || 'A';
   const lock = sessionStorage.getItem('numiplan_team_lock');
   if (lock && lock !== eq) {
@@ -5696,12 +5735,18 @@ function renderDispo() {
   const cntChauffeursEl = document.getElementById('cnt-dispo-chauffeurs');
   if (cntChauffeursEl) cntChauffeursEl.textContent = uniqueChauffeurs.size;
 
-  // Compter le nombre d'occurrences globales de chaque chauffeur dans DB.dispo pour identifier les extensions
+  // Compter le nombre d'occurrences globales de chaque chauffeur dans TOUTES les équipes pour identifier les extensions
   const driverCounts = {};
-  DB.dispo.forEach(row => {
-    const ch = (row.chauffeur || '').trim().toUpperCase();
-    if (ch && ch !== '—' && ch !== '' && !ch.includes('MANQUE CHAUFFEUR')) {
-      driverCounts[ch] = (driverCounts[ch] || 0) + 1;
+  const teams = ['A', 'B', 'C', 'D', 'E', 'F'];
+  teams.forEach(eq => {
+    const db = window['DB_' + eq];
+    if (db && db.dispo) {
+      db.dispo.forEach(row => {
+        const ch = (row.chauffeur || '').trim().toUpperCase();
+        if (ch && ch !== '—' && ch !== '' && !ch.includes('MANQUE CHAUFFEUR')) {
+          driverCounts[ch] = (driverCounts[ch] || 0) + 1;
+        }
+      });
     }
   });
 
@@ -10103,17 +10148,34 @@ window.ouvrirPointageKpiAtelier = ouvrirPointageKpiAtelier;
 function ouvrirListeExtensions() {
   const extDrivers = new Map();
   const driverCounts = {};
-  if (DB && DB.dispo) {
-    DB.dispo.forEach(row => {
+  const teams = ['A', 'B', 'C', 'D', 'E', 'F'];
+  teams.forEach(eq => {
+    const db = window['DB_' + eq];
+    if (db && db.dispo) {
+      db.dispo.forEach(row => {
+        const ch = (row.chauffeur || '').trim().toUpperCase();
+        if (ch && ch !== '—' && ch !== '' && !ch.includes('MANQUE CHAUFFEUR')) {
+          driverCounts[ch] = (driverCounts[ch] || 0) + 1;
+        }
+      });
+    }
+  });
+  
+  const currentEq = CURRENT_EQUIPE || 'A';
+  const currentEqDb = window['DB_' + currentEq];
+  const currentEqDrivers = new Set();
+  if (currentEqDb && currentEqDb.dispo) {
+    currentEqDb.dispo.forEach(row => {
       const ch = (row.chauffeur || '').trim().toUpperCase();
       if (ch && ch !== '—' && ch !== '' && !ch.includes('MANQUE CHAUFFEUR')) {
-        driverCounts[ch] = (driverCounts[ch] || 0) + 1;
+        currentEqDrivers.add(ch);
       }
     });
-    for (const [ch, count] of Object.entries(driverCounts)) {
-      if (count >= 2) {
-        extDrivers.set(ch, count);
-      }
+  }
+  
+  for (const [ch, count] of Object.entries(driverCounts)) {
+    if (count >= 2 && currentEqDrivers.has(ch)) {
+      extDrivers.set(ch, count);
     }
   }
   
@@ -10670,6 +10732,11 @@ let CURRENT_EQUIPE = 'A';
 window.CURRENT_EQUIPE = 'A';
 
 function switchEquipe(eq) {
+  if (typeof HISTORY_MODE !== 'undefined' && HISTORY_MODE) {
+    selectHistoryDate('');
+    const dSelect = document.getElementById('history-date-select');
+    if (dSelect) dSelect.value = '';
+  }
   if (eq === CURRENT_EQUIPE) return;
   // Réinitialiser les filtres de recherche et de date lors du changement d'équipe pour éviter de masquer des pannes
   const filtersToReset = [
@@ -10712,6 +10779,9 @@ function switchEquipe(eq) {
   if (sub) sub.textContent = 'FICHE DISPONIBILITÉ · ÉQUIPE ' + eq + ' · V2.0';
   // Update subtitle
   document.querySelector('.header-sub').textContent = 'SUIVI CHAUFFEUR · ÉQUIPE ' + eq;
+  // Update history select for this team
+  if (typeof populateHistoryDateSelect === 'function') populateHistoryDateSelect();
+  
   // Re-render all tabs
   _arcEq = eq;
   renderDispo(); renderPannes(); renderNC(); renderGasoil();
@@ -12884,6 +12954,85 @@ function toggleTeamInsuranceConfig(eq) {
   }
 }
 window.toggleTeamInsuranceConfig = toggleTeamInsuranceConfig;
+
+// ── DAILY ARCHIVES / HISTORY CONSULTATION MODE ──
+let HISTORY_MODE = false;
+let HISTORY_DATA = null;
+
+function populateHistoryDateSelect() {
+  const select = document.getElementById('history-date-select');
+  if (!select) return;
+  
+  const eq = typeof window.CURRENT_EQUIPE !== 'undefined' ? window.CURRENT_EQUIPE : 'A';
+  const teamArchives = ARCHIVES[eq] || {};
+  const dates = Object.keys(teamArchives).sort().reverse();
+  
+  select.innerHTML = '<option value="">📅 En direct (Aujourd\'hui)</option>';
+  dates.forEach(d => {
+    const opt = document.createElement('option');
+    opt.value = d;
+    const dateObj = new Date(d);
+    const label = isNaN(dateObj) ? d : dateObj.toLocaleDateString('fr-FR', { weekday: 'short', day: '2-digit', month: 'short' });
+    opt.textContent = `📋 Archive du ${label}`;
+    select.appendChild(opt);
+  });
+  
+  const isAuthed = sessionStorage.getItem('numiplan_auth') === 'ok';
+  select.style.display = isAuthed ? 'inline-block' : 'none';
+}
+window.populateHistoryDateSelect = populateHistoryDateSelect;
+
+function selectHistoryDate(dateKey) {
+  const eq = typeof window.CURRENT_EQUIPE !== 'undefined' ? window.CURRENT_EQUIPE : 'A';
+  if (!dateKey) {
+    HISTORY_MODE = false;
+    HISTORY_DATA = null;
+    const liveDb = window['DB_' + eq];
+    if (liveDb) window.DB = liveDb;
+    
+    const banner = document.getElementById('history-mode-banner');
+    if (banner) banner.style.display = 'none';
+    
+    showToast('🔙 Retour au mode en direct (Modifications autorisées)');
+  } else {
+    const teamArchives = ARCHIVES[eq] || {};
+    const snap = teamArchives[dateKey];
+    if (!snap) {
+      showToast('⚠️ Archive introuvable pour cette date', true);
+      return;
+    }
+    
+    HISTORY_MODE = true;
+    HISTORY_DATA = JSON.parse(JSON.stringify(snap));
+    window.DB = HISTORY_DATA;
+    
+    let banner = document.getElementById('history-mode-banner');
+    if (!banner) {
+      banner = document.createElement('div');
+      banner.id = 'history-mode-banner';
+      banner.style.cssText = 'background:linear-gradient(90deg, #f59e0b, #d97706); color:#000; padding:10px 20px; font-size:12px; font-weight:800; text-align:center; position:sticky; top:0; z-index:1000; box-shadow:0 4px 12px rgba(0,0,0,.2); display:flex; align-items:center; justify-content:center; gap:8px; border-bottom:1px solid rgba(0,0,0,.1);';
+      document.body.insertBefore(banner, document.body.firstChild);
+    }
+    const formattedDate = new Date(dateKey).toLocaleDateString('fr-FR', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' });
+    banner.innerHTML = `⚠️ MODE CONSULTATION HISTORIQUE — Vous visualisez les données du ${formattedDate} (Lecture seule)`;
+    banner.style.display = 'flex';
+    
+    showToast(`📜 Chargement de l'archive du ${dateKey} (Mode Lecture seule)`);
+  }
+  
+  renderDispo();
+  if (typeof renderPannes === 'function') renderPannes();
+  if (typeof renderNC === 'function') renderNC();
+  if (typeof renderGasoil === 'function') renderGasoil();
+  if (typeof renderEquip === 'function') renderEquip();
+  if (typeof renderActivite === 'function') renderActivite();
+  if (typeof renderBL === 'function') renderBL();
+  if (typeof renderOdo === 'function') renderOdo();
+  if (typeof renderCSPC === 'function') renderCSPC();
+  if (typeof renderBlacklist === 'function') renderBlacklist();
+  if (typeof renderIncidentsLivraisonPage === 'function') renderIncidentsLivraisonPage();
+}
+window.selectHistoryDate = selectHistoryDate;
 
 </script>
 
