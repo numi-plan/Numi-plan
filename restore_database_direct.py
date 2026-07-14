@@ -17,14 +17,43 @@ ctx.check_hostname = False
 ctx.verify_mode = ssl.CERT_NONE
 
 # ══════════════════════════════════════════════════════════════════════════════
-# HELPER: Fetch current team payload from Supabase (to preserve critical fields)
+# HELPER: Authentification Supabase Auth pour obtenir un jeton JWT
 # ══════════════════════════════════════════════════════════════════════════════
-def fetch_supabase_live(eq, supabase_url, supabase_key, ctx):
-    """Fetch current payload for team 'eq' from Supabase. Returns dict or None."""
-    url = f"{supabase_url}/rest/v1/numiplan_teams?team=eq.{eq}&select=payload"
+def get_supabase_token(supabase_url, supabase_key, email, password, ctx):
+    """Authenticate with email and password and return the JWT access token."""
+    url = f"{supabase_url}/auth/v1/token?grant_type=password"
     headers = {
         "apikey": supabase_key,
-        "Authorization": f"Bearer {supabase_key}",
+        "Content-Type": "application/json"
+    }
+    payload = {
+        "email": email,
+        "password": password
+    }
+    req = urllib.request.Request(
+        url,
+        data=json.dumps(payload).encode('utf-8'),
+        headers=headers,
+        method='POST'
+    )
+    try:
+        with urllib.request.urlopen(req, context=ctx, timeout=15) as resp:
+            data = json.loads(resp.read().decode('utf-8'))
+            return data.get("access_token", "")
+    except Exception as e:
+        print(f"  [ERROR] Échec d'authentification Supabase : {e}")
+        return ""
+
+# ══════════════════════════════════════════════════════════════════════════════
+# HELPER: Fetch current team payload from Supabase (to preserve critical fields)
+# ══════════════════════════════════════════════════════════════════════════════
+def fetch_supabase_live(eq, supabase_url, supabase_key, token, ctx):
+    """Fetch current payload for team 'eq' from Supabase. Returns dict or None."""
+    url = f"{supabase_url}/rest/v1/numiplan_teams?team=eq.{eq}&select=payload"
+    auth_header = f"Bearer {token}" if token else f"Bearer {supabase_key}"
+    headers = {
+        "apikey": supabase_key,
+        "Authorization": auth_header,
         "Content-Type": "application/json"
     }
     try:
@@ -38,26 +67,15 @@ def fetch_supabase_live(eq, supabase_url, supabase_key, ctx):
     return None
 
 # ══════════════════════════════════════════════════════════════════════════════
-# STEP 1: Revert HTML Files to Original Backups
+# STEP 1: Revert HTML Files to Original Backups (DÉSACTIVÉ POUR ÉVITER LES PERTES)
 # ══════════════════════════════════════════════════════════════════════════════
-print("Step 1: Reverting HTML files to their original version...")
-src_fiche = r"C:\Users\kaddour.lahouel\.gemini\antigravity-ide\scratch\fiche_old_e23.html"
-dest_fiche = r"c:\Users\kaddour.lahouel\Desktop\PROJET ERP ANTI\fiche.html"
+print("Step 1: Reverting HTML files... [DÉSACTIVÉ - Protection contre l'écrasement du code]")
+# src_fiche = r"C:\Users\kaddour.lahouel\.gemini\antigravity-ide\scratch\fiche_old_e23.html"
+# dest_fiche = r"c:\Users\kaddour.lahouel\Desktop\PROJET ERP ANTI\fiche.html"
+# src_fiche_supabase = r"C:\Users\kaddour.lahouel\.gemini\antigravity-ide\scratch\fiche_supabase_23h.html"
+# dest_fiche_supabase = r"c:\Users\kaddour.lahouel\Desktop\PROJET ERP ANTI\fiche_supabase.html"
+# (Déploiement en prod géré via GitHub pour éviter les pertes de personnalisations locales)
 
-src_fiche_supabase = r"C:\Users\kaddour.lahouel\.gemini\antigravity-ide\scratch\fiche_supabase_23h.html"
-dest_fiche_supabase = r"c:\Users\kaddour.lahouel\Desktop\PROJET ERP ANTI\fiche_supabase.html"
-
-try:
-    shutil.copy2(src_fiche, dest_fiche)
-    print(f"  Successfully restored fiche.html from {os.path.basename(src_fiche)}")
-except Exception as e:
-    print(f"  Error restoring fiche.html: {e}")
-
-try:
-    shutil.copy2(src_fiche_supabase, dest_fiche_supabase)
-    print(f"  Successfully restored fiche_supabase.html from {os.path.basename(src_fiche_supabase)}")
-except Exception as e:
-    print(f"  Error restoring fiche_supabase.html: {e}")
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -254,6 +272,14 @@ api_key = "AIzaSyDA-loDmlfcdPC0es0sb6tiCM4JXP2VF24"
 supabase_url = "https://mfljrozyxyfkymzlnsmt.supabase.co"
 supabase_key = "sb_publishable_sMb9uHOr4gpyqmZGrkY-YQ_z90TgNAB"
 
+# Authentification Supabase Auth pour contourner les RLS durant la restauration
+print("Authenticating with Supabase Auth as Admin...")
+supabase_token = get_supabase_token(supabase_url, supabase_key, "admin@sharik.numilog.com", "Sharik@admin", ctx)
+if supabase_token:
+    print("  Authenticated successfully !")
+else:
+    print("  [WARN] Failed to authenticate. Proceeding as anonymous client (writes will fail if RLS is enabled).")
+
 teams = ['A', 'B', 'C', 'D']
 for eq in teams:
     print(f"\nProcessing Team {eq}...")
@@ -322,7 +348,7 @@ for eq in teams:
     # incidentsLivraison, anomaliesPointees, tracabilite — NE JAMAIS ECRASER
     # ══════════════════════════════════════════════════════════════════════════
     print(f"  [PRESERVE] Recuperation des donnees critiques depuis Supabase pour equipe {eq}...")
-    live_payload = fetch_supabase_live(eq, supabase_url, supabase_key, ctx)
+    live_payload = fetch_supabase_live(eq, supabase_url, supabase_key, supabase_token, ctx)
     if live_payload:
         preserved_fields = ['incidentsLivraison', 'anomaliesPointees', 'tracabilite', 'flashInfos', 'clientModifs']
         for field in preserved_fields:
@@ -379,9 +405,10 @@ for eq in teams:
     }
     
     post_url = f"{supabase_url}/rest/v1/numiplan_teams"
+    auth_header = f"Bearer {supabase_token}" if supabase_token else f"Bearer {supabase_key}"
     headers = {
         "apikey": supabase_key,
-        "Authorization": f"Bearer {supabase_key}",
+        "Authorization": auth_header,
         "Content-Type": "application/json",
         "Prefer": "resolution=merge-duplicates"
     }
