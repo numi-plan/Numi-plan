@@ -8810,6 +8810,9 @@ function openIncidentLivraisonModal(idx) {
   const r = DB.dispo[idx];
   if (!r) return;
   
+  // Remplir les sélecteurs de destination d'incidents à partir de la datalist des wilayas
+  populateIncidentDestinationSelects();
+  
   document.getElementById('f-inc-liv-idx').value = idx;
   document.getElementById('f-inc-liv-type').value = 'Immobilisation chez le client';
   document.getElementById('f-inc-liv-client').value = '';
