@@ -5772,7 +5772,13 @@ function openModal(id, editIdx=-1) {
     }
     if (editIdx === -1) {
       document.getElementById('f-panne-kpi').value = '';
+      const cetEl = document.getElementById('f-panne-cet');
+      if (cetEl && !cetEl.value) cetEl.value = sessionStorage.getItem('numiplan_username') || '';
     }
+  }
+  if (id === 'modal-gasoil' && editIdx === -1) {
+    const respEl = document.getElementById('f-gasoil-resp');
+    if (respEl && !respEl.value) respEl.value = sessionStorage.getItem('numiplan_username') || '';
   }
 }
 
@@ -11073,7 +11079,7 @@ function declPanne(idx) {
   document.getElementById('f-panne-chauffeur').value = r.chauffeur || '';
   document.getElementById('f-panne-type').value = r.type || 'TRACTEUR';
   document.getElementById('f-panne-di').value = '';
-  document.getElementById('f-panne-cet').value = '';
+  document.getElementById('f-panne-cet').value = sessionStorage.getItem('numiplan_username') || '';
   document.getElementById('f-panne-desc').value = '';
   // Ouvrir le modal directement sur Disponibilité
   openModal('modal-panne', -1);
@@ -11106,7 +11112,7 @@ function declGasoil(idx) {
   document.getElementById('f-gasoil-station').value = '';
   document.getElementById('f-gasoil-type').value = 'Interne';
   document.getElementById('f-gasoil-operation').value = 'PLEIN';
-  document.getElementById('f-gasoil-resp').value = '';
+  document.getElementById('f-gasoil-resp').value = sessionStorage.getItem('numiplan_username') || '';
   openModal('modal-gasoil', -1);
   showToast('⛽ Gasoil pré-rempli pour ' + r.v);
 }
