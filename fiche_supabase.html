@@ -1402,14 +1402,7 @@ tr.dragging {
         tabFlash.style.removeProperty('display');
       }
     }
-    const tabUsersConfig = document.getElementById('tab-users-config');
-    if (tabUsersConfig) {
-      if (lock) {
-        tabUsersConfig.style.setProperty('display', 'none', 'important');
-      } else {
-        tabUsersConfig.style.removeProperty('display');
-      }
-    }
+
 
     const tabOdo = document.getElementById('tab-odo');
     if (tabOdo) {
@@ -1906,7 +1899,6 @@ mark.hl { background: rgba(56,189,248,.25); color: var(--acc); border-radius: 3p
   <button class="tab-btn" onclick="switchTab('tracabilite',this)">📜 Traçabilité <span class="tab-count" id="cnt-tracabilite" style="display:none;">—</span></button>
   <button class="tab-btn" id="tab-flashinfo" onclick="switchTab('flashinfo',this)">📢 Flash Info</button>
   <button class="tab-btn" onclick="ouvrirHistoriqueAnomalies()" style="color:#fbbf24;border-color:rgba(251,191,36,.3)">📊 Historique Anomalies</button>
-  <button class="tab-btn" id="tab-users-config" onclick="switchTab('users-config',this)" style="display:none;color:var(--pur);border-left-color:var(--pur);">⚙️ Identifiants Équipes</button>
 </div>
 
 <!-- ══════════════ DISPO ══════════════ -->
@@ -2035,6 +2027,9 @@ mark.hl { background: rgba(56,189,248,.25); color: var(--acc); border-radius: 3p
     </select>
     <button class="btn btn-reset" onclick="resetFilters('dispo-search','dispo-etat','dispo-region','dispo-region-j');renderDispo()">↺ Reset</button>
     <button class="btn btn-add" onclick="openModal('modal-dispo')">＋ Ajouter</button>
+    <label style="display:inline-flex; align-items:center; gap:6px; cursor:pointer; font-size:12px; margin-left:auto; color:var(--txt2); white-space:nowrap" title="Afficher/Masquer les colonnes d'Assurances TR et RM">
+      <input type="checkbox" id="dispo-show-insurance" onchange="toggleDispoInsurance(this)" style="width:auto; cursor:pointer"> 🛡️ Assurances
+    </label>
 
   </div>
   <div style="padding-top:20px">
@@ -2525,95 +2520,7 @@ mark.hl { background: rgba(56,189,248,.25); color: var(--acc); border-radius: 3p
 <!-- ══════════════ PERFORMANCE CHAUFFEUR ══════════════ -->
 
 <!-- ══════════════ CONFIGURATION IDENTIFIANTS ══════════════ -->
-<div id="page-users-config" class="page">
-  <div class="sec-title" style="margin-bottom:20px">⚙️ Configuration des Identifiants Chefs d'Équipe</div>
-  <div class="form-grid" style="grid-template-columns: 300px 1fr; gap:30px; align-items: start;">
-    
-    <!-- Formulaire d'ajout -->
-    <div style="background:var(--bg2); border:1px solid var(--border); border-radius:12px; padding:20px;">
-      <h3 style="margin-top:0; font-size:13px; color:var(--acc); margin-bottom:15px; letter-spacing:1px; text-transform:uppercase">Ajouter un Chef d'Équipe</h3>
-      <div class="form-group" style="margin-bottom:12px">
-        <label>Équipe Cible</label>
-        <select id="config-user-team" style="width:100%">
-          <option value="A">ÉQUIPE A</option>
-          <option value="B">ÉQUIPE B</option>
-          <option value="C">ÉQUIPE C</option>
-          <option value="D">ÉQUIPE D</option>
-          <option value="E">ÉQUIPE E</option>
-          <option value="F">ÉQUIPE F</option>
-        </select>
-      </div>
-      <div class="form-group" style="margin-bottom:16px">
-        <label>Identifiant / Nom</label>
-        <input id="config-user-name" type="text" placeholder="Ex: AHMED" style="width:100%">
-      </div>
-      <button class="btn btn-save" onclick="addUserConfig()" style="width:100%">＋ Ajouter à l'équipe</button>
-    </div>
 
-    <!-- Paramètres d'affichage -->
-    <div style="background:var(--bg2); border:1px solid var(--border); border-radius:12px; padding:20px; margin-top:20px;">
-      <h3 style="margin-top:0; font-size:13px; color:var(--acc); margin-bottom:15px; letter-spacing:1px; text-transform:uppercase">Paramètres d'affichage Équipes</h3>
-      <div style="display:flex; flex-direction:column; gap:12px;">
-        <div style="font-size:11px; color:var(--txt3)">Activez ou désactivez l'affichage des colonnes d'Assurance (ASS. TR / ASS. RM) pour chaque équipe :</div>
-        <div style="display:grid; grid-template-columns: repeat(3, 1fr); gap:10px;">
-          <label style="display:flex; align-items:center; gap:10px; cursor:pointer; font-size:12px;">
-            <input type="checkbox" id="config-show-insurance-A" onchange="toggleTeamInsuranceConfig('A')" style="width:auto; cursor:pointer;"> Équipe A
-          </label>
-          <label style="display:flex; align-items:center; gap:10px; cursor:pointer; font-size:12px;">
-            <input type="checkbox" id="config-show-insurance-B" onchange="toggleTeamInsuranceConfig('B')" style="width:auto; cursor:pointer;"> Équipe B
-          </label>
-          <label style="display:flex; align-items:center; gap:10px; cursor:pointer; font-size:12px;">
-            <input type="checkbox" id="config-show-insurance-C" onchange="toggleTeamInsuranceConfig('C')" style="width:auto; cursor:pointer;"> Équipe C
-          </label>
-          <label style="display:flex; align-items:center; gap:10px; cursor:pointer; font-size:12px;">
-            <input type="checkbox" id="config-show-insurance-D" onchange="toggleTeamInsuranceConfig('D')" style="width:auto; cursor:pointer;"> Équipe D
-          </label>
-          <label style="display:flex; align-items:center; gap:10px; cursor:pointer; font-size:12px;">
-            <input type="checkbox" id="config-show-insurance-E" onchange="toggleTeamInsuranceConfig('E')" style="width:auto; cursor:pointer;"> Équipe E
-          </label>
-          <label style="display:flex; align-items:center; gap:10px; cursor:pointer; font-size:12px;">
-            <input type="checkbox" id="config-show-insurance-F" onchange="toggleTeamInsuranceConfig('F')" style="width:auto; cursor:pointer;"> Équipe F
-          </label>
-        </div>
-      </div>
-    </div>
-
-    <!-- Tableaux des utilisateurs par équipe -->
-    <div style="display:grid; grid-template-columns: repeat(2, 1fr); gap:20px;">
-      <!-- A -->
-      <div style="background:var(--bg2); border:1px solid var(--border); border-radius:12px; padding:16px;">
-        <h4 style="margin:0 0 12px 0; font-size:12px; color:var(--yel)">Équipe A</h4>
-        <div id="config-users-list-A" style="display:flex; flex-direction:column; gap:6px;"></div>
-      </div>
-      <!-- B -->
-      <div style="background:var(--bg2); border:1px solid var(--border); border-radius:12px; padding:16px;">
-        <h4 style="margin:0 0 12px 0; font-size:12px; color:var(--acc)">Équipe B</h4>
-        <div id="config-users-list-B" style="display:flex; flex-direction:column; gap:6px;"></div>
-      </div>
-      <!-- C -->
-      <div style="background:var(--bg2); border:1px solid var(--border); border-radius:12px; padding:16px;">
-        <h4 style="margin:0 0 12px 0; font-size:12px; color:var(--grn)">Équipe C</h4>
-        <div id="config-users-list-C" style="display:flex; flex-direction:column; gap:6px;"></div>
-      </div>
-      <!-- D -->
-      <div style="background:var(--bg2); border:1px solid var(--border); border-radius:12px; padding:16px;">
-        <h4 style="margin:0 0 12px 0; font-size:12px; color:var(--pur)">Équipe D</h4>
-        <div id="config-users-list-D" style="display:flex; flex-direction:column; gap:6px;"></div>
-      </div>
-      <!-- E -->
-      <div style="background:var(--bg2); border:1px solid var(--border); border-radius:12px; padding:16px;">
-        <h4 style="margin:0 0 12px 0; font-size:12px; color:var(--acc)">Équipe E</h4>
-        <div id="config-users-list-E" style="display:flex; flex-direction:column; gap:6px;"></div>
-      </div>
-      <!-- F -->
-      <div style="background:var(--bg2); border:1px solid var(--border); border-radius:12px; padding:16px;">
-        <h4 style="margin:0 0 12px 0; font-size:12px; color:var(--grn)">Équipe F</h4>
-        <div id="config-users-list-F" style="display:flex; flex-direction:column; gap:6px;"></div>
-      </div>
-    </div>
-
-  </div>
-</div>
 
 </div><!-- /page-area -->
 </div><!-- /app-layout -->
@@ -5808,7 +5715,6 @@ function switchTab(name, btn) {
   if (name==='blacklist') renderBlacklist();
   if (name==='tracabilite') renderTracabilite();
   if (name==='flashinfo') renderAdminFlashList();
-  if (name==='users-config') renderUsersConfigLists();
   
   if (name === 'incidents-livraison') renderIncidentsLivraisonPage();
 checkBascule();
@@ -6015,6 +5921,8 @@ function renderDispo() {
   const body = document.getElementById('dispo-body');
   const lock = sessionStorage.getItem('numiplan_team_lock');
   const showInsurance = DB.config_ui ? DB.config_ui.showInsurance !== false : true;
+  const cbShowIns = document.getElementById('dispo-show-insurance');
+  if (cbShowIns) cbShowIns.checked = showInsurance;
   const shouldHide = lock && !showInsurance;
   if (!data.length) { 
     body.innerHTML = `<tr><td colspan="${shouldHide ? 14 : 16}"><div class="empty-state"><div class="icon">🔍</div>Aucun résultat</div></td></tr>`; 
@@ -13157,77 +13065,7 @@ function populateIncidentDestinationSelects() {
 
 
 
-// ── CONFIGURATION DES UTILISATEURS / CHEFS D'ÉQUIPE (ADMIN ONLY) ──
-function renderUsersConfigLists() {
-  const teams = ['A', 'B', 'C', 'D', 'E', 'F'];
-  // Peupler les cases d'affichage d'assurances
-  teams.forEach(eq => {
-    const cb = document.getElementById('config-show-insurance-' + eq);
-    if (cb) {
-      const db = window['DB_' + eq];
-      cb.checked = db && db.config_ui ? db.config_ui.showInsurance !== false : true;
-    }
-  });
-  teams.forEach(eq => {
-    const listDiv = document.getElementById('config-users-list-' + eq);
-    if (!listDiv) return;
-    const db = window['DB_' + eq];
-    const users = (db && db.users) ? db.users : [];
-    if (users.length === 0) {
-      listDiv.innerHTML = '<div style="color:var(--txt3); font-size:11px; font-style:italic">Aucun identifiant</div>';
-    } else {
-      listDiv.innerHTML = users.map((u, i) => `
-        <div style="display:flex; justify-content:space-between; align-items:center; background:var(--bg3); border:1px solid var(--border); padding:6px 12px; border-radius:8px; font-size:12px;">
-          <span style="font-weight:600; color:var(--txt)">${u}</span>
-          <button class="del-btn" onclick="deleteUserConfig('${eq}', ${i})" style="padding:2px 6px; font-size:10px; color:var(--red); border:none; background:transparent; cursor:pointer" title="Supprimer">🗑</button>
-        </div>
-      `).join('');
-    }
-  });
-}
 
-function addUserConfig() {
-  const eq = document.getElementById('config-user-team').value;
-  const nameInput = document.getElementById('config-user-name');
-  const name = nameInput.value.trim().toUpperCase();
-  if (!name) {
-    showToast('⚠️ Nom requis', true);
-    return;
-  }
-  const db = window['DB_' + eq];
-  if (!db) {
-    showToast('⚠️ Base de données non chargée', true);
-    return;
-  }
-  if (!db.users) db.users = [];
-  if (db.users.includes(name)) {
-    showToast('⚠️ Identifiant déjà existant pour cette équipe', true);
-    return;
-  }
-  db.users.push(name);
-  db._localTs = Date.now();
-  if (window.saveTeamDB) {
-    window.saveTeamDB(eq, db);
-  }
-  nameInput.value = '';
-  renderUsersConfigLists();
-  populateLoginUserDropdown();
-  showToast('✅ Identifiant ajouté avec succès');
-}
-
-function deleteUserConfig(eq, idx) {
-  const db = window['DB_' + eq];
-  if (!db || !db.users) return;
-  if (!confirm(`Supprimer l'identifiant ${db.users[idx]} de l'équipe ${eq} ?`)) return;
-  db.users.splice(idx, 1);
-  db._localTs = Date.now();
-  if (window.saveTeamDB) {
-    window.saveTeamDB(eq, db);
-  }
-  renderUsersConfigLists();
-  populateLoginUserDropdown();
-  showToast('✅ Identifiant supprimé');
-}
 
 function populateLoginUserDropdown() {
   const dropdown = document.getElementById('username-input');
@@ -13295,31 +13133,14 @@ function initAutoExportScheduler() {
 window.initAutoExportScheduler = initAutoExportScheduler;
 
 
-function toggleTeamInsuranceConfig(eq) {
-  const cb = document.getElementById('config-show-insurance-' + eq);
-  if (!cb) return;
-  const db = window['DB_' + eq];
-  if (!db) {
-    showToast('⚠️ Base de données non chargée', true);
-    return;
-  }
-  if (!db.config_ui) db.config_ui = {};
-  db.config_ui.showInsurance = cb.checked;
-  db._localTs = Date.now();
-  if (window.saveTeamDB) {
-    window.saveTeamDB(eq, db);
-  }
-  showToast(`✅ Configuration affichage Assurances Équipe ${eq} mise à jour`);
-  
-  const currentEq = (typeof getCurrentEquipe === 'function') ? getCurrentEquipe() : (typeof window.CURRENT_EQUIPE !== 'undefined' ? window.CURRENT_EQUIPE : 'A');
-  if (eq === currentEq) {
-    if (typeof window.DB !== 'undefined') {
-      window.DB.config_ui = db.config_ui;
-    }
-    if (typeof renderDispo === 'function') renderDispo();
-  }
+function toggleDispoInsurance(cb) {
+  if (!DB.config_ui) DB.config_ui = {};
+  DB.config_ui.showInsurance = cb.checked;
+  saveDB();
+  renderDispo();
+  showToast(`✅ Affichage des Assurances ${cb.checked ? 'activé' : 'désactivé'}`);
 }
-window.toggleTeamInsuranceConfig = toggleTeamInsuranceConfig;
+window.toggleDispoInsurance = toggleDispoInsurance;
 
 // ── DAILY ARCHIVES / HISTORY CONSULTATION MODE ──
 var HISTORY_MODE = false;
