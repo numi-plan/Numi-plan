@@ -2324,7 +2324,7 @@ mark.hl { background: rgba(56,189,248,.25); color: var(--acc); border-radius: 3p
     <div class="form-grid" style="grid-template-columns:1fr; gap:12px">
       <div class="form-group" style="display:flex; flex-direction:column; gap:4px">
         <label style="font-weight:700; font-size:11px; color:var(--txt2)">Type d'anomalie / incident</label>
-        <select id="f-inc-liv-type" style="background:rgba(255,255,255,.05);color:inherit;border:1px solid var(--border);padding:8px 12px;border-radius:8px;outline:none">
+        <select id="f-inc-liv-type" onchange="toggleIncidentFields()" style="background:rgba(255,255,255,.05);color:inherit;border:1px solid var(--border);padding:8px 12px;border-radius:8px;outline:none">
           <option value="Immobilisation chez le client">Immobilisation chez le client</option>
           <option value="Sinistre / Avarie">Sinistre / Avarie</option>
           <option value="Avarie marchandises">Avarie marchandises</option>
@@ -2340,7 +2340,7 @@ mark.hl { background: rgba(56,189,248,.25); color: var(--acc); border-radius: 3p
         <div class="form-group"><label>Client</label><input id="f-inc-liv-client" placeholder="Nom du client" style="text-transform:uppercase"></div>
       </div>
       
-      <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px">
+      <div id="group-inc-liv-dest-prevue" style="display:grid; grid-template-columns:1fr 1fr; gap:12px; display:none">
         <div class="form-group">
           <label>Destination prévue - Chargement</label>
           <select id="f-inc-liv-dest-prevue-site" style="background:rgba(255,255,255,.05);color:inherit;border:1px solid var(--border);padding:8px 12px;border-radius:8px;outline:none;box-sizing:border-box;width:100%">
@@ -2355,7 +2355,7 @@ mark.hl { background: rgba(56,189,248,.25); color: var(--acc); border-radius: 3p
         </div>
       </div>
       
-      <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px">
+      <div id="group-inc-liv-dest-reelle" style="display:grid; grid-template-columns:1fr 1fr; gap:12px; display:none">
         <div class="form-group">
           <label>Destination réelle - Chargement</label>
           <select id="f-inc-liv-dest-reelle-site" style="background:rgba(255,255,255,.05);color:inherit;border:1px solid var(--border);padding:8px 12px;border-radius:8px;outline:none;box-sizing:border-box;width:100%">
@@ -8945,8 +8945,40 @@ function openIncidentLivraisonModal(idx) {
   const localISOTime = (new Date(now - tzOffset)).toISOString().slice(0, 16);
   document.getElementById('f-inc-liv-debut').value = localISOTime;
   
+  toggleIncidentFields();
   openModal('modal-incident-livraison', idx);
 }
+
+function toggleIncidentFields() {
+  const type = document.getElementById('f-inc-liv-type').value;
+  
+  // 1. Référence Commande Initiale : affiché uniquement si "Changement de référence commande"
+  const groupRefInit = document.getElementById('group-ref-commande-initiale');
+  if (groupRefInit) {
+    groupRefInit.style.display = (type === 'Changement de référence commande') ? 'block' : 'none';
+  }
+  
+  // 2. Destinations prévues et réelles : affichées uniquement si "Changement de destination"
+  const groupDestPrev = document.getElementById('group-inc-liv-dest-prevue');
+  if (groupDestPrev) {
+    groupDestPrev.style.display = (type === 'Changement de destination') ? 'grid' : 'none';
+  }
+  const groupDestReel = document.getElementById('group-inc-liv-dest-reelle');
+  if (groupDestReel) {
+    groupDestReel.style.display = (type === 'Changement de destination') ? 'grid' : 'none';
+  }
+
+  // Changer le label de "Référence Commande" selon le cas
+  const lblRef = document.getElementById('lbl-inc-liv-ref-commande');
+  if (lblRef) {
+    if (type === 'Changement de référence commande') {
+      lblRef.innerText = 'Nouvelle Référence Commande';
+    } else {
+      lblRef.innerText = 'Référence Commande';
+    }
+  }
+}
+window.toggleIncidentFields = toggleIncidentFields;
 // ══════════════════════════════════════════════════════════════════════════════
 // FIX 3 — BACKUP AUTOMATIQUE DES INCIDENTS DANS numiplan_archives
 // Chaque incident est sauvegardé immédiatement et indépendamment.
