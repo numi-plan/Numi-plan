@@ -18,6 +18,7 @@
   const supabaseUrl = "https://mfljrozyxyfkymzlnsmt.supabase.co";
   const supabaseKey = "sb_publishable_sMb9uHOr4gpyqmZGrkY-YQ_z90TgNAB";
   const supabase = createClient(supabaseUrl, supabaseKey);
+  window.supabase = supabase; // Exposer globalement pour l'authentification et RLS
 
   let _fbReady      = false;
   let _fbLoaded     = {};
@@ -163,6 +164,12 @@
     mergeList('flashInfos', item => item.id);
     mergeList('clientModifs', item => item.timestamp && item.v ? `${item.timestamp}|${item.v}` : null);
     mergeList('incidents', item => item.timestamp && item.chauffeur ? `${item.timestamp}|${item.chauffeur}` : null);
+    // ── FIX: incidentsLivraison merged by unique id (never dropped) ──────────
+    mergeList('incidentsLivraison', item => item.id || null);
+    // ── FIX: anomaliesPointees is a map — merge key-by-key (union, local wins) ─
+    const _localAnom  = local.anomaliesPointees  || {};
+    const _remoteAnom = remote.anomaliesPointees || {};
+    merged.anomaliesPointees = Object.assign({}, _remoteAnom, _localAnom);
 
     merged._localTs = Math.max(local._localTs || 0, remote._localTs || 0);
     return merged;
@@ -333,16 +340,24 @@
     
     try {
       const { data, error } = await supabase
-        .from('numiplan_teams')
-        .select('team, payload->users');
+        .from('np_users')
+        .select('login, team, role')
+        .eq('actif', true);
       clearTimeout(fallbackTimer);
       if (error) throw error;
       if (data) {
-        data.forEach(row => {
-          const eq = row.team;
-          const users = row.users || (row.payload ? row.payload.users : []) || [];
+        // Vider d'abord les listes locales pour éviter les doublons
+        const teams = ['A', 'B', 'C', 'D', 'E', 'F'];
+        teams.forEach(eq => {
           if (!window['DB_' + eq]) window['DB_' + eq] = { users: [] };
-          window['DB_' + eq].users = users;
+          window['DB_' + eq].users = [];
+        });
+
+        data.forEach(row => {
+          if (row.team) {
+            const eq = row.team;
+            window['DB_' + eq].users.push(row.login);
+          }
         });
         populateLoginUserDropdown();
       }
@@ -524,6 +539,248 @@
     }
   };
 
+  // Helper interne pour sauvegarder et émettre l'upsert vers les tables normalisées
+  async function saveNormalizedTables(eq, payload) {
+    try {
+      console.log(`[Normalized Sync] Début sauvegarde équipe ${eq}...`);
+      
+      const chunkInsert = async (table, rows) => {
+        const chunkSize = 200;
+        for (let i = 0; i < rows.length; i += chunkSize) {
+          const chunk = rows.slice(i, i + chunkSize);
+          const { error } = await supabase.from(table).insert(chunk);
+          if (error) console.error(`[Normalized Sync] Error inserting in ${table}:`, error);
+        }
+      };
+
+      const safe = (val, def = null) => (val === undefined || val === '' || val === null) ? def : val;
+
+      // 1. np_dispo
+      const dispoRows = (payload.dispo || []).filter(item => item.v).map(item => ({
+        team: eq, v: item.v,
+        etat: safe(item.etat),
+        type: safe(item.type),
+        chauffeur: safe(item.chauffeur),
+        hor: item.hor !== undefined ? item.hor : null,
+        lieu_j: safe(item.lieuJ),
+        lieu_j1: safe(item.lieuJ1),
+        lieu_j_initial: safe(item.lieuJ_initial),
+        lieu_j1_initial: safe(item.lieuJ1_initial),
+        prog: safe(item.prog),
+        prog_depart: safe(item.progDepart),
+        equip: safe(item.equip),
+        km: item.km !== undefined ? item.km : null,
+        obs: safe(item.obs),
+        affecte: safe(item.affecte),
+        prog_fige: !!item.progFige,
+        repos: safe(item.repos),
+        cspc: !!item.cspc,
+        assurance_debut: safe(item.assuranceDebut),
+        assurance_fin: safe(item.assuranceFin),
+        assurance_compagnie: safe(item.assuranceCompagnie),
+        geoloc: safe(item.geoloc)
+      }));
+      await supabase.from('np_dispo').delete().eq('team', eq);
+      if (dispoRows.length > 0) await supabase.from('np_dispo').insert(dispoRows);
+
+      // 2. np_pannes
+      const pannesRows = (payload.pannes || []).map(item => ({
+        team: eq,
+        immat: safe(item.immat, ''),
+        date: safe(item.date),
+        chauffeur: safe(item.chauffeur),
+        type: safe(item.type),
+        di: safe(item.di),
+        description: safe(item.desc),
+        etat: safe(item.etat),
+        kpi: safe(item.kpi),
+        rex: safe(item.rex),
+        cet: safe(item.cet)
+      }));
+      await supabase.from('np_pannes').delete().eq('team', eq);
+      if (pannesRows.length > 0) await chunkInsert('np_pannes', pannesRows);
+
+      // 3. np_nc
+      const ncRows = (payload.nc || []).map(item => ({
+        team: eq,
+        n: item.n !== undefined ? item.n : null,
+        date: safe(item.date),
+        sharik: safe(item.sharik),
+        chgt: safe(item.chgt),
+        fausse: safe(item.fausse),
+        refus: safe(item.refus),
+        autre: safe(item.autre),
+        mise: safe(item.mise),
+        commission: safe(item.commission),
+        cet: safe(item.cet)
+      }));
+      await supabase.from('np_nc').delete().eq('team', eq);
+      if (ncRows.length > 0) await chunkInsert('np_nc', ncRows);
+
+      // 4. np_gasoil
+      const gasoilRows = (payload.gasoil || []).map(item => ({
+        team: eq,
+        date: safe(item.date, ''),
+        vehicule: safe(item.vehicule || item.immat, ''),
+        chauffeur: safe(item.chauffeur),
+        station: safe(item.station),
+        type: safe(item.type),
+        operation: safe(item.operation),
+        resp: safe(item.resp),
+        agence: safe(item.agence),
+        site: safe(item.site),
+        cet: safe(item.cet)
+      }));
+      await supabase.from('np_gasoil').delete().eq('team', eq);
+      if (gasoilRows.length > 0) await chunkInsert('np_gasoil', gasoilRows);
+
+      // 5. np_odo
+      const odoRows = [];
+      const weeks = payload.odo_weeks || [];
+      (payload.odo || []).forEach(item => {
+        const v = item.v || '';
+        const chauffeur = item.chauffeur || '';
+        const kmFacture = item.kmFacture || null;
+        const vals = item.vals || [];
+        vals.forEach((kmVal, idx) => {
+          if (idx < weeks.length && kmVal !== null && kmVal !== undefined) {
+            odoRows.push({
+              team: eq, v: v, chauffeur: chauffeur,
+              week: weeks[idx], km: kmVal, km_facture: kmFacture
+            });
+          }
+        });
+      });
+      await supabase.from('np_odo').delete().eq('team', eq);
+      if (odoRows.length > 0) await chunkInsert('np_odo', odoRows);
+
+      // 6. np_equip
+      const equipRows = (payload.equip || []).filter(item => item.tr).map(item => ({
+        team: eq, tr: item.tr,
+        rm: safe(item.rm),
+        barre: safe(item.barre),
+        cable: safe(item.cable),
+        tel: safe(item.tel),
+        sharik: safe(item.sharik)
+      }));
+      await supabase.from('np_equip').delete().eq('team', eq);
+      if (equipRows.length > 0) await supabase.from('np_equip').insert(equipRows);
+
+      // 7. np_activite
+      const activiteRows = (payload.activite || []).map(item => ({
+        team: eq,
+        tr: safe(item.tr || item.v, ''),
+        rm: safe(item.rm),
+        sharik: safe(item.sharik || item.chauffeur),
+        debut: safe(item.debut),
+        fin: safe(item.fin),
+        ext: safe(item.ext),
+        site: safe(item.site),
+        etat_tr: safe(item.etatTR),
+        actif: safe(item.actif),
+        obs: safe(item.obs)
+      }));
+      await supabase.from('np_activite').delete().eq('team', eq);
+      if (activiteRows.length > 0) await chunkInsert('np_activite', activiteRows);
+
+      // 8. np_bl
+      const blRows = (payload.bl || []).map(item => ({
+        team: eq, chauffeur: safe(item.chauffeur, ''),
+        mois: "all",
+        mars: safe(item.mars), avril: safe(item.avril), mai: safe(item.mai),
+        juin: safe(item.juin), juil: safe(item.juil), aout: safe(item.aout),
+        sep: safe(item.sep), oct: safe(item.oct), nov: safe(item.nov), dec: safe(item.dec),
+        cet: safe(item.cet)
+      }));
+      await supabase.from('np_bl').delete().eq('team', eq);
+      if (blRows.length > 0) await supabase.from('np_bl').insert(blRows);
+
+      // 9. np_cspc
+      const cspcRows = (payload.cspc || []).filter(item => item.v).map(item => ({
+        team: eq, v: item.v,
+        etat: safe(item.etat),
+        chauffeur: safe(item.chauffeur),
+        hor: item.hor !== undefined ? item.hor : null,
+        lieu_j: safe(item.lieuJ),
+        lieu_j1: safe(item.lieuJ1),
+        equip: safe(item.equip),
+        prog: safe(item.prog),
+        cet: safe(item.cet)
+      }));
+      await supabase.from('np_cspc').delete().eq('team', eq);
+      if (cspcRows.length > 0) await supabase.from('np_cspc').insert(cspcRows);
+
+      // 10. np_incidents_livraison
+      const incRows = (payload.incidentsLivraison || []).filter(item => item.id).map(item => ({
+        id: item.id, team: eq,
+        v: safe(item.v),
+        chauffeur: safe(item.chauffeur),
+        type: safe(item.type),
+        client: safe(item.client),
+        destination: safe(item.destination),
+        dest_prevue: safe(item.destPrevue),
+        ref_commande: safe(item.refCommande),
+        ref_commande_initiale: safe(item.refCommandeInitiale),
+        debut: safe(item.debut), fin: safe(item.fin),
+        duree_heures: item.dureeHeures !== undefined ? item.dureeHeures : null,
+        obs: safe(item.obs), cet: safe(item.cet)
+      }));
+      await supabase.from('np_incidents_livraison').delete().eq('team', eq);
+      if (incRows.length > 0) await supabase.from('np_incidents_livraison').insert(incRows);
+
+      // 11. np_anomalies
+      const anomRows = [];
+      const anomaliesDict = payload.anomaliesPointees || {};
+      for (const key in anomaliesDict) {
+        const item = anomaliesDict[key];
+        if (item && typeof item === 'object') {
+          anomRows.push({
+            id: key, team: eq,
+            v: safe(item.v || item.immat),
+            chauffeur: safe(item.chauffeur),
+            date: safe(item.date),
+            lieu_initial: safe(item.lieuInitial || item.lieuJ_initial),
+            lieu_actuel: safe(item.lieuActuel || item.lieuJ),
+            motif: safe(item.motif),
+            detail: safe(item.detail),
+            justif: safe(item.justif),
+            ts: safe(item.ts)
+          });
+        }
+      }
+      await supabase.from('np_anomalies').delete().eq('team', eq);
+      if (anomRows.length > 0) await chunkInsert('np_anomalies', anomRows);
+
+      // 12. np_tracabilite
+      const tracRows = (payload.tracabilite || []).map(item => ({
+        team: eq,
+        timestamp: safe(item.timestamp),
+        type: safe(item.type),
+        target: safe(item.target),
+        user_login: safe(item.user || item.cet),
+        detail: item.detail || null
+      }));
+      await supabase.from('np_tracabilite').delete().eq('team', eq);
+      if (tracRows.length > 0) await chunkInsert('np_tracabilite', tracRows);
+
+      // 13. np_flash_infos
+      const flashRows = (payload.flashInfos || []).filter(item => item.id).map(item => ({
+        id: item.id, team: eq,
+        titre: safe(item.titre),
+        contenu: safe(item.contenu),
+        auteur: safe(item.auteur),
+        date: safe(item.date),
+        lu_par: item.luPar || []
+      }));
+      await supabase.from('np_flash_infos').delete().eq('team', eq);
+      if (flashRows.length > 0) await supabase.from('np_flash_infos').insert(flashRows);
+
+      console.log(`[Normalized Sync] ✅ Sauvegarde équipe ${eq} terminée avec succès !`);
+    } catch (err) {
+      console.warn('[Normalized Sync] Erreur sauvegarde tables normalisées :', err);
+    }
+  }
+
   // Helper interne pour sauvegarder et émettre l'upsert
   async function supabaseUpsertTeam(eq, payload) {
     const { error } = await supabase
@@ -536,6 +793,9 @@
     if (error) {
       console.error(`Supabase write error for Team ${eq}:`, error);
       showFirebaseBadge(`⚠️ Erreur cloud équipe ${eq}`, true);
+    } else {
+      // Déclencher la double écriture normalisée en arrière-plan
+      saveNormalizedTables(eq, payload);
     }
   }
 
@@ -1035,16 +1295,6 @@ tr.dragging {
   let PERF_ROWS = [];
   let PERF_RAW  = [];
 
-  const TEAM_PASSWORDS = {
-    'SharikA@2026': 'A',
-    'SharikB@2026': 'B',
-    'SharikC@2026': 'C',
-    'SharikD@2026': 'D',
-    'SharikE@2026': 'E',
-    'SharikF@2026': 'F',
-    'SharikBL@2026': 'BL'
-  };
-
   // Fonction globale pour verrouiller l'interface en lecture seule
   function applyTeamLockUI(eq) {
     const lock = sessionStorage.getItem('numiplan_team_lock');
@@ -1187,62 +1437,72 @@ tr.dragging {
     }, 250);
   }
 
-  function checkPassword() {
+  async function checkPassword() {
     const usernameInput = document.getElementById('username-input');
-    const username = usernameInput ? usernameInput.value : '';
+    const username = usernameInput ? usernameInput.value.trim() : '';
     if (!username) {
       document.getElementById('pwd-error').textContent = '⚠️ Identifiant requis';
       setTimeout(() => { document.getElementById('pwd-error').textContent = ''; }, 3000);
       return;
     }
     
-    const val = document.getElementById('pwd-input').value;
-    
-    if (username === 'ADMIN') {
-      if (val === 'Sharik@admin') {
-        sessionStorage.setItem('numiplan_auth', 'ok');
-        sessionStorage.setItem('numiplan_username', 'ADMIN');
-        sessionStorage.removeItem('numiplan_team_lock');
-        window.location.reload();
-        return;
-      } else if (val === 'SharikBL@2026') {
-        sessionStorage.setItem('numiplan_auth', 'ok');
-        sessionStorage.setItem('numiplan_username', 'ADMIN');
-        sessionStorage.setItem('numiplan_team_lock', 'BL');
-        window.location.reload();
-        return;
-      } else {
-        document.getElementById('pwd-error').textContent = '⚠️ Mot de passe incorrect pour ADMIN';
-        setTimeout(() => { document.getElementById('pwd-error').textContent = ''; }, 3000);
-        return;
-      }
-    }
-    
-    // Trouver l'équipe pour l'utilisateur
-    let userTeam = null;
-    ['A', 'B', 'C', 'D', 'E', 'F'].forEach(eq => {
-      const db = window['DB_' + eq];
-      if (db && db.users && db.users.includes(username)) {
-        userTeam = eq;
-      }
-    });
-    
-    if (!userTeam) {
-      document.getElementById('pwd-error').textContent = '⚠️ Identifiant non trouvé';
+    const pwdInput = document.getElementById('pwd-input');
+    const password = pwdInput ? pwdInput.value : '';
+    if (!password) {
+      document.getElementById('pwd-error').textContent = '⚠️ Mot de passe requis';
       setTimeout(() => { document.getElementById('pwd-error').textContent = ''; }, 3000);
       return;
     }
-    
-    // Valider le mot de passe de cette équipe
-    if (TEAM_PASSWORDS[val] === userTeam) {
+
+    document.getElementById('pwd-error').textContent = 'Connexion en cours...';
+
+    try {
+      // Formater l'email virtuel correspondant au login
+      const email = username.toLowerCase() + "@sharik.numilog.com";
+
+      // Appel Supabase Auth
+      const { data, error } = await window.supabase.auth.signInWithPassword({
+        email: email,
+        password: password
+      });
+
+      if (error) {
+        console.error('Supabase Auth error:', error);
+        document.getElementById('pwd-error').textContent = '⚠️ Identifiant ou mot de passe incorrect';
+        setTimeout(() => { document.getElementById('pwd-error').textContent = ''; }, 3000);
+        return;
+      }
+
+      // Connexion réussie ! On récupère les détails de l'utilisateur dans np_users
+      const { data: userProfile, error: profileError } = await window.supabase
+        .from('np_users')
+        .select('role, team')
+        .eq('id', data.user.id)
+        .single();
+
+      if (profileError || !userProfile) {
+        console.error('Profile fetch error:', profileError);
+        document.getElementById('pwd-error').textContent = '⚠️ Erreur de profil utilisateur';
+        setTimeout(() => { document.getElementById('pwd-error').textContent = ''; }, 3000);
+        return;
+      }
+
+      // Enregistrer les variables de session pour la compatibilité
       sessionStorage.setItem('numiplan_auth', 'ok');
-      sessionStorage.setItem('numiplan_username', username);
-      sessionStorage.setItem('numiplan_team_lock', userTeam);
+      sessionStorage.setItem('numiplan_username', username.toUpperCase());
+
+      if (userProfile.role === 'admin') {
+        sessionStorage.removeItem('numiplan_team_lock');
+      } else if (userProfile.role === 'blacklist') {
+        sessionStorage.setItem('numiplan_team_lock', 'BL');
+      } else {
+        sessionStorage.setItem('numiplan_team_lock', userProfile.team || 'A');
+      }
+
       window.location.reload();
-    } else {
-      document.getElementById('pwd-error').textContent = '⚠️ Mot de passe incorrect pour cette équipe';
-      document.getElementById('pwd-input').value = '';
-      document.getElementById('pwd-input').focus();
+    } catch(err) {
+      console.error('Login exception:', err);
+      document.getElementById('pwd-error').textContent = '⚠️ Erreur de connexion au serveur';
       setTimeout(() => { document.getElementById('pwd-error').textContent = ''; }, 3000);
     }
   }
@@ -8676,6 +8936,56 @@ function openIncidentLivraisonModal(idx) {
   
   openModal('modal-incident-livraison', idx);
 }
+// ══════════════════════════════════════════════════════════════════════════════
+// FIX 3 — BACKUP AUTOMATIQUE DES INCIDENTS DANS numiplan_archives
+// Chaque incident est sauvegardé immédiatement et indépendamment.
+// En cas d'écrasement accidentel de numiplan_teams, les incidents sont
+// récupérables depuis numiplan_archives.
+// ══════════════════════════════════════════════════════════════════════════════
+async function backupIncidentToArchive(incidentObj, eq) {
+  try {
+    const supabaseUrl = "https://mfljrozyxyfkymzlnsmt.supabase.co";
+    const supabaseKey = "sb_publishable_sMb9uHOr4gpyqmZGrkY-YQ_z90TgNAB";
+    if (!incidentObj || !incidentObj.id) return;
+
+    const yearMonth = (incidentObj.debut || new Date().toISOString()).slice(0, 7); // "2026-07"
+    const archiveId = `${eq}_incidents_${yearMonth}`;
+    const incKey = incidentObj.id; // unique key : "inc_1783525418811"
+
+    // 1. Lire l'archive existante
+    const fetchResp = await fetch(
+      `${supabaseUrl}/rest/v1/numiplan_archives?id=eq.${archiveId}&select=payload`,
+      { headers: { apikey: supabaseKey, Authorization: `Bearer ${supabaseKey}` } }
+    );
+    const rows = fetchResp.ok ? await fetchResp.json() : [];
+    const existingPayload = (rows && rows[0]) ? (rows[0].payload || {}) : {};
+
+    // 2. Ajouter/mettre à jour cet incident (write-only, jamais de suppression)
+    const newPayload = { ...existingPayload, [incKey]: { ...incidentObj, _backedUpAt: new Date().toISOString() } };
+
+    // 3. Upsert dans numiplan_archives
+    const upsertResp = await fetch(
+      `${supabaseUrl}/rest/v1/numiplan_archives`,
+      {
+        method: 'POST',
+        headers: {
+          apikey: supabaseKey,
+          Authorization: `Bearer ${supabaseKey}`,
+          'Content-Type': 'application/json',
+          Prefer: 'resolution=merge-duplicates'
+        },
+        body: JSON.stringify([{ id: archiveId, payload: newPayload, updated_at: new Date().toISOString() }])
+      }
+    );
+    if (upsertResp.ok || upsertResp.status === 201) {
+      console.log(`[Backup Incidents] ✅ Incident ${incKey} sauvegardé dans ${archiveId}`);
+    } else {
+      console.warn(`[Backup Incidents] ⚠️ Echec backup incident ${incKey}:`, upsertResp.status);
+    }
+  } catch(e) {
+    console.warn('[Backup Incidents] Erreur silencieuse:', e);
+  }
+}
 
 function saveIncidentLivraison() {
   if (!_checkActionsLibres('saveIncidentLivraison')) return;
@@ -8764,7 +9074,12 @@ function saveIncidentLivraison() {
   if (!DB.incidentsLivraison) DB.incidentsLivraison = [];
   DB.incidentsLivraison.push(obj);
   
+  // ── FIX 3: Backup immédiat dans numiplan_archives (table dédiée) ──────────
+  backupIncidentToArchive(obj, CURRENT_EQUIPE);
+  // ─────────────────────────────────────────────────────────────────────────
+  
   saveDB();
+
   closeModal('modal-incident-livraison');
   renderDispo();
   showToast('✅ Incident enregistré');
@@ -8835,8 +9150,13 @@ function cloturerIncidentLivraison(incId) {
   }
   
   saveDB();
+  
+  // ── FIX 3: Backup clôture dans numiplan_archives ─────────────────────────
+  backupIncidentToArchive(inc, inc.equipe || CURRENT_EQUIPE);
+  // ─────────────────────────────────────────────────────────────────────────
   renderDispo();
   
+
   const tabInc = document.getElementById('tab-incidents-livraison');
   if (tabInc && tabInc.classList.contains('active')) {
     renderIncidentsLivraisonPage();
