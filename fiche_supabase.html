@@ -470,7 +470,9 @@
       const months = [];
       for (let i = 0; i < 4; i++) {
         const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-        months.push(d.toISOString().slice(0,7));
+        const y = d.getFullYear();
+        const m = String(d.getMonth() + 1).padStart(2, '0');
+        months.push(`${y}-${m}`);
       }
       const ids = [];
       const lock = sessionStorage.getItem('numiplan_team_lock');
@@ -857,7 +859,12 @@
   window._firebaseSaveArchives = async function(eq, snapData) {
     const byMonth = {};
     Object.entries(snapData).forEach(([date, snap]) => {
-      const mois = (typeof date === 'string' && date.length >= 7) ? date.slice(0,7) : new Date().toISOString().slice(0,7);
+      const mois = (typeof date === 'string' && date.length >= 7) ? date.slice(0,7) : (() => {
+        const d = new Date();
+        const y = d.getFullYear();
+        const m = String(d.getMonth() + 1).padStart(2, '0');
+        return `${y}-${m}`;
+      })();
       if (!byMonth[mois]) byMonth[mois] = {};
       byMonth[mois][date] = snap;
     });
@@ -5687,7 +5694,13 @@ document.querySelectorAll('.modal-overlay').forEach(m => {
   m.addEventListener('click', e => { if (e.target === m) m.classList.remove('open'); });
 });
 
-function today() { return new Date().toISOString().split('T')[0]; }
+function today() {
+  const d = new Date();
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
 
 function switchTab(name, btn) {
   const lock = sessionStorage.getItem('numiplan_team_lock');
