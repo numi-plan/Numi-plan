@@ -9050,7 +9050,7 @@ function saveIncidentLivraison() {
     hour: '2-digit', minute: '2-digit'
   });
   
-  let mailRef = `${mailRef}`;
+  let mailRef = `Réf Commande       : ${obj.refCommande}`;
   if (obj.type === 'Changement de référence commande') {
     mailRef = `Réf Commande Init  : ${obj.refCommandeInitiale}\n  Nouv. Réf Commande : ${obj.refCommande}`;
   }
