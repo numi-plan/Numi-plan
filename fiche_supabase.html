@@ -8958,14 +8958,15 @@ function toggleIncidentFields() {
     groupRefInit.style.display = (type === 'Changement de référence commande') ? 'block' : 'none';
   }
   
-  // 2. Destinations prévues et réelles : affichées uniquement si "Changement de destination"
+  // 2. Destinations prévues et réelles : affichées si "Changement de destination" OU "Changement de référence commande"
+  const showDest = (type === 'Changement de destination' || type === 'Changement de référence commande');
   const groupDestPrev = document.getElementById('group-inc-liv-dest-prevue');
   if (groupDestPrev) {
-    groupDestPrev.style.display = (type === 'Changement de destination') ? 'grid' : 'none';
+    groupDestPrev.style.display = showDest ? 'grid' : 'none';
   }
   const groupDestReel = document.getElementById('group-inc-liv-dest-reelle');
   if (groupDestReel) {
-    groupDestReel.style.display = (type === 'Changement de destination') ? 'grid' : 'none';
+    groupDestReel.style.display = showDest ? 'grid' : 'none';
   }
 
   // Changer le label de "Référence Commande" selon le cas
