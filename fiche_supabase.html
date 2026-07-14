@@ -206,6 +206,16 @@
 
   function applyEquipeData(eq, src) {
     if (!src || !src.dispo) return;
+    _initialCloudLoadCompleted[eq] = true;
+
+    // Migrer les anciens etats "Manque chauffeur" vers "DISPONIBLE"
+    if (src.dispo) {
+      src.dispo.forEach(r => {
+        if (r.etat === 'Manque chauffeur') {
+          r.etat = 'DISPONIBLE';
+        }
+      });
+    }
 
     const cleanSrc = window.cloneTeamData ? window.cloneTeamData(src, eq === 'A' ? window.INITIAL_DATA : undefined) : src;
 
@@ -223,7 +233,6 @@
 
     if (eq !== currentEq) {
       window['DB_' + eq] = cloneEquipePayload(cleanSrc);
-      _initialCloudLoadCompleted[eq] = true;
       if (typeof updateHeaderRAC === 'function') {
         updateHeaderRAC();
       }
@@ -249,7 +258,6 @@
     }
 
     if (localDb && localTs === remoteTs) {
-      _initialCloudLoadCompleted[eq] = true;
       if (typeof window.checkPointageRequired === 'function') {
         window.checkPointageRequired();
       }
@@ -266,8 +274,6 @@
       }
       safeRenderActiveTeam(eq);
     }
-
-    _initialCloudLoadCompleted[eq] = true;
 
     if (typeof updateHeaderRAC === 'function') {
       updateHeaderRAC();
@@ -415,7 +421,7 @@
         });
         populateLoginUserDropdown();
         loadGlobalDispoForExtensions();
-        loadArchivesFromFirebase();
+        // loadArchivesFromFirebase(); // Defer loading to save Supabase Egress
       }
     } catch (e) {
       console.error("Error loading initial teams:", e);
@@ -508,6 +514,35 @@
     }
   }
   window._reloadArchives = loadArchivesFromFirebase;
+
+  let _archivesLoadingPromise = null;
+  async function ensureArchivesLoaded() {
+    if (window._archivesLoaded) return;
+    if (_archivesLoadingPromise) return _archivesLoadingPromise;
+    
+    const select = document.getElementById('history-date-select');
+    let originalHtml = '';
+    if (select) {
+      originalHtml = select.innerHTML;
+      select.innerHTML = '<option value="">⏳ Chargement de l\'historique...</option>';
+    }
+    
+    _archivesLoadingPromise = (async () => {
+      try {
+        showFirebaseBadge("🗂️ Chargement de l'historique...");
+        await loadArchivesFromFirebase();
+        window._archivesLoaded = true;
+      } catch (err) {
+        console.error("Error loading archives on demand:", err);
+        if (select) select.innerHTML = originalHtml;
+      } finally {
+        if (typeof populateHistoryDateSelect === 'function') populateHistoryDateSelect();
+        _archivesLoadingPromise = null;
+      }
+    })();
+    return _archivesLoadingPromise;
+  }
+  window.ensureArchivesLoaded = ensureArchivesLoaded;
 
   window._loadAllArchivesFromFirebase = async function() {
     try {
@@ -803,13 +838,15 @@
 
   // Écritures vers Supabase
   window._firebaseSaveDB = function(dbData) {
-    if (!_fbReady) {
-      console.warn('[Supabase] saveDB bloqué : Supabase pas encore prêt');
+    const eq = getCurrentEquipe();
+    if (!_initialCloudLoadCompleted[eq]) {
+      console.warn(`[Supabase] saveDB bloqué : Supabase pas encore prêt pour l'équipe ${eq}`);
       return;
     }
-    const eq = getCurrentEquipe();
     const writeTs = Date.now();
     dbData._localTs = writeTs;
+    dbData._last_edited_by = sessionStorage.getItem('numiplan_username') || 'INCONNU';
+    dbData._last_edited_at = new Date().toISOString();
     const payload = cloneEquipePayload(dbData);
     payload._localTs = writeTs;
     window['DB_' + eq] = payload;
@@ -822,12 +859,14 @@
       if (typeof showToast === 'function') showToast('⚠️ Mode historique — Modifications bloquées (Lecture seule)', true);
       return;
     }
-    if (!_fbReady) {
-      console.warn('[Supabase] saveTeamDB bloqué : Supabase pas encore prêt');
+    if (!_initialCloudLoadCompleted[eq]) {
+      console.warn(`[Supabase] saveTeamDB bloqué : Supabase pas encore prêt pour l'équipe ${eq}`);
       return;
     }
     const writeTs = Date.now();
     dbData._localTs = writeTs;
+    dbData._last_edited_by = sessionStorage.getItem('numiplan_username') || 'INCONNU';
+    dbData._last_edited_at = new Date().toISOString();
     const payload = cloneEquipePayload(dbData);
     payload._localTs = writeTs;
     window['DB_' + eq] = payload;
@@ -1548,9 +1587,10 @@ tr.dragging {
         }
       }, 100);
     }
-    if (typeof initAutoExportScheduler === 'function') {
-      initAutoExportScheduler();
-    }
+    // Desactive : l'extraction automatique n'est plus necessaire grace a la fiabilite de Supabase
+    // if (typeof initAutoExportScheduler === 'function') {
+    //   initAutoExportScheduler();
+    // }
   });
 </script>
 
@@ -1576,7 +1616,7 @@ tr.dragging {
 
     <div style="display:flex; align-items:center; gap:8px;">
       <div class="date-badge" id="todayBadge" style="margin-right:0;"></div>
-      <select id="history-date-select" onchange="selectHistoryDate(this.value)" style="background:var(--bg3); border:1px solid var(--border); color:var(--txt); border-radius:8px; padding:6px 12px; font-size:11px; font-weight:700; cursor:pointer; outline:none; display:none; max-width:200px;">
+      <select id="history-date-select" onfocus="if(typeof ensureArchivesLoaded==='function')ensureArchivesLoaded()" onchange="selectHistoryDate(this.value)" style="background:var(--bg3); border:1px solid var(--border); color:var(--txt); border-radius:8px; padding:6px 12px; font-size:11px; font-weight:700; cursor:pointer; outline:none; display:none; max-width:200px;">
         <option value="">📅 En direct (Aujourd'hui)</option>
       </select>
     </div>
@@ -1889,6 +1929,7 @@ mark.hl { background: rgba(56,189,248,.25); color: var(--acc); border-radius: 3p
     <span>🚛 Disponibilité</span>
     <span style="display:flex;gap:4px;align-items:center">
       <span class="tab-count" id="cnt-dispo" title="Nombre de camions (camions filtrés)">—</span>
+      <span class="tab-count" id="cnt-dispo-chauffeurs-standard" style="background:var(--grn);color:#000" title="Nombre de chauffeurs hors extension (chauffeurs uniques - extensions)">—</span>
       <span class="tab-count" id="cnt-dispo-chauffeurs" style="background:var(--pur);color:#000" title="Nombre de chauffeurs en extension (avec plus de 1 camion)">—</span>
     </span>
   </button>
@@ -1920,7 +1961,6 @@ mark.hl { background: rgba(56,189,248,.25); color: var(--acc); border-radius: 3p
       <option>En mission</option>
       <option>DISPONIBLE</option>
       <option>En panne</option>
-      <option>Manque chauffeur</option>
     </select>
     <select class="filter-input" id="dispo-region-j" onchange="renderDispo()" title="Filtrer par région Lieu Jour">
       <option value="">📍 Lieu Jour (toutes)</option>
@@ -1928,7 +1968,9 @@ mark.hl { background: rgba(56,189,248,.25); color: var(--acc); border-radius: 3p
         <option value="CENTRE">🟦 CENTRE (tous)</option>
         <option value="ALGER">ALGER</option>
         <option value="BLIDA">BLIDA</option>
+        <option value="BOUFARIK">BOUFARIK</option>
         <option value="BOUMERDES">BOUMERDES</option>
+        <option value="KHEMIS EL KHECHNA">KHEMIS EL KHECHNA</option>
         <option value="TIPAZA">TIPAZA</option>
         <option value="MEDEA">MEDEA</option>
         <option value="TIZI OUZOU">TIZI OUZOU</option>
@@ -1956,6 +1998,7 @@ mark.hl { background: rgba(56,189,248,.25); color: var(--acc); border-radius: 3p
         <option value="SBA">SBA</option>
         <option value="SIDI BEL ABBES">SIDI BEL ABBES</option>
         <option value="TLEMCEN">TLEMCEN</option>
+        <option value="MAGHNIA">MAGHNIA</option>
         <option value="MOSTAGANEM">MOSTAGANEM</option>
         <option value="MASCARA">MASCARA</option>
         <option value="RELIZANE">RELIZANE</option>
@@ -1982,7 +2025,9 @@ mark.hl { background: rgba(56,189,248,.25); color: var(--acc); border-radius: 3p
         <option value="CENTRE">🟦 CENTRE (tous)</option>
         <option value="ALGER">ALGER</option>
         <option value="BLIDA">BLIDA</option>
+        <option value="BOUFARIK">BOUFARIK</option>
         <option value="BOUMERDES">BOUMERDES</option>
+        <option value="KHEMIS EL KHECHNA">KHEMIS EL KHECHNA</option>
         <option value="TIPAZA">TIPAZA</option>
         <option value="MEDEA">MEDEA</option>
         <option value="BOUIRA">BOUIRA</option>
@@ -2012,6 +2057,7 @@ mark.hl { background: rgba(56,189,248,.25); color: var(--acc); border-radius: 3p
         <option value="SBA">SBA</option>
         <option value="SIDI BEL ABBES">SIDI BEL ABBES</option>
         <option value="TLEMCEN">TLEMCEN</option>
+        <option value="MAGHNIA">MAGHNIA</option>
         <option value="MOSTAGANEM">MOSTAGANEM</option>
         <option value="MASCARA">MASCARA</option>
         <option value="RELIZANE">RELIZANE</option>
@@ -2872,7 +2918,7 @@ mark.hl { background: rgba(56,189,248,.25); color: var(--acc); border-radius: 3p
       <div class="form-group"><label>Immatriculation</label><input id="f-dispo-v" placeholder="000900-514-16"></div>
       <div class="form-group"><label>État</label>
         <select id="f-dispo-etat">
-          <option>En mission</option><option>DISPONIBLE</option><option>En panne</option><option>Manque chauffeur</option>
+          <option>En mission</option><option>DISPONIBLE</option><option>En panne</option>
         </select></div>
       <div class="form-group"><label>Type</label>
         <select id="f-dispo-type"><option>TRACTEUR</option><option>REMORQUE</option><option>CELLULE</option></select></div>
@@ -3497,10 +3543,10 @@ const INITIAL_DATA = {
     {v:'000372-516-16',etat:'DISPONIBLE',type:'TRACTEUR',chauffeur:'FERROUDJ NABIL',hor:0.5,lieuJ:'—',lieuJ1:'TOUGGOURT',equip:'OK',prog:''},
     {v:'000772-515-16',etat:'En mission',type:'TRACTEUR',chauffeur:'HADJ MOUSSA',hor:0.667,lieuJ:'—',lieuJ1:'DJELFA',equip:'OK',prog:''},
     {v:'000321-516-16',etat:'En panne',type:'TRACTEUR',chauffeur:'KEBIR DANI SAID',hor:0.917,lieuJ:'',lieuJ1:'',equip:'',prog:''},
-    {v:'001127-514-16',etat:'Manque chauffeur',type:'TRACTEUR',chauffeur:'LAAMARA REDHA',hor:0.458,lieuJ:'',lieuJ1:'',equip:'',prog:''},
+    {v:'001127-514-16',etat:'DISPONIBLE',type:'TRACTEUR',chauffeur:'LAAMARA REDHA',hor:0.458,lieuJ:'—',lieuJ1:'—',equip:'',prog:''},
     {v:'000379-516-16',etat:'DISPONIBLE',type:'TRACTEUR',chauffeur:'LABDI HABIB 2',hor:0.458,lieuJ:'TIZI OUZOU',lieuJ1:'ORAN',equip:'OK',prog:''},
     {v:'001075-514-16',etat:'En mission',type:'TRACTEUR',chauffeur:'LABDI HABIB 2',hor:1.625,lieuJ:'—',lieuJ1:'TLEMCEN',equip:'OK',prog:''},
-    {v:'001228-514-16',etat:'Manque chauffeur',type:'TRACTEUR',chauffeur:'MAAMAR IDIR',hor:0.5,lieuJ:'',lieuJ1:'',equip:'',prog:''},
+    {v:'001228-514-16',etat:'DISPONIBLE',type:'TRACTEUR',chauffeur:'MAAMAR IDIR',hor:0.5,lieuJ:'—',lieuJ1:'—',equip:'',prog:''},
     {v:'000364-516-16',etat:'DISPONIBLE',type:'TRACTEUR',chauffeur:'NAGHZA AMAR',hor:0.542,lieuJ:'—',lieuJ1:'BEJAIA',equip:'OK',prog:''},
     {v:'000788-524-16',etat:'En mission',type:'TRACTEUR',chauffeur:'NAGHZA AMAR',hor:0,lieuJ:'—',lieuJ1:'SAIDA',equip:'OK',prog:''},
     {v:'001125-514-16',etat:'En panne',type:'TRACTEUR',chauffeur:'NAGHZA AMAR',hor:0.417,lieuJ:'—',lieuJ1:'BEJAIA',equip:'OK',prog:''},
@@ -3508,8 +3554,8 @@ const INITIAL_DATA = {
     {v:'000945-523-16',etat:'DISPONIBLE',type:'TRACTEUR',chauffeur:'NAGHZA AMAR',hor:0.667,lieuJ:'—',lieuJ1:'BORDJ BORIRIDJ',equip:'OK',prog:''},
     {v:'000890-514-16',etat:'DISPONIBLE',type:'TRACTEUR',chauffeur:'RACHID KHELLIF',hor:0.667,lieuJ:'—',lieuJ1:'CHLEF',equip:'OK',prog:''},
     {v:'000423-516-16',etat:'DISPONIBLE',type:'TRACTEUR',chauffeur:'RAHAL YAHIA',hor:0.667,lieuJ:'—',lieuJ1:'SETIF',equip:'OK',prog:''},
-    {v:'000926-514-16',etat:'Manque chauffeur',type:'TRACTEUR',chauffeur:'RHOUI HABIB',hor:0.5,lieuJ:'',lieuJ1:'',equip:'',prog:''},
-    {v:'000774-515-16',etat:'Manque chauffeur',type:'TRACTEUR',chauffeur:'ROUABHIA KHALED',hor:0.5,lieuJ:'',lieuJ1:'',equip:'',prog:''},
+    {v:'000926-514-16',etat:'DISPONIBLE',type:'TRACTEUR',chauffeur:'RHOUI HABIB',hor:0.5,lieuJ:'—',lieuJ1:'—',equip:'',prog:''},
+    {v:'000774-515-16',etat:'DISPONIBLE',type:'TRACTEUR',chauffeur:'ROUABHIA KHALED',hor:0.5,lieuJ:'—',lieuJ1:'—',equip:'',prog:''},
     {v:'001079-514-16',etat:'DISPONIBLE',type:'TRACTEUR',chauffeur:'TABLI CHAFIK',hor:0.417,lieuJ:'—',lieuJ1:'TIZI OZOU',equip:'OK',prog:''},
     {v:'000916-523-16',etat:'En mission',type:'TRACTEUR',chauffeur:'TABLI CHAFIK',hor:0.542,lieuJ:'—',lieuJ1:'BEJAIA',equip:'OK',prog:''},
     {v:'000920-523-16',etat:'DISPONIBLE',type:'TRACTEUR',chauffeur:'TABLI CHAFIK',hor:0.5,lieuJ:'—',lieuJ1:'ALGER',equip:'OK',prog:''},
@@ -4241,29 +4287,71 @@ function handleTeamDrop(event, destEq) {
   if (!immat) return;
   if (srcEq === destEq) return;
 
-  if (confirm(`Voulez-vous transférer le véhicule ${immat} de l'Équipe ${srcEq} vers l'Équipe ${destEq} ?`)) {
-    const srcData = window['DB_' + srcEq];
-    const destData = window['DB_' + destEq];
+  const srcData = window['DB_' + srcEq];
+  const destData = window['DB_' + destEq];
 
-    if (!srcData || !destData) {
-      showToast('⚠️ Erreur de chargement des équipes pour le transfert', true);
-      return;
+  if (!srcData || !destData) {
+    showToast('⚠️ Erreur de chargement des équipes pour le transfert', true);
+    return;
+  }
+
+  const vehIdx = srcData.dispo.findIndex(v => v.v === immat);
+  if (vehIdx === -1) {
+    showToast('⚠️ Véhicule introuvable dans la liste source', true);
+    return;
+  }
+
+  const vehObj = srcData.dispo[vehIdx];
+  const chauffeurName = (vehObj.chauffeur || '').trim().toUpperCase();
+
+  // Déterminer s'il s'agit d'un chauffeur en extension (présent >= 2 fois globalement)
+  let isExtension = false;
+  let occurrenceCount = 0;
+  if (chauffeurName && chauffeurName !== '—' && !chauffeurName.includes('MANQUE CHAUFFEUR')) {
+    const teams = ['A', 'B', 'C', 'D', 'E', 'F'];
+    teams.forEach(eq => {
+      const db = window['DB_' + eq];
+      if (db && db.dispo) {
+        db.dispo.forEach(row => {
+          if ((row.chauffeur || '').trim().toUpperCase() === chauffeurName) {
+            occurrenceCount++;
+          }
+        });
+      }
+    });
+    if (occurrenceCount >= 2) {
+      isExtension = true;
     }
+  }
 
-    const vehIdx = srcData.dispo.findIndex(v => v.v === immat);
-    if (vehIdx === -1) {
-      showToast('⚠️ Véhicule introuvable dans la liste source', true);
-      return;
+  let immatsToTransfer = [immat];
+  let confirmMsg = `Voulez-vous transférer le véhicule ${immat} de l'Équipe ${srcEq} vers l'Équipe ${destEq} ?`;
+
+  if (isExtension) {
+    const allTrucksOfChauffeur = [];
+    srcData.dispo.forEach(v => {
+      if ((v.chauffeur || '').trim().toUpperCase() === chauffeurName) {
+        allTrucksOfChauffeur.push(v.v);
+      }
+    });
+    if (allTrucksOfChauffeur.length > 1) {
+      immatsToTransfer = allTrucksOfChauffeur;
+      confirmMsg = `Le chauffeur ${chauffeurName} est en extension et possède ${immatsToTransfer.length} camions dans l'Équipe ${srcEq} (${immatsToTransfer.join(', ')}).\n\nVoulez-vous transférer TOUS ces camions vers l'Équipe ${destEq} ?`;
     }
+  }
 
-    const vehObj = srcData.dispo[vehIdx];
+  if (confirm(confirmMsg)) {
+    const vehObjsToTransfer = [];
+    immatsToTransfer.forEach(imm => {
+      const idx = srcData.dispo.findIndex(v => v.v === imm);
+      if (idx !== -1) {
+        vehObjsToTransfer.push(srcData.dispo[idx]);
+        srcData.dispo.splice(idx, 1);
+      }
+    });
 
-    // Retirer de la source et ajouter à la destination
-    srcData.dispo.splice(vehIdx, 1);
     if (!destData.dispo) destData.dispo = [];
-    destData.dispo.push(vehObj);
-
-    const chauffeurName = (vehObj.chauffeur || '').trim().toUpperCase();
+    destData.dispo = destData.dispo.concat(vehObjsToTransfer);
 
     // Helper pour transférer tous les éléments associés d'une liste
     function transfererElementsList(listName, matchFn) {
@@ -4295,7 +4383,7 @@ function handleTeamDrop(event, destEq) {
     transfererElementsList('pannes', p => {
       const pImmat = (p.immat || '').trim().toUpperCase();
       const pChauf = (p.chauffeur || '').trim().toUpperCase();
-      return pImmat === immat || (chauffeurName && pChauf === chauffeurName);
+      return immatsToTransfer.includes(pImmat) || (chauffeurName && pChauf === chauffeurName);
     });
 
     // 2. Non-conformités (sharik)
@@ -4307,35 +4395,35 @@ function handleTeamDrop(event, destEq) {
     transfererElementsList('gasoil', g => {
       const gVeh = (g.vehicule || '').trim().toUpperCase();
       const gChauf = (g.chauffeur || '').trim().toUpperCase();
-      return gVeh === immat || (chauffeurName && gChauf === chauffeurName);
+      return immatsToTransfer.includes(gVeh) || (chauffeurName && gChauf === chauffeurName);
     });
 
     // 4. Équipements (tr ou sharik)
     transfererElementsList('equip', e => {
       const eTr = (e.tr || '').trim().toUpperCase();
       const eSharik = (e.sharik || '').trim().toUpperCase();
-      return eTr === immat || (chauffeurName && eSharik === chauffeurName);
+      return immatsToTransfer.includes(eTr) || (chauffeurName && eSharik === chauffeurName);
     });
 
     // 5. Activité (tr ou sharik)
     transfererElementsList('activite', a => {
       const aTr = (a.tr || '').trim().toUpperCase();
       const aSharik = (a.sharik || '').trim().toUpperCase();
-      return aTr === immat || (chauffeurName && aSharik === chauffeurName);
+      return immatsToTransfer.includes(aTr) || (chauffeurName && aSharik === chauffeurName);
     });
 
     // 6. Odomètres (v ou chauffeur)
     transfererElementsList('odo', o => {
       const oVeh = (o.v || '').trim().toUpperCase();
       const oChauf = (o.chauffeur || '').trim().toUpperCase();
-      return oVeh === immat || (chauffeurName && oChauf === chauffeurName);
+      return immatsToTransfer.includes(oVeh) || (chauffeurName && oChauf === chauffeurName);
     });
 
     // 7. CSPC (v ou chauffeur)
     transfererElementsList('cspc', c => {
       const cVeh = (c.v || '').trim().toUpperCase();
       const cChauf = (c.chauffeur || '').trim().toUpperCase();
-      return cVeh === immat || (chauffeurName && cChauf === chauffeurName);
+      return immatsToTransfer.includes(cVeh) || (chauffeurName && cChauf === chauffeurName);
     });
 
     // 8. Suivi BL (chauffeur)
@@ -4353,7 +4441,7 @@ function handleTeamDrop(event, destEq) {
       if (!destData.anomaliesPointees) destData.anomaliesPointees = {};
       Object.keys(srcData.anomaliesPointees).forEach(k => {
         const kUpper = k.toUpperCase();
-        const matchesVeh = kUpper.includes(immat);
+        const matchesVeh = immatsToTransfer.some(imm => kUpper.includes(imm));
         const matchesChauf = chauffeurName && kUpper.includes(chauffeurName);
         if (matchesVeh || matchesChauf) {
           destData.anomaliesPointees[k] = srcData.anomaliesPointees[k];
@@ -4380,14 +4468,17 @@ function handleTeamDrop(event, destEq) {
         String(now.getMinutes()).padStart(2,'0') + ':' + 
         String(now.getSeconds()).padStart(2,'0');
       const operator = getOperatorRole();
-      DB.tracabilite.push({
-        timestamp: Date.now(),
-        date: dateStr,
-        type: 'TRANSFERT_EQUIPE',
-        targetType: 'TRACTEUR',
-        target: immat,
-        operator: operator,
-        motif: `Transfert de l'Équipe ${srcEq} vers l'Équipe ${destEq}`
+      
+      immatsToTransfer.forEach(imm => {
+        DB.tracabilite.push({
+          timestamp: Date.now(),
+          date: dateStr,
+          type: 'TRANSFERT_EQUIPE',
+          targetType: 'TRACTEUR',
+          target: imm,
+          operator: operator,
+          motif: `Transfert de l'Équipe ${srcEq} vers l'Équipe ${destEq}` + (immatsToTransfer.length > 1 ? ` (Chauffeur en extension)` : '')
+        });
       });
     }
 
@@ -4408,7 +4499,11 @@ function handleTeamDrop(event, destEq) {
     if (typeof renderCSPC === 'function') renderCSPC();
     if (typeof renderBlacklist === 'function') renderBlacklist();
 
-    showToast(`✅ Véhicule ${immat} transféré vers l'Équipe ${destEq}`);
+    if (immatsToTransfer.length > 1) {
+      showToast(`✅ ${immatsToTransfer.length} véhicules du chauffeur ${chauffeurName} transférés vers l'Équipe ${destEq}`);
+    } else {
+      showToast(`✅ Véhicule ${immat} transféré vers l'Équipe ${destEq}`);
+    }
   }
 }
 
@@ -5776,9 +5871,9 @@ function renderDispo() {
 
   // Map région groupée → wilayas membres
   const REGIONS = {
-    'CENTRE': ['ALGER','BLIDA','BOUMERDES','TIPAZA','MEDEA'],
+    'CENTRE': ['ALGER','BLIDA','BOUMERDES','TIPAZA','MEDEA','BOUFARIK','KHEMIS EL KHECHNA'],
     'EST': ['BEJAIA','SETIF','JIJEL','SKIKDA','ANNABA','CONSTANTINE','GUELMA','BATNA','OUM EL BOUAGHI','TEBESSA','SOUK AHRAS','MILA','BOUIRA','BORDJ BOU ARRERIDJ','MSILA'],
-    'OUEST': ['ORAN','SBA','SIDI BEL ABBES','TLEMCEN','MOSTAGANEM','MASCARA','RELIZANE','CHLEF','AIN TEMOUCHENT','TIARET'],
+    'OUEST': ['ORAN','SBA','SIDI BEL ABBES','TLEMCEN','MOSTAGANEM','MASCARA','RELIZANE','CHLEF','AIN TEMOUCHENT','TIARET','MAGHNIA'],
     'SUD': ['GHARDAIA','OUARGLA','LAGHOUAT','BISKRA','BECHAR','TAMANRASSET','ADRAR','TINDOUF','ILLIZI']
   };
 
@@ -5796,13 +5891,12 @@ function renderDispo() {
     if (regionJF && !matchRegion(r.lieuJ, regionJF)) return false;
     return true;
   });
-  const c = {mission:0,dispo:0,panne:0,manque:0};
+  const c = {mission:0,dispo:0,panne:0};
   DB.dispo.forEach(r => {
     const e = r.etat.trim().toLowerCase();
     if (e.includes('mission')) c.mission++;
     else if (e === 'disponible') c.dispo++;
     else if (e.includes('panne')) c.panne++;
-    else if (e.includes('manque')) c.manque++;
   });
   const kpiCount = DB.pannes.filter(r => r.kpi === 'NON' && r.kpiDate && r.kpiDate < today() && r.kpiLastPointageDate !== today()).length;
   const kpiClass = kpiCount > 0 ? 'stat-card blink-kpi-card' : 'stat-card';
@@ -5892,7 +5986,6 @@ function renderDispo() {
     <div class="stat-card blue" style="cursor:pointer;transition:opacity .2s" onclick="filterByEtat('En mission')" title="Filtrer En mission"><div class="stat-num">${c.mission}</div><div class="stat-lbl">En mission</div></div>
     <div class="stat-card green" style="cursor:pointer;transition:opacity .2s" onclick="filterByEtat('DISPONIBLE')" title="Filtrer Disponible"><div class="stat-num">${c.dispo}</div><div class="stat-lbl">Disponible</div></div>
     <div class="stat-card red" style="cursor:pointer;transition:opacity .2s" onclick="filterByEtat('En panne')" title="Filtrer En panne"><div class="stat-num">${c.panne}</div><div class="stat-lbl">En panne</div></div>
-    <div class="stat-card org" style="cursor:pointer;transition:opacity .2s" onclick="filterByEtat('Manque chauffeur')" title="Filtrer Manque chauffeur"><div class="stat-num">${c.manque}</div><div class="stat-lbl">Manque chauffeur</div></div>
     <div class="stat-card pur" style="cursor:pointer;transition:opacity .2s" onclick="switchTab('cspc',document.querySelector('[onclick*=\\'cspc\\']'))" title="Voir les véhicules CSPC"><div class="stat-num">${DB.cspc.length}</div><div class="stat-lbl">CSPC</div></div>
     <div class="stat-card" style="cursor:pointer;transition:opacity .2s" onclick="filterByEtat('')" title="Afficher tout"><div class="stat-num">${DB.dispo.length}</div><div class="stat-lbl">Total ↺</div></div>
     <div class="stat-card" style="cursor:pointer;transition:opacity .2s;border-left-color:#a78bfa" onclick="showAnomaliesLieu()" title="Voir les anomalies de lieu J+1"><div class="stat-num" style="color:#a78bfa">${typeof getAnomaliesAPointer === 'function' ? getAnomaliesAPointer().length : 0}</div><div class="stat-lbl" style="color:#a78bfa">⚠️ Anomalies lieu</div></div>
@@ -5918,6 +6011,15 @@ function renderDispo() {
     }
   });
 
+  // Compter le nombre de chauffeurs uniques totaux dans la liste filtrée
+  const uniqueDrivers = new Set();
+  data.forEach(r => {
+    const ch = (r.chauffeur || '').trim().toUpperCase();
+    if (ch && ch !== '—' && ch !== '' && !ch.includes('MANQUE CHAUFFEUR')) {
+      uniqueDrivers.add(ch);
+    }
+  });
+
   // Compter le nombre de chauffeurs uniques en extension (plus de 1 camion) dans la liste filtrée
   const uniqueExtChauffeurs = new Set();
   data.forEach(r => {
@@ -5930,6 +6032,11 @@ function renderDispo() {
   });
   const cntChauffeursEl = document.getElementById('cnt-dispo-chauffeurs');
   if (cntChauffeursEl) cntChauffeursEl.textContent = uniqueExtChauffeurs.size;
+
+  const cntChauffeursStandardEl = document.getElementById('cnt-dispo-chauffeurs-standard');
+  if (cntChauffeursStandardEl) {
+    cntChauffeursStandardEl.textContent = Math.max(0, uniqueDrivers.size - uniqueExtChauffeurs.size);
+  }
 
   const body = document.getElementById('dispo-body');
   const lock = sessionStorage.getItem('numiplan_team_lock');
@@ -6124,18 +6231,38 @@ async function deleteDispo(idx) {
 
 function saveDispo() {
   if (!_checkActionsLibres('saveDispo')) return;
-  const v = document.getElementById('f-dispo-v').value.trim();
-  if (!v) { showToast('?? Immatriculation requise', true); return; }
+  const idx = parseInt(document.getElementById('dispo-edit-idx').value);
+  const isAdmin = !sessionStorage.getItem('numiplan_team_lock');
+  
+  if (idx < 0 && !isAdmin) {
+    showToast("⚠️ Action refusée : seuls les administrateurs peuvent ajouter de nouveaux camions/chauffeurs.", true);
+    return;
+  }
+
+  const v = document.getElementById('f-dispo-v').value.trim().toUpperCase();
+  if (!v || v === '—' || v === '?') {
+    showToast('⚠️ Immatriculation du camion requise', true);
+    document.getElementById('f-dispo-v').focus();
+    return;
+  }
+
+  const ch = document.getElementById('f-dispo-chauffeur').value.trim().toUpperCase();
+  if (!ch || ch === '—' || ch === '?' || ch.includes('MANQUE CHAUFFEUR')) {
+    showToast('⚠️ Chauffeur obligatoire — un camion doit obligatoirement être accompagné d\'un chauffeur', true);
+    document.getElementById('f-dispo-chauffeur').focus();
+    return;
+  }
+
   const hor_str = document.getElementById('f-dispo-hor').value;
   let hor = 0;
   if (hor_str) { const [h,m] = hor_str.split(':').map(Number); hor = (h*60+m)/1440; }
-  const idx = parseInt(document.getElementById('dispo-edit-idx').value);
+  
   const prev = (idx>=0 && DB.dispo[idx]) ? DB.dispo[idx] : {};
   const obj = {
     ...prev,
     v, etat: document.getElementById('f-dispo-etat').value,
     type: document.getElementById('f-dispo-type').value,
-    chauffeur: document.getElementById('f-dispo-chauffeur').value.trim().toUpperCase(),
+    chauffeur: ch,
     hor, equip: document.getElementById('f-dispo-equip').value,
     lieuJ: document.getElementById('f-dispo-lieuJ').value.trim()||'—',
     lieuJ1: document.getElementById('f-dispo-lieuJ1').value.trim()||'—',
@@ -6146,20 +6273,19 @@ function saveDispo() {
     assuranceTrFin: document.getElementById('f-dispo-assurance-tr-fin').value,
     assuranceRmFin: document.getElementById('f-dispo-assurance-rm-fin').value,
   };
-  // ── VERROU : Lieu Jour ET Lieu J+1 obligatoires pour tout état sauf "Manque chauffeur" ──
-  if (obj.etat !== 'Manque chauffeur') {
-    const lieuJval  = document.getElementById('f-dispo-lieuJ').value.trim();
-    const lieuJ1val = document.getElementById('f-dispo-lieuJ1').value.trim();
-    if (!lieuJval || lieuJval === '—') {
-      showToast('⚠️ Lieu Jour obligatoire — veuillez le renseigner', true);
-      document.getElementById('f-dispo-lieuJ').focus();
-      return;
-    }
-    if (!lieuJ1val || lieuJ1val === '—') {
-      showToast('⚠️ Lieu J+1 obligatoire — veuillez le renseigner', true);
-      document.getElementById('f-dispo-lieuJ1').focus();
-      return;
-    }
+
+  // ── VERROU : Lieu Jour ET Lieu J+1 obligatoires ──
+  const lieuJval  = document.getElementById('f-dispo-lieuJ').value.trim();
+  const lieuJ1val = document.getElementById('f-dispo-lieuJ1').value.trim();
+  if (!lieuJval || lieuJval === '—') {
+    showToast('⚠️ Lieu Jour obligatoire — veuillez le renseigner', true);
+    document.getElementById('f-dispo-lieuJ').focus();
+    return;
+  }
+  if (!lieuJ1val || lieuJ1val === '—') {
+    showToast('⚠️ Lieu J+1 obligatoire — veuillez le renseigner', true);
+    document.getElementById('f-dispo-lieuJ1').focus();
+    return;
   }
 
   const readFile = (input, cb) => {
@@ -10871,8 +10997,8 @@ function saveInline(el) {
 
 function setEtat(idx, nouvelEtat) {
   if (!_checkActionsLibres('setEtat')) return;
-  // ── VERROU : Lieu Jour ET Lieu J+1 obligatoires pour tout état sauf "Manque chauffeur" ──
-  if (nouvelEtat !== 'Manque chauffeur') {
+  // ── VERROU : Lieu Jour ET Lieu J+1 obligatoires ──
+  if (true) {
     const r = DB.dispo[idx];
     const lieuJ  = (r.lieuJ  || '').trim();
     const lieuJ1 = (r.lieuJ1 || '').trim();
@@ -12808,6 +12934,11 @@ window.renderComplianceDashboard = function() {
       const hasChauf = r.chauffeur && r.chauffeur !== '?' && !r.chauffeur.includes('MANQUE CHAUFFEUR');
       return hasChauf && (!r.equip || r.equip === 'NON');
     }).length : 0;
+
+    const j1NonRenseigneCount = db.dispo ? db.dispo.filter(r => {
+      const j1 = (r.lieuJ1 || '').trim();
+      return !j1 || j1 === '—' || j1 === '?';
+    }).length : 0;
     
     let odoFact = 0;
     let odoDelta = 0;
@@ -12871,13 +13002,58 @@ window.renderComplianceDashboard = function() {
     const ncChgtCount = db.nc ? db.nc.filter(r => r.chgt && r.chgt.trim() !== '').length : 0;
     const ncAutCount = db.nc ? db.nc.filter(r => r.autorise && r.autorise.trim() !== '').length : 0;
     
+    // Métadonnées de dernière saisie
+    const lastEditedBy = db._last_edited_by || '—';
+    const lastEditedAt = db._last_edited_at || '';
+    let dateStr = '—';
+    let isToday = false;
+    let badgeColor = 'var(--txt3)';
+    if (lastEditedAt) {
+      const d = new Date(lastEditedAt);
+      if (!isNaN(d.getTime())) {
+        const today = new Date();
+        isToday = d.getDate() === today.getDate() && d.getMonth() === today.getMonth() && d.getFullYear() === today.getFullYear();
+        dateStr = d.toLocaleString('fr-FR', {
+          day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit'
+        });
+        badgeColor = isToday ? 'var(--grn)' : 'var(--org)';
+      }
+    }
+
+    // Calcul des anomalies de segment Orientation et Chargement à son compte
+    let totalKmOrientation = 0;
+    let countCompteTotal = 0;
+    let countCompteAutorise = 0;
+    if (db.anomaliesPointees) {
+      Object.values(db.anomaliesPointees).forEach(anom => {
+        if (anom) {
+          if (anom.motif === 'Orientation') {
+            const dist = getCityDistance(anom.lieuInitial, anom.lieuActuel);
+            totalKmOrientation += dist;
+          } else if (anom.motif === 'Chargement à son compte') {
+            countCompteTotal++;
+          } else if (anom.motif === 'Chargement à son compte autorisé') {
+            countCompteAutorise++;
+          }
+        }
+      });
+    }
+
+    const kmOriStr = totalKmOrientation > 0 ? `${totalKmOrientation.toLocaleString('fr-FR')} km` : '—';
+    
     return `
       <tr style="border-bottom:1px solid var(--border); height:38px;">
         <td style="padding:8px 12px; font-weight:600">Équipe ${eq}</td>
+        <td style="padding:8px 12px; text-align:center; font-family:monospace; color:${badgeColor}; font-weight:${isToday ? '700' : '400'}">${dateStr}</td>
+        <td style="padding:8px 12px; text-align:center; font-weight:600; color:var(--txt); text-transform:uppercase">${lastEditedBy}</td>
         <td style="padding:8px 12px; text-align:center; font-family:monospace; color:${cspcCount > 0 ? 'var(--red)' : 'var(--grn)'}; font-weight:${cspcCount > 0 ? '700' : '400'}">${cspcCount}</td>
         <td style="padding:8px 12px; text-align:center; font-family:monospace; color:${geolocCount > 0 ? 'var(--red)' : 'var(--grn)'}; font-weight:${geolocCount > 0 ? '700' : '400'}">${geolocCount}</td>
         <td style="padding:8px 12px; text-align:center; font-family:monospace; color:${equipCount > 0 ? 'var(--red)' : 'var(--grn)'}; font-weight:${equipCount > 0 ? '700' : '400'}">${equipCount}</td>
+        <td style="padding:8px 12px; text-align:center; font-family:monospace; color:${j1NonRenseigneCount > 0 ? 'var(--red)' : 'var(--grn)'}; font-weight:${j1NonRenseigneCount > 0 ? '700' : '400'}">${j1NonRenseigneCount}</td>
         <td style="padding:8px 12px; text-align:center; font-family:monospace; color:${racColor}; font-weight:700">${racStr}</td>
+        <td style="padding:8px 12px; text-align:center; font-family:monospace; color:${totalKmOrientation > 0 ? 'var(--org)' : 'var(--txt3)'}; font-weight:${totalKmOrientation > 0 ? '700' : '400'}">${kmOriStr}</td>
+        <td style="padding:8px 12px; text-align:center; font-family:monospace; color:${countCompteTotal > 0 ? 'var(--red)' : 'var(--txt3)'}; font-weight:${countCompteTotal > 0 ? '700' : '400'}">${countCompteTotal}</td>
+        <td style="padding:8px 12px; text-align:center; font-family:monospace; color:${countCompteAutorise > 0 ? 'var(--grn)' : 'var(--txt3)'}; font-weight:${countCompteAutorise > 0 ? '700' : '400'}">${countCompteAutorise}</td>
         <td style="padding:8px 12px; text-align:center; font-family:monospace; color:${ncChgtCount > 0 ? 'var(--org)' : 'var(--txt3)'}">${ncChgtCount}</td>
         <td style="padding:8px 12px; text-align:center; font-family:monospace; color:${ncAutCount > 0 ? 'var(--yel)' : 'var(--txt3)'}">${ncAutCount}</td>
       </tr>
@@ -13355,6 +13531,9 @@ window.selectHistoryDate = selectHistoryDate;
 <datalist id="dl-wilayas">
   <option value="ADRAR">
   <option value="CHLEF">
+  <option value="BOUFARIK">
+  <option value="KHEMIS EL KHECHNA">
+  <option value="MAGHNIA">
   <option value="LAGHOUAT">
   <option value="OUM EL BOUAGHI">
   <option value="BATNA">
@@ -13414,7 +13593,7 @@ window.selectHistoryDate = selectHistoryDate;
 </datalist>
 <!-- Modal Tableau de bord Conformite -->
 <div class="modal-overlay" id="modal-compliance-dashboard" style="z-index:10000">
-  <div class="modal" style="width:900px; max-width:95vw; background:var(--bg2); border:1px solid var(--border); border-radius:16px; padding:24px;">
+  <div class="modal" style="width:1250px; max-width:98vw; background:var(--bg2); border:1px solid var(--border); border-radius:16px; padding:24px;">
     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; border-bottom:1px solid var(--border); padding-bottom:12px;">
       <h3 style="margin:0; font-size:16px; color:var(--acc); display:flex; align-items:center; gap:8px;">📊 Tableau de bord Respect &amp; Utilisation (Par Équipe)</h3>
       <button class="del-btn" onclick="closeModal('modal-compliance-dashboard')" style="background:none; border:none; color:var(--txt2); font-size:20px; cursor:pointer">✕</button>
@@ -13425,10 +13604,16 @@ window.selectHistoryDate = selectHistoryDate;
         <thead>
           <tr style="background:var(--bg3); border-bottom:2px solid var(--border); color:var(--txt2)">
             <th style="padding:10px 12px; font-weight:700">Équipe</th>
+            <th style="padding:10px 12px; font-weight:700; text-align:center">Dernière Saisie</th>
+            <th style="padding:10px 12px; font-weight:700; text-align:center">Utilisateur</th>
             <th style="padding:10px 12px; font-weight:700; text-align:center">CSPC Non Traité</th>
             <th style="padding:10px 12px; font-weight:700; text-align:center">Géoloc Non Pointée</th>
             <th style="padding:10px 12px; font-weight:700; text-align:center">Matériel Non Renseigné</th>
+            <th style="padding:10px 12px; font-weight:700; text-align:center">J+1 Non Renseigné</th>
             <th style="padding:10px 12px; font-weight:700; text-align:center">Roulage à Charge (RAC)</th>
+            <th style="padding:10px 12px; font-weight:700; text-align:center">KM Orientation</th>
+            <th style="padding:10px 12px; font-weight:700; text-align:center">Chargement Son Compte</th>
+            <th style="padding:10px 12px; font-weight:700; text-align:center">Son Compte Autorisé</th>
             <th style="padding:10px 12px; font-weight:700; text-align:center">Chgt à leur Compte</th>
             <th style="padding:10px 12px; font-weight:700; text-align:center">Chgt Autorisé</th>
           </tr>
