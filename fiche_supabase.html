@@ -8911,21 +8911,32 @@ function openIncidentLivraisonModal(idx) {
   if (r.lieuJ1 && r.lieuJ1 !== '?') {
     const parts = r.lieuJ1.split(/[/-]/);
     const splitPart1 = parts[0].trim().toUpperCase();
-    const selectPrev = document.getElementById('f-inc-liv-dest-prevue');
+    const selectPrev = document.getElementById('f-inc-liv-dest-prevue-ville');
     if (selectPrev && Array.from(selectPrev.options).some(opt => opt.value === splitPart1)) {
       plannedCity = splitPart1;
     }
     
     if (parts.length > 1) {
       const splitPart2 = parts[1].trim().toUpperCase();
-      const selectDest = document.getElementById('f-inc-liv-destination');
+      const selectDest = document.getElementById('f-inc-liv-dest-reelle-ville');
       if (selectDest && Array.from(selectDest.options).some(opt => opt.value === splitPart2)) {
         realCity = splitPart2;
       }
     }
   }
-  document.getElementById('f-inc-liv-dest-prevue').value = plannedCity;
-  document.getElementById('f-inc-liv-destination').value = realCity || plannedCity;
+  
+  const elPrevSite = document.getElementById('f-inc-liv-dest-prevue-site');
+  if (elPrevSite) elPrevSite.value = '';
+  
+  const elPrevVille = document.getElementById('f-inc-liv-dest-prevue-ville');
+  if (elPrevVille) elPrevVille.value = plannedCity;
+  
+  const elRealSite = document.getElementById('f-inc-liv-dest-reelle-site');
+  if (elRealSite) elRealSite.value = '';
+  
+  const elRealVille = document.getElementById('f-inc-liv-dest-reelle-ville');
+  if (elRealVille) elRealVille.value = realCity || plannedCity;
+  
   document.getElementById('f-inc-liv-ref-commande').value = '';
   document.getElementById('f-inc-liv-obs').value = '';
   
@@ -9059,7 +9070,7 @@ function saveIncidentLivraison() {
     chauffeur: r.chauffeur || '—',
     type,
     client,
-    destPrevue: document.getElementById('f-inc-liv-dest-prevue').value || '—',
+    destPrevue: destPrevue || '—',
     destination: destination || '—',
     refCommande: refCommande || '—',
     refCommandeInitiale: refCommandeInitiale || '—',
