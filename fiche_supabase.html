@@ -40,6 +40,12 @@
 
     const merged = cloneEquipePayload(remote);
 
+    // Fusionner odo_weeks de manière chronologique (union unique)
+    const localWeeks = local.odo_weeks || [];
+    const remoteWeeks = remote.odo_weeks || [];
+    const mergedWeeks = Array.from(new Set([...localWeeks, ...remoteWeeks])).sort();
+    merged.odo_weeks = mergedWeeks;
+
     function isRecordBeingEdited(key, listName) {
       if (listName === 'dispo' && document.getElementById('modal-dispo')?.classList.contains('open')) {
         const idx = parseInt(document.getElementById('dispo-edit-idx')?.value);
@@ -126,23 +132,68 @@
             mergedList.push(localItem);
           } else {
             const mergedItem = Object.assign({}, localItem, remoteItem);
-            if (listName === 'odo' && localItem.vals && remoteItem.vals) {
+            if (listName === 'odo') {
+              const localVals = localItem.vals || [];
+              const remoteVals = remoteItem.vals || [];
               const mergedVals = [];
-              const maxLen = Math.max(localItem.vals.length, remoteItem.vals.length);
-              for (let i = 0; i < maxLen; i++) {
-                const lVal = localItem.vals[i];
-                const rVal = remoteItem.vals[i];
+              mergedWeeks.forEach(w => {
+                const lIdx = localWeeks.indexOf(w);
+                const rIdx = remoteWeeks.indexOf(w);
+                const lVal = lIdx >= 0 ? localVals[lIdx] : null;
+                const rVal = rIdx >= 0 ? remoteVals[rIdx] : null;
                 mergedVals.push((lVal !== null && lVal !== undefined) ? lVal : rVal);
-              }
+              });
               mergedItem.vals = mergedVals;
+
+              const localFact = localItem.kmFactures || [];
+              const remoteFact = remoteItem.kmFactures || [];
+              const mergedFact = [];
+              mergedWeeks.forEach(w => {
+                const lIdx = localWeeks.indexOf(w);
+                const rIdx = remoteWeeks.indexOf(w);
+                const lVal = lIdx >= 0 ? localFact[lIdx] : null;
+                const rVal = rIdx >= 0 ? remoteFact[rIdx] : null;
+                mergedFact.push((lVal !== null && lVal !== undefined) ? lVal : rVal);
+              });
+              mergedItem.kmFactures = mergedFact;
             }
             mergedList.push(mergedItem);
           }
         } else if (localItem) {
           if (isRecordBeingEdited(key, listName) || listName === 'odo') {
+            if (listName === 'odo') {
+              const localVals = localItem.vals || [];
+              const mergedVals = mergedWeeks.map(w => {
+                const lIdx = localWeeks.indexOf(w);
+                return lIdx >= 0 ? localVals[lIdx] : null;
+              });
+              localItem.vals = mergedVals;
+
+              const localFact = localItem.kmFactures || [];
+              const mergedFact = mergedWeeks.map(w => {
+                const lIdx = localWeeks.indexOf(w);
+                return lIdx >= 0 ? localFact[lIdx] : null;
+              });
+              localItem.kmFactures = mergedFact;
+            }
             mergedList.push(localItem);
           }
         } else if (remoteItem) {
+          if (listName === 'odo') {
+            const remoteVals = remoteItem.vals || [];
+            const mergedVals = mergedWeeks.map(w => {
+              const rIdx = remoteWeeks.indexOf(w);
+              return rIdx >= 0 ? remoteVals[rIdx] : null;
+            });
+            remoteItem.vals = mergedVals;
+
+            const remoteFact = remoteItem.kmFactures || [];
+            const mergedFact = mergedWeeks.map(w => {
+              const rIdx = remoteWeeks.indexOf(w);
+              return rIdx >= 0 ? remoteFact[rIdx] : null;
+            });
+            remoteItem.kmFactures = mergedFact;
+          }
           mergedList.push(remoteItem);
         }
       }
@@ -206,6 +257,7 @@
 
   function applyEquipeData(eq, src) {
     if (!src || !src.dispo) return;
+    const isFirstLoad = !_initialCloudLoadCompleted[eq];
     _initialCloudLoadCompleted[eq] = true;
 
     // Migrer les anciens etats "Manque chauffeur" vers "DISPONIBLE"
@@ -231,35 +283,27 @@
 
     const currentEq = getCurrentEquipe();
 
-    if (eq !== currentEq) {
+    // Si c'est le tout premier chargement de cette équipe (démarrage/F5), on écrase sans fusionner
+    if (isFirstLoad) {
       window['DB_' + eq] = cloneEquipePayload(cleanSrc);
+      if (eq === currentEq && typeof window.DB !== 'undefined') {
+        Object.keys(window.DB).forEach(k => delete window.DB[k]);
+        Object.assign(window.DB, cleanSrc);
+        if (typeof alignOdoWeeksGlobal === 'function') {
+          alignOdoWeeksGlobal();
+        }
+        safeRenderActiveTeam(eq);
+      }
       if (typeof updateHeaderRAC === 'function') {
         updateHeaderRAC();
       }
       return;
     }
 
-    const localDb = typeof window.DB !== 'undefined' ? window.DB : window['DB_' + eq];
-    const localTs = localDb ? (localDb._localTs || 0) : 0;
-    const remoteTs = cleanSrc._localTs || 0;
-
-    if ((_fbReady || _fbLoaded[eq]) && localDb && localTs > remoteTs) {
-      if (!window._teamSyncStarted) window._teamSyncStarted = {};
-      if (!window._teamSyncStarted[eq]) {
-        window._teamSyncStarted[eq] = true;
-        console.log(`[Supabase Auto-Sync] Poussée des données locales plus récentes de l'équipe ${eq} (${localTs} > ${remoteTs}) vers le cloud.`);
-        if (typeof window.saveTeamDB === 'function') {
-          setTimeout(() => {
-            window.saveTeamDB(eq, localDb);
-          }, 500);
-        }
-      }
-      return;
-    }
-
-    if (localDb && localTs === remoteTs) {
-      if (typeof window.checkPointageRequired === 'function') {
-        window.checkPointageRequired();
+    if (eq !== currentEq) {
+      window['DB_' + eq] = cloneEquipePayload(cleanSrc);
+      if (typeof updateHeaderRAC === 'function') {
+        updateHeaderRAC();
       }
       return;
     }
@@ -615,7 +659,10 @@
         assurance_debut: safe(item.assuranceDebut),
         assurance_fin: safe(item.assuranceFin),
         assurance_compagnie: safe(item.assuranceCompagnie),
-        geoloc: safe(item.geoloc)
+        geoloc: safe(item.geoloc),
+        geoloc_date: safe(item.geolocDate),
+        lat: item.lat !== undefined ? item.lat : null,
+        lng: item.lng !== undefined ? item.lng : null
       }));
       await supabase.from('np_dispo').delete().eq('team', eq);
       if (dispoRows.length > 0) await supabase.from('np_dispo').insert(dispoRows);
@@ -2766,6 +2813,7 @@ mark.hl { background: rgba(56,189,248,.25); color: var(--acc); border-radius: 3p
           <option value="Orientation">Orientation</option>
           <option value="Chargement à son compte">Chargement à son compte</option>
           <option value="Chargement à son compte autorisé">Chargement à son compte autorisé</option>
+          <option value="En attente de chargement/déchargement">En attente de chargement/déchargement</option>
           <option value="Retard">Retard</option>
           <option value="Panne en route">Panne en route</option>
           <option value="Changement client">Changement client</option>
@@ -2806,6 +2854,7 @@ mark.hl { background: rgba(56,189,248,.25); color: var(--acc); border-radius: 3p
         <option value="Orientation">Orientation</option>
         <option value="Chargement à son compte">Chargement à son compte</option>
         <option value="Chargement à son compte autorisé">Chargement à son compte autorisé</option>
+        <option value="En attente de chargement/déchargement">En attente de chargement/déchargement</option>
         <option value="Retard">Retard</option>
         <option value="Panne en route">Panne en route</option>
         <option value="Changement client">Changement client</option>
@@ -6138,7 +6187,7 @@ function renderDispo() {
     }
 
     return `<tr style="${rowBg}" draggable="${isDraggable}" ondragstart="if(!sessionStorage.getItem('numiplan_team_lock')){ handleDispoDragStart(event, '${r.v}') }else{ event.preventDefault(); }" ondragend="handleDispoDragEnd(this)">
-      <td class="mono" style="color:var(--acc);font-size:10px;white-space:nowrap">${r.v}${r.geoloc === 'ON' ? ' <span style="color:#22c55e;font-size:9px" title="Geoloc ON">🟢</span>' : r.geoloc === 'OFF' ? ' <span style="color:#ef4444;font-size:9px" title="Geoloc OFF">🔴</span>' : ' <span style="color:var(--txt3);font-size:9px" title="Geoloc non définie">⚪</span>'}</td>
+      <td class="mono" style="color:var(--acc);font-size:10px;white-space:nowrap">${r.v}${(()=>{ const gDate = r.geolocDate; const todayD = today(); const gVal = (gDate && gDate === todayD) ? (r.geoloc||'') : ''; let badge = ''; if(gVal==='ON') badge = ' <span onclick="toggleGeoloc('+realIdx+')" style="color:#22c55e;font-size:11px;cursor:pointer" title="Géoloc ON — cliquer pour changer">🟢</span>'; else if(gVal==='OFF') badge = ' <span onclick="toggleGeoloc('+realIdx+')" style="color:#ef4444;font-size:11px;cursor:pointer" title="Géoloc OFF — cliquer pour changer">🔴</span>'; else badge = ' <span onclick="toggleGeoloc('+realIdx+')" style="color:var(--txt3);font-size:11px;cursor:pointer" title="Géoloc non pointée aujourd\'hui — cliquer pour pointer">⚫</span>'; if(r.lat && r.lng) { badge += ` <a href="https://www.google.com/maps/search/?api=1&query=${r.lat},${r.lng}" target="_blank" style="text-decoration:none;font-size:11px;margin-left:2px;" title="Voir la position GPS sur Google Maps (Coordonnées : ${r.lat}, ${r.lng})">📍</a>`; } return badge; })()}</td>
       <td>${stateBadge(r.etat)}</td>
       <td style="white-space:nowrap; vertical-align: middle;">${chauffeurCellContent}</td>
       <td class="mono" style="white-space:nowrap"><span class="cell-edit" contenteditable="true" data-field="hor" data-idx="${realIdx}" onblur="saveInline(this)" onkeydown="if(event.key==='Enter'){event.preventDefault();this.blur()}">${horaire(r.hor)||'—'}</span></td>
@@ -6165,7 +6214,7 @@ function renderDispo() {
         <button class="del-btn" style="color:var(--grn)" onclick="setEtat(${realIdx},'DISPONIBLE')" title="Disponible">✅</button>
         <button class="del-btn" style="color:var(--acc)" onclick="setEtat(${realIdx},'En mission')" title="En mission">🚛</button>
         <button class="del-btn" style="color:#ef4444" onclick="openIncidentLivraisonModal(${realIdx})" title="Incident de livraison">🚨</button>
-        <button class="del-btn" style="color:${r.geoloc === 'ON' ? '#22c55e' : r.geoloc === 'OFF' ? '#ef4444' : 'var(--txt3)'}; font-size: 12px;" onclick="toggleGeoloc(${realIdx})" title="Geoloc : ${r.geoloc || 'Non défini'} (Cliquer pour basculer)">🛰️</button>
+        <button class="del-btn" style="color:${(()=>{ const gd=r.geolocDate; const td=today(); if(gd&&gd===td){return r.geoloc==='ON'?'#22c55e':r.geoloc==='OFF'?'#ef4444':'var(--txt3)';}return 'var(--txt3)';})()}; font-size: 12px;" onclick="toggleGeoloc(${realIdx})" title="Géoloc — cliquer pour basculer">🛰️</button>
         <button class="del-btn" style="color:var(--red)" onclick="declPanne(${realIdx})" title="Panne">🔧</button>
         <button class="del-btn" style="color:var(--org)" onclick="declNC(${realIdx})" title="Non-conformité">⚠️</button>
         <button class="del-btn" style="color:var(--yel)" onclick="declGasoil(${realIdx})" title="Gasoil">⛽</button>
@@ -9446,6 +9495,7 @@ function renderPointageList(anomalies, violations) {
                         '<option value="Orientation">🔀 Orientation</option>' +
                         '<option value="Chargement à son compte">⚠️ Chargement à son compte</option>' +
                         '<option value="Chargement à son compte autorisé">🟢 Chargement à son compte autorisé</option>' +
+                        '<option value="En attente de chargement/déchargement">⏳ En attente de chargement/déchargement</option>' +
                         '<option value="Refus de travail">🚫 Refus de travail</option>' +
                         '<option value="Retard">⏱ Retard</option>' +
                         '<option value="Panne en route">🔧 Panne en route</option>' +
@@ -12643,13 +12693,17 @@ function toggleGeoloc(idx) {
   if (!_checkActionsLibres('toggleGeoloc')) return;
   const r = DB.dispo[idx];
   if (!r) return;
-  const oldVal = r.geoloc || 'OFF';
-  const newVal = oldVal === 'ON' ? 'OFF' : 'ON';
+  const todayStr = today();
+  // Si la géoloc n'a pas été pointée aujourd'hui, on repart de gris → ON
+  const isToday = r.geolocDate === todayStr;
+  const currentVal = isToday ? (r.geoloc || 'OFF') : 'OFF';
+  const newVal = currentVal === 'ON' ? 'OFF' : 'ON';
   r.geoloc = newVal;
-  logMouvement("Geoloc " + newVal, "Camion", r.v, `Géolocalisation modifiée : ${oldVal} ➔ ${newVal}`);
+  r.geolocDate = todayStr;
+  logMouvement("Geoloc " + newVal, "Camion", r.v, `Géolocalisation modifiée : ${currentVal} ➔ ${newVal} (${todayStr})`);
   saveDB();
   renderDispo();
-  showToast(`🛰️ Géolocalisation de ${r.v} définie sur ${newVal}`);
+  showToast(`🛰️ Géoloc ${r.v} → ${newVal === 'ON' ? '🟢 ON' : '🔴 OFF'}`);
 }
 window.toggleGeoloc = toggleGeoloc;
 
@@ -12915,6 +12969,8 @@ window.renderComplianceDashboard = function() {
   const teams = ['A', 'B', 'C', 'D', 'E', 'F'];
   const body = document.getElementById('compliance-dashboard-body');
   if (!body) return;
+  const cdDateFrom = document.getElementById('cd-date-from') ? document.getElementById('cd-date-from').value : '';
+  const cdDateTo   = document.getElementById('cd-date-to')   ? document.getElementById('cd-date-to').value   : '';
   
   body.innerHTML = teams.map(eq => {
     const db = (eq === CURRENT_EQUIPE && typeof window.DB !== 'undefined') ? window.DB : window['DB_' + eq];
@@ -13026,6 +13082,7 @@ window.renderComplianceDashboard = function() {
       }
     }
 
+
     // Calcul des anomalies de segment Orientation et Chargement à son compte
     let totalKmOrientation = 0;
     let countCompteTotal = 0;
@@ -13033,6 +13090,9 @@ window.renderComplianceDashboard = function() {
     if (db.anomaliesPointees) {
       Object.values(db.anomaliesPointees).forEach(anom => {
         if (anom) {
+          // Filtre date si actif
+          if (cdDateFrom && anom.date && anom.date < cdDateFrom) return;
+          if (cdDateTo   && anom.date && anom.date > cdDateTo)   return;
           if (anom.motif === 'Orientation') {
             const dist = getCityDistance(anom.lieuInitial, anom.lieuActuel);
             totalKmOrientation += dist;
@@ -13044,6 +13104,7 @@ window.renderComplianceDashboard = function() {
         }
       });
     }
+
 
     const kmOriStr = totalKmOrientation > 0 ? `${totalKmOrientation.toLocaleString('fr-FR')} km` : '—';
     
@@ -13060,8 +13121,6 @@ window.renderComplianceDashboard = function() {
         <td style="padding:8px 12px; text-align:center; font-family:monospace; color:${totalKmOrientation > 0 ? 'var(--org)' : 'var(--txt3)'}; font-weight:${totalKmOrientation > 0 ? '700' : '400'}">${kmOriStr}</td>
         <td style="padding:8px 12px; text-align:center; font-family:monospace; color:${countCompteTotal > 0 ? 'var(--red)' : 'var(--txt3)'}; font-weight:${countCompteTotal > 0 ? '700' : '400'}">${countCompteTotal}</td>
         <td style="padding:8px 12px; text-align:center; font-family:monospace; color:${countCompteAutorise > 0 ? 'var(--grn)' : 'var(--txt3)'}; font-weight:${countCompteAutorise > 0 ? '700' : '400'}">${countCompteAutorise}</td>
-        <td style="padding:8px 12px; text-align:center; font-family:monospace; color:${ncChgtCount > 0 ? 'var(--org)' : 'var(--txt3)'}">${ncChgtCount}</td>
-        <td style="padding:8px 12px; text-align:center; font-family:monospace; color:${ncAutCount > 0 ? 'var(--yel)' : 'var(--txt3)'}">${ncAutCount}</td>
       </tr>
     `;
   }).join('');
@@ -13602,7 +13661,14 @@ window.selectHistoryDate = selectHistoryDate;
   <div class="modal" style="width:1250px; max-width:98vw; background:var(--bg2); border:1px solid var(--border); border-radius:16px; padding:24px;">
     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; border-bottom:1px solid var(--border); padding-bottom:12px;">
       <h3 style="margin:0; font-size:16px; color:var(--acc); display:flex; align-items:center; gap:8px;">📊 Tableau de bord Respect &amp; Utilisation (Par Équipe)</h3>
-      <button class="del-btn" onclick="closeModal('modal-compliance-dashboard')" style="background:none; border:none; color:var(--txt2); font-size:20px; cursor:pointer">✕</button>
+      <div style="display:flex; align-items:center; gap:8px;">
+        <label style="font-size:11px; color:var(--txt2); white-space:nowrap;">Du</label>
+        <input type="date" id="cd-date-from" oninput="renderComplianceDashboard()" style="background:var(--bg3); border:1px solid var(--border); border-radius:7px; padding:5px 8px; color:var(--txt); font-size:11px; outline:none; width:130px;">
+        <label style="font-size:11px; color:var(--txt2); white-space:nowrap;">Au</label>
+        <input type="date" id="cd-date-to" oninput="renderComplianceDashboard()" style="background:var(--bg3); border:1px solid var(--border); border-radius:7px; padding:5px 8px; color:var(--txt); font-size:11px; outline:none; width:130px;">
+        <button onclick="document.getElementById('cd-date-from').value=''; document.getElementById('cd-date-to').value=''; renderComplianceDashboard();" style="background:rgba(255,255,255,.07); border:1px solid var(--border); border-radius:7px; padding:5px 10px; color:var(--txt2); font-size:11px; cursor:pointer;">↺ Reset</button>
+        <button class="del-btn" onclick="closeModal('modal-compliance-dashboard')" style="background:none; border:none; color:var(--txt2); font-size:20px; cursor:pointer; margin-left:4px;">✕</button>
+      </div>
     </div>
     
     <div class="table-wrap" style="max-height:60vh; overflow-y:auto; border-radius:8px;">
@@ -13620,8 +13686,6 @@ window.selectHistoryDate = selectHistoryDate;
             <th style="padding:10px 12px; font-weight:700; text-align:center">KM Orientation</th>
             <th style="padding:10px 12px; font-weight:700; text-align:center">Chargement Son Compte</th>
             <th style="padding:10px 12px; font-weight:700; text-align:center">Son Compte Autorisé</th>
-            <th style="padding:10px 12px; font-weight:700; text-align:center">Chgt à leur Compte</th>
-            <th style="padding:10px 12px; font-weight:700; text-align:center">Chgt Autorisé</th>
           </tr>
         </thead>
         <tbody id="compliance-dashboard-body"></tbody>
