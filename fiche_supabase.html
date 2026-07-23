@@ -13630,6 +13630,33 @@ async function renderPoiPage() {
     const activeVisits = await poiSupabaseFetch(`np_poi_visits?select=*&team=eq.${activeTeam}&left_at=is.null&order=arrived_at.desc`);
     const historyVisits = await poiSupabaseFetch(`np_poi_visits?select=*&team=eq.${activeTeam}&left_at=not.is.null&order=left_at.desc&limit=1000`);
     window.POI_HISTORY_DATA = historyVisits;
+    
+    // Contrôle des balises GPS inactives (n'émettant plus)
+    try {
+      const dispos = await poiSupabaseFetch(`np_dispo?select=v,geoloc_date&team=eq.${activeTeam}`);
+      if (dispos && sessionStorage.getItem('numiplan_gps_alert_shown') !== 'yes') {
+        const todayStr = new Date().toISOString().split('T')[0];
+        const todayTime = new Date(todayStr).getTime();
+        const offlineTrucks = [];
+        
+        dispos.forEach(d => {
+          if (d.geoloc_date) {
+            const gpsTime = new Date(d.geoloc_date).getTime();
+            const diffDays = Math.round((todayTime - gpsTime) / (1000 * 60 * 60 * 24));
+            if (diffDays >= 3) { // 3 jours ou plus sans émission
+              offlineTrucks.push({ v: d.v, last_date: d.geoloc_date, days: diffDays });
+            }
+          }
+        });
+        
+        if (offlineTrucks.length > 0) {
+          sessionStorage.setItem('numiplan_gps_alert_shown', 'yes');
+          showGpsOfflineAlertModal(offlineTrucks);
+        }
+      }
+    } catch (e) {
+      console.warn("Erreur contrôle balises GPS:", e);
+    }
 
     const totalPois = pois ? pois.length : 0;
     const totalActive = activeVisits ? activeVisits.length : 0;
@@ -14356,6 +14383,57 @@ function exportPoiHistoryToExcel() {
   document.body.removeChild(link);
 }
 
+// --- ALERTE BALISES GPS INACTIVES ---
+function showGpsOfflineAlertModal(offlineTrucks) {
+  const existing = document.getElementById('modal-gps-offline-alert');
+  if (existing) existing.remove();
+  
+  let listHtml = '';
+  offlineTrucks.forEach(t => {
+    const parts = t.last_date.split('-');
+    const formattedDate = parts.length === 3 ? `${parts[2]}/${parts[1]}/${parts[0]}` : t.last_date;
+    
+    listHtml += `
+      <li style="margin-bottom:12px; border-bottom:1px solid rgba(255,255,255,0.05); padding-bottom:8px">
+        ⚠️ Camion <strong style="color:#fbbf24; font-family:monospace; font-size:15px">${t.v}</strong> :<br>
+        <span style="color:#aaa; font-size:12px">Aucun signal GPS depuis le </span>
+        <strong style="color:#fff">${formattedDate}</strong> 
+        <span style="color:#ef4444; font-weight:700"> (il y a ${t.days} jours)</span>
+      </li>
+    `;
+  });
+
+  const alertHtml = `
+    <div id="modal-gps-offline-alert" class="modal-backdrop" style="position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(245,158,11,0.25);backdrop-filter:blur(6px);z-index:999998;display:flex;align-items:center;justify-content:center">
+      <div style="background:#181513;border:2.5px solid #f59e0b;border-radius:16px;width:95%;max-width:480px;padding:28px;box-shadow:0 0 40px rgba(245,158,11,0.4);color:#fff;text-align:left;animation:scale-in 0.3s ease-out">
+        <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;border-bottom:1px solid rgba(255,255,255,0.1);padding-bottom:12px">
+          <span style="font-size:32px">⚠️</span>
+          <div>
+            <h3 style="color:#f59e0b;font-size:18px;font-weight:800;margin:0">BALISES GPS INACTIVES</h3>
+            <span style="color:#aaa;font-size:11px">Signal GPS perdu sur des camions actifs</span>
+          </div>
+        </div>
+        
+        <p style="font-size:13px;color:#eee;line-height:1.5;margin-bottom:16px">
+          Les véhicules suivants sont planifiés aujourd'hui mais n'ont pas émis de signal GPS depuis plus de 48 heures :
+        </p>
+
+        <ul style="list-style:none;padding:0;margin:0 0 20px 0;max-height:40vh;overflow-y:auto">
+          ${listHtml}
+        </ul>
+
+        <div style="display:flex;justify-content:flex-end">
+          <button onclick="document.getElementById('modal-gps-offline-alert').remove()" style="background:#f59e0b;color:#181513;border:none;border-radius:8px;padding:10px 24px;font-weight:800;font-size:12px;cursor:pointer;box-shadow:0 4px 10px rgba(245,158,11,0.3)">
+            J'AI COMPRIS 🔕
+          </button>
+        </div>
+      </div>
+    </div>
+  `;
+  document.body.insertAdjacentHTML('beforeend', alertHtml);
+}
+
+window.showGpsOfflineAlertModal = showGpsOfflineAlertModal;
 window.exportPoiHistoryToExcel = exportPoiHistoryToExcel;
 
 window.openGpsDiagnosticModal = openGpsDiagnosticModal;
