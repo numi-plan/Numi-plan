@@ -688,7 +688,8 @@
         etat: safe(item.etat),
         kpi: safe(item.kpi),
         rex: safe(item.rex),
-        cet: safe(item.cet)
+        cet: safe(item.cet),
+        charge: safe(item.charge, 'NON')
       }));
       await supabase.from('np_pannes').delete().eq('team', eq);
       if (pannesRows.length > 0) await chunkInsert('np_pannes', pannesRows);
@@ -2266,7 +2267,7 @@ mark.hl { background: rgba(56,189,248,.25); color: var(--acc); border-radius: 3p
     <div class="sec-title">Historique des pannes</div>
     <div class="table-wrap">
       <table>
-        <thead><tr><th>Date</th><th>Chauffeur</th><th>Immatriculation</th><th>Type</th><th>N° DI</th><th>Description</th><th>CET</th><th id="th-kpi-col">KPI</th><th>Action</th></tr></thead>
+        <thead><tr><th>Date</th><th>Chauffeur</th><th>Immatriculation</th><th>Type</th><th>Charge</th><th>N° DI</th><th>Description</th><th>CET</th><th id="th-kpi-col">KPI</th><th>Action</th></tr></thead>
         <tbody id="pannes-body"></tbody>
       </table>
     </div>
@@ -3114,6 +3115,13 @@ mark.hl { background: rgba(56,189,248,.25); color: var(--acc); border-radius: 3p
         <select id="f-panne-type"><option>TRACTEUR</option><option>REMORQUE</option><option>CELLULE</option></select></div>
       <div class="form-group"><label>N° DI</label><input id="f-panne-di" placeholder="DI2605005999"></div>
       <div class="form-group"><label>CET</label><input id="f-panne-cet" placeholder="ABDO .D"></div>
+      <div class="form-group"><label>Camion à charge ? <span style="color:#ef4444">*</span></label>
+        <select id="f-panne-charge" style="border:1.5px solid #ef4444; font-weight:700">
+          <option value="">Sélectionnez...</option>
+          <option value="OUI">OUI (Le camion est chargé)</option>
+          <option value="NON">NON (Le camion est à vide)</option>
+        </select>
+      </div>
       <div class="form-group full"><label>Description</label><textarea id="f-panne-desc" placeholder="Description de la panne…"></textarea></div>
       <div class="form-group"><label>KPI</label>
         <select id="f-panne-kpi"><option value="">—</option><option value="OUI">OUI</option><option value="NON">NON</option></select></div>
@@ -6664,7 +6672,7 @@ function renderPannes() {
   if (thKpi) thKpi.style.display = isAdmin ? '' : 'none';
 
   const body = document.getElementById('pannes-body');
-  if (!data.length) { body.innerHTML = `<tr><td colspan="${isAdmin ? 9 : 8}"><div class="empty-state"><div class="icon">🔍</div>Aucun résultat</div></td></tr>`; return; }
+  if (!data.length) { body.innerHTML = `<tr><td colspan="${isAdmin ? 10 : 9}"><div class="empty-state"><div class="icon">🔍</div>Aucun résultat</div></td></tr>`; return; }
   body.innerHTML = data.map(r => {
     const realIdx = DB.pannes.indexOf(r);
     const recCount = countByImmat[r.immat] || 0;
@@ -6675,6 +6683,7 @@ function renderPannes() {
       <td style="font-weight:600">${r.chauffeur}</td>
       <td class="mono" style="color:var(--acc)">${r.immat}${recCount>=3?` <span style="color:#a21caf;font-size:9px;font-weight:800">${recCount}×</span>`:''}${isConsec?` <span style="color:#f43f5e;font-size:9px;font-weight:800">🔴${isConsec.streak}j</span>`:''}</td>
       <td><span class="badge ${r.type==='TRACTEUR'?'badge-mission':r.type==='CELLULE'?'badge-pur':'badge-manque'}">${r.type}</span></td>
+      <td style="text-align:center">${r.charge === 'OUI' ? '<span class="badge" style="background:#ef4444;color:#fff;font-weight:800;font-size:10px;padding:3px 8px;border-radius:4px">🔴 CHARGÉ</span>' : '<span class="badge" style="background:var(--bg3);color:var(--txt3);font-size:10px;padding:3px 8px;border-radius:4px">À vide</span>'}</td>
       <td class="mono" style="font-size:10px;color:var(--acc)">${r.di||'—'}</td>
       <td style="max-width:280px;font-size:11px;color:var(--txt2)">${r.desc}</td>
       <td style="font-size:11px">${r.cet}</td>
@@ -6706,6 +6715,7 @@ function editPanne(idx) {
   document.getElementById('f-panne-desc').value = r.desc||'';
   document.getElementById('f-panne-cet').value = r.cet||'';
   document.getElementById('f-panne-kpi').value = r.kpi||'';
+  document.getElementById('f-panne-charge').value = r.charge||'';
   openModal('modal-panne', idx);
 }
 
@@ -6719,6 +6729,15 @@ function savePanne() {
   if (!_checkActionsLibres('savePanne')) return;
   const immat = document.getElementById('f-panne-immat').value.trim();
   if (!immat) { showToast('⚠️ Immatriculation requise', true); return; }
+  
+  const charge = document.getElementById('f-panne-charge').value;
+  if (!charge) {
+    showToast('⚠️ Spécification "Camion à charge" obligatoire', true);
+    document.getElementById('f-panne-charge').style.borderColor = '#ef4444';
+    document.getElementById('f-panne-charge').focus();
+    return;
+  }
+  document.getElementById('f-panne-charge').style.borderColor = 'var(--border)';
   
   const idx = parseInt(document.getElementById('panne-edit-idx').value);
   const newKpi = document.getElementById('f-panne-kpi').value || '';
@@ -6757,7 +6776,9 @@ function savePanne() {
     kpi: newKpi,
     kpiHistory,
     kpiDate,
-    kpiLastPointageDate
+    kpiLastPointageDate,
+    charge: charge,
+    created_at: idx >= 0 ? (DB.pannes[idx].created_at || new Date().toISOString()) : new Date().toISOString()
   };
   
   // Sync dispo état si le véhicule est là
@@ -13897,6 +13918,10 @@ function showPoiWarningModal(alertRow) {
 window.addEventListener('DOMContentLoaded', () => {
   window.poiAlertsInterval = setInterval(checkPoiAlerts, 60000); // 1 min
   setTimeout(checkPoiAlerts, 5000);   // 5s
+  
+  // Alertes pannes à charge
+  window.loadedPanneInterval = setInterval(checkLoadedBreakdowns, 60000); // 1 min
+  setTimeout(checkLoadedBreakdowns, 8000); // 8s
 });
 
 // --- GESTIONNAIRE D'INACTIVITÉ AUTOMATIQUE POUR ÉCONOMISER LA BANDE PASSANTE ---
@@ -13937,6 +13962,10 @@ function pauseSession() {
     clearInterval(window.poiAlertsInterval);
     window.poiAlertsInterval = null;
   }
+  if (window.loadedPanneInterval) {
+    clearInterval(window.loadedPanneInterval);
+    window.loadedPanneInterval = null;
+  }
   showIdleOverlay();
 }
 
@@ -13949,6 +13978,10 @@ function resumeSession() {
   if (!window.poiAlertsInterval) {
     window.poiAlertsInterval = setInterval(checkPoiAlerts, 60000);
     checkPoiAlerts();
+  }
+  if (!window.loadedPanneInterval) {
+    window.loadedPanneInterval = setInterval(checkLoadedBreakdowns, 60000);
+    checkLoadedBreakdowns();
   }
 }
 
@@ -14385,6 +14418,141 @@ function exportPoiHistoryToExcel() {
   link.click();
   document.body.removeChild(link);
 }
+
+// --- ALERTE PANNES À CHARGE ---
+async function checkLoadedBreakdowns() {
+  try {
+    const activeTeam = typeof window.CURRENT_EQUIPE !== 'undefined' ? window.CURRENT_EQUIPE : 'A';
+    const isUserAdmin = isAdmin();
+    
+    // 1. Fetch all loaded pannes
+    const loadedPannes = await poiSupabaseFetch("np_pannes?select=team,immat,chauffeur,description,created_at,charge&charge=eq.OUI");
+    if (!loadedPannes || loadedPannes.length === 0) return;
+    
+    // 2. Fetch all dispos to check active status
+    const activeDispos = await poiSupabaseFetch("np_dispo?select=v,etat");
+    if (!activeDispos) return;
+    
+    // 3. Filter open loaded pannes (still En panne in active sheet)
+    const openLoaded = loadedPannes.filter(p => {
+      const d = activeDispos.find(x => x.v === p.immat);
+      return d && d.etat === 'En panne';
+    });
+    
+    // 4. Filter by team permissions
+    const userPannes = openLoaded.filter(p => isUserAdmin || p.team === activeTeam);
+    if (userPannes.length === 0) return;
+    
+    // 5. Throttling checks (alert every 2 hours)
+    const now = Date.now();
+    let lastAlerts = {};
+    try {
+      lastAlerts = JSON.parse(sessionStorage.getItem('numiplan_loaded_panne_alerts') || '{}');
+    } catch(e) {}
+    
+    const alertsToTrigger = [];
+    userPannes.forEach(p => {
+      const key = `${p.team}_${p.immat}`;
+      const lastTime = lastAlerts[key] || 0;
+      if (now - lastTime >= 2 * 60 * 60 * 1000) { // 2 heures
+        alertsToTrigger.push(p);
+        lastAlerts[key] = now;
+      }
+    });
+    
+    if (alertsToTrigger.length > 0) {
+      sessionStorage.setItem('numiplan_loaded_panne_alerts', JSON.stringify(lastAlerts));
+      showLoadedPanneAlertModal(alertsToTrigger);
+    }
+  } catch (err) {
+    console.error("Error checking loaded breakdowns:", err);
+  }
+}
+
+function showLoadedPanneAlertModal(pannes) {
+  const existing = document.getElementById('modal-loaded-panne-alert');
+  if (existing) existing.remove();
+  
+  if (!document.getElementById('loaded-panne-alert-keyframes')) {
+    const style = document.createElement('style');
+    style.id = 'loaded-panne-alert-keyframes';
+    style.innerHTML = `
+      @keyframes pulse-loaded-alert {
+        0% { box-shadow: 0 0 20px rgba(239,68,68,0.4); border-color: #ef4444; }
+        100% { box-shadow: 0 0 60px rgba(239,68,68,0.9); border-color: #ff0000; }
+      }
+    `;
+    document.head.appendChild(style);
+  }
+
+  let listHtml = '';
+  pannes.forEach(p => {
+    const elapsedMs = Date.now() - new Date(p.created_at).getTime();
+    const hours = Math.floor(elapsedMs / (1000 * 60 * 60));
+    const mins = Math.round((elapsedMs % (1000 * 60 * 60)) / (1000 * 60));
+    const elapsedStr = hours > 0 ? `${hours}h ${mins}m` : `${mins} min`;
+    
+    listHtml += `
+      <li style="margin-bottom:14px; border-bottom:1px solid rgba(255,255,255,0.08); padding-bottom:10px">
+        🔴 <strong>Équipe ${p.team}</strong> — Camion <strong style="color:#ef4444; font-family:monospace; font-size:16px">${p.immat}</strong> :<br>
+        <div style="font-size:12px; color:#ddd; margin-top:4px; line-height:1.4">
+          Chauffeur : <strong>${p.chauffeur || '—'}</strong><br>
+          En panne depuis : <strong style="color:#fbbf24">${elapsedStr}</strong><br>
+          Description : <em style="color:#aaa">"${p.description || '—'}"</em>
+        </div>
+      </li>
+    `;
+  });
+
+  const alertHtml = `
+    <div id="modal-loaded-panne-alert" class="modal-backdrop" style="position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(239,68,68,0.25);backdrop-filter:blur(6px);z-index:999997;display:flex;align-items:center;justify-content:center">
+      <div style="background:#1a1113;border:3px solid #ef4444;border-radius:16px;width:95%;max-width:480px;padding:32px;box-shadow:0 0 40px rgba(239,68,68,0.5);color:#fff;text-align:left;animation:scale-in 0.3s ease-out, pulse-loaded-alert 1.5s infinite alternate">
+        <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;border-bottom:1px solid rgba(255,255,255,0.1);padding-bottom:12px">
+          <span style="font-size:36px">🚨</span>
+          <div>
+            <h3 style="color:#ef4444;font-size:19px;font-weight:800;margin:0;letter-spacing:1px">ALERTE : PANNES À CHARGE</h3>
+            <span style="color:#aaa;font-size:11px">Camions chargés actuellement en panne</span>
+          </div>
+        </div>
+        
+        <p style="font-size:13px;color:#eee;line-height:1.5;margin-bottom:16px">
+          Attention, les véhicules à charge suivants sont toujours en panne et nécessitent une intervention rapide :
+        </p>
+
+        <ul style="list-style:none;padding:0;margin:0 0 24px 0;max-height:40vh;overflow-y:auto">
+          ${listHtml}
+        </ul>
+
+        <div style="display:flex;justify-content:flex-end">
+          <button onclick="document.getElementById('modal-loaded-panne-alert').remove()" style="background:#ef4444;color:#fff;border:none;border-radius:8px;padding:12px 28px;font-weight:800;font-size:12px;cursor:pointer;box-shadow:0 4px 14px rgba(239,68,68,0.4);text-transform:uppercase;letter-spacing:0.5px">
+            Acquitter l'Alerte 🔕
+          </button>
+        </div>
+      </div>
+    </div>
+  `;
+  document.body.insertAdjacentHTML('beforeend', alertHtml);
+  
+  // Play alert chirp
+  try {
+    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    let osc = audioCtx.createOscillator();
+    let gain = audioCtx.createGain();
+    osc.type = 'sawtooth';
+    osc.frequency.setValueAtTime(800, audioCtx.currentTime);
+    osc.frequency.linearRampToValueAtTime(1200, audioCtx.currentTime + 0.4);
+    osc.frequency.linearRampToValueAtTime(800, audioCtx.currentTime + 0.8);
+    gain.gain.setValueAtTime(0.25, audioCtx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 1.0);
+    osc.connect(gain);
+    gain.connect(audioCtx.destination);
+    osc.start();
+    osc.stop(audioCtx.currentTime + 1.0);
+  } catch(e) {}
+}
+
+window.checkLoadedBreakdowns = checkLoadedBreakdowns;
+window.showLoadedPanneAlertModal = showLoadedPanneAlertModal;
 
 // --- ALERTE BALISES GPS INACTIVES ---
 function showGpsOfflineAlertModal(offlineTrucks) {
