@@ -13598,7 +13598,7 @@ async function poiSupabaseFetch(endpoint, method = "GET", body = null) {
 }
 
 async function renderPoiPage() {
-  const activeTeam = window.currentTeam;
+  const activeTeam = typeof window.CURRENT_EQUIPE !== 'undefined' ? window.CURRENT_EQUIPE : 'A';
   if (!activeTeam) return;
 
   try {
@@ -13767,7 +13767,7 @@ async function saveNewPoi() {
 }
 
 async function checkPoiAlerts() {
-  const activeTeam = window.currentTeam;
+  const activeTeam = typeof window.CURRENT_EQUIPE !== 'undefined' ? window.CURRENT_EQUIPE : 'A';
   if (!activeTeam) return;
 
   try {
