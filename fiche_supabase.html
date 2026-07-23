@@ -13604,6 +13604,9 @@ async function poiSupabaseFetch(endpoint, method = "GET", body = null) {
     "Authorization": `Bearer ${token}`,
     "Content-Type": "application/json"
   };
+  if (endpoint && endpoint.includes("on_conflict")) {
+    headers["Prefer"] = "resolution=merge-duplicates";
+  }
   const config = { method, headers };
   if (body) config.body = JSON.stringify(body);
   const res = await fetch(`${POI_SUPABASE_URL}/rest/v1/${endpoint}`, config);
