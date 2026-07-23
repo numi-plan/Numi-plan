@@ -2201,6 +2201,14 @@ mark.hl { background: rgba(56,189,248,.25); color: var(--acc); border-radius: 3p
     </div>
 
     <div class="sec-title" style="margin-top:28px">💾 Historique des immobilisations</div>
+    <div class="filter-bar" style="margin-bottom:12px; gap:8px; flex-wrap:wrap">
+      <input type="text" class="filter-input" id="poi-hist-search-client" placeholder="Filtrer par client/POI…" oninput="filterPoiHistory()" style="max-width:180px">
+      <input type="text" class="filter-input" id="poi-hist-search-truck" placeholder="Filtrer par camion…" oninput="filterPoiHistory()" style="max-width:150px">
+      <input type="date" class="filter-input" id="poi-hist-date-from" onchange="filterPoiHistory()" style="max-width:130px">
+      <span style="color:var(--txt3)">→</span>
+      <input type="date" class="filter-input" id="poi-hist-date-to" onchange="filterPoiHistory()" style="max-width:130px">
+      <button class="btn btn-reset" onclick="resetPoiHistoryFilters()" style="padding:6px 12px; font-size:12px; font-weight:700">↺ Reset</button>
+    </div>
     <div class="table-wrap">
       <table>
         <thead>
@@ -2227,6 +2235,7 @@ mark.hl { background: rgba(56,189,248,.25); color: var(--acc); border-radius: 3p
             <th>Latitude</th>
             <th>Longitude</th>
             <th>Rayon (mètres)</th>
+            <th>Blacklisté</th>
             <th>Actions</th>
           </tr>
         </thead>
@@ -13605,7 +13614,8 @@ async function renderPoiPage() {
   try {
     const pois = await poiSupabaseFetch("np_pois?select=*&order=name.asc");
     const activeVisits = await poiSupabaseFetch(`np_poi_visits?select=*&team=eq.${activeTeam}&left_at=is.null&order=arrived_at.desc`);
-    const historyVisits = await poiSupabaseFetch(`np_poi_visits?select=*&team=eq.${activeTeam}&left_at=not.is.null&order=left_at.desc&limit=100`);
+    const historyVisits = await poiSupabaseFetch(`np_poi_visits?select=*&team=eq.${activeTeam}&left_at=not.is.null&order=left_at.desc&limit=1000`);
+    window.POI_HISTORY_DATA = historyVisits;
 
     const totalPois = pois ? pois.length : 0;
     const totalActive = activeVisits ? activeVisits.length : 0;
@@ -13630,19 +13640,35 @@ async function renderPoiPage() {
     if (totalActive === 0) {
       activeBody.innerHTML = `<tr><td colspan="6" style="text-align:center;color:var(--txt3)">Aucun camion n'est actuellement chez un client.</td></tr>`;
     } else {
+      const blacklistPois = new Set(pois.filter(p => p.is_blacklist).map(p => p.name));
+      
       activeVisits.forEach(v => {
         const driverName = window.DB && window.DB.dispo ? (window.DB.dispo.find(d => (d.v || "").trim().toUpperCase() === (v.v || "").trim().toUpperCase())?.chauffeur || "—") : "—";
         const hours = Math.floor(v.duration_hours);
         const mins = Math.round((v.duration_hours - hours) * 60);
         const waitStr = `${hours}h ${mins}m`;
-        const alertClass = v.duration_hours >= 2.0 ? 'style="color:#ef4444;font-weight:700"' : 'style="color:#f59e0b;font-weight:600"';
-        const alertIcon = v.duration_hours >= 2.0 ? "🔴" : "🟠";
+        
+        const isBlacklisted = blacklistPois.has(v.poi_name);
+        
+        // Alerte noire sonore + popup si blacklist
+        if (isBlacklisted) {
+          window.ALERTED_BLACKLIST_VISITS = window.ALERTED_BLACKLIST_VISITS || new Set();
+          if (!window.ALERTED_BLACKLIST_VISITS.has(v.id)) {
+            window.ALERTED_BLACKLIST_VISITS.add(v.id);
+            const timeStr = new Date(v.arrived_at).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+            showBlacklistAlertModal(v.v, v.poi_name, timeStr);
+          }
+        }
+        
+        const alertClass = isBlacklisted ? 'style="color:#ef4444;font-weight:900;animation:pulse-red 1s infinite"' : (v.duration_hours >= 2.0 ? 'style="color:#ef4444;font-weight:700"' : 'style="color:#f59e0b;font-weight:600"');
+        const alertIcon = isBlacklisted ? "🚨 BLACKLIST 🚨" : (v.duration_hours >= 2.0 ? "🔴" : "🟠");
+        const rowBg = isBlacklisted ? 'style="background:rgba(239,68,68,0.12); border-left: 4px solid #ef4444"' : '';
         
         activeBody.innerHTML += `
-          <tr>
+          <tr ${rowBg}>
             <td class="mono" style="color:var(--acc);font-weight:600">${v.v}</td>
             <td>${driverName}</td>
-            <td style="font-weight:600;color:var(--txt1)">${v.poi_name}</td>
+            <td style="font-weight:600;color:${isBlacklisted ? '#ef4444' : 'var(--txt1)'}">${v.poi_name}</td>
             <td>${new Date(v.arrived_at).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}</td>
             <td>${new Date(v.last_seen_at).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}</td>
             <td ${alertClass}>${alertIcon} ${waitStr}</td>
@@ -13651,35 +13677,12 @@ async function renderPoiPage() {
       });
     }
 
-    const historyBody = document.getElementById("poi-history-body");
-    historyBody.innerHTML = "";
-    if (!historyVisits || historyVisits.length === 0) {
-      historyBody.innerHTML = `<tr><td colspan="7" style="text-align:center;color:var(--txt3)">Aucune immobilisation archivée.</td></tr>`;
-    } else {
-      historyVisits.forEach(v => {
-        const driverName = window.DB && window.DB.dispo ? (window.DB.dispo.find(d => (d.v || "").trim().toUpperCase() === (v.v || "").trim().toUpperCase())?.chauffeur || "—") : "—";
-        const hours = Math.floor(v.duration_hours);
-        const mins = Math.round((v.duration_hours - hours) * 60);
-        const durationStr = `${hours}h ${mins}m`;
-        
-        historyBody.innerHTML += `
-          <tr>
-            <td>${new Date(v.arrived_at).toLocaleDateString('fr-FR')}</td>
-            <td class="mono">${v.v}</td>
-            <td>${driverName}</td>
-            <td style="font-weight:600">${v.poi_name}</td>
-            <td>${new Date(v.arrived_at).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}</td>
-            <td>${new Date(v.left_at).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}</td>
-            <td style="color:var(--txt2);font-weight:600">${durationStr}</td>
-          </tr>
-        `;
-      });
-    }
+    filterPoiHistory();
 
     const listBody = document.getElementById("poi-list-body");
     listBody.innerHTML = "";
     if (totalPois === 0) {
-      listBody.innerHTML = `<tr><td colspan="5" style="text-align:center;color:var(--txt3)">Aucun point d'intérêt enregistré.</td></tr>`;
+      listBody.innerHTML = `<tr><td colspan="6" style="text-align:center;color:var(--txt3)">Aucun point d'intérêt enregistré.</td></tr>`;
     } else {
       pois.forEach(p => {
         listBody.innerHTML += `
@@ -13688,6 +13691,9 @@ async function renderPoiPage() {
             <td class="mono">${p.lat.toFixed(6)}</td>
             <td class="mono">${p.lng.toFixed(6)}</td>
             <td>${p.radius} m</td>
+            <td>
+              <input type="checkbox" ${p.is_blacklist ? 'checked' : ''} onchange="togglePoiBlacklist('${p.id}', '${p.name}', this.checked)" style="width:16px;height:16px;cursor:pointer">
+            </td>
             <td>
               <button class="del-btn" onclick="deletePoi('${p.id}')" style="color:var(--red)" title="Supprimer">🗑</button>
             </td>
@@ -13732,9 +13738,13 @@ function openAddPoiModal() {
             <input type="number" step="0.000001" id="add-poi-lng" style="width:100%;background:var(--bg3);border:1px solid var(--border);color:var(--txt);border-radius:6px;padding:8px;outline:none" placeholder="2.9123">
           </div>
         </div>
-        <div style="margin-bottom:20px">
+        <div style="margin-bottom:12px">
           <label style="font-size:11px;color:var(--txt3);display:block;margin-bottom:4px">Rayon de détection (mètres)</label>
           <input type="number" id="add-poi-radius" value="300" style="width:100%;background:var(--bg3);border:1px solid var(--border);color:var(--txt);border-radius:6px;padding:8px;outline:none">
+        </div>
+        <div style="margin-bottom:20px;display:flex;align-items:center;gap:8px">
+          <input type="checkbox" id="add-poi-blacklist" style="width:16px;height:16px;cursor:pointer">
+          <label for="add-poi-blacklist" style="font-size:12px;color:var(--red);font-weight:700;cursor:pointer">🔴 Marquer comme client blacklisté</label>
         </div>
         <div style="display:flex;justify-content:flex-end;gap:12px">
           <button onclick="document.getElementById('modal-add-poi').remove()" style="background:rgba(255,255,255,0.07);color:var(--txt2);border:1px solid var(--border);border-radius:6px;padding:8px 16px;cursor:pointer">Annuler</button>
@@ -13750,15 +13760,16 @@ async function saveNewPoi() {
   const name = document.getElementById("add-poi-name").value.trim();
   const lat = parseFloat(document.getElementById("add-poi-lat").value);
   const lng = parseFloat(document.getElementById("add-poi-lng").value);
-  const radius = parseFloat(document.getElementById("add-poi-radius").value);
+  const radius = parseFloat(document.getElementById("add-poi-radius").value) || 300;
+  const isBlacklist = document.getElementById("add-poi-blacklist").checked;
 
-  if (!name || isNaN(lat) || isNaN(lng) || isNaN(radius)) {
+  if (!name || isNaN(lat) || isNaN(lng)) {
     alert("Veuillez remplir correctement tous les champs.");
     return;
   }
 
   try {
-    await poiSupabaseFetch("np_pois?on_conflict=name", "POST", [{ name, lat, lng, radius }]);
+    await poiSupabaseFetch("np_pois?on_conflict=name", "POST", [{ name, lat, lng, radius, is_blacklist: isBlacklist }]);
     showToast("✅ POI enregistré avec succès.");
     document.getElementById("modal-add-poi").remove();
     renderPoiPage();
@@ -14106,6 +14117,173 @@ async function updatePoiRadius(poiId, name, newRadius) {
     }
   }
 }
+
+window.openGpsDiagnosticModal = openGpsDiagnosticModal;
+window.runGpsDiagnostic = runGpsDiagnostic;
+window.updatePoiRadius = updatePoiRadius;
+
+// --- FILTRAGE DE L'HISTORIQUE POI ---
+function filterPoiHistory() {
+  const clientQuery = document.getElementById("poi-hist-search-client").value.trim().toLowerCase();
+  const truckQuery = document.getElementById("poi-hist-search-truck").value.trim().toLowerCase();
+  const dateFrom = document.getElementById("poi-hist-date-from").value;
+  const dateTo = document.getElementById("poi-hist-date-to").value;
+
+  const historyBody = document.getElementById("poi-history-body");
+  if (!historyBody || !window.POI_HISTORY_DATA) return;
+
+  const filtered = window.POI_HISTORY_DATA.filter(v => {
+    if (clientQuery && !v.poi_name.toLowerCase().includes(clientQuery)) return false;
+    if (truckQuery && !v.v.toLowerCase().includes(truckQuery)) return false;
+    if (dateFrom) {
+      const arrivedDate = v.arrived_at.split('T')[0];
+      if (arrivedDate < dateFrom) return false;
+    }
+    if (dateTo) {
+      const arrivedDate = v.arrived_at.split('T')[0];
+      if (arrivedDate > dateTo) return false;
+    }
+    return true;
+  });
+
+  historyBody.innerHTML = "";
+  if (filtered.length === 0) {
+    historyBody.innerHTML = `<tr><td colspan="7" style="text-align:center;color:var(--txt3)">Aucune immobilisation ne correspond aux filtres.</td></tr>`;
+  } else {
+    filtered.forEach(v => {
+      const driverName = window.DB && window.DB.dispo ? (window.DB.dispo.find(d => (d.v || "").trim().toUpperCase() === (v.v || "").trim().toUpperCase())?.chauffeur || "—") : "—";
+      const hours = Math.floor(v.duration_hours);
+      const mins = Math.round((v.duration_hours - hours) * 60);
+      const durationStr = `${hours}h ${mins}m`;
+      
+      historyBody.innerHTML += `
+        <tr>
+          <td>${new Date(v.arrived_at).toLocaleDateString('fr-FR')}</td>
+          <td class="mono">${v.v}</td>
+          <td>${driverName}</td>
+          <td style="font-weight:600">${v.poi_name}</td>
+          <td>${new Date(v.arrived_at).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}</td>
+          <td>${new Date(v.left_at).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}</td>
+          <td style="color:var(--txt2);font-weight:600">${durationStr}</td>
+        </tr>
+      `;
+    });
+  }
+}
+
+function resetPoiHistoryFilters() {
+  document.getElementById("poi-hist-search-client").value = "";
+  document.getElementById("poi-hist-search-truck").value = "";
+  document.getElementById("poi-hist-date-from").value = "";
+  document.getElementById("poi-hist-date-to").value = "";
+  filterPoiHistory();
+}
+
+// --- GESTION BLACKLIST POI ---
+async function togglePoiBlacklist(poiId, name, isChecked) {
+  try {
+    await poiSupabaseFetch(`np_pois?id=eq.${poiId}`, "PATCH", { is_blacklist: isChecked, updated_at: new Date().toISOString() });
+    showToast(`✅ Statut blacklist mis à jour pour "${name}".`);
+    renderPoiPage();
+  } catch(e) {
+    showToast("❌ Échec de la mise à jour du statut blacklist.");
+  }
+}
+
+// Sonnette Alarme Synthétique (sawtooth siren + triangle sub-tone)
+function playBlacklistAlarm() {
+  try {
+    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    
+    // Alarme principale
+    let osc1 = audioCtx.createOscillator();
+    let gain1 = audioCtx.createGain();
+    osc1.type = 'sawtooth';
+    osc1.frequency.setValueAtTime(600, audioCtx.currentTime);
+    osc1.frequency.linearRampToValueAtTime(1000, audioCtx.currentTime + 0.3);
+    osc1.frequency.linearRampToValueAtTime(600, audioCtx.currentTime + 0.6);
+    osc1.frequency.linearRampToValueAtTime(1000, audioCtx.currentTime + 0.9);
+    osc1.frequency.linearRampToValueAtTime(600, audioCtx.currentTime + 1.2);
+    
+    gain1.gain.setValueAtTime(0.2, audioCtx.currentTime);
+    gain1.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 1.5);
+    
+    osc1.connect(gain1);
+    gain1.connect(audioCtx.destination);
+    osc1.start();
+    osc1.stop(audioCtx.currentTime + 1.5);
+    
+    // Alarme secondaire
+    setTimeout(() => {
+      let osc2 = audioCtx.createOscillator();
+      let gain2 = audioCtx.createGain();
+      osc2.type = 'sine';
+      osc2.frequency.setValueAtTime(500, audioCtx.currentTime);
+      osc2.frequency.linearRampToValueAtTime(900, audioCtx.currentTime + 0.3);
+      osc2.frequency.linearRampToValueAtTime(500, audioCtx.currentTime + 0.6);
+      osc2.frequency.linearRampToValueAtTime(900, audioCtx.currentTime + 0.9);
+      
+      gain2.gain.setValueAtTime(0.15, audioCtx.currentTime);
+      gain2.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 1.2);
+      
+      osc2.connect(gain2);
+      gain2.connect(audioCtx.destination);
+      osc2.start();
+      osc2.stop(audioCtx.currentTime + 1.2);
+    }, 200);
+  } catch (e) {
+    console.warn("AudioContext block:", e);
+  }
+}
+
+function showBlacklistAlertModal(truck, client, time) {
+  const existing = document.getElementById('modal-blacklist-alert');
+  if (existing) existing.remove();
+  
+  if (!document.getElementById('blacklist-alert-keyframes')) {
+    const style = document.createElement('style');
+    style.id = 'blacklist-alert-keyframes';
+    style.innerHTML = `
+      @keyframes pulse-alert {
+        0% { box-shadow: 0 0 20px rgba(239,68,68,0.4); border-color: #ef4444; }
+        100% { box-shadow: 0 0 60px rgba(239,68,68,0.8); border-color: #ff0000; }
+      }
+      @keyframes pulse-red {
+        0% { transform: scale(1); opacity: 1; }
+        50% { transform: scale(1.05); opacity: 0.8; }
+        100% { transform: scale(1); opacity: 1; }
+      }
+    `;
+    document.head.appendChild(style);
+  }
+
+  const alertHtml = `
+    <div id="modal-blacklist-alert" class="modal-backdrop" style="position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(239,68,68,0.3);backdrop-filter:blur(6px);z-index:999999;display:flex;align-items:center;justify-content:center">
+      <div style="background:#181316;border:3px solid #ef4444;border-radius:16px;width:90%;max-width:450px;padding:32px;box-shadow:0 0 40px rgba(239,68,68,0.5);color:#fff;text-align:center;animation:pulse-alert 1s infinite alternate">
+        <div style="font-size:60px;margin-bottom:16px">🚨</div>
+        <h3 style="color:#ef4444;font-size:22px;font-weight:800;margin:0 0 16px 0;letter-spacing:1.5px">ALERTE CLIENT BLACKLISTÉ</h3>
+        
+        <p style="font-size:14px;color:#eee;line-height:1.6;margin-bottom:24px">
+          Le camion <strong style="color:#ef4444;font-family:monospace;font-size:18px">${truck}</strong> vient d'entrer chez le client blacklisté :<br>
+          <strong style="color:#fff;font-size:18px;display:block;margin:8px 0">${client}</strong>
+          Heure de détection : <strong style="color:#fbbf24;font-size:15px">${time}</strong>
+        </p>
+
+        <button onclick="document.getElementById('modal-blacklist-alert').remove()" style="background:#ef4444;color:#fff;border:none;border-radius:8px;padding:12px 36px;font-weight:800;font-size:13px;cursor:pointer;box-shadow:0 4px 14px rgba(239,68,68,0.4);text-transform:uppercase;letter-spacing:1px">
+          Acquitter l'Alerte 🔕
+        </button>
+      </div>
+    </div>
+  `;
+  document.body.insertAdjacentHTML('beforeend', alertHtml);
+  playBlacklistAlarm();
+}
+
+window.filterPoiHistory = filterPoiHistory;
+window.resetPoiHistoryFilters = resetPoiHistoryFilters;
+window.togglePoiBlacklist = togglePoiBlacklist;
+window.showBlacklistAlertModal = showBlacklistAlertModal;
+window.playBlacklistAlarm = playBlacklistAlarm;
 
 window.openGpsDiagnosticModal = openGpsDiagnosticModal;
 window.runGpsDiagnostic = runGpsDiagnostic;
