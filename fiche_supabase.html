@@ -1585,6 +1585,7 @@ tr.dragging {
       // Enregistrer les variables de session pour la compatibilité
       sessionStorage.setItem('numiplan_auth', 'ok');
       sessionStorage.setItem('numiplan_username', username.toUpperCase());
+      sessionStorage.setItem('numiplan_user_role', userProfile.role);
 
       if (userProfile.role === 'admin') {
         sessionStorage.removeItem('numiplan_team_lock');
@@ -2163,8 +2164,8 @@ mark.hl { background: rgba(56,189,248,.25); color: var(--acc); border-radius: 3p
 <div id="page-poi" class="page">
   <div class="filter-bar">
     <span style="font-size:14px; font-weight:700; color:var(--txt1)">🛰️ Suivi POI &amp; Immobilisations</span>
-    <button class="btn btn-reset" onclick="openGpsDiagnosticModal()" style="margin-left:auto; margin-right:8px; border:1px solid var(--acc, #00d2ff); color:var(--acc, #00d2ff); background:transparent; font-weight:700; font-size:12px; cursor:pointer; padding:6px 12px; border-radius:6px;">🛠️ Diagnostic GPS/POI</button>
-    <button class="btn btn-add" onclick="openAddPoiModal()">＋ Ajouter un POI</button>
+    <button id="btn-poi-diag" class="btn btn-reset" onclick="openGpsDiagnosticModal()" style="margin-left:auto; margin-right:8px; border:1px solid var(--acc, #00d2ff); color:var(--acc, #00d2ff); background:transparent; font-weight:700; font-size:12px; cursor:pointer; padding:6px 12px; border-radius:6px;">🛠️ Diagnostic GPS/POI</button>
+    <button id="btn-poi-add" class="btn btn-add" onclick="openAddPoiModal()" style="display:none;">＋ Ajouter un POI</button>
   </div>
   
   <div style="padding-top:20px">
@@ -2208,6 +2209,7 @@ mark.hl { background: rgba(56,189,248,.25); color: var(--acc); border-radius: 3p
       <span style="color:var(--txt3)">→</span>
       <input type="date" class="filter-input" id="poi-hist-date-to" onchange="filterPoiHistory()" style="max-width:130px">
       <button class="btn btn-reset" onclick="resetPoiHistoryFilters()" style="padding:6px 12px; font-size:12px; font-weight:700">↺ Reset</button>
+      <button class="btn btn-add" onclick="exportPoiHistoryToExcel()" style="padding:6px 12px; font-size:12px; background:var(--grn); color:#000; font-weight:700; margin-left:auto">📥 Extraire</button>
     </div>
     <div class="table-wrap">
       <table>
@@ -2226,21 +2228,23 @@ mark.hl { background: rgba(56,189,248,.25); color: var(--acc); border-radius: 3p
       </table>
     </div>
 
-    <div class="sec-title" style="margin-top:28px">📍 Gestion des Points d'Intérêt (POI)</div>
-    <div class="table-wrap">
-      <table>
-        <thead>
-          <tr>
-            <th>Nom du POI</th>
-            <th>Latitude</th>
-            <th>Longitude</th>
-            <th>Rayon (mètres)</th>
-            <th>Blacklisté</th>
-            <th>Actions</th>
-          </tr>
-        </thead>
-        <tbody id="poi-list-body"></tbody>
-      </table>
+    <div id="admin-poi-management-block" style="display:none;">
+      <div class="sec-title" style="margin-top:28px">📍 Gestion des Points d'Intérêt (POI)</div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Nom du POI</th>
+              <th>Latitude</th>
+              <th>Longitude</th>
+              <th>Rayon (mètres)</th>
+              <th>Blacklisté</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody id="poi-list-body"></tbody>
+        </table>
+      </div>
     </div>
   </div>
 </div>
@@ -13611,6 +13615,16 @@ async function renderPoiPage() {
   const activeTeam = typeof window.CURRENT_EQUIPE !== 'undefined' ? window.CURRENT_EQUIPE : 'A';
   if (!activeTeam) return;
 
+  // Contrôle de visibilité pour les vues d'administration
+  const isUserAdmin = isAdmin();
+  const diagBtn = document.getElementById("btn-poi-diag");
+  const addBtn = document.getElementById("btn-poi-add");
+  const adminBlock = document.getElementById("admin-poi-management-block");
+  
+  if (diagBtn) diagBtn.style.display = "inline-block"; // Visible pour tous
+  if (addBtn) addBtn.style.display = isUserAdmin ? "inline-block" : "none";
+  if (adminBlock) adminBlock.style.display = isUserAdmin ? "block" : "none";
+
   try {
     const pois = await poiSupabaseFetch("np_pois?select=*&order=name.asc");
     const activeVisits = await poiSupabaseFetch(`np_poi_visits?select=*&team=eq.${activeTeam}&left_at=is.null&order=arrived_at.desc`);
@@ -13720,6 +13734,10 @@ async function deletePoi(poiId) {
 }
 
 function openAddPoiModal() {
+  if (!isAdmin()) {
+    alert("Accès refusé. Cette action est réservée aux administrateurs.");
+    return;
+  }
   const modalHtml = `
     <div id="modal-add-poi" class="modal-backdrop" style="position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.6);backdrop-filter:blur(4px);z-index:9999;display:flex;align-items:center;justify-content:center">
       <div style="background:var(--bg2);border:1px solid var(--border);border-radius:12px;width:90%;max-width:400px;padding:24px;box-shadow:0 20px 25px -5px rgba(0,0,0,0.3);text-align:left;animation:scale-in 0.3s ease-out">
@@ -14079,7 +14097,9 @@ async function runGpsDiagnostic() {
             html += `<span style="font-size:11px;color:#22c55e">→ Dedans ! Devrait apparaître en vert sur Numiplan (Équipe ${dispoData[0].team}).</span>`;
           } else if (p.distance <= 1500) {
             html += `<span style="font-size:11px;color:#f59e0b">→ Proche mais en dehors du cercle de détection.</span><br>`;
-            html += `<button onclick="updatePoiRadius('${p.id}', '${p.name}', ${Math.ceil(p.distance + 50)})" style="background:rgba(245,158,11,0.2);color:#f59e0b;border:1px solid #f59e0b;border-radius:4px;padding:2px 8px;font-size:10px;cursor:pointer;margin-top:3px;font-weight:600">🎯 Ajuster le rayon à ${Math.ceil(p.distance + 50)} m</button>`;
+            if (isUserAdmin) {
+              html += `<button onclick="updatePoiRadius('${p.id}', '${p.name}', ${Math.ceil(p.distance + 50)})" style="background:rgba(245,158,11,0.2);color:#f59e0b;border:1px solid #f59e0b;border-radius:4px;padding:2px 8px;font-size:10px;cursor:pointer;margin-top:3px;font-weight:600">🎯 Ajuster le rayon à ${Math.ceil(p.distance + 50)} m</button>`;
+            }
           }
           html += `</li>`;
         });
@@ -14279,15 +14299,69 @@ function showBlacklistAlertModal(truck, client, time) {
   playBlacklistAlarm();
 }
 
+// Helper de sécurité Admin
+function isAdmin() {
+  const role = sessionStorage.getItem('numiplan_user_role');
+  if (role) return role === 'admin';
+  const username = sessionStorage.getItem('numiplan_username') || '';
+  const lock = sessionStorage.getItem('numiplan_team_lock');
+  return username === 'ADMIN' || !lock;
+}
+
 window.filterPoiHistory = filterPoiHistory;
 window.resetPoiHistoryFilters = resetPoiHistoryFilters;
 window.togglePoiBlacklist = togglePoiBlacklist;
 window.showBlacklistAlertModal = showBlacklistAlertModal;
 window.playBlacklistAlarm = playBlacklistAlarm;
 
+// --- EXPORTATION CSV DE L'HISTORIQUE ---
+function exportPoiHistoryToExcel() {
+  const historyBody = document.getElementById("poi-history-body");
+  if (!historyBody) return;
+  
+  const rows = historyBody.querySelectorAll("tr");
+  if (rows.length === 0 || rows[0].innerText.includes("Aucune immobilisation")) {
+    alert("Aucune donnée à exporter.");
+    return;
+  }
+  
+  // UTF-8 BOM to prevent Excel accent display issues
+  let csvContent = "\uFEFFDate;Camion;Chauffeur;Client / POI;Arrivee;Depart;Duree\r\n";
+  
+  rows.forEach(row => {
+    const cols = row.querySelectorAll("td");
+    if (cols.length >= 7) {
+      const date = cols[0].innerText.replace(/;/g, ",");
+      const truck = cols[1].innerText.replace(/;/g, ",");
+      const driver = cols[2].innerText.replace(/;/g, ",");
+      const poi = cols[3].innerText.replace(/;/g, ",");
+      const arrived = cols[4].innerText.replace(/;/g, ",");
+      const left = cols[5].innerText.replace(/;/g, ",");
+      const duration = cols[6].innerText.replace(/;/g, ",");
+      
+      csvContent += `"${date}";"${truck}";"${driver}";"${poi}";"${arrived}";"${left}";"${duration}"\r\n`;
+    }
+  });
+  
+  const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.setAttribute("href", url);
+  
+  const activeTeam = typeof window.CURRENT_EQUIPE !== 'undefined' ? window.CURRENT_EQUIPE : 'A';
+  const today = new Date().toISOString().split('T')[0];
+  link.setAttribute("download", `historique_immobilisations_Equipe_${activeTeam}_${today}.csv`);
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+}
+
+window.exportPoiHistoryToExcel = exportPoiHistoryToExcel;
+
 window.openGpsDiagnosticModal = openGpsDiagnosticModal;
 window.runGpsDiagnostic = runGpsDiagnostic;
 window.updatePoiRadius = updatePoiRadius;
+window.isAdmin = isAdmin;
 
 </script>
 
