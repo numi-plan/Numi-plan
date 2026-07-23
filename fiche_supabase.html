@@ -2163,7 +2163,8 @@ mark.hl { background: rgba(56,189,248,.25); color: var(--acc); border-radius: 3p
 <div id="page-poi" class="page">
   <div class="filter-bar">
     <span style="font-size:14px; font-weight:700; color:var(--txt1)">🛰️ Suivi POI &amp; Immobilisations</span>
-    <button class="btn btn-add" onclick="openAddPoiModal()" style="margin-left:auto">＋ Ajouter un POI</button>
+    <button class="btn btn-reset" onclick="openGpsDiagnosticModal()" style="margin-left:auto; margin-right:8px; border:1px solid var(--acc, #00d2ff); color:var(--acc, #00d2ff); background:transparent; font-weight:700; font-size:12px; cursor:pointer; padding:6px 12px; border-radius:6px;">🛠️ Diagnostic GPS/POI</button>
+    <button class="btn btn-add" onclick="openAddPoiModal()">＋ Ajouter un POI</button>
   </div>
   
   <div style="padding-top:20px">
@@ -13924,6 +13925,191 @@ function hideIdleOverlay() {
 window.addEventListener('load', () => {
   resetIdleTimer();
 });
+
+// --- ASSISTANT DIAGNOSTIC GPS & POI ---
+function openGpsDiagnosticModal() {
+  const modalHtml = `
+    <div id="modal-gps-diag" class="modal-backdrop" style="position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.75);backdrop-filter:blur(6px);z-index:99999;display:flex;align-items:center;justify-content:center">
+      <div style="background:var(--bg2, #18223f);border:1.5px solid var(--border, #2d3b5f);border-radius:16px;width:95%;max-width:600px;max-height:85vh;overflow-y:auto;padding:24px;box-shadow:0 25px 50px -12px rgba(0,0,0,0.5);color:#fff;text-align:left;animation:scale-in 0.3s ease-out">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;border-bottom:1px solid var(--border, #2d3b5f);padding-bottom:12px">
+          <h3 style="color:var(--acc, #00d2ff);font-size:16px;font-weight:700;margin:0">🔍 Assistant Diagnostic GPS & POI</h3>
+          <button onclick="document.getElementById('modal-gps-diag').remove()" style="background:none;border:none;color:#aaa;font-size:20px;cursor:pointer">✕</button>
+        </div>
+        
+        <p style="font-size:12px;color:#aaa;margin-bottom:16px;line-height:1.5">
+          Entrez l'immatriculation d'un camion pour analyser sa présence dans les équipes et sa distance par rapport aux points d'intérêt (POI).
+        </p>
+
+        <div style="display:flex;gap:10px;margin-bottom:20px">
+          <input type="text" id="diag-immat-input" placeholder="Ex: 000732-514-16" style="flex:1;background:var(--bg3, #0a0f1e);border:1px solid var(--border, #2d3b5f);color:#fff;border-radius:8px;padding:10px 12px;font-family:monospace;font-size:13px;outline:none" value="000732-514-16">
+          <button onclick="runGpsDiagnostic()" style="background:#00d2ff;color:#0a0f1e;border:none;border-radius:8px;padding:10px 20px;font-weight:700;font-size:13px;cursor:pointer">Analyser ⚡</button>
+        </div>
+
+        <div id="diag-results" style="background:var(--bg3, #0a0f1e);border:1px solid var(--border, #2d3b5f);border-radius:10px;padding:16px;font-size:13px;line-height:1.6;min-height:100px;max-height:40vh;overflow-y:auto">
+          <div style="color:#aaa;text-align:center;padding-top:30px">En attente d'analyse...</div>
+        </div>
+      </div>
+    </div>
+  `;
+  document.body.insertAdjacentHTML('beforeend', modalHtml);
+  runGpsDiagnostic(); // Run initial analysis automatically
+}
+
+async function runGpsDiagnostic() {
+  const inputEl = document.getElementById('diag-immat-input');
+  const resultsEl = document.getElementById('diag-results');
+  if (!inputEl || !resultsEl) return;
+
+  const rawImmat = inputEl.value.trim().toUpperCase();
+  if (!rawImmat) {
+    resultsEl.innerHTML = `<div style="color:#ef4444">⚠️ Veuillez entrer une immatriculation.</div>`;
+    return;
+  }
+
+  resultsEl.innerHTML = `<div style="text-align:center;color:#aaa;padding-top:20px">⏳ Analyse en cours...</div>`;
+
+  try {
+    // 1. Check local sheet state
+    let foundInTeams = [];
+    const EQUIPES = ['A', 'B', 'C', 'D', 'E', 'F'];
+    EQUIPES.forEach(eq => {
+      const db = (eq === window.CURRENT_EQUIPE && typeof window.DB !== 'undefined') ? window.DB : window['DB_' + eq];
+      if (db && db.dispo) {
+        const found = db.dispo.find(x => (x.v || '').trim().toUpperCase() === rawImmat);
+        if (found) {
+          foundInTeams.push({ team: eq, driver: found.chauffeur || 'Non assigné' });
+        }
+      }
+    });
+
+    // 2. Query np_dispo from Supabase for this vehicle
+    const { data: dispoData, error: dispoError } = await window.supabase
+      .from('np_dispo')
+      .select('*')
+      .eq('v', rawImmat);
+
+    if (dispoError) throw dispoError;
+
+    // 3. Query all np_pois
+    const { data: pois, error: poisError } = await window.supabase
+      .from('np_pois')
+      .select('*');
+
+    if (poisError) throw poisError;
+
+    // Compile report HTML
+    let html = '';
+
+    // Section 1: Numiplan sheet presence
+    html += `<div style="margin-bottom:14px;padding-bottom:12px;border-bottom:1px solid rgba(255,255,255,0.05)">`;
+    html += `<strong style="color:#00d2ff">📋 Saisie Numiplan :</strong><br>`;
+    if (foundInTeams.length > 0) {
+      foundInTeams.forEach(t => {
+        html += `✅ Présent dans l'<b>Équipe ${t.team}</b> (Chauffeur : ${t.driver})<br>`;
+      });
+    } else {
+      html += `❌ <span style="color:#ef4444;font-weight:700">Non saisi dans le tableau des camions actifs.</span><br>`;
+      html += `<span style="color:#aaa;font-size:11px;display:block;margin-top:4px">Pour que le favori GPS synchronise ce camion, vous devez obligatoirement l'ajouter dans la feuille d'une équipe (A à F). Sinon, le favori le filtre et l'ignore pour économiser la bande passante.</span>`;
+    }
+    html += `</div>`;
+
+    // Section 2: Supabase state
+    html += `<div style="margin-bottom:14px;padding-bottom:12px;border-bottom:1px solid rgba(255,255,255,0.05)">`;
+    html += `<strong style="color:#00d2ff">🛰️ Position GPS en Base :</strong><br>`;
+    if (dispoData && dispoData.length > 0) {
+      const d = dispoData[0];
+      html += `Statut : <b>${d.geoloc || 'OFF'}</b> | Date : <b>${d.geoloc_date || 'Aucune'}</b><br>`;
+      html += `Coordonnées : <span style="font-family:monospace">${d.lat ? d.lat.toFixed(6) : 'N/A'}, ${d.lng ? d.lng.toFixed(6) : 'N/A'}</span><br>`;
+      if (d.updated_at) {
+        html += `Dernière synchro : <b>${new Date(d.updated_at).toLocaleTimeString('fr-FR')}</b><br>`;
+      }
+    } else {
+      html += `❌ <span style="color:#ef4444;font-weight:700">Aucun enregistrement de géolocalisation dans la table np_dispo.</span><br>`;
+      html += `<span style="color:#aaa;font-size:11px;display:block;margin-top:4px">La table np_dispo n'a pas encore reçu de coordonnées pour ce camion. Assurez-vous qu'il est saisi sur Numiplan, puis cliquez sur le Favori GPS sur la carte.</span>`;
+    }
+    html += `</div>`;
+
+    // Section 3: POI analysis
+    html += `<div style="margin-bottom:8px">`;
+    html += `<strong style="color:#00d2ff">📍 Distance par rapport aux POI :</strong><br>`;
+
+    if (dispoData && dispoData.length > 0 && dispoData[0].lat && dispoData[0].lng) {
+      const tLat = dispoData[0].lat;
+      const tLng = dispoData[0].lng;
+
+      // Function to calculate distance
+      const calculateDistanceJS = (lat1, lon1, lat2, lon2) => {
+        const R = 6371000; // earth radius in meters
+        const dLat = (lat2 - lat1) * Math.PI / 180;
+        const dLon = (lon2 - lon1) * Math.PI / 180;
+        const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+                  Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+                  Math.sin(dLon/2) * Math.sin(dLon/2);
+        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+        return R * c;
+      };
+
+      // Compute distances
+      const poisWithDistance = pois.map(p => {
+        const dist = calculateDistanceJS(tLat, tLng, p.lat, p.lng);
+        return { ...p, distance: dist };
+      }).sort((a, b) => a.distance - b.distance);
+
+      if (poisWithDistance.length > 0) {
+        html += `<ul style="margin:6px 0;padding-left:16px;list-style-type:square">`;
+        poisWithDistance.forEach(p => {
+          const isInside = p.distance <= p.radius;
+          const color = isInside ? '#22c55e' : (p.distance <= 1500 ? '#f59e0b' : '#aaa');
+          const statusIcon = isInside ? '🟢' : (p.distance <= 1500 ? '🟡' : '⚪');
+          html += `<li style="margin-bottom:8px;color:${color}">`;
+          html += `<b>${statusIcon} ${p.name}</b> : <b>${Math.round(p.distance)} m</b> `;
+          html += `(Rayon de détection : ${p.radius} m)<br>`;
+          if (isInside) {
+            html += `<span style="font-size:11px;color:#22c55e">→ Dedans ! Devrait apparaître en vert sur Numiplan (Équipe ${dispoData[0].team}).</span>`;
+          } else if (p.distance <= 1500) {
+            html += `<span style="font-size:11px;color:#f59e0b">→ Proche mais en dehors du cercle de détection.</span><br>`;
+            html += `<button onclick="updatePoiRadius('${p.id}', '${p.name}', ${Math.ceil(p.distance + 50)})" style="background:rgba(245,158,11,0.2);color:#f59e0b;border:1px solid #f59e0b;border-radius:4px;padding:2px 8px;font-size:10px;cursor:pointer;margin-top:3px;font-weight:600">🎯 Ajuster le rayon à ${Math.ceil(p.distance + 50)} m</button>`;
+          }
+          html += `</li>`;
+        });
+        html += `</ul>`;
+      } else {
+        html += `Aucun POI enregistré dans la base.<br>`;
+      }
+    } else {
+      html += `<span style="color:#aaa">Impossible de calculer les distances car le camion n'a pas de coordonnées GPS valides en base.</span>`;
+    }
+    html += `</div>`;
+
+    resultsEl.innerHTML = html;
+
+  } catch(e) {
+    console.error(e);
+    resultsEl.innerHTML = `<div style="color:#ef4444">⚠️ Une erreur est survenue lors de l'analyse : ${e.message}</div>`;
+  }
+}
+
+async function updatePoiRadius(poiId, name, newRadius) {
+  if (confirm(`Voulez-vous vraiment passer le rayon de détection du POI "${name}" à ${newRadius} mètres ?`)) {
+    try {
+      const { error } = await window.supabase
+        .from('np_pois')
+        .update({ radius: newRadius, updated_at: new Date().toISOString() })
+        .eq('id', poiId);
+
+      if (error) throw error;
+      alert(`✅ Rayon du POI "${name}" mis à jour avec succès à ${newRadius}m.`);
+      runGpsDiagnostic(); // refresh
+      if (typeof renderPoiPage === 'function') renderPoiPage(); // refresh UI
+    } catch(e) {
+      alert(`❌ Erreur lors de la mise à jour : ${e.message}`);
+    }
+  }
+}
+
+window.openGpsDiagnosticModal = openGpsDiagnosticModal;
+window.runGpsDiagnostic = runGpsDiagnostic;
+window.updatePoiRadius = updatePoiRadius;
 
 </script>
 
