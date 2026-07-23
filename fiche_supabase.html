@@ -477,37 +477,46 @@
   const lock = sessionStorage.getItem('numiplan_team_lock');
   const isAuthed = sessionStorage.getItem('numiplan_auth') === 'ok';
   
-  if (isAuthed) {
-    let filterConfig = { event: '*', schema: 'public', table: 'numiplan_teams' };
-    if (lock && lock !== 'BL') {
-      filterConfig.filter = `team=eq.${lock}`;
-    }
-    
-    window.realtimeChannel = supabase
-      .channel('supabase-realtime-teams')
-      .on(
-        'postgres_changes',
-        filterConfig,
-        payload => {
-          if (payload.new && payload.new.team) {
-            const eq = payload.new.team;
-            const data = payload.new.payload;
-            _fbLoaded[eq] = true;
-            const currentEq = getCurrentEquipe();
-            if (eq === currentEq) {
-              _fbReady = true;
+  function reconnectRealtimeChannel() {
+    const currentLock = sessionStorage.getItem('numiplan_team_lock');
+    const currentAuthed = sessionStorage.getItem('numiplan_auth') === 'ok';
+    if (currentAuthed && !window.realtimeChannel) {
+      let filterConfig = { event: '*', schema: 'public', table: 'numiplan_teams' };
+      if (currentLock && currentLock !== 'BL') {
+        filterConfig.filter = `team=eq.${currentLock}`;
+      }
+      
+      window.realtimeChannel = supabase
+        .channel('supabase-realtime-teams')
+        .on(
+          'postgres_changes',
+          filterConfig,
+          payload => {
+            if (payload.new && payload.new.team) {
+              const eq = payload.new.team;
+              const data = payload.new.payload;
+              _fbLoaded[eq] = true;
+              const currentEq = getCurrentEquipe();
+              if (eq === currentEq) {
+                _fbReady = true;
+              }
+              applyEquipeData(eq, data);
+              populateLoginUserDropdown();
             }
-            applyEquipeData(eq, data);
-            populateLoginUserDropdown();
           }
-        }
-      )
-      .subscribe((status) => {
-        if (status === 'SUBSCRIBED') {
-          console.log("Supabase Realtime Channel connected!");
-          loadInitialTeams();
-        }
-      });
+        )
+        .subscribe((status) => {
+          if (status === 'SUBSCRIBED') {
+            console.log("Supabase Realtime Channel connected!");
+            loadInitialTeams();
+          }
+        });
+    }
+  }
+  window.reconnectRealtimeChannel = reconnectRealtimeChannel;
+
+  if (isAuthed) {
+    reconnectRealtimeChannel();
   } else {
     // Non connecté : charger uniquement les utilisateurs pour le login (presque 0 octets)
     loadDropdownUsersOnly();
@@ -13860,8 +13869,8 @@ function pauseSession() {
   if (isPageIdle) return;
   isPageIdle = true;
   console.log("⏳ Session suspendue (inactivité ou arrière-plan).");
-  if (window.realtimeChannel) {
-    supabase.removeChannel(window.realtimeChannel);
+  if (window.realtimeChannel && window.supabase) {
+    window.supabase.removeChannel(window.realtimeChannel);
     window.realtimeChannel = null;
   }
   if (window.poiAlertsInterval) {
@@ -13910,43 +13919,7 @@ function hideIdleOverlay() {
   if (overlay) overlay.style.display = 'none';
 }
 
-function reconnectRealtimeChannel() {
-  const lock = sessionStorage.getItem('numiplan_team_lock');
-  const isAuthed = sessionStorage.getItem('numiplan_auth') === 'ok';
-  
-  if (isAuthed && !window.realtimeChannel) {
-    let filterConfig = { event: '*', schema: 'public', table: 'numiplan_teams' };
-    if (lock && lock !== 'BL') {
-      filterConfig.filter = `team=eq.${lock}`;
-    }
-    
-    window.realtimeChannel = supabase
-      .channel('supabase-realtime-teams')
-      .on(
-        'postgres_changes',
-        filterConfig,
-        payload => {
-          if (payload.new && payload.new.team) {
-            const eq = payload.new.team;
-            const data = payload.new.payload;
-            _fbLoaded[eq] = true;
-            const currentEq = getCurrentEquipe();
-            if (eq === currentEq) {
-              _fbReady = true;
-            }
-            applyEquipeData(eq, data);
-            populateLoginUserDropdown();
-          }
-        }
-      )
-      .subscribe((status) => {
-        if (status === 'SUBSCRIBED') {
-          console.log("Supabase Realtime Channel re-connected!");
-          loadInitialTeams();
-        }
-      });
-  }
-}
+
 
 window.addEventListener('load', () => {
   resetIdleTimer();
