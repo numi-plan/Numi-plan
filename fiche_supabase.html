@@ -13702,12 +13702,32 @@ async function renderPoiPage() {
 
     const activeBody = document.getElementById("poi-active-body");
     activeBody.innerHTML = "";
-    if (totalActive === 0) {
+    
+    // Filtrage des visites actives : exclure les balises GPS inactives (> 48h)
+    const activeGpsTrucks = new Set();
+    if (dispos) {
+      const todayStr = new Date().toISOString().split('T')[0];
+      const todayTime = new Date(todayStr).getTime();
+      dispos.forEach(d => {
+        if (d.geoloc_date) {
+          const gpsTime = new Date(d.geoloc_date).getTime();
+          const diffDays = Math.round((todayTime - gpsTime) / (1000 * 60 * 60 * 24));
+          if (diffDays <= 2) {
+            activeGpsTrucks.add(d.v.trim().toUpperCase());
+          }
+        }
+      });
+    }
+    
+    const liveActiveVisits = activeVisits ? activeVisits.filter(v => activeGpsTrucks.has(v.v.trim().toUpperCase())) : [];
+    const totalLiveActive = liveActiveVisits.length;
+
+    if (totalLiveActive === 0) {
       activeBody.innerHTML = `<tr><td colspan="6" style="text-align:center;color:var(--txt3)">Aucun camion n'est actuellement chez un client.</td></tr>`;
     } else {
       const blacklistPois = new Set(pois.filter(p => p.is_blacklist).map(p => p.name));
       
-      activeVisits.forEach(v => {
+      liveActiveVisits.forEach(v => {
         const driverName = window.DB && window.DB.dispo ? (window.DB.dispo.find(d => (d.v || "").trim().toUpperCase() === (v.v || "").trim().toUpperCase())?.chauffeur || "—") : "—";
         const hours = Math.floor(v.duration_hours);
         const mins = Math.round((v.duration_hours - hours) * 60);
@@ -13852,29 +13872,68 @@ async function checkPoiAlerts() {
   if (!activeTeam) return;
 
   try {
-    const alerts = await fetch(
-      `${POI_SUPABASE_URL}/rest/v1/np_poi_visits?team=eq.${activeTeam}&left_at=is.null&duration_hours=gte.2&notified=eq.false`,
-      { headers: { apikey: POI_SUPABASE_KEY, Authorization: `Bearer ${POI_SUPABASE_KEY}` } }
-    ).then(r => r.json());
+    // 1. Fetch all unnotified active visits for the team
+    const unnotifiedVisits = await poiSupabaseFetch(`np_poi_visits?team=eq.${activeTeam}&left_at=is.null&notified=eq.false`);
+    if (!unnotifiedVisits || unnotifiedVisits.length === 0) return;
 
-    if (alerts && alerts.length > 0) {
-      for (const alertRow of alerts) {
-        showPoiWarningModal(alertRow);
-        await fetch(`${POI_SUPABASE_URL}/rest/v1/np_poi_visits?id=eq.${alertRow.id}`, {
-          method: "PATCH",
-          headers: {
-            apikey: POI_SUPABASE_KEY,
-            Authorization: `Bearer ${POI_SUPABASE_KEY}`,
-            "Content-Type": "application/json"
-          },
-          body: JSON.stringify({ notified: true })
-        });
+    // 2. Fetch all POIs to check for blacklist status
+    const pois = await poiSupabaseFetch("np_pois?select=name,is_blacklist");
+    const blacklistPois = new Set(pois ? pois.filter(p => p.is_blacklist).map(p => p.name) : []);
+
+    // 3. Fetch dispos to check last GPS signal age (must be <= 48 hours)
+    const dispos = await poiSupabaseFetch(`np_dispo?select=v,geoloc_date&team=eq.${activeTeam}`);
+    const activeGpsTrucks = new Set();
+    
+    if (dispos) {
+      const todayStr = new Date().toISOString().split('T')[0];
+      const todayTime = new Date(todayStr).getTime();
+      dispos.forEach(d => {
+        if (d.geoloc_date) {
+          const gpsTime = new Date(d.geoloc_date).getTime();
+          const diffDays = Math.round((todayTime - gpsTime) / (1000 * 60 * 60 * 24));
+          if (diffDays <= 2) { // GPS actif (<= 48h)
+            activeGpsTrucks.add(d.v.trim().toUpperCase());
+          }
+        }
+      });
+    }
+
+    // 4. Process each unnotified visit
+    for (const v of unnotifiedVisits) {
+      const isGpsActive = activeGpsTrucks.has(v.v.trim().toUpperCase());
+      
+      // Si la balise GPS n'est plus active (> 48h), on ignore l'alerte
+      // et on la marque comme notifiée pour ne plus être spammé
+      if (!isGpsActive) {
+        await poiSupabaseFetch(`np_poi_visits?id=eq.${v.id}`, "PATCH", { notified: true });
+        continue;
+      }
+
+      const isBlacklisted = blacklistPois.has(v.poi_name);
+
+      if (isBlacklisted) {
+        // Alerte Blacklist immédiate (sans attendre 2h !)
+        window.ALERTED_BLACKLIST_VISITS = window.ALERTED_BLACKLIST_VISITS || new Set();
+        if (!window.ALERTED_BLACKLIST_VISITS.has(v.id)) {
+          window.ALERTED_BLACKLIST_VISITS.add(v.id);
+          const timeStr = new Date(v.arrived_at).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+          showBlacklistAlertModal(v.v, v.poi_name, timeStr);
+        }
+        await poiSupabaseFetch(`np_poi_visits?id=eq.${v.id}`, "PATCH", { notified: true });
+      } else if (v.duration_hours >= 2.0) {
+        // Alerte longue attente (> 2h)
+        showPoiWarningModal(v);
+        await poiSupabaseFetch(`np_poi_visits?id=eq.${v.id}`, "PATCH", { notified: true });
       }
     }
     
-    // Update sidebar badge
-    const activeVisits = await poiSupabaseFetch(`np_poi_visits?select=id&team=eq.${activeTeam}&left_at=is.null&duration_hours=gte.2`);
-    const totalAlerts = activeVisits ? activeVisits.length : 0;
+    // Update sidebar badge for long stays (> 2h)
+    const activeVisits = await poiSupabaseFetch(`np_poi_visits?select=id,v&team=eq.${activeTeam}&left_at=is.null&duration_hours=gte.2`);
+    let totalAlerts = 0;
+    if (activeVisits) {
+      // Uniquement ceux qui ont un GPS actif
+      totalAlerts = activeVisits.filter(x => activeGpsTrucks.has(x.v.trim().toUpperCase())).length;
+    }
     const badge = document.getElementById("cnt-poi-alerts");
     if (badge) {
       if (totalAlerts > 0) {
