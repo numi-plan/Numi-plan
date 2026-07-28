@@ -11088,7 +11088,7 @@ function _doBascule() {
     saveArchives();
     console.log(`[Auto-Archive] ✅ Journée du ${todayStr} archivée automatiquement pour l'équipe ${eq}`);
   } catch(e) {
-    console.warn('[Auto-Archive] Échec de l'archivage automatique:', e);
+    console.warn('[Auto-Archive] Échec de l\'archivage automatique:', e);
   }
   
   const basculeKey = 'numiplan_last_bascule_' + eq;
