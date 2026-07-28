@@ -9,9 +9,10 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   
-  <!-- CDN Bibliothèques : Chart.js et Supabase Client -->
+  <!-- CDN Bibliothèques : Chart.js, Supabase Client et SheetJS Excel -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   
   <style>
     :root {
@@ -1099,38 +1100,68 @@
       }
     }
 
-    // Parser CSV universel et flexible (Extraction par mots-clés)
+    // Parser universel (CSV et Excel XLSX)
     function handleFileImport(event) {
       const file = event.target.files[0];
       if (!file) return;
 
+      const fileName = file.name.toLowerCase();
+      const isExcel = fileName.endsWith('.xlsx') || fileName.endsWith('.xls');
+
       const reader = new FileReader();
       reader.onload = async (e) => {
-        const text = e.target.result;
-        const lines = text.split(/\r?\n/);
+        let lines = [];
+        
+        if (isExcel) {
+          try {
+            const data = new Uint8Array(e.target.result);
+            const workbook = XLSX.read(data, { type: 'array' });
+            const sheetName = workbook.SheetNames[0];
+            const worksheet = workbook.Sheets[sheetName];
+            
+            // Convertir en tableau de tableaux (format texte brut pour préserver les formats)
+            const rawRows = XLSX.utils.sheet_to_json(worksheet, { header: 1, raw: false });
+            lines = rawRows.map(row => row.map(cell => cell !== null && cell !== undefined ? String(cell) : ''));
+          } catch (err) {
+            console.error("Erreur de lecture Excel:", err);
+            alert("Impossible de lire ce fichier Excel. Assurez-vous qu'il n'est pas corrompu.");
+            return;
+          }
+        } else {
+          // Lecture CSV classique
+          const text = e.target.result;
+          const rawLines = text.split(/\r?\n/);
+          if (rawLines.length < 2) {
+            alert("Le fichier est vide ou invalide.");
+            return;
+          }
+          
+          // Détection de délimiteur
+          let semiCount = 0;
+          let commaCount = 0;
+          let tabCount = 0;
+          for (let i = 0; i < Math.min(rawLines.length, 10); i++) {
+            semiCount += (rawLines[i].match(/;/g) || []).length;
+            commaCount += (rawLines[i].match(/,/g) || []).length;
+            tabCount += (rawLines[i].match(/\t/g) || []).length;
+          }
+          let delimiter = ';';
+          if (commaCount > semiCount && commaCount > tabCount) delimiter = ',';
+          else if (tabCount > semiCount && tabCount > commaCount) delimiter = '\t';
+          
+          lines = rawLines.map(line => line.split(delimiter));
+        }
+
         if (lines.length < 2) {
-          alert("Le fichier est vide ou invalide.");
+          alert("Le fichier ne contient pas assez de données.");
           return;
         }
-        
-        // Détection de délimiteur (compte sur les 10 premières lignes)
-        let semiCount = 0;
-        let commaCount = 0;
-        let tabCount = 0;
-        for (let i = 0; i < Math.min(lines.length, 10); i++) {
-          semiCount += (lines[i].match(/;/g) || []).length;
-          commaCount += (lines[i].match(/,/g) || []).length;
-          tabCount += (lines[i].match(/\t/g) || []).length;
-        }
-        let delimiter = ';';
-        if (commaCount > semiCount && commaCount > tabCount) delimiter = ',';
-        else if (tabCount > semiCount && tabCount > commaCount) delimiter = '\t';
-        
+
         // Recherche de la ligne d'en-tête réelle (contenant date et tracteur)
         let headerIndex = -1;
         let indexMap = null;
         for (let i = 0; i < Math.min(lines.length, 50); i++) {
-          const cells = lines[i].split(delimiter).map(c => c.trim().toLowerCase());
+          const cells = lines[i].map(c => c.trim().toLowerCase());
           const dateIdx = cells.findIndex(h => h.includes('date'));
           const tracIdx = cells.findIndex(h => h.includes('tracteur') || h.includes('camion') || h.includes('immat') || h.includes('vehicule') || h.includes('trr'));
           
@@ -1158,9 +1189,9 @@
 
         rawCsvData = [];
         
-        // Parse des lignes à partir de la ligne après l'en-tête
+        // Parse des lignes
         for (let i = headerIndex + 1; i < lines.length; i++) {
-          const cols = lines[i].split(delimiter);
+          const cols = lines[i];
           if (cols.length < Math.max(...Object.values(indexMap)) + 1) continue;
 
           // Nettoyage de la date du segment
@@ -1180,17 +1211,29 @@
         }
 
         alert(`📥 Importation réussie ! ${rawCsvData.length} lignes de segments chargées.`);
-        
-        // Lancer les calculs croisés
         await refreshData();
       };
       
-      reader.readAsText(file);
+      if (isExcel) {
+        reader.readAsArrayBuffer(file);
+      } else {
+        reader.readAsText(file);
+      }
     }
 
     // Convertisseur de date robuste
     function parseCsvDate(dateStr) {
       if (!dateStr) return null;
+
+      // Si c'est un nombre entier (date sérialisée d'Excel)
+      const num = Number(dateStr);
+      if (!isNaN(num) && num > 30000 && num < 60000) {
+        const date = new Date((num - 25569) * 86400 * 1000);
+        const day = String(date.getDate()).padStart(2, '0');
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const year = date.getFullYear();
+        return `${year}-${month}-${day}`;
+      }
       
       // Format DD/MM/YYYY HH:MM ou DD/MM/YYYY
       const datePart = dateStr.trim().split(' ')[0];
