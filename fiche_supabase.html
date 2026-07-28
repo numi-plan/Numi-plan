@@ -13681,7 +13681,7 @@ async function renderPoiPage() {
     // Contrôle des balises GPS inactives (n'émettant plus)
     let dispos = null;
     try {
-      dispos = await poiSupabaseFetch(`np_dispo?select=v,geoloc_date&team=eq.${activeTeam}`);
+      dispos = await poiSupabaseFetch(`np_dispo?select=v,geoloc,geoloc_date&team=eq.${activeTeam}`);
       if (dispos && sessionStorage.getItem('numiplan_gps_alert_shown') !== 'yes') {
         const todayStr = new Date().toISOString().split('T')[0];
         const todayTime = new Date(todayStr).getTime();
@@ -13736,7 +13736,7 @@ async function renderPoiPage() {
         if (d.geoloc_date) {
           const gpsTime = new Date(d.geoloc_date).getTime();
           const diffDays = Math.round((todayTime - gpsTime) / (1000 * 60 * 60 * 24));
-          if (diffDays <= 2) {
+          if (d.geoloc !== 'OFF' && diffDays <= 2) {
             activeGpsTrucks.add(d.v.trim().toUpperCase());
           }
         }
@@ -13905,7 +13905,7 @@ async function checkPoiAlerts() {
     const blacklistPois = new Set(pois ? pois.filter(p => p.is_blacklist).map(p => p.name) : []);
 
     // 3. Fetch dispos to check last GPS signal age (must be <= 48 hours)
-    const dispos = await poiSupabaseFetch(`np_dispo?select=v,geoloc_date&team=eq.${activeTeam}`);
+    const dispos = await poiSupabaseFetch(`np_dispo?select=v,geoloc,geoloc_date&team=eq.${activeTeam}`);
     const activeGpsTrucks = new Set();
     
     if (dispos) {
@@ -13915,7 +13915,7 @@ async function checkPoiAlerts() {
         if (d.geoloc_date) {
           const gpsTime = new Date(d.geoloc_date).getTime();
           const diffDays = Math.round((todayTime - gpsTime) / (1000 * 60 * 60 * 24));
-          if (diffDays <= 2) { // GPS actif (<= 48h)
+          if (d.geoloc !== 'OFF' && diffDays <= 2) { // GPS actif (<= 48h et pas marqué OFF)
             activeGpsTrucks.add(d.v.trim().toUpperCase());
           }
         }
