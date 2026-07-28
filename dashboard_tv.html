@@ -1107,41 +1107,59 @@
       const reader = new FileReader();
       reader.onload = async (e) => {
         const text = e.target.result;
-        
-        // Détection de délimiteur (généralement ; ou ,)
-        const firstLine = text.split('\n')[0];
-        const delimiter = firstLine.includes(';') ? ';' : ',';
-        
         const lines = text.split(/\r?\n/);
         if (lines.length < 2) {
           alert("Le fichier est vide ou invalide.");
           return;
         }
-
-        // Extraction des headers
-        const headers = lines[0].split(delimiter).map(h => h.trim().toLowerCase());
         
-        // Mapping dynamique par mots-clés
-        const indexMap = {
-          date: headers.findIndex(h => h.includes('date')),
-          tracteur: headers.findIndex(h => h.includes('tracteur') || h.includes('camion') || h.includes('immat') || h.includes('vehicule') || h.includes('trr')),
-          agence: headers.findIndex(h => h.includes('agence') || h.includes('site') || h.includes('depot')),
-          chauffeur: headers.findIndex(h => h.includes('cond') || h.includes('chauffeur') || h.includes('pilote')),
-          marchandise: headers.findIndex(h => h.includes('marchandise') || h.includes('produit')),
-          csr: headers.findIndex(h => h.includes('csr') || h.includes('chef') || h.includes('nom de csr'))
-        };
+        // Détection de délimiteur (compte sur les 10 premières lignes)
+        let semiCount = 0;
+        let commaCount = 0;
+        let tabCount = 0;
+        for (let i = 0; i < Math.min(lines.length, 10); i++) {
+          semiCount += (lines[i].match(/;/g) || []).length;
+          commaCount += (lines[i].match(/,/g) || []).length;
+          tabCount += (lines[i].match(/\t/g) || []).length;
+        }
+        let delimiter = ';';
+        if (commaCount > semiCount && commaCount > tabCount) delimiter = ',';
+        else if (tabCount > semiCount && tabCount > commaCount) delimiter = '\t';
+        
+        // Recherche de la ligne d'en-tête réelle (contenant date et tracteur)
+        let headerIndex = -1;
+        let indexMap = null;
+        for (let i = 0; i < Math.min(lines.length, 50); i++) {
+          const cells = lines[i].split(delimiter).map(c => c.trim().toLowerCase());
+          const dateIdx = cells.findIndex(h => h.includes('date'));
+          const tracIdx = cells.findIndex(h => h.includes('tracteur') || h.includes('camion') || h.includes('immat') || h.includes('vehicule') || h.includes('trr'));
+          
+          if (dateIdx !== -1 && tracIdx !== -1) {
+            headerIndex = i;
+            indexMap = {
+              date: dateIdx,
+              tracteur: tracIdx,
+              agence: cells.findIndex(h => h.includes('agence') || h.includes('site') || h.includes('depot')),
+              chauffeur: cells.findIndex(h => h.includes('cond') || h.includes('chauffeur') || h.includes('pilote')),
+              marchandise: cells.findIndex(h => h.includes('marchandise') || h.includes('produit')),
+              csr: cells.findIndex(h => h.includes('csr') || h.includes('chef') || h.includes('nom de csr'))
+            };
+            break;
+          }
+        }
 
-        console.log("Mapping des colonnes extrait :", indexMap);
-
-        if (indexMap.date === -1 || indexMap.tracteur === -1) {
-          alert("Impossible de localiser les colonnes minimales requises (Date et Camion/Tracteur) dans votre fichier.");
+        if (headerIndex === -1) {
+          alert("Impossible de localiser la ligne d'en-tête avec les colonnes minimales requises (Date et Camion/Tracteur) dans votre fichier.");
           return;
         }
 
+        console.log("Ligne d'en-tête trouvée à l'index :", headerIndex);
+        console.log("Mapping des colonnes extrait :", indexMap);
+
         rawCsvData = [];
         
-        // Parse des lignes
-        for (let i = 1; i < lines.length; i++) {
+        // Parse des lignes à partir de la ligne après l'en-tête
+        for (let i = headerIndex + 1; i < lines.length; i++) {
           const cols = lines[i].split(delimiter);
           if (cols.length < Math.max(...Object.values(indexMap)) + 1) continue;
 
