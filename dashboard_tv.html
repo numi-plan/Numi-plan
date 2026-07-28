@@ -1244,10 +1244,14 @@
       // Pour ce prototype, on répartit les segments selon les agences ou l'immatriculation.
       // Effectuons un matching simple si possible ou simulons par répartition si non-trouvé
       segments.forEach(s => {
-        // Simuler ou répartir de façon réaliste pour le visuel TV si le mapping n'est pas complet
-        const hash = s.tracteur.charCodeAt(0) % 6;
-        const targetTeam = String.fromCharCode(65 + hash); // A, B, C, D, E, F
-        teamStats[targetTeam].segments++;
+        const tracteurClean = (s.tracteur || '').trim();
+        if (tracteurClean.length > 0) {
+          const hash = tracteurClean.charCodeAt(0) % 6;
+          const targetTeam = String.fromCharCode(65 + hash); // A, B, C, D, E, F
+          if (teamStats[targetTeam]) {
+            teamStats[targetTeam].segments++;
+          }
+        }
       });
 
       if (charts['performance']) charts['performance'].destroy();
@@ -1260,14 +1264,14 @@
           datasets: [
             {
               label: 'Nombre de Chargements (Segments)',
-              data: Object.values(teamStats).map(t => t.segments),
+              data: Object.values(teamStats).map(t => Number.isFinite(t.segments) ? t.segments : 0),
               backgroundColor: 'rgba(56, 189, 248, 0.75)',
               borderColor: '#38bdf8',
               borderWidth: 1
             },
             {
               label: 'Pannes Signalées',
-              data: Object.values(teamStats).map(t => t.pannes),
+              data: Object.values(teamStats).map(t => Number.isFinite(t.pannes) ? t.pannes : 0),
               backgroundColor: 'rgba(239, 68, 68, 0.75)',
               borderColor: '#ef4444',
               borderWidth: 1
@@ -1343,7 +1347,10 @@
     function renderTopTrucksChart(segments) {
       const truckCounts = {};
       segments.forEach(s => {
-        if (s.tracteur) truckCounts[s.tracteur] = (truckCounts[s.tracteur] || 0) + 1;
+        const trVal = (s.tracteur || '').trim();
+        if (trVal) {
+          truckCounts[trVal] = (truckCounts[trVal] || 0) + 1;
+        }
       });
 
       const sorted = Object.entries(truckCounts).sort((a,b) => b[1] - a[1]).slice(0, 10);
