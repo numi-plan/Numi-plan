@@ -11068,6 +11068,29 @@ function basculerJournee() {
 function _doBascule() {
   const eq = typeof window.CURRENT_EQUIPE !== 'undefined' ? window.CURRENT_EQUIPE : 'A';
   const todayStr = today();
+  
+  // ── ARCHIVAGE AUTOMATIQUE DU JOUR AVANT LA BASCULE ──
+  try {
+    const snap = {
+      dispo: JSON.parse(JSON.stringify(DB.dispo || [])),
+      pannes: JSON.parse(JSON.stringify(DB.pannes || [])),
+      nc: JSON.parse(JSON.stringify(DB.nc || [])),
+      gasoil: JSON.parse(JSON.stringify(DB.gasoil || [])),
+      equip: JSON.parse(JSON.stringify(DB.equip || [])),
+      odo: JSON.parse(JSON.stringify(DB.odo || [])),
+      odo_weeks: JSON.parse(JSON.stringify(DB.odo_weeks || [])),
+      bl: JSON.parse(JSON.stringify(DB.bl || [])),
+      activite: JSON.parse(JSON.stringify(DB.activite || [])),
+      archivedAt: new Date().toISOString()
+    };
+    if (!ARCHIVES[eq]) ARCHIVES[eq] = {};
+    ARCHIVES[eq][todayStr] = snap;
+    saveArchives();
+    console.log(`[Auto-Archive] ✅ Journée du ${todayStr} archivée automatiquement pour l'équipe ${eq}`);
+  } catch(e) {
+    console.warn('[Auto-Archive] Échec de l'archivage automatique:', e);
+  }
+  
   const basculeKey = 'numiplan_last_bascule_' + eq;
   DB.dispo.forEach(r => {
     r.lieuJ = r.lieuJ1 && r.lieuJ1 !== '—' ? r.lieuJ1 : '—';
