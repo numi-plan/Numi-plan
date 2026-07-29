@@ -660,93 +660,8 @@
   <!-- ZONE PRINCIPALE -->
   <main>
     
-    <!-- GRID GLOBAL DES KPIs (8 Cartes) -->
-    <div class="kpi-grid" style="grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 15px; margin-bottom: 25px;">
-      
-      <!-- KPI 1 : Segments Importés -->
-      <div class="kpi-card blue">
-        <div class="kpi-info">
-          <h3>Chargements (Segments)</h3>
-          <div id="kpi-segments" class="kpi-value">0</div>
-          <div class="kpi-subtext">Sur la période sélectionnée</div>
-        </div>
-        <i class="fa-solid fa-box-open kpi-icon"></i>
-      </div>
-      
-      <!-- KPI 2 : Rendement Moyen -->
-      <div class="kpi-card blue">
-        <div class="kpi-info">
-          <h3>Rendement Moyen</h3>
-          <div id="kpi-rendement-moyen" class="kpi-value">0.0</div>
-          <div class="kpi-subtext">segs / camion / jour</div>
-        </div>
-        <i class="fa-solid fa-chart-line kpi-icon"></i>
-      </div>
-
-      <!-- KPI 3 : Segments Livrés -->
-      <div class="kpi-card green">
-        <div class="kpi-info">
-          <h3>Segments Livrés</h3>
-          <div id="kpi-segments-livres" class="kpi-value">0</div>
-          <div class="kpi-subtext">Statut livré importé</div>
-        </div>
-        <i class="fa-solid fa-truck-ramp-box kpi-icon"></i>
-      </div>
-
-      <!-- KPI 4 : Segments Chargés / Confirmés -->
-      <div class="kpi-card green">
-        <div class="kpi-info">
-          <h3>Chargés / Confirmés</h3>
-          <div id="kpi-segments-charge-confirme" class="kpi-value">0</div>
-          <div class="kpi-subtext">Statut actif importé</div>
-        </div>
-        <i class="fa-solid fa-circle-check kpi-icon"></i>
-      </div>
-
-      <!-- KPI 5 : Disponibilité Flotte -->
-      <div class="kpi-card green">
-        <div class="kpi-info">
-          <h3>Disponibilité Flotte</h3>
-          <div id="kpi-avail-rate" class="kpi-value">0%</div>
-          <div id="kpi-avail-subtext" class="kpi-subtext">0 camions opérationnels</div>
-        </div>
-        <i class="fa-solid fa-truck-moving kpi-icon"></i>
-      </div>
-      
-      <!-- KPI 6 : Pannes Active -->
-      <div class="kpi-card red">
-        <div class="kpi-info">
-          <h3>Pannes Signalées</h3>
-          <div id="kpi-pannes" class="kpi-value">0</div>
-          <div class="kpi-subtext">En cours ou déclarées</div>
-        </div>
-        <i class="fa-solid fa-wrench kpi-icon"></i>
-      </div>
-
-      <!-- KPI 7 : Roulage à charge (Manuel) -->
-      <div class="kpi-card orange" style="position: relative;">
-        <div class="kpi-info">
-          <h3 style="display: flex; align-items: center; gap: 8px;">
-            Roulage à Charge
-            <button onclick="openRoulageModal()" class="btn-icon" style="background: none; border: none; color: var(--text-muted); cursor: pointer; font-size: 13px;" title="Modifier le roulage"><i class="fa-solid fa-pen-to-square"></i></button>
-          </h3>
-          <div id="kpi-roulage-charge" class="kpi-value">0 KM</div>
-          <div class="kpi-subtext">Saisi manuellement</div>
-        </div>
-        <i class="fa-solid fa-road kpi-icon"></i>
-      </div>
-
-      <!-- KPI 8 : Chauffeurs BL Manquants -->
-      <div class="kpi-card red">
-        <div class="kpi-info">
-          <h3>Chauffeurs BL Manquants</h3>
-          <div id="kpi-bl-manquants" class="kpi-value">0</div>
-          <div class="kpi-subtext">Bons non restitués</div>
-        </div>
-        <i class="fa-solid fa-file-invoice kpi-icon"></i>
-      </div>
-
-    </div>
+    <!-- CONTAINER DYNAMIQUE DES KPIs PAR AGENCE -->
+    <div id="kpis-container"></div>
 
     <!-- ONGLET 1: PERFORMANCE AGENCES -->
     <div id="tab-performance" class="tab-content active">
@@ -1059,7 +974,7 @@
         const filteredBls = blList.filter(b => isTeamInFilter(b.team, agencyFilter));
 
         // Processus et rendu des indicateurs
-        renderKpis(filteredDispos, filteredPannes, filteredNcs, filteredSegments, filteredBls);
+        renderKpis(filteredDispos, filteredPannes, filteredNcs, filteredSegments, filteredBls, truckToTeamMap);
         renderAvailabilityChart(filteredDispos);
         renderTables(filteredPannes, filteredNcs);
         renderFlashTicker(filteredPannes, flashList);
@@ -1120,37 +1035,9 @@
       };
       localStorage.setItem('sharik_tv_roulage', JSON.stringify(stored));
       document.getElementById('modal-roulage').remove();
-      updateRoulageDisplay();
+      refreshData();
     }
     window.saveRoulage = saveRoulage;
-
-    function updateRoulageDisplay() {
-      const agencyFilter = document.getElementById('agency-filter').value;
-      const stored = JSON.parse(localStorage.getItem('sharik_tv_roulage') || '{"A":0,"B":0,"C":0,"D":0}');
-      
-      let sum = 0;
-      if (agencyFilter === 'ALL') {
-        sum = (stored.A || 0) + (stored.B || 0) + (stored.C || 0) + (stored.D || 0);
-      } else if (agencyFilter === 'A') {
-        sum = stored.A || 0;
-      } else if (agencyFilter === 'B') {
-        sum = stored.B || 0;
-      } else if (agencyFilter === 'C') {
-        sum = stored.C || 0;
-      } else if (agencyFilter === 'D') {
-        sum = stored.D || 0;
-      } else if (agencyFilter === 'AB') {
-        sum = (stored.A || 0) + (stored.B || 0);
-      } else if (agencyFilter === 'CD') {
-        sum = (stored.C || 0) + (stored.D || 0);
-      }
-      
-      const el = document.getElementById('kpi-roulage-charge');
-      if (el) {
-        el.textContent = sum.toLocaleString('fr-FR') + ' KM';
-      }
-    }
-    window.updateRoulageDisplay = updateRoulageDisplay;
 
     // Helper pour déterminer le statut d'un mois de BL (due / late / future)
     function checkBLMonthStatus(mKey, currentDate) {
@@ -1187,15 +1074,12 @@
       return 'late';
     }
 
-    // Calcul des KPI globaux
-    function renderKpis(dispos, pannes, ncs, segments, bls) {
-      // 1. Total Segments Importés
-      const totalSegEl = document.getElementById('kpi-segments');
-      if (totalSegEl) {
-        totalSegEl.textContent = segments ? segments.length : 0;
-      }
+    // Générer le code HTML des 8 KPIs pour une agence spécifique
+    function generateAgencyKpisHtml(agencyCode, dispos, pannes, ncs, segments, bls) {
+      // 1. Total Segments
+      const totalSeg = segments ? segments.length : 0;
 
-      // 2. Rendement Moyen (Segments par camion par jour)
+      // 2. Rendement Moyen
       const uniqueDays = new Set();
       const uniqueTrucks = new Set();
       if (segments) {
@@ -1207,24 +1091,16 @@
       const d = uniqueDays.size || 1;
       const t = uniqueTrucks.size || 1;
       const avg = segments ? (segments.length / (t * d)) : 0.0;
-      const avgEl = document.getElementById('kpi-rendement-moyen');
-      if (avgEl) {
-        avgEl.textContent = avg.toFixed(1);
-      }
 
-      // 3. Segments Livrés (Statut livré importé)
+      // 3. Segments Livrés
       let livresCount = 0;
       if (segments) {
         segments.forEach(s => {
           const status = (s.statut || '').trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-          if (status.includes('livre')) {
+          if (status.includes('livre') || status.includes('cloture')) {
             livresCount++;
           }
         });
-      }
-      const livresEl = document.getElementById('kpi-segments-livres');
-      if (livresEl) {
-        livresEl.textContent = livresCount;
       }
 
       // 4. Segments Chargés / Confirmés
@@ -1237,35 +1113,19 @@
           }
         });
       }
-      const ccEl = document.getElementById('kpi-segments-charge-confirme');
-      if (ccEl) {
-        ccEl.textContent = chargeConfirmeCount;
-      }
 
       // 5. Taux de disponibilité
       const activeStates = ['DISPONIBLE', 'En mission', 'En transit'];
       const operationalCount = dispos.filter(d => activeStates.includes(d.etat)).length;
       const totalCount = dispos.length || 1;
       const availRate = Math.round((operationalCount / totalCount) * 100);
-      
-      const avRateEl = document.getElementById('kpi-avail-rate');
-      if (avRateEl) {
-        avRateEl.textContent = `${availRate}%`;
-      }
-      const avSubEl = document.getElementById('kpi-avail-subtext');
-      if (avSubEl) {
-        avSubEl.textContent = `${operationalCount} / ${dispos.length} camions opérationnels`;
-      }
-      
+
       // 6. Pannes actives
       const activePannesCount = pannes.filter(p => p.etat !== 'Clôturé' && p.etat !== 'Cloture').length;
-      const pannesEl = document.getElementById('kpi-pannes');
-      if (pannesEl) {
-        pannesEl.textContent = activePannesCount;
-      }
 
-      // 7. Roulage à charge
-      updateRoulageDisplay();
+      // 7. Roulage à charge (Manuel)
+      const storedRoulage = JSON.parse(localStorage.getItem('sharik_tv_roulage') || '{"A":0,"B":0,"C":0,"D":0}');
+      const roulage = storedRoulage[agencyCode] || 0;
 
       // 8. Chauffeurs BL Manquants
       const blMonths = ['mars','avril','mai','juin','juil','aout','sep','oct','nov','dec'];
@@ -1288,10 +1148,141 @@
           }
         });
       }
-      const blEl = document.getElementById('kpi-bl-manquants');
-      if (blEl) {
-        blEl.textContent = blManquantsCount;
+
+      // Déterminer la couleur de l'agence
+      let agencyColor = '#38bdf8'; // Bleu par défaut
+      if (agencyCode === 'A') agencyColor = '#38bdf8';
+      else if (agencyCode === 'B') agencyColor = '#10b981';
+      else if (agencyCode === 'C') agencyColor = '#fbbf24';
+      else if (agencyCode === 'D') agencyColor = '#f87171';
+
+      return `
+        <div class="agency-section" style="margin-bottom: 25px; background: rgba(17, 24, 39, 0.4); border: 1px solid var(--border-color); border-radius: 12px; padding: 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.15);">
+          <h2 style="color: var(--text-main); font-size: 18px; font-weight: 700; margin-bottom: 15px; display: flex; align-items: center; justify-content: space-between;">
+            <span style="display: flex; align-items: center; gap: 8px;">
+              <span style="width: 12px; height: 12px; border-radius: 50%; background: ${agencyColor}; display: inline-block;"></span>
+              Agence ${agencyCode}
+            </span>
+          </h2>
+          
+          <div class="kpi-grid" style="grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 15px;">
+            <!-- KPI 1 : Segments Importés -->
+            <div class="kpi-card blue">
+              <div class="kpi-info">
+                <h3>Chargements (Segments)</h3>
+                <div class="kpi-value">${totalSeg}</div>
+                <div class="kpi-subtext">Sur la période sélectionnée</div>
+              </div>
+              <i class="fa-solid fa-box-open kpi-icon"></i>
+            </div>
+            
+            <!-- KPI 2 : Rendement Moyen -->
+            <div class="kpi-card blue">
+              <div class="kpi-info">
+                <h3>Rendement Moyen</h3>
+                <div class="kpi-value">${avg.toFixed(1)}</div>
+                <div class="kpi-subtext">segs / camion / jour</div>
+              </div>
+              <i class="fa-solid fa-chart-line kpi-icon"></i>
+            </div>
+
+            <!-- KPI 3 : Segments Livrés -->
+            <div class="kpi-card green">
+              <div class="kpi-info">
+                <h3>Segments Livrés</h3>
+                <div class="kpi-value">${livresCount}</div>
+                <div class="kpi-subtext">Statut livré importé</div>
+              </div>
+              <i class="fa-solid fa-truck-ramp-box kpi-icon"></i>
+            </div>
+
+            <!-- KPI 4 : Segments Chargés / Confirmés -->
+            <div class="kpi-card green">
+              <div class="kpi-info">
+                <h3>Chargés / Confirmés</h3>
+                <div class="kpi-value">${chargeConfirmeCount}</div>
+                <div class="kpi-subtext">Statut actif importé</div>
+              </div>
+              <i class="fa-solid fa-circle-check kpi-icon"></i>
+            </div>
+
+            <!-- KPI 5 : Disponibilité Flotte -->
+            <div class="kpi-card green">
+              <div class="kpi-info">
+                <h3>Disponibilité Flotte</h3>
+                <div class="kpi-value">${availRate}%</div>
+                <div class="kpi-subtext">${operationalCount} / ${dispos.length} camions opérationnels</div>
+              </div>
+              <i class="fa-solid fa-truck-moving kpi-icon"></i>
+            </div>
+            
+            <!-- KPI 6 : Pannes Active -->
+            <div class="kpi-card red">
+              <div class="kpi-info">
+                <h3>Pannes Signalées</h3>
+                <div class="kpi-value">${activePannesCount}</div>
+                <div class="kpi-subtext">En cours ou déclarées</div>
+              </div>
+              <i class="fa-solid fa-wrench kpi-icon"></i>
+            </div>
+
+            <!-- KPI 7 : Roulage à charge (Manuel) -->
+            <div class="kpi-card orange" style="position: relative;">
+              <div class="kpi-info">
+                <h3 style="display: flex; align-items: center; gap: 8px;">
+                  Roulage à Charge
+                  <button onclick="openRoulageModal()" class="btn-icon" style="background: none; border: none; color: var(--text-muted); cursor: pointer; font-size: 13px;" title="Modifier le roulage"><i class="fa-solid fa-pen-to-square"></i></button>
+                </h3>
+                <div class="kpi-value">${roulage.toLocaleString('fr-FR')} KM</div>
+                <div class="kpi-subtext">Saisi manuellement</div>
+              </div>
+              <i class="fa-solid fa-road kpi-icon"></i>
+            </div>
+
+            <!-- KPI 8 : Chauffeurs BL Manquants -->
+            <div class="kpi-card red">
+              <div class="kpi-info">
+                <h3>Chauffeurs BL Manquants</h3>
+                <div class="kpi-value">${blManquantsCount}</div>
+                <div class="kpi-subtext">Bons non restitués</div>
+              </div>
+              <i class="fa-solid fa-file-invoice kpi-icon"></i>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    // Calcul des KPI globaux par agence distincte
+    function renderKpis(dispos, pannes, ncs, segments, bls, truckToTeamMap) {
+      const container = document.getElementById('kpis-container');
+      if (!container) return;
+
+      const agencyFilter = document.getElementById('agency-filter').value;
+      
+      let agenciesToRender = [];
+      if (agencyFilter === 'ALL') {
+        agenciesToRender = ['A', 'B', 'C', 'D'];
+      } else if (agencyFilter === 'AB') {
+        agenciesToRender = ['A', 'B'];
+      } else if (agencyFilter === 'CD') {
+        agenciesToRender = ['C', 'D'];
+      } else {
+        agenciesToRender = [agencyFilter];
       }
+
+      let html = '';
+      agenciesToRender.forEach(agency => {
+        const dispos_eq = dispos.filter(d => d.team === agency);
+        const pannes_eq = pannes.filter(p => p.team === agency);
+        const ncs_eq = ncs.filter(n => n.team === agency);
+        const bls_eq = bls.filter(b => b.team === agency);
+        const segments_eq = segments ? segments.filter(s => isSegmentInFilter(s, agency, truckToTeamMap)) : [];
+        
+        html += generateAgencyKpisHtml(agency, dispos_eq, pannes_eq, ncs_eq, segments_eq, bls_eq);
+      });
+      
+      container.innerHTML = html;
     }
 
     // Graphique Camembert Disponibilité
