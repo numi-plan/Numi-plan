@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="fr">
 <head>
 <meta charset="UTF-8">
@@ -13929,6 +13929,15 @@ async function checkPoiAlerts() {
       // Si la balise GPS n'est plus active (> 48h), on ignore l'alerte
       // et on la marque comme notifiée pour ne plus être spammé
       if (!isGpsActive) {
+        await poiSupabaseFetch(`np_poi_visits?id=eq.${v.id}`, "PATCH", { notified: true });
+        continue;
+      }
+
+      // Si la visite a commencé avant aujourd'hui (date passée), on la marque comme notifiée
+      // et on ne déclenche pas d'alerte rétroactive pour ne pas polluer l'écran.
+      const arrivedDate = new Date(v.arrived_at);
+      const todayDate = new Date();
+      if (arrivedDate.toDateString() !== todayDate.toDateString()) {
         await poiSupabaseFetch(`np_poi_visits?id=eq.${v.id}`, "PATCH", { notified: true });
         continue;
       }
