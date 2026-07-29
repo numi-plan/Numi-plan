@@ -657,33 +657,12 @@
     <!-- CONTAINER DYNAMIQUE DES KPIs PAR AGENCE -->
     <div id="kpis-container"></div>
 
-    <!-- ONGLET 1: PERFORMANCE AGENCES -->
-    <div id="tab-performance" class="tab-content active">
-      <div class="charts-grid-2">
-        <div class="chart-card">
-          <div class="chart-header">
-            <span class="chart-title"><i class="fa-solid fa-chart-column"></i> Performance de chargements par Équipe / Agence</span>
-          </div>
-          <div class="chart-container">
-            <canvas id="chart-performance"></canvas>
-          </div>
-        </div>
-        
-        <div class="chart-card">
-          <div class="chart-header">
-            <span class="chart-title"><i class="fa-solid fa-chart-pie"></i> Répartition des segments par Agence du fichier</span>
-          </div>
-          <div class="chart-container">
-            <canvas id="chart-agencies-csv"></canvas>
-          </div>
-        </div>
-      </div>
-    </div>
+
 
 
     <!-- TICKER D'INFORMATIONS TV -->
     <div class="ticker-section">
-      <div class="ticker-label"><i class="fa-solid fa-bell"></i> Fil Info Flash</div>
+      <div class="ticker-label" onclick="openFlashManagerModal()" style="cursor: pointer;" title="Gérer le fil d'info flash"><i class="fa-solid fa-bell"></i> Fil Info Flash</div>
       <div class="ticker-wrapper">
         <div id="ticker-content" class="ticker-content">
           <div class="ticker-item"><span class="ticker-dot"></span>Bienvenue sur le Tableau de bord de Performance Sharik</div>
@@ -941,6 +920,185 @@
       }
     }
 
+    // Modal de gestion des messages du Fil Flash
+    async function openFlashManagerModal() {
+      if (!supabaseClient) {
+        alert("Client Supabase non initialisé.");
+        return;
+      }
+
+      // 1. Lire les messages actuels depuis Supabase
+      const { data: flashes, error } = await supabaseClient
+        .from('np_flash_infos')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        alert("Erreur de récupération des messages: " + error.message);
+        return;
+      }
+
+      // Enlever le modal s'il est déjà affiché
+      const existing = document.getElementById('modal-flash-manager');
+      if (existing) existing.remove();
+
+      // Rendre la liste des messages
+      let flashListHtml = '';
+      if (flashes && flashes.length > 0) {
+        const grouped = {};
+        flashes.forEach(f => {
+          if (!grouped[f.titre]) {
+            grouped[f.titre] = {
+              titre: f.titre,
+              date: f.date,
+              teams: [],
+              ids: []
+            };
+          }
+          grouped[f.titre].teams.push(f.team);
+          grouped[f.titre].ids.push(f.id);
+        });
+
+        Object.values(grouped).forEach(g => {
+          flashListHtml += `
+            <div style="background: rgba(255,255,255,0.05); border: 1px solid var(--border-color); border-radius: 8px; padding: 12px; margin-bottom: 10px; display: flex; align-items: center; justify-content: space-between;">
+              <div style="flex: 1; padding-right: 15px;">
+                <div style="font-size: 14px; font-weight: 600; color: var(--text-main); line-height: 1.4;">${g.titre}</div>
+                <div style="font-size: 11px; color: var(--text-muted); margin-top: 4px;">
+                  <span>📅 ${g.date}</span> | 
+                  <span style="font-weight: 700; color: var(--accent-sky);">Agences : ${g.teams.join(', ')}</span>
+                </div>
+              </div>
+              <button onclick="deleteFlashGroup('${g.ids.join(',')}')" class="btn" style="background: rgba(239, 68, 68, 0.2); border: 1px solid #ef4444; color: #fca5a5; padding: 6px 12px; font-size: 12px; border-radius: 6px; cursor: pointer;">
+                <i class="fa-solid fa-trash"></i>
+              </button>
+            </div>
+          `;
+        });
+      } else {
+        flashListHtml = `
+          <div style="text-align: center; padding: 30px; color: var(--text-muted); font-size: 13px; font-style: italic;">
+            Aucun message flash actif en ce moment.
+          </div>
+        `;
+      }
+
+      const modalHtml = `
+        <div id="modal-flash-manager" class="modal-backdrop" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); backdrop-filter: blur(5px); z-index: 9999; display: flex; align-items: center; justify-content: center;">
+          <div style="background: #0f172a; border: 1px solid var(--border-color); border-radius: 16px; width: 90%; max-width: 500px; padding: 25px; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.5); color: var(--text-main);">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; border-bottom: 1px solid var(--border-color); padding-bottom: 12px;">
+              <h3 style="font-size: 18px; font-weight: 700; display: flex; align-items: center; gap: 8px; color: var(--text-main);">
+                <i class="fa-solid fa-bell" style="color: #ef4444;"></i> Gestion du Fil Info Flash
+              </h3>
+              <button onclick="document.getElementById('modal-flash-manager').remove()" style="background: none; border: none; color: var(--text-muted); font-size: 18px; cursor: pointer;">&times;</button>
+            </div>
+
+            <!-- FORMULAIRE -->
+            <div style="margin-bottom: 25px; background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.05); border-radius: 10px; padding: 15px;">
+              <h4 style="font-size: 13px; font-weight: 600; text-transform: uppercase; color: var(--accent-sky); margin-bottom: 10px;">Diffuser un nouveau message</h4>
+              
+              <div style="margin-bottom: 12px;">
+                <input type="text" id="new-flash-text" placeholder="Ex: Rappel : Restitution des BL obligatoire..." style="width: 100%; background: rgba(0,0,0,0.3); border: 1px solid var(--border-color); border-radius: 6px; padding: 8px 12px; color: var(--text-main); font-size: 13px;">
+              </div>
+
+              <div style="display: flex; align-items: center; gap: 15px; margin-bottom: 15px;">
+                <span style="font-size: 12px; color: var(--text-muted); font-weight: 600;">Cibles :</span>
+                <label style="font-size: 12px; display: flex; align-items: center; gap: 5px; cursor: pointer;">
+                  <input type="checkbox" name="flash-target" value="A" checked> A
+                </label>
+                <label style="font-size: 12px; display: flex; align-items: center; gap: 5px; cursor: pointer;">
+                  <input type="checkbox" name="flash-target" value="B" checked> B
+                </label>
+                <label style="font-size: 12px; display: flex; align-items: center; gap: 5px; cursor: pointer;">
+                  <input type="checkbox" name="flash-target" value="C" checked> C
+                </label>
+                <label style="font-size: 12px; display: flex; align-items: center; gap: 5px; cursor: pointer;">
+                  <input type="checkbox" name="flash-target" value="D" checked> D
+                </label>
+              </div>
+
+              <button onclick="publishNewFlash()" class="btn" style="width: 100%; background: #ef4444; color: #fff; font-weight: 700; padding: 8px; border: none; border-radius: 6px; cursor: pointer; transition: 0.2s;">
+                <i class="fa-solid fa-paper-plane"></i> Publier sur le Fil Flash
+              </button>
+            </div>
+
+            <!-- LISTE -->
+            <h4 style="font-size: 13px; font-weight: 600; text-transform: uppercase; color: var(--text-muted); margin-bottom: 12px;">Messages en cours de diffusion</h4>
+            <div style="max-height: 200px; overflow-y: auto; border: 1px solid var(--border-color); border-radius: 10px; padding: 10px; background: rgba(0,0,0,0.2);">
+              ${flashListHtml}
+            </div>
+          </div>
+        </div>
+      `;
+      document.body.insertAdjacentHTML('beforeend', modalHtml);
+    }
+    window.openFlashManagerModal = openFlashManagerModal;
+
+    async function publishNewFlash() {
+      const text = document.getElementById('new-flash-text').value.trim();
+      if (!text) {
+        alert("Vauillez saisir un texte.");
+        return;
+      }
+
+      const targets = [];
+      document.querySelectorAll('input[name="flash-target"]:checked').forEach(cb => {
+        targets.push(cb.value);
+      });
+
+      if (targets.length === 0) {
+        alert("Sélectionnez au moins une agence cible.");
+        return;
+      }
+
+      const todayStr = new Date().toISOString().split('T')[0];
+
+      try {
+        for (const t of targets) {
+          const newId = 'flash_' + Date.now() + '_' + t;
+          const { error } = await supabaseClient
+            .from('np_flash_infos')
+            .insert({
+              id: newId,
+              team: t,
+              titre: text,
+              contenu: text,
+              auteur: 'TV',
+              date: todayStr,
+              lu_par: []
+            });
+          if (error) throw error;
+        }
+
+        document.getElementById('modal-flash-manager').remove();
+        await refreshData();
+      } catch (err) {
+        alert("Erreur lors de la publication : " + err.message);
+      }
+    }
+    window.publishNewFlash = publishNewFlash;
+
+    async function deleteFlashGroup(idsStr) {
+      if (!confirm("Supprimer ce message de toutes les agences cibles ?")) return;
+
+      const ids = idsStr.split(',');
+      try {
+        for (const id of ids) {
+          const { error } = await supabaseClient
+            .from('np_flash_infos')
+            .delete()
+            .eq('id', id);
+          if (error) throw error;
+        }
+
+        document.getElementById('modal-flash-manager').remove();
+        await refreshData();
+      } catch (err) {
+        alert("Erreur de suppression: " + err.message);
+      }
+    }
+    window.deleteFlashGroup = deleteFlashGroup;
+
     // Vérifier si une équipe passe le filtre sélectionné
     function isTeamInFilter(team, filterValue) {
       if (!team) return false;
@@ -1040,8 +1198,6 @@
         renderTables(filteredPannes, filteredNcs);
         renderFlashTicker(filteredPannes, flashList);
         
-        // Rendu des graphiques croisés
-        processMergedData(filteredSegments, filteredDispos, filteredPannes, truckToTeamMap);
 
       } catch (err) {
         console.error("Erreur de chargement Supabase:", err);
@@ -1055,7 +1211,7 @@
       const modalHtml = `
         <div id="modal-roulage" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(7,10,19,0.85); display: flex; align-items: center; justify-content: center; z-index: 10000; backdrop-filter: blur(8px);">
           <div style="background: rgba(17,24,39,0.95); border: 1px solid var(--border-color); border-radius: 12px; padding: 25px; width: 350px; box-shadow: 0 10px 25px rgba(0,0,0,0.5);">
-            <h3 style="color: var(--text-main); margin-bottom: 20px; font-weight: 700; display: flex; align-items: center; gap: 8px;"><i class="fa-solid fa-road" style="color: var(--accent-orange);"></i> Roulage à Charge (KM)</h3>
+            <h3 style="color: var(--text-main); margin-bottom: 20px; font-weight: 700; display: flex; align-items: center; gap: 8px;"><i class="fa-solid fa-road" style="color: var(--accent-orange);"></i> Roulage à Charge (%)</h3>
             
             <div style="display: flex; flex-direction: column; gap: 15px; margin-bottom: 25px;">
               <div style="display: flex; justify-content: space-between; align-items: center;">
@@ -1294,7 +1450,7 @@
                   Roulage à Charge
                   <button onclick="openRoulageModal()" class="btn-icon" style="background: none; border: none; color: var(--text-muted); cursor: pointer; font-size: 13px;" title="Modifier le roulage"><i class="fa-solid fa-pen-to-square"></i></button>
                 </h3>
-                <div class="kpi-value">${roulage.toLocaleString('fr-FR')} KM</div>
+                <div class="kpi-value">${roulage.toLocaleString('fr-FR')} %</div>
                 <div class="kpi-subtext">Saisi manuellement</div>
               </div>
               <i class="fa-solid fa-road kpi-icon"></i>
