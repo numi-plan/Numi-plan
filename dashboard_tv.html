@@ -1152,6 +1152,41 @@
     }
     window.updateRoulageDisplay = updateRoulageDisplay;
 
+    // Helper pour déterminer le statut d'un mois de BL (due / late / future)
+    function checkBLMonthStatus(mKey, currentDate) {
+      const monthIndexMap = {
+        'mars': 2, 'avril': 3, 'mai': 4, 'juin': 5,
+        'juil': 6, 'aout': 7, 'sep': 8, 'oct': 9,
+        'nov': 10, 'dec': 11
+      };
+
+      const targetMonth = monthIndexMap[mKey];
+      if (targetMonth === undefined) return 'future';
+
+      const currentMonth = currentDate.getMonth();
+      const currentDay = currentDate.getDate();
+
+      if (currentMonth < targetMonth) {
+        return 'future';
+      }
+
+      if (currentMonth === targetMonth) {
+        if (currentDay >= 25) {
+          return 'due';
+        }
+        return 'future';
+      }
+
+      if (currentMonth === targetMonth + 1) {
+        if (currentDay <= 5) {
+          return 'due';
+        }
+        return 'late';
+      }
+
+      return 'late';
+    }
+
     // Calcul des KPI globaux
     function renderKpis(dispos, pannes, ncs, segments, bls) {
       // 1. Total Segments Importés
@@ -1233,15 +1268,19 @@
       updateRoulageDisplay();
 
       // 8. Chauffeurs BL Manquants
-      const completedMonths = ['mars','avril','mai','juin'];
+      const blMonths = ['mars','avril','mai','juin','juil','aout','sep','oct','nov','dec'];
+      const nowCheck = new Date();
       let blManquantsCount = 0;
       if (bls) {
         bls.forEach(r => {
           let hasMissing = false;
-          completedMonths.forEach(m => {
+          blMonths.forEach(m => {
             const val = (r[m] || '').trim().toLowerCase();
             if (val !== 'déposer' && val !== 'depose' && val !== 'restitue') {
-              hasMissing = true;
+              const status = checkBLMonthStatus(m, nowCheck);
+              if (status === 'due' || status === 'late') {
+                hasMissing = true;
+              }
             }
           });
           if (hasMissing) {
@@ -1450,7 +1489,7 @@
         let indexMap = null;
         for (let i = 0; i < Math.min(lines.length, 50); i++) {
           const cells = lines[i].map(c => c.trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, ""));
-          const dateIdx = cells.findIndex(h => h.includes('date'));
+          const dateIdx = cells.findIndex(h => h.includes('date') || h === 'dt' || h.startsWith('dt.') || h.startsWith('dt ') || h.includes('d.dep') || h.includes('dt.dep'));
           const tracIdx = cells.findIndex(h => h.includes('tracteur') || h.includes('camion') || h.includes('immat') || h.includes('vehicule') || h.includes('trr'));
           
           if (dateIdx !== -1 && tracIdx !== -1) {
@@ -1459,10 +1498,14 @@
               date: dateIdx,
               tracteur: tracIdx,
               agence: cells.findIndex(h => h.includes('agence') || h.includes('site') || h.includes('depot')),
-              chauffeur: cells.findIndex(h => h.includes('cond') || h.includes('chauffeur') || h.includes('pilote')),
+              chauffeur: cells.findIndex(h => h.includes('cond') || h.includes('chauffeur') || h.includes('pilote') || h.includes('affrete')),
               marchandise: cells.findIndex(h => h.includes('marchandise') || h.includes('produit')),
               csr: cells.findIndex(h => h.includes('csr') || h.includes('chef') || h.includes('nom de csr')),
-              statut: cells.findIndex(h => h.includes('statut') || h.includes('etat') || h.includes('situation') || h.includes('phase') || h.includes('etape') || h.includes('ot') || h.includes('progression') || h.includes('stat'))
+              statut: cells.findIndex(h => {
+                const norm = h.trim();
+                if (norm.includes('seg') || norm.includes('vehicule') || norm.includes('rep')) return false;
+                return norm.includes('statut') || norm.includes('etat') || norm.includes('situation') || norm.includes('phase') || norm.includes('etape') || norm.includes('ot') || norm.includes('progression') || norm.includes('stat');
+              })
             };
             break;
           }
@@ -1481,7 +1524,7 @@
         // Parse des lignes
         for (let i = headerIndex + 1; i < lines.length; i++) {
           const cols = lines[i];
-          if (cols.length < Math.max(...Object.values(indexMap)) + 1) continue;
+          if (cols.length < Math.max(indexMap.date, indexMap.tracteur) + 1) continue;
 
           // Nettoyage de la date du segment
           const rawDate = cols[indexMap.date]?.trim();
