@@ -660,17 +660,50 @@
   <!-- ZONE PRINCIPALE -->
   <main>
     
-    <!-- GRID GLOBAL DES KPIs -->
-    <div class="kpi-grid">
+    <!-- GRID GLOBAL DES KPIs (8 Cartes) -->
+    <div class="kpi-grid" style="grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 15px; margin-bottom: 25px;">
+      
+      <!-- KPI 1 : Segments Importés -->
       <div class="kpi-card blue">
         <div class="kpi-info">
-          <h3>Chargements / Segments</h3>
+          <h3>Chargements (Segments)</h3>
           <div id="kpi-segments" class="kpi-value">0</div>
           <div class="kpi-subtext">Sur la période sélectionnée</div>
         </div>
         <i class="fa-solid fa-box-open kpi-icon"></i>
       </div>
       
+      <!-- KPI 2 : Rendement Moyen -->
+      <div class="kpi-card blue">
+        <div class="kpi-info">
+          <h3>Rendement Moyen</h3>
+          <div id="kpi-rendement-moyen" class="kpi-value">0.0</div>
+          <div class="kpi-subtext">segs / camion / jour</div>
+        </div>
+        <i class="fa-solid fa-chart-line kpi-icon"></i>
+      </div>
+
+      <!-- KPI 3 : Segments Atypiques -->
+      <div class="kpi-card orange">
+        <div class="kpi-info">
+          <h3>Segments Atypiques</h3>
+          <div id="kpi-segments-atypiques" class="kpi-value">0</div>
+          <div class="kpi-subtext">Ni prov. / livré / CR</div>
+        </div>
+        <i class="fa-solid fa-circle-exclamation kpi-icon"></i>
+      </div>
+
+      <!-- KPI 4 : Segments Chargés / Confirmés -->
+      <div class="kpi-card green">
+        <div class="kpi-info">
+          <h3>Chargés / Confirmés</h3>
+          <div id="kpi-segments-charge-confirme" class="kpi-value">0</div>
+          <div class="kpi-subtext">Statut actif importé</div>
+        </div>
+        <i class="fa-solid fa-circle-check kpi-icon"></i>
+      </div>
+
+      <!-- KPI 5 : Disponibilité Flotte -->
       <div class="kpi-card green">
         <div class="kpi-info">
           <h3>Disponibilité Flotte</h3>
@@ -680,6 +713,7 @@
         <i class="fa-solid fa-truck-moving kpi-icon"></i>
       </div>
       
+      <!-- KPI 6 : Pannes Active -->
       <div class="kpi-card red">
         <div class="kpi-info">
           <h3>Pannes Signalées</h3>
@@ -688,15 +722,30 @@
         </div>
         <i class="fa-solid fa-wrench kpi-icon"></i>
       </div>
-      
-      <div class="kpi-card orange">
+
+      <!-- KPI 7 : Roulage à charge (Manuel) -->
+      <div class="kpi-card orange" style="position: relative;">
         <div class="kpi-info">
-          <h3>Chargements à son compte</h3>
-          <div id="kpi-nc-chgt" class="kpi-value">0</div>
-          <div class="kpi-subtext">Infractions constatées</div>
+          <h3 style="display: flex; align-items: center; gap: 8px;">
+            Roulage à Charge
+            <button onclick="openRoulageModal()" class="btn-icon" style="background: none; border: none; color: var(--text-muted); cursor: pointer; font-size: 13px;" title="Modifier le roulage"><i class="fa-solid fa-pen-to-square"></i></button>
+          </h3>
+          <div id="kpi-roulage-charge" class="kpi-value">0 KM</div>
+          <div class="kpi-subtext">Saisi manuellement</div>
         </div>
-        <i class="fa-solid fa-triangle-exclamation kpi-icon"></i>
+        <i class="fa-solid fa-road kpi-icon"></i>
       </div>
+
+      <!-- KPI 8 : Chauffeurs BL Manquants -->
+      <div class="kpi-card red">
+        <div class="kpi-info">
+          <h3>Chauffeurs BL Manquants</h3>
+          <div id="kpi-bl-manquants" class="kpi-value">0</div>
+          <div class="kpi-subtext">Bons non restitués</div>
+        </div>
+        <i class="fa-solid fa-file-invoice kpi-icon"></i>
+      </div>
+
     </div>
 
     <!-- ONGLET 1: PERFORMANCE AGENCES -->
@@ -988,6 +1037,12 @@
           .select('text')
           .limit(5);
 
+        // 5. Lire np_bl (Bons de Livraison)
+        const { data: blList, error: errBL } = await supabaseClient
+          .from('np_bl')
+          .select('team,chauffeur,mars,avril,mai,juin,juil,aout,sep,oct,nov,dec');
+        if (errBL) throw errBL;
+
         // Map de correspondance camion -> équipe
         const truckToTeamMap = {};
         dispoList.forEach(d => {
@@ -1001,9 +1056,10 @@
         const filteredPannes = pannesList.filter(p => isTeamInFilter(p.team, agencyFilter));
         const filteredNcs = ncList.filter(n => isTeamInFilter(n.team, agencyFilter));
         const filteredSegments = rawCsvData.filter(s => isSegmentInFilter(s, agencyFilter, truckToTeamMap));
+        const filteredBls = blList.filter(b => isTeamInFilter(b.team, agencyFilter));
 
         // Processus et rendu des indicateurs
-        renderKpis(filteredDispos, filteredPannes, filteredNcs);
+        renderKpis(filteredDispos, filteredPannes, filteredNcs, filteredSegments, filteredBls);
         renderAvailabilityChart(filteredDispos);
         renderTables(filteredPannes, filteredNcs);
         renderFlashTicker(filteredPannes, flashList);
@@ -1016,23 +1072,187 @@
       }
     }
 
+    // Modal pour modifier le roulage manuellement
+    function openRoulageModal() {
+      const stored = JSON.parse(localStorage.getItem('sharik_tv_roulage') || '{"A":0,"B":0,"C":0,"D":0}');
+      
+      const modalHtml = `
+        <div id="modal-roulage" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(7,10,19,0.85); display: flex; align-items: center; justify-content: center; z-index: 10000; backdrop-filter: blur(8px);">
+          <div style="background: rgba(17,24,39,0.95); border: 1px solid var(--border-color); border-radius: 12px; padding: 25px; width: 350px; box-shadow: 0 10px 25px rgba(0,0,0,0.5);">
+            <h3 style="color: var(--text-main); margin-bottom: 20px; font-weight: 700; display: flex; align-items: center; gap: 8px;"><i class="fa-solid fa-road" style="color: var(--accent-orange);"></i> Roulage à Charge (KM)</h3>
+            
+            <div style="display: flex; flex-direction: column; gap: 15px; margin-bottom: 25px;">
+              <div style="display: flex; justify-content: space-between; align-items: center;">
+                <label style="color: var(--text-muted); font-size: 13px; font-weight: 600;">Agence A</label>
+                <input type="number" id="roulage-a" value="${stored.A || 0}" style="width: 150px; background: rgba(15,23,42,0.8); border: 1px solid var(--border-color); border-radius: 6px; padding: 6px 10px; color: var(--text-main); text-align: right;">
+              </div>
+              <div style="display: flex; justify-content: space-between; align-items: center;">
+                <label style="color: var(--text-muted); font-size: 13px; font-weight: 600;">Agence B</label>
+                <input type="number" id="roulage-b" value="${stored.B || 0}" style="width: 150px; background: rgba(15,23,42,0.8); border: 1px solid var(--border-color); border-radius: 6px; padding: 6px 10px; color: var(--text-main); text-align: right;">
+              </div>
+              <div style="display: flex; justify-content: space-between; align-items: center;">
+                <label style="color: var(--text-muted); font-size: 13px; font-weight: 600;">Agence C</label>
+                <input type="number" id="roulage-c" value="${stored.C || 0}" style="width: 150px; background: rgba(15,23,42,0.8); border: 1px solid var(--border-color); border-radius: 6px; padding: 6px 10px; color: var(--text-main); text-align: right;">
+              </div>
+              <div style="display: flex; justify-content: space-between; align-items: center;">
+                <label style="color: var(--text-muted); font-size: 13px; font-weight: 600;">Agence D</label>
+                <input type="number" id="roulage-d" value="${stored.D || 0}" style="width: 150px; background: rgba(15,23,42,0.8); border: 1px solid var(--border-color); border-radius: 6px; padding: 6px 10px; color: var(--text-main); text-align: right;">
+              </div>
+            </div>
+            
+            <div style="display: flex; justify-content: flex-end; gap: 10px;">
+              <button onclick="document.getElementById('modal-roulage').remove()" class="btn" style="background: rgba(255,255,255,0.05); color: var(--text-main); border: 1px solid var(--border-color); border-radius: 6px; padding: 6px 15px; cursor: pointer;">Annuler</button>
+              <button onclick="saveRoulage()" class="btn" style="background: var(--accent-orange); color: #000; font-weight: 700; border: none; border-radius: 6px; padding: 6px 20px; cursor: pointer;">Enregistrer</button>
+            </div>
+          </div>
+        </div>
+      `;
+      document.body.insertAdjacentHTML('beforeend', modalHtml);
+    }
+    window.openRoulageModal = openRoulageModal;
+
+    function saveRoulage() {
+      const stored = {
+        A: parseFloat(document.getElementById('roulage-a').value) || 0,
+        B: parseFloat(document.getElementById('roulage-b').value) || 0,
+        C: parseFloat(document.getElementById('roulage-c').value) || 0,
+        D: parseFloat(document.getElementById('roulage-d').value) || 0
+      };
+      localStorage.setItem('sharik_tv_roulage', JSON.stringify(stored));
+      document.getElementById('modal-roulage').remove();
+      updateRoulageDisplay();
+    }
+    window.saveRoulage = saveRoulage;
+
+    function updateRoulageDisplay() {
+      const agencyFilter = document.getElementById('agency-filter').value;
+      const stored = JSON.parse(localStorage.getItem('sharik_tv_roulage') || '{"A":0,"B":0,"C":0,"D":0}');
+      
+      let sum = 0;
+      if (agencyFilter === 'ALL') {
+        sum = (stored.A || 0) + (stored.B || 0) + (stored.C || 0) + (stored.D || 0);
+      } else if (agencyFilter === 'A') {
+        sum = stored.A || 0;
+      } else if (agencyFilter === 'B') {
+        sum = stored.B || 0;
+      } else if (agencyFilter === 'C') {
+        sum = stored.C || 0;
+      } else if (agencyFilter === 'D') {
+        sum = stored.D || 0;
+      } else if (agencyFilter === 'AB') {
+        sum = (stored.A || 0) + (stored.B || 0);
+      } else if (agencyFilter === 'CD') {
+        sum = (stored.C || 0) + (stored.D || 0);
+      }
+      
+      const el = document.getElementById('kpi-roulage-charge');
+      if (el) {
+        el.textContent = sum.toLocaleString('fr-FR') + ' KM';
+      }
+    }
+    window.updateRoulageDisplay = updateRoulageDisplay;
+
     // Calcul des KPI globaux
-    function renderKpis(dispos, pannes, ncs) {
-      // Taux de disponibilité
+    function renderKpis(dispos, pannes, ncs, segments, bls) {
+      // 1. Total Segments Importés
+      const totalSegEl = document.getElementById('kpi-segments');
+      if (totalSegEl) {
+        totalSegEl.textContent = segments ? segments.length : 0;
+      }
+
+      // 2. Rendement Moyen (Segments par camion par jour)
+      const uniqueDays = new Set();
+      const uniqueTrucks = new Set();
+      if (segments) {
+        segments.forEach(s => {
+          if (s.date) uniqueDays.add(s.date);
+          if (s.tracteur) uniqueTrucks.add(s.tracteur);
+        });
+      }
+      const d = uniqueDays.size || 1;
+      const t = uniqueTrucks.size || 1;
+      const avg = segments ? (segments.length / (t * d)) : 0.0;
+      const avgEl = document.getElementById('kpi-rendement-moyen');
+      if (avgEl) {
+        avgEl.textContent = avg.toFixed(1);
+      }
+
+      // 3. Segments Atypiques (Ni provisoire, ni livré, ni compte rendu)
+      let atypiquesCount = 0;
+      if (segments) {
+        segments.forEach(s => {
+          const status = (s.statut || '').trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+          if (status && !status.includes('provisoire') && !status.includes('livre') && !status.includes('compte rendu') && !status.includes('cr') && status !== '—') {
+            atypiquesCount++;
+          }
+        });
+      }
+      const atypEl = document.getElementById('kpi-segments-atypiques');
+      if (atypEl) {
+        atypEl.textContent = atypiquesCount;
+      }
+
+      // 4. Segments Chargés / Confirmés
+      let chargeConfirmeCount = 0;
+      if (segments) {
+        segments.forEach(s => {
+          const status = (s.statut || '').trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+          if (status.includes('charge') || status.includes('confirme')) {
+            chargeConfirmeCount++;
+          }
+        });
+      }
+      const ccEl = document.getElementById('kpi-segments-charge-confirme');
+      if (ccEl) {
+        ccEl.textContent = chargeConfirmeCount;
+      }
+
+      // 5. Taux de disponibilité
       const activeStates = ['DISPONIBLE', 'En mission', 'En transit'];
       const operationalCount = dispos.filter(d => activeStates.includes(d.etat)).length;
       const totalCount = dispos.length || 1;
       const availRate = Math.round((operationalCount / totalCount) * 100);
       
-      document.getElementById('kpi-avail-rate').textContent = `${availRate}%`;
-      document.getElementById('kpi-avail-subtext').textContent = `${operationalCount} / ${dispos.length} camions opérationnels`;
+      const avRateEl = document.getElementById('kpi-avail-rate');
+      if (avRateEl) {
+        avRateEl.textContent = `${availRate}%`;
+      }
+      const avSubEl = document.getElementById('kpi-avail-subtext');
+      if (avSubEl) {
+        avSubEl.textContent = `${operationalCount} / ${dispos.length} camions opérationnels`;
+      }
       
-      // Pannes
-      document.getElementById('kpi-pannes').textContent = pannes.length;
-      
-      // Chargements à son compte (NC)
-      const chgtCount = ncs.filter(n => n.chgt && n.chgt.trim() !== '' && n.chgt.trim() !== '0' && n.chgt.toLowerCase() !== 'false').length;
-      document.getElementById('kpi-nc-chgt').textContent = chgtCount;
+      // 6. Pannes actives
+      const activePannesCount = pannes.filter(p => p.etat !== 'Clôturé' && p.etat !== 'Cloture').length;
+      const pannesEl = document.getElementById('kpi-pannes');
+      if (pannesEl) {
+        pannesEl.textContent = activePannesCount;
+      }
+
+      // 7. Roulage à charge
+      updateRoulageDisplay();
+
+      // 8. Chauffeurs BL Manquants
+      const activeMonths = ['mars','avril','mai','juin','juil'];
+      let blManquantsCount = 0;
+      if (bls) {
+        bls.forEach(r => {
+          let hasMissing = false;
+          activeMonths.forEach(m => {
+            const val = (r[m] || '').trim().toLowerCase();
+            if (val !== 'déposer' && val !== 'depose' && val !== 'restitue' && val !== '') {
+              hasMissing = true;
+            }
+          });
+          if (hasMissing) {
+            blManquantsCount++;
+          }
+        });
+      }
+      const blEl = document.getElementById('kpi-bl-manquants');
+      if (blEl) {
+        blEl.textContent = blManquantsCount;
+      }
     }
 
     // Graphique Camembert Disponibilité
@@ -1241,7 +1461,8 @@
               agence: cells.findIndex(h => h.includes('agence') || h.includes('site') || h.includes('depot')),
               chauffeur: cells.findIndex(h => h.includes('cond') || h.includes('chauffeur') || h.includes('pilote')),
               marchandise: cells.findIndex(h => h.includes('marchandise') || h.includes('produit')),
-              csr: cells.findIndex(h => h.includes('csr') || h.includes('chef') || h.includes('nom de csr'))
+              csr: cells.findIndex(h => h.includes('csr') || h.includes('chef') || h.includes('nom de csr')),
+              statut: cells.findIndex(h => h.includes('statut') || h.includes('etat') || h.includes('situation') || h.includes('phase'))
             };
             break;
           }
@@ -1274,7 +1495,8 @@
             agence: indexMap.agence !== -1 ? cols[indexMap.agence]?.trim() : 'INCONNU',
             chauffeur: indexMap.chauffeur !== -1 ? cols[indexMap.chauffeur]?.trim() : '—',
             marchandise: indexMap.marchandise !== -1 ? cols[indexMap.marchandise]?.trim() : '—',
-            csr: indexMap.csr !== -1 ? cols[indexMap.csr]?.trim() : '—'
+            csr: indexMap.csr !== -1 ? cols[indexMap.csr]?.trim() : '—',
+            statut: indexMap.statut !== -1 ? cols[indexMap.statut]?.trim() : '—'
           });
         }
 
