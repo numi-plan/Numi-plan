@@ -393,7 +393,7 @@
       position: absolute;
       white-space: nowrap;
       will-change: transform;
-      animation: ticker-move 35s linear infinite;
+      animation: ticker-move 120s linear infinite;
     }
 
     .ticker-item {
@@ -615,6 +615,20 @@
     </div>
     
     <div class="controls">
+      <!-- Filtre Agence -->
+      <div class="date-filter-group" style="gap: 8px;">
+        <label><i class="fa-solid fa-building"></i> Agence</label>
+        <select id="agency-filter" onchange="refreshData()" class="form-input" style="width: 140px; padding: 4px 8px; font-size: 13px; background: rgba(15,23,42,0.8); border: 1px solid var(--border-color); color: var(--text-main); border-radius: 6px; cursor: pointer; height: 34px;">
+          <option value="ALL">Toutes</option>
+          <option value="A">Agence A</option>
+          <option value="B">Agence B</option>
+          <option value="C">Agence C</option>
+          <option value="D">Agence D</option>
+          <option value="AB">Agences A + B</option>
+          <option value="CD">Agences C + D</option>
+        </select>
+      </div>
+      
       <!-- Filtre Date/Période -->
       <div class="date-filter-group">
         <label>Du</label>
@@ -816,12 +830,11 @@
 
     // Initialisation
     window.addEventListener('DOMContentLoaded', async () => {
-      // 1. Initialiser les dates du filtre (Mois en cours par défaut)
+      // 1. Initialiser les dates du filtre (Aujourd'hui par défaut pour une vitesse maximale sur TV)
       const now = new Date();
-      const firstDay = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
       const today = now.toISOString().split('T')[0];
       
-      document.getElementById('date-start').value = firstDay;
+      document.getElementById('date-start').value = today;
       document.getElementById('date-end').value = today;
 
       // 2. Tenter de récupérer la session existante
@@ -903,18 +916,54 @@
       }
     }
 
+    // Vérifier si une équipe passe le filtre sélectionné
+    function isTeamInFilter(team, filterValue) {
+      if (!team) return false;
+      const t = team.trim().toUpperCase();
+      if (filterValue === 'ALL') return true;
+      if (filterValue === 'A') return t === 'A';
+      if (filterValue === 'B') return t === 'B';
+      if (filterValue === 'C') return t === 'C';
+      if (filterValue === 'D') return t === 'D';
+      if (filterValue === 'AB') return t === 'A' || t === 'B';
+      if (filterValue === 'CD') return t === 'C' || t === 'D';
+      return false;
+    }
+
+    // Vérifier si un segment passe le filtre sélectionné
+    function isSegmentInFilter(s, filterValue, truckToTeamMap) {
+      const immat = (s.tracteur || '').trim().toUpperCase();
+      let targetTeam = truckToTeamMap[immat];
+      
+      // Si non trouvé par l'immatriculation, essayer de deviner par le nom de l'agence (ex: "PART A" -> A)
+      if (!targetTeam && s.agence) {
+        const agUpper = s.agence.toUpperCase();
+        if (agUpper.includes('PART A') || agUpper.includes('AGENCE A') || agUpper === 'A') targetTeam = 'A';
+        else if (agUpper.includes('PART B') || agUpper.includes('AGENCE B') || agUpper === 'B') targetTeam = 'B';
+        else if (agUpper.includes('PART C') || agUpper.includes('AGENCE C') || agUpper === 'C') targetTeam = 'C';
+        else if (agUpper.includes('PART D') || agUpper.includes('AGENCE D') || agUpper === 'D') targetTeam = 'D';
+      }
+      
+      if (!targetTeam) {
+        return filterValue === 'ALL';
+      }
+      
+      return isTeamInFilter(targetTeam, filterValue);
+    }
+
     // Récupérer et rafraîchir toutes les données de Supabase et ré-appliquer les calculs
     async function refreshData() {
       if (!supabaseClient) return;
 
       const startDate = document.getElementById('date-start').value;
       const endDate = document.getElementById('date-end').value;
+      const agencyFilter = document.getElementById('agency-filter').value;
 
       try {
         // 1. Lire np_dispo (état live de la flotte)
         const { data: dispoList, error: errD } = await supabaseClient
           .from('np_dispo')
-          .select('v,etat,geoloc,geoloc_date');
+          .select('v,etat,geoloc,geoloc_date,team');
         if (errD) throw errD;
 
         // 2. Lire np_pannes sur la période
@@ -939,14 +988,28 @@
           .select('text')
           .limit(5);
 
+        // Map de correspondance camion -> équipe
+        const truckToTeamMap = {};
+        dispoList.forEach(d => {
+          if (d.v && d.team) {
+            truckToTeamMap[d.v.trim().toUpperCase()] = d.team.trim().toUpperCase();
+          }
+        });
+
+        // Filtrer les listes selon l'agence sélectionnée
+        const filteredDispos = dispoList.filter(d => isTeamInFilter(d.team, agencyFilter));
+        const filteredPannes = pannesList.filter(p => isTeamInFilter(p.team, agencyFilter));
+        const filteredNcs = ncList.filter(n => isTeamInFilter(n.team, agencyFilter));
+        const filteredSegments = rawCsvData.filter(s => isSegmentInFilter(s, agencyFilter, truckToTeamMap));
+
         // Processus et rendu des indicateurs
-        renderKpis(dispoList, pannesList, ncList);
-        renderAvailabilityChart(dispoList);
-        renderTables(pannesList, ncList);
-        renderFlashTicker(pannesList, flashList);
+        renderKpis(filteredDispos, filteredPannes, filteredNcs);
+        renderAvailabilityChart(filteredDispos);
+        renderTables(filteredPannes, filteredNcs);
+        renderFlashTicker(filteredPannes, flashList);
         
-        // Si des données CSV ont déjà été importées, ré-exécuter le calcul avec les nouveaux filtres
-        processMergedData(rawCsvData, dispoList, pannesList);
+        // Rendu des graphiques croisés
+        processMergedData(filteredSegments, filteredDispos, filteredPannes, truckToTeamMap);
 
       } catch (err) {
         console.error("Erreur de chargement Supabase:", err);
@@ -1019,15 +1082,15 @@
     function renderTables(pannes, ncs) {
       // 1. Tableau des pannes
       const pBody = document.querySelector('#table-pannes tbody');
-      pBody.innerHTML = '';
       
       if (pannes.length === 0) {
         pBody.innerHTML = `<tr><td colspan="6" style="text-align: center; color: var(--text-muted);">Aucune panne signalée sur cette période.</td></tr>`;
       } else {
+        const rows = [];
         pannes.forEach(p => {
           const isResolved = p.etat === 'Clôturé' || p.etat === 'Cloture';
           const badgeClass = isResolved ? 'badge-green' : 'badge-red';
-          pBody.innerHTML += `
+          rows.push(`
             <tr>
               <td>${p.date || '—'}</td>
               <td style="font-weight: 700; color: var(--accent-sky);">${p.immat || '—'}</td>
@@ -1036,19 +1099,20 @@
               <td style="max-width: 250px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${p.description || '—'}</td>
               <td><span class="${badgeClass}">${p.etat || 'Actif'}</span></td>
             </tr>
-          `;
+          `);
         });
+        pBody.innerHTML = rows.join('');
       }
 
       // 2. Tableau des non-conformités
       const ncBody = document.querySelector('#table-nc tbody');
-      ncBody.innerHTML = '';
       
       if (ncs.length === 0) {
         ncBody.innerHTML = `<tr><td colspan="7" style="text-align: center; color: var(--text-muted);">Aucune non-conformité enregistrée sur cette période.</td></tr>`;
       } else {
+        const rows = [];
         ncs.forEach(n => {
-          ncBody.innerHTML += `
+          rows.push(`
             <tr>
               <td>${n.date || '—'}</td>
               <td style="font-weight: 600;">${n.n || '—'}</td>
@@ -1058,46 +1122,50 @@
               <td>${n.refus ? '❌ OUI' : '—'}</td>
               <td style="max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${n.autre || '—'}</td>
             </tr>
-          `;
+          `);
         });
+        ncBody.innerHTML = rows.join('');
       }
     }
 
     // Gestion et rendu du ticker de news TV
     function renderFlashTicker(pannes, flashes) {
       const tickerContainer = document.getElementById('ticker-content');
-      tickerContainer.innerHTML = '';
+      const items = [];
 
-      // 1. Ajouter les pannes actives
+      // 1. Ajouter les pannes actives (limitées aux 10 plus récentes)
       const activePannes = pannes.filter(p => p.etat !== 'Clôturé' && p.etat !== 'Cloture');
-      activePannes.forEach(p => {
-        tickerContainer.innerHTML += `
+      const recentPannes = activePannes.slice(0, 10);
+      recentPannes.forEach(p => {
+        items.push(`
           <div class="ticker-item" style="color: #f87171;">
             <span class="ticker-dot" style="background: #ef4444;"></span>
             🚨 PANNE ACTIVE : Camion ${p.immat} (${p.type || 'Inconnu'}) - Chauffeur: ${p.chauffeur || '—'}
           </div>
-        `;
+        `);
       });
 
       // 2. Ajouter les messages administratifs
       if (flashes && flashes.length > 0) {
         flashes.forEach(f => {
-          tickerContainer.innerHTML += `
+          items.push(`
             <div class="ticker-item">
               <span class="ticker-dot"></span>
               ${f.text}
             </div>
-          `;
+          `);
         });
       }
 
       // Ticker par défaut si vide
-      if (tickerContainer.innerHTML === '') {
-        tickerContainer.innerHTML = `
+      if (items.length === 0) {
+        items.push(`
           <div class="ticker-item"><span class="ticker-dot"></span>Aucune panne ou alerte en cours. Flotte sous contrôle.</div>
           <div class="ticker-item"><span class="ticker-dot"></span>Pensez à importer les derniers segments journaliers.</div>
-        `;
+        `);
       }
+      
+      tickerContainer.innerHTML = items.join('');
     }
 
     // Parser universel (CSV et Excel XLSX)
@@ -1253,7 +1321,7 @@
     }
 
     // Croisement des données CSV + Supabase
-    function processMergedData(csvList, dispos, pannes) {
+    function processMergedData(csvList, dispos, pannes, truckToTeamMap) {
       const startDate = document.getElementById('date-start').value;
       const endDate = document.getElementById('date-end').value;
 
@@ -1263,17 +1331,8 @@
       // Update KPI
       document.getElementById('kpi-segments').textContent = filteredCsv.length;
 
-      // 1. Calcul performance par Équipe (Supabase + Segments match)
-      // On associe chaque tracteur à son équipe Supabase correspondante
-      const truckToTeamMap = {};
-      dispos.forEach(d => {
-        // En vrai, dispoList de Supabase possède une colonne 'team' implicite ou explicite. 
-        // Récupérons les équipes de dispos. 
-        // Si besoin, on peut faire un mapping.
-      });
-
       // Rendu du graphique comparatif des rendements par équipe
-      renderPerformanceChart(filteredCsv, pannes);
+      renderPerformanceChart(filteredCsv, pannes, truckToTeamMap);
       
       // Rendu du graphique des agences d'arrivée du fichier CSV
       renderAgenciesCsvChart(filteredCsv);
@@ -1283,15 +1342,22 @@
     }
 
     // Graphique Performance par Équipe (A B C D E F)
-    function renderPerformanceChart(segments, pannes) {
-      const teamStats = {
-        'A': { segments: 0, pannes: 0 },
-        'B': { segments: 0, pannes: 0 },
-        'C': { segments: 0, pannes: 0 },
-        'D': { segments: 0, pannes: 0 },
-        'E': { segments: 0, pannes: 0 },
-        'F': { segments: 0, pannes: 0 }
-      };
+    function renderPerformanceChart(segments, pannes, truckToTeamMap) {
+      const agencyFilter = document.getElementById('agency-filter').value;
+      
+      // Déterminer les colonnes à afficher
+      let activeLabels = ['A', 'B', 'C', 'D', 'E', 'F'];
+      if (agencyFilter === 'A') activeLabels = ['A'];
+      else if (agencyFilter === 'B') activeLabels = ['B'];
+      else if (agencyFilter === 'C') activeLabels = ['C'];
+      else if (agencyFilter === 'D') activeLabels = ['D'];
+      else if (agencyFilter === 'AB') activeLabels = ['A', 'B'];
+      else if (agencyFilter === 'CD') activeLabels = ['C', 'D'];
+
+      const teamStats = {};
+      activeLabels.forEach(label => {
+        teamStats[label] = { segments: 0, pannes: 0 };
+      });
 
       // Compter les pannes par équipe
       pannes.forEach(p => {
@@ -1299,19 +1365,21 @@
         if (teamStats[team]) teamStats[team].pannes++;
       });
 
-      // Note: Normalement les segments du fichier n'ont pas de colonne "Team" directement,
-      // mais ont une colonne CSR (ex: "AMRI IDIR" pour l'équipe B, etc.) ou on peut les matcher avec l'immatriculation.
-      // Par sécurité, si l'immat du segment matche celle d'un camion affecté à une équipe Supabase, on incrémente l'équipe correspondante.
-      // Pour ce prototype, on répartit les segments selon les agences ou l'immatriculation.
-      // Effectuons un matching simple si possible ou simulons par répartition si non-trouvé
+      // Compter les segments par équipe réelle (Supabase) ou par défaut agence
       segments.forEach(s => {
-        const tracteurClean = (s.tracteur || '').trim();
-        if (tracteurClean.length > 0) {
-          const hash = tracteurClean.charCodeAt(0) % 6;
-          const targetTeam = String.fromCharCode(65 + hash); // A, B, C, D, E, F
-          if (teamStats[targetTeam]) {
-            teamStats[targetTeam].segments++;
-          }
+        const immat = (s.tracteur || '').trim().toUpperCase();
+        let targetTeam = truckToTeamMap[immat];
+        
+        if (!targetTeam && s.agence) {
+          const agUpper = s.agence.toUpperCase();
+          if (agUpper.includes('PART A') || agUpper.includes('AGENCE A') || agUpper === 'A') targetTeam = 'A';
+          else if (agUpper.includes('PART B') || agUpper.includes('AGENCE B') || agUpper === 'B') targetTeam = 'B';
+          else if (agUpper.includes('PART C') || agUpper.includes('AGENCE C') || agUpper === 'C') targetTeam = 'C';
+          else if (agUpper.includes('PART D') || agUpper.includes('AGENCE D') || agUpper === 'D') targetTeam = 'D';
+        }
+
+        if (targetTeam && teamStats[targetTeam]) {
+          teamStats[targetTeam].segments++;
         }
       });
 
@@ -1321,7 +1389,7 @@
       charts['performance'] = new Chart(ctx, {
         type: 'bar',
         data: {
-          labels: Object.keys(teamStats),
+          labels: Object.keys(teamStats).map(t => 'Agence ' + t),
           datasets: [
             {
               label: 'Nombre de Chargements (Segments)',
