@@ -650,12 +650,6 @@
     </div>
   </header>
 
-  <!-- BARRE DES ONGLETS -->
-  <div class="tabs-bar">
-    <button class="tab-link active" onclick="switchTab('tab-performance', this)">📊 Performances Agences</button>
-    <button class="tab-link" onclick="switchTab('tab-camions', this)">🚚 Analyse Camions & GPS</button>
-    <button class="tab-link" onclick="switchTab('tab-pannes', this)">⚠️ Pannes & NC</button>
-  </div>
 
   <!-- ZONE PRINCIPALE -->
   <main>
@@ -686,84 +680,6 @@
       </div>
     </div>
 
-    <!-- ONGLET 2: ANALYSE CAMIONS & GPS -->
-    <div id="tab-camions" class="tab-content">
-      <div class="charts-grid-2">
-        <div class="chart-card">
-          <div class="chart-header">
-            <span class="chart-title"><i class="fa-solid fa-circle-check"></i> Statut de Disponibilité Opérationnelle de la Flotte</span>
-          </div>
-          <div class="chart-container">
-            <canvas id="chart-availability"></canvas>
-          </div>
-        </div>
-        
-        <div class="chart-card">
-          <div class="chart-header">
-            <span class="chart-title"><i class="fa-solid fa-star"></i> Top 10 des Camions les plus sollicités (Segments)</span>
-          </div>
-          <div class="chart-container">
-            <canvas id="chart-top-trucks"></canvas>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- ONGLET 3: PANNES & NC -->
-    <div id="tab-pannes" class="tab-content">
-      <div class="charts-grid-2">
-        <div class="chart-card" style="min-height: 450px;">
-          <div class="chart-header">
-            <span class="chart-title"><i class="fa-solid fa-clipboard-list"></i> Liste des Pannes Actives & Signalées</span>
-          </div>
-          <div class="table-container">
-            <table id="table-pannes">
-              <thead>
-                <tr>
-                  <th>Date</th>
-                  <th>Camion</th>
-                  <th>Chauffeur</th>
-                  <th>Type de panne</th>
-                  <th>Description</th>
-                  <th>Statut</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr>
-                  <td colspan="6" style="text-align: center; color: var(--text-muted);">Aucune panne chargée pour cette période.</td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        </div>
-        
-        <div class="chart-card" style="min-height: 450px;">
-          <div class="chart-header">
-            <span class="chart-title"><i class="fa-solid fa-triangle-exclamation"></i> Non-Conformités enregistrées (Détails)</span>
-          </div>
-          <div class="table-container">
-            <table id="table-nc">
-              <thead>
-                <tr>
-                  <th>Date</th>
-                  <th>NC n°</th>
-                  <th>Équipe</th>
-                  <th>Charg. Compte</th>
-                  <th>Fausse Décl.</th>
-                  <th>Refus travail</th>
-                  <th>Autre motif</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr>
-                  <td colspan="7" style="text-align: center; color: var(--text-muted);">Aucune non-conformité chargée.</td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        </div>
-      </div>
-    </div>
 
     <!-- TICKER D'INFORMATIONS TV -->
     <div class="ticker-section">
@@ -814,6 +730,13 @@
       } else {
         document.getElementById('login-modal').classList.add('active');
       }
+
+      // 3. Lancer la surveillance des POI blacklistés en arrière-plan
+      setInterval(checkPoiAlerts, 60000);
+      setTimeout(checkPoiAlerts, 5000);
+
+      // 4. Rafraîchir les données de performance Supabase automatiquement toutes les 5 minutes
+      setInterval(refreshData, 300000);
     });
 
     // Gestion de connexion Supabase
@@ -851,7 +774,7 @@
       activeTabIndex = links.indexOf(element);
     }
 
-    // Basculer en Mode TV (rotation automatique des onglets)
+    // Basculer en Mode TV (rotation automatique des onglets désactivée car onglet unique)
     function toggleTvMode() {
       const btn = document.getElementById('btn-tv');
       isTvModeActive = !isTvModeActive;
@@ -859,24 +782,162 @@
       if (isTvModeActive) {
         btn.classList.add('active');
         btn.innerHTML = `<i class="fa-solid fa-circle-notch fa-spin"></i> Mode TV Actif`;
-        
-        // Rotation des onglets toutes les 15 secondes
-        const tabs = [
-          { id: 'tab-performance', linkClass: 'tab-link' },
-          { id: 'tab-camions', linkClass: 'tab-link' },
-          { id: 'tab-pannes', linkClass: 'tab-link' }
-        ];
-        
-        tvInterval = setInterval(() => {
-          activeTabIndex = (activeTabIndex + 1) % tabs.length;
-          const targetTab = tabs[activeTabIndex];
-          const links = document.querySelectorAll('.tab-link');
-          switchTab(targetTab.id, links[activeTabIndex]);
-        }, 15000);
       } else {
         btn.classList.remove('active');
         btn.innerHTML = `<i class="fa-solid fa-desktop"></i> Mode TV Auto`;
-        clearInterval(tvInterval);
+      }
+    }
+
+    // Alerte sonore pour client blacklisté (Web Audio API)
+    function playBlacklistAlarm() {
+      try {
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        
+        let osc1 = audioCtx.createOscillator();
+        let gain1 = audioCtx.createGain();
+        osc1.type = 'sawtooth';
+        osc1.frequency.setValueAtTime(600, audioCtx.currentTime);
+        osc1.frequency.linearRampToValueAtTime(1000, audioCtx.currentTime + 0.3);
+        osc1.frequency.linearRampToValueAtTime(600, audioCtx.currentTime + 0.6);
+        osc1.frequency.linearRampToValueAtTime(1000, audioCtx.currentTime + 0.9);
+        osc1.frequency.linearRampToValueAtTime(600, audioCtx.currentTime + 1.2);
+        
+        gain1.gain.setValueAtTime(0.2, audioCtx.currentTime);
+        gain1.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 1.5);
+        
+        osc1.connect(gain1);
+        gain1.connect(audioCtx.destination);
+        
+        osc1.start();
+        osc1.stop(audioCtx.currentTime + 1.5);
+      } catch (err) {
+        console.warn("Impossible de jouer l'alarme audio:", err);
+      }
+    }
+
+    // Modal d'alerte client blacklisté
+    function showBlacklistAlertModal(truck, client, time) {
+      const existing = document.getElementById('modal-blacklist-alert');
+      if (existing) existing.remove();
+      
+      if (!document.getElementById('blacklist-alert-keyframes')) {
+        const style = document.createElement('style');
+        style.id = 'blacklist-alert-keyframes';
+        style.innerHTML = `
+          @keyframes pulse-alert {
+            0% { box-shadow: 0 0 20px rgba(239,68,68,0.4); border-color: #ef4444; }
+            100% { box-shadow: 0 0 60px rgba(239,68,68,0.8); border-color: #ff0000; }
+          }
+        `;
+        document.head.appendChild(style);
+      }
+
+      const alertHtml = `
+        <div id="modal-blacklist-alert" class="modal-backdrop" style="position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(239,68,68,0.3);backdrop-filter:blur(6px);z-index:999999;display:flex;align-items:center;justify-content:center">
+          <div style="background:#181316;border:3px solid #ef4444;border-radius:16px;width:90%;max-width:450px;padding:32px;box-shadow:0 0 40px rgba(239,68,68,0.5);color:#fff;text-align:center;animation:pulse-alert 1s infinite alternate">
+            <div style="font-size:60px;margin-bottom:16px">🚨</div>
+            <h3 style="color:#ef4444;font-size:22px;font-weight:800;margin:0 0 16px 0;letter-spacing:1.5px">ALERTE CLIENT BLACKLISTÉ</h3>
+            
+            <p style="font-size:14px;color:#eee;line-height:1.6;margin-bottom:24px">
+              Le camion <strong style="color:#ef4444;font-family:monospace;font-size:18px">${truck}</strong> vient d'entrer chez le client blacklisté :<br>
+              <strong style="color:#fff;font-size:18px;display:block;margin:8px 0">${client}</strong>
+              Heure de détection : <strong style="color:#fbbf24;font-size:15px">${time}</strong>
+            </p>
+
+            <button onclick="document.getElementById('modal-blacklist-alert').remove()" style="background:#ef4444;color:#fff;border:none;border-radius:8px;padding:12px 36px;font-weight:800;font-size:13px;cursor:pointer;box-shadow:0 4px 14px rgba(239,68,68,0.4);text-transform:uppercase;letter-spacing:1px">
+              Acquitter l'Alerte 🔕
+            </button>
+          </div>
+        </div>
+      `;
+      document.body.insertAdjacentHTML('beforeend', alertHtml);
+      playBlacklistAlarm();
+    }
+
+    // Surveillance en temps réel des chargements blacklistés
+    async function checkPoiAlerts() {
+      if (!supabaseClient) return;
+
+      const agencyFilter = document.getElementById('agency-filter').value;
+      
+      let activeTeams = [];
+      if (agencyFilter === 'ALL') {
+        activeTeams = ['A', 'B', 'C', 'D'];
+      } else if (agencyFilter === 'AB') {
+        activeTeams = ['A', 'B'];
+      } else if (agencyFilter === 'CD') {
+        activeTeams = ['C', 'D'];
+      } else {
+        activeTeams = [agencyFilter];
+      }
+
+      for (const team of activeTeams) {
+        try {
+          const { data: unnotifiedVisits, error: errV } = await supabaseClient
+            .from('np_poi_visits')
+            .select('id,v,poi_name,arrived_at,duration_hours')
+            .eq('team', team)
+            .is('left_at', null)
+            .eq('notified', false);
+          
+          if (errV) throw errV;
+          if (!unnotifiedVisits || unnotifiedVisits.length === 0) continue;
+
+          const { data: pois, error: errP } = await supabaseClient
+            .from('np_pois')
+            .select('name,is_blacklist');
+          if (errP) throw errP;
+          const blacklistPois = new Set(pois ? pois.filter(p => p.is_blacklist).map(p => p.name) : []);
+
+          const { data: dispos, error: errD } = await supabaseClient
+            .from('np_dispo')
+            .select('v,geoloc,geoloc_date')
+            .eq('team', team);
+          if (errD) throw errD;
+          
+          const activeGpsTrucks = new Set();
+          if (dispos) {
+            const todayStr = new Date().toISOString().split('T')[0];
+            const todayTime = new Date(todayStr).getTime();
+            dispos.forEach(d => {
+              if (d.geoloc_date) {
+                const gpsTime = new Date(d.geoloc_date).getTime();
+                const diffDays = Math.round((todayTime - gpsTime) / (1000 * 60 * 60 * 24));
+                if (d.geoloc !== 'OFF' && diffDays <= 2) {
+                  activeGpsTrucks.add(d.v.trim().toUpperCase());
+                }
+              }
+            });
+          }
+
+          for (const v of unnotifiedVisits) {
+            const isGpsActive = activeGpsTrucks.has(v.v.trim().toUpperCase());
+            if (!isGpsActive) {
+              await supabaseClient.from('np_poi_visits').update({ notified: true }).eq('id', v.id);
+              continue;
+            }
+
+            const arrivedDate = new Date(v.arrived_at);
+            const todayDate = new Date();
+            if (arrivedDate.toDateString() !== todayDate.toDateString()) {
+              await supabaseClient.from('np_poi_visits').update({ notified: true }).eq('id', v.id);
+              continue;
+            }
+
+            const isBlacklisted = blacklistPois.has(v.poi_name);
+            if (isBlacklisted) {
+              window.ALERTED_BLACKLIST_VISITS = window.ALERTED_BLACKLIST_VISITS || new Set();
+              if (!window.ALERTED_BLACKLIST_VISITS.has(v.id)) {
+                window.ALERTED_BLACKLIST_VISITS.add(v.id);
+                const timeStr = new Date(v.arrived_at).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+                showBlacklistAlertModal(v.v, v.poi_name, timeStr);
+              }
+              await supabaseClient.from('np_poi_visits').update({ notified: true }).eq('id', v.id);
+            }
+          }
+        } catch (e) {
+          console.error(`Error checking POI alerts for team ${team}:`, e);
+        }
       }
     }
 
@@ -1287,6 +1348,7 @@
 
     // Graphique Camembert Disponibilité
     function renderAvailabilityChart(dispos) {
+      if (!document.getElementById('chart-availability')) return;
       const stats = {
         'Disponible': 0,
         'En Mission/Transit': 0,
@@ -1330,6 +1392,7 @@
 
     // Rendu des tableaux d'historique
     function renderTables(pannes, ncs) {
+      if (!document.getElementById('table-pannes')) return;
       // 1. Tableau des pannes
       const pBody = document.querySelector('#table-pannes tbody');
       
