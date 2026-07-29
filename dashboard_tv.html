@@ -1501,11 +1501,15 @@
               chauffeur: cells.findIndex(h => h.includes('cond') || h.includes('chauffeur') || h.includes('pilote') || h.includes('affrete')),
               marchandise: cells.findIndex(h => h.includes('marchandise') || h.includes('produit')),
               csr: cells.findIndex(h => h.includes('csr') || h.includes('chef') || h.includes('nom de csr')),
-              statut: cells.findIndex(h => {
-                const norm = h.trim();
-                if (norm.includes('seg') || norm.includes('vehicule') || norm.includes('rep')) return false;
-                return norm.includes('statut') || norm.includes('etat') || norm.includes('situation') || norm.includes('phase') || norm.includes('etape') || norm.includes('ot') || norm.includes('progression') || norm.includes('stat');
-              })
+              statut: (() => {
+                const trackIdx = cells.findIndex(h => h.includes('tracking') || h === 'trck' || h.includes('track'));
+                if (trackIdx !== -1) return trackIdx;
+                return cells.findIndex(h => {
+                  const norm = h.trim();
+                  if (norm.includes('seg') || norm.includes('vehicule') || norm.includes('rep')) return false;
+                  return norm.includes('statut') || norm.includes('etat') || norm.includes('situation') || norm.includes('phase') || norm.includes('etape') || norm.includes('ot') || norm.includes('progression') || norm.includes('stat');
+                });
+              })()
             };
             break;
           }
