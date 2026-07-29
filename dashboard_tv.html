@@ -683,14 +683,14 @@
         <i class="fa-solid fa-chart-line kpi-icon"></i>
       </div>
 
-      <!-- KPI 3 : Segments Atypiques -->
-      <div class="kpi-card orange">
+      <!-- KPI 3 : Segments Livrés -->
+      <div class="kpi-card green">
         <div class="kpi-info">
-          <h3>Segments Atypiques</h3>
-          <div id="kpi-segments-atypiques" class="kpi-value">0</div>
-          <div class="kpi-subtext">Ni prov. / livré / CR</div>
+          <h3>Segments Livrés</h3>
+          <div id="kpi-segments-livres" class="kpi-value">0</div>
+          <div class="kpi-subtext">Statut livré importé</div>
         </div>
-        <i class="fa-solid fa-circle-exclamation kpi-icon"></i>
+        <i class="fa-solid fa-truck-ramp-box kpi-icon"></i>
       </div>
 
       <!-- KPI 4 : Segments Chargés / Confirmés -->
@@ -1177,19 +1177,19 @@
         avgEl.textContent = avg.toFixed(1);
       }
 
-      // 3. Segments Atypiques (Ni provisoire, ni livré, ni compte rendu)
-      let atypiquesCount = 0;
+      // 3. Segments Livrés (Statut livré importé)
+      let livresCount = 0;
       if (segments) {
         segments.forEach(s => {
           const status = (s.statut || '').trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-          if (status && !status.includes('provisoire') && !status.includes('livre') && !status.includes('compte rendu') && !status.includes('cr') && status !== '—') {
-            atypiquesCount++;
+          if (status.includes('livre')) {
+            livresCount++;
           }
         });
       }
-      const atypEl = document.getElementById('kpi-segments-atypiques');
-      if (atypEl) {
-        atypEl.textContent = atypiquesCount;
+      const livresEl = document.getElementById('kpi-segments-livres');
+      if (livresEl) {
+        livresEl.textContent = livresCount;
       }
 
       // 4. Segments Chargés / Confirmés
@@ -1233,14 +1233,14 @@
       updateRoulageDisplay();
 
       // 8. Chauffeurs BL Manquants
-      const activeMonths = ['mars','avril','mai','juin','juil'];
+      const completedMonths = ['mars','avril','mai','juin'];
       let blManquantsCount = 0;
       if (bls) {
         bls.forEach(r => {
           let hasMissing = false;
-          activeMonths.forEach(m => {
+          completedMonths.forEach(m => {
             const val = (r[m] || '').trim().toLowerCase();
-            if (val !== 'déposer' && val !== 'depose' && val !== 'restitue' && val !== '') {
+            if (val !== 'déposer' && val !== 'depose' && val !== 'restitue') {
               hasMissing = true;
             }
           });
@@ -1449,7 +1449,7 @@
         let headerIndex = -1;
         let indexMap = null;
         for (let i = 0; i < Math.min(lines.length, 50); i++) {
-          const cells = lines[i].map(c => c.trim().toLowerCase());
+          const cells = lines[i].map(c => c.trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, ""));
           const dateIdx = cells.findIndex(h => h.includes('date'));
           const tracIdx = cells.findIndex(h => h.includes('tracteur') || h.includes('camion') || h.includes('immat') || h.includes('vehicule') || h.includes('trr'));
           
@@ -1462,7 +1462,7 @@
               chauffeur: cells.findIndex(h => h.includes('cond') || h.includes('chauffeur') || h.includes('pilote')),
               marchandise: cells.findIndex(h => h.includes('marchandise') || h.includes('produit')),
               csr: cells.findIndex(h => h.includes('csr') || h.includes('chef') || h.includes('nom de csr')),
-              statut: cells.findIndex(h => h.includes('statut') || h.includes('etat') || h.includes('situation') || h.includes('phase'))
+              statut: cells.findIndex(h => h.includes('statut') || h.includes('etat') || h.includes('situation') || h.includes('phase') || h.includes('etape') || h.includes('ot') || h.includes('progression') || h.includes('stat'))
             };
             break;
           }
