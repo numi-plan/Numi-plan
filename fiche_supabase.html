@@ -10371,10 +10371,41 @@ function filterByEtat(etat) {
 function declKm(idx) {
   if (!_checkActionsLibres('declKm')) return;
   const r = DB.dispo[idx];
-  const val = prompt('Relevé kilométrique pour ' + r.v + ' (' + r.chauffeur + ') :', r.km || '');
+  
+  // Récupérer le dernier relevé kilométrique valide enregistré
+  let prevOdo = null;
+  const odoEntry = DB.odo.find(o => o.v === r.v);
+  if (odoEntry && odoEntry.vals && odoEntry.vals.length > 0) {
+    const today_str = today();
+    const todayIdx = DB.odo_weeks.indexOf(today_str);
+    const startFrom = (todayIdx !== -1) ? todayIdx - 1 : odoEntry.vals.length - 1;
+    for (let i = startFrom; i >= 0; i--) {
+      const val = odoEntry.vals[i];
+      if (val !== null && val !== undefined && !isNaN(val) && val > 0) {
+        prevOdo = val;
+        break;
+      }
+    }
+  }
+
+  const val = prompt('Relevé kilométrique pour ' + r.v + ' (' + r.chauffeur + ') :' + (prevOdo ? '\n(Précédent : ' + prevOdo.toLocaleString() + ' km)' : ''), r.km || '');
   if (val === null) return;
   const km = parseInt(val.replace(/\s/g,''));
   if (isNaN(km)) { showToast('⚠️ Valeur invalide', true); return; }
+
+  // Validation des deltas
+  if (prevOdo !== null) {
+    const delta = km - prevOdo;
+    if (delta < 0) {
+      alert('❌ Saisie bloquée : Le kilométrage saisi (' + km.toLocaleString() + ' km) est inférieur au précédent relevé (' + prevOdo.toLocaleString() + ' km).\n\nÉcart négatif interdit : ' + delta.toLocaleString() + ' km.');
+      return;
+    }
+    if (delta > 5000) {
+      alert('❌ Saisie bloquée : L\'écart avec le relevé précédent est de ' + delta.toLocaleString() + ' km, ce qui dépasse la limite maximale autorisée de 5 000 km par semaine.\n\nRelevé précédent : ' + prevOdo.toLocaleString() + ' km.\nVeuillez corriger votre saisie.');
+      return;
+    }
+  }
+
   DB.dispo[idx].km = km;
   // Ajouter aussi dans odomètre
   const today_str = today();
