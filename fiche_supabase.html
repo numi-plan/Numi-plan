@@ -13967,13 +13967,24 @@ async function checkPoiAlerts() {
       // Uniquement ceux qui ont un GPS actif
       totalAlerts = activeVisits.filter(x => activeGpsTrucks.has(x.v.trim().toUpperCase())).length;
     }
-    const badge = document.getElementById("cnt-poi-alerts");
-    if (badge) {
-      if (totalAlerts > 0) {
-        badge.textContent = totalAlerts;
-        badge.style.display = "inline-block";
-      } else {
-        badge.style.display = "none";
+
+    // Rafraîchir les listes de la page POI en direct si elle est active et que l'utilisateur ne filtre pas
+    const poiPage = document.getElementById('page-poi');
+    if (poiPage && poiPage.classList.contains('active')) {
+      const searchClient = document.getElementById("poi-hist-search-client");
+      const searchTruck = document.getElementById("poi-hist-search-truck");
+      const filterFrom = document.getElementById("poi-hist-date-from");
+      const filterTo = document.getElementById("poi-hist-date-to");
+      
+      const isSearching = (searchClient && document.activeElement === searchClient) || 
+                          (searchTruck && document.activeElement === searchTruck) ||
+                          (searchClient && searchClient.value.trim() !== "") ||
+                          (searchTruck && searchTruck.value.trim() !== "") ||
+                          (filterFrom && filterFrom.value !== "") ||
+                          (filterTo && filterTo.value !== "");
+                          
+      if (!isSearching && typeof renderPoiPage === 'function') {
+        renderPoiPage();
       }
     }
   } catch(e) {
@@ -14252,7 +14263,7 @@ async function runGpsDiagnostic() {
             html += `<span style="font-size:11px;color:#22c55e">→ Dedans ! Devrait apparaître en vert sur Numiplan (Équipe ${dispoData[0].team}).</span>`;
           } else if (p.distance <= 1500) {
             html += `<span style="font-size:11px;color:#f59e0b">→ Proche mais en dehors du cercle de détection.</span><br>`;
-            if (isUserAdmin) {
+            if (isAdmin()) {
               html += `<button onclick="updatePoiRadius('${p.id}', '${p.name}', ${Math.ceil(p.distance + 50)})" style="background:rgba(245,158,11,0.2);color:#f59e0b;border:1px solid #f59e0b;border-radius:4px;padding:2px 8px;font-size:10px;cursor:pointer;margin-top:3px;font-weight:600">🎯 Ajuster le rayon à ${Math.ceil(p.distance + 50)} m</button>`;
             }
           }
