@@ -1120,12 +1120,17 @@
           trucksData[tr] = {
             v: tr,
             agence: s.agence || 'INCONNU',
+            chauffeur: s.chauffeur || '—',
             segmentsCount: 0,
-            km: 0
+            km: 0,
+            dates: new Set()
           };
         }
         trucksData[tr].segmentsCount++;
         trucksData[tr].km += parseFloat(s.km) || 0;
+        if (s.date) {
+          trucksData[tr].dates.add(s.date);
+        }
       });
 
       const list = Object.values(trucksData).sort((a, b) => b.km - a.km);
@@ -1135,7 +1140,7 @@
 
       const modalHtml = `
         <div id="modal-km-details" class="modal-backdrop" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); backdrop-filter: blur(5px); z-index: 9999; display: flex; align-items: center; justify-content: center;">
-          <div style="background: #0f172a; border: 1px solid var(--border-color); border-radius: 16px; width: 90%; max-width: 800px; padding: 25px; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.5); color: var(--text-main); display: flex; flex-direction: column; max-height: 85%;">
+          <div style="background: #0f172a; border: 1px solid var(--border-color); border-radius: 16px; width: 90%; max-width: 950px; padding: 25px; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.5); color: var(--text-main); display: flex; flex-direction: column; max-height: 85%;">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; border-bottom: 1px solid var(--border-color); padding-bottom: 12px;">
               <h3 style="font-size: 18px; font-weight: 700; display: flex; align-items: center; gap: 8px; color: var(--text-main);">
                 <i class="fa-solid fa-road" style="color: var(--accent-sky);"></i> Détail des KM d'Exploitation par Camion
@@ -1144,9 +1149,9 @@
             </div>
 
             <div style="display: flex; gap: 15px; margin-bottom: 15px;">
-              <input type="text" id="km-modal-search" placeholder="Rechercher un camion..." oninput="filterKmModalTable()" style="flex: 1; background: rgba(0,0,0,0.3); border: 1px solid var(--border-color); border-radius: 6px; padding: 6px 12px; color: var(--text-main); font-size: 13px;">
+              <input type="text" id="km-modal-search" placeholder="Rechercher un camion ou un chauffeur (saisie partielle)..." oninput="filterKmModalTable()" style="flex: 1; background: rgba(0,0,0,0.3); border: 1px solid var(--border-color); border-radius: 6px; padding: 8px 12px; color: var(--text-main); font-size: 13px;">
               
-              <select id="km-modal-agency" onchange="filterKmModalTable()" style="background: rgba(0,0,0,0.3); border: 1px solid var(--border-color); border-radius: 6px; padding: 6px 12px; color: var(--text-main); font-size: 13px; cursor: pointer;">
+              <select id="km-modal-agency" onchange="filterKmModalTable()" style="background: rgba(0,0,0,0.3); border: 1px solid var(--border-color); border-radius: 6px; padding: 8px 12px; color: var(--text-main); font-size: 13px; cursor: pointer;">
                 <option value="ALL">Toutes les agences</option>
                 <option value="A">Agence A</option>
                 <option value="B">Agence B</option>
@@ -1159,10 +1164,12 @@
               <table style="width: 100%; border-collapse: collapse; text-align: left; font-size: 13px;">
                 <thead>
                   <tr style="background: rgba(255,255,255,0.03); border-bottom: 1px solid var(--border-color);">
-                    <th style="padding: 12px; color: var(--text-muted);">Camion</th>
-                    <th style="padding: 12px; color: var(--text-muted);">Agence</th>
-                    <th style="padding: 12px; color: var(--text-muted); text-align: right;">Segments réalisés</th>
-                    <th style="padding: 12px; color: var(--text-muted); text-align: right;">KM d'Exploitation</th>
+                    <th style="padding: 12px; color: var(--text-muted); width: 140px;">Camion</th>
+                    <th style="padding: 12px; color: var(--text-muted);">Chauffeur</th>
+                    <th style="padding: 12px; color: var(--text-muted); width: 120px;">Agence</th>
+                    <th style="padding: 12px; color: var(--text-muted); text-align: right; width: 100px;">Segments</th>
+                    <th style="padding: 12px; color: var(--text-muted); text-align: right; width: 140px;">Moyenne / Jour</th>
+                    <th style="padding: 12px; color: var(--text-muted); text-align: right; width: 140px;">KM d'Exploitation</th>
                   </tr>
                 </thead>
                 <tbody id="km-modal-tbody"></tbody>
@@ -1192,7 +1199,11 @@
       if (!tbody || !window.KM_MODAL_LIST) return;
 
       const filtered = window.KM_MODAL_LIST.filter(row => {
-        if (query && !row.v.includes(query)) return false;
+        if (query) {
+          const matchTruck = row.v.toUpperCase().includes(query);
+          const matchDriver = row.chauffeur.toUpperCase().includes(query);
+          if (!matchTruck && !matchDriver) return false;
+        }
         if (agency !== 'ALL') {
           const cleanAgency = row.agence.trim().toUpperCase();
           if (cleanAgency !== agency && !cleanAgency.includes('AGENCE ' + agency) && !cleanAgency.includes('EQ ' + agency) && !cleanAgency.includes('EQUIPE ' + agency)) {
@@ -1210,12 +1221,17 @@
         filtered.forEach(row => {
           totalKm += row.km;
           totalSegs += row.segmentsCount;
+
+          const uniqueDays = row.dates.size || 1;
+          const avgPerDay = row.km / uniqueDays;
           
           rowsHtml += `
             <tr style="border-bottom: 1px solid rgba(255,255,255,0.03);">
               <td style="padding: 10px 12px; font-weight: 700; font-family: monospace; color: var(--text-main);">${row.v}</td>
+              <td style="padding: 10px 12px; font-weight: 500; color: var(--text-main);">${row.chauffeur}</td>
               <td style="padding: 10px 12px; color: var(--text-muted);">${row.agence}</td>
               <td style="padding: 10px 12px; text-align: right; font-weight: 600; color: var(--text-main);">${row.segmentsCount}</td>
+              <td style="padding: 10px 12px; text-align: right; font-weight: 600; color: var(--accent-orange);">${Math.round(avgPerDay).toLocaleString('fr-FR')} KM/j</td>
               <td style="padding: 10px 12px; text-align: right; font-weight: 700; color: var(--accent-sky);">${row.km.toLocaleString('fr-FR')} KM</td>
             </tr>
           `;
@@ -1223,8 +1239,8 @@
       } else {
         rowsHtml = `
           <tr>
-            <td colspan="4" style="text-align: center; padding: 30px; color: var(--text-muted); font-style: italic;">
-              Aucun camion ne correspond aux critères de recherche.
+            <td colspan="6" style="text-align: center; padding: 30px; color: var(--text-muted); font-style: italic;">
+              Aucun camion ou chauffeur ne correspond aux critères de recherche.
             </td>
           </tr>
         `;
