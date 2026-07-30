@@ -1100,7 +1100,12 @@
         document.getElementById('modal-flash-manager').remove();
         await refreshData();
       } catch (err) {
-        alert("Erreur de suppression: " + err.message)    // Modal d'affichage des détails KM par camion
+        alert("Erreur de suppression: " + err.message);
+      }
+    }
+    window.deleteFlashGroup = deleteFlashGroup;
+
+    // Modal d'affichage des détails KM par camion
     function openKmDetailsModal() {
       const trucksData = {};
       const startDate = document.getElementById('date-start').value;
