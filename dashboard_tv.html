@@ -643,6 +643,11 @@
       </label>
       <input type="file" id="csv-file-input" accept=".csv" onchange="handleFileImport(event)">
       
+      <!-- Bouton Détails KM -->
+      <button onclick="openKmDetailsModal()" class="btn" style="background: rgba(56, 189, 248, 0.2); border: 1px solid var(--accent-sky); color: var(--accent-sky); padding: 8px 16px; border-radius: 6px; font-weight: 700; cursor: pointer; display: flex; align-items: center; gap: 8px; height: 34px; line-height: 1;">
+        <i class="fa-solid fa-list-check"></i> Détail KM
+      </button>
+      
       <!-- Mode TV Défilement automatique -->
       <button id="btn-tv" class="btn btn-tv-mode" onclick="toggleTvMode()">
         <i class="fa-solid fa-desktop"></i> Mode TV Auto
@@ -1099,6 +1104,140 @@
     }
     window.deleteFlashGroup = deleteFlashGroup;
 
+    // Modal d'affichage des détails KM par camion
+    function openKmDetailsModal() {
+      const trucksData = {};
+      const startDate = document.getElementById('date-start').value;
+      const endDate = document.getElementById('date-end').value;
+      
+      const filteredCsv = rawCsvData.filter(row => row.date >= startDate && row.date <= endDate);
+
+      filteredCsv.forEach(s => {
+        const tr = s.tracteur;
+        if (!tr) return;
+        
+        if (!trucksData[tr]) {
+          trucksData[tr] = {
+            v: tr,
+            agence: s.agence || 'INCONNU',
+            segmentsCount: 0,
+            km: 0
+          };
+        }
+        trucksData[tr].segmentsCount++;
+        trucksData[tr].km += parseFloat(s.km) || 0;
+      });
+
+      const list = Object.values(trucksData).sort((a, b) => b.km - a.km);
+
+      const existing = document.getElementById('modal-km-details');
+      if (existing) existing.remove();
+
+      const modalHtml = `
+        <div id="modal-km-details" class="modal-backdrop" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); backdrop-filter: blur(5px); z-index: 9999; display: flex; align-items: center; justify-content: center;">
+          <div style="background: #0f172a; border: 1px solid var(--border-color); border-radius: 16px; width: 90%; max-width: 800px; padding: 25px; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.5); color: var(--text-main); display: flex; flex-direction: column; max-height: 85%;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; border-bottom: 1px solid var(--border-color); padding-bottom: 12px;">
+              <h3 style="font-size: 18px; font-weight: 700; display: flex; align-items: center; gap: 8px; color: var(--text-main);">
+                <i class="fa-solid fa-road" style="color: var(--accent-sky);"></i> Détail des KM d'Exploitation par Camion
+              </h3>
+              <button onclick="document.getElementById('modal-km-details').remove()" style="background: none; border: none; color: var(--text-muted); font-size: 18px; cursor: pointer;">&times;</button>
+            </div>
+
+            <div style="display: flex; gap: 15px; margin-bottom: 15px;">
+              <input type="text" id="km-modal-search" placeholder="Rechercher un camion..." oninput="filterKmModalTable()" style="flex: 1; background: rgba(0,0,0,0.3); border: 1px solid var(--border-color); border-radius: 6px; padding: 6px 12px; color: var(--text-main); font-size: 13px;">
+              
+              <select id="km-modal-agency" onchange="filterKmModalTable()" style="background: rgba(0,0,0,0.3); border: 1px solid var(--border-color); border-radius: 6px; padding: 6px 12px; color: var(--text-main); font-size: 13px; cursor: pointer;">
+                <option value="ALL">Toutes les agences</option>
+                <option value="A">Agence A</option>
+                <option value="B">Agence B</option>
+                <option value="C">Agence C</option>
+                <option value="D">Agence D</option>
+              </select>
+            </div>
+
+            <div style="overflow-y: auto; flex: 1; border: 1px solid var(--border-color); border-radius: 10px; background: rgba(0,0,0,0.2);">
+              <table style="width: 100%; border-collapse: collapse; text-align: left; font-size: 13px;">
+                <thead>
+                  <tr style="background: rgba(255,255,255,0.03); border-bottom: 1px solid var(--border-color);">
+                    <th style="padding: 12px; color: var(--text-muted);">Camion</th>
+                    <th style="padding: 12px; color: var(--text-muted);">Agence</th>
+                    <th style="padding: 12px; color: var(--text-muted); text-align: right;">Segments réalisés</th>
+                    <th style="padding: 12px; color: var(--text-muted); text-align: right;">KM d'Exploitation</th>
+                  </tr>
+                </thead>
+                <tbody id="km-modal-tbody"></tbody>
+              </table>
+            </div>
+
+            <div id="km-modal-summary" style="margin-top: 15px; padding-top: 12px; border-top: 1px solid var(--border-color); display: flex; justify-content: space-between; font-size: 12px; color: var(--text-muted); font-weight: 600;">
+              <div>Camions : <span id="km-modal-count-trucks" style="color: var(--text-main);">0</span></div>
+              <div>Segments : <span id="km-modal-count-segs" style="color: var(--text-main);">0</span></div>
+              <div>KM Total : <span id="km-modal-total-km" style="color: var(--accent-sky);">0 KM</span></div>
+            </div>
+          </div>
+        </div>
+      `;
+
+      document.body.insertAdjacentHTML('beforeend', modalHtml);
+      window.KM_MODAL_LIST = list;
+      filterKmModalTable();
+    }
+    window.openKmDetailsModal = openKmDetailsModal;
+
+    function filterKmModalTable() {
+      const query = document.getElementById('km-modal-search').value.trim().toUpperCase();
+      const agency = document.getElementById('km-modal-agency').value;
+      const tbody = document.getElementById('km-modal-tbody');
+      
+      if (!tbody || !window.KM_MODAL_LIST) return;
+
+      const filtered = window.KM_MODAL_LIST.filter(row => {
+        if (query && !row.v.includes(query)) return false;
+        if (agency !== 'ALL') {
+          const cleanAgency = row.agence.trim().toUpperCase();
+          if (cleanAgency !== agency && !cleanAgency.includes('AGENCE ' + agency) && !cleanAgency.includes('EQ ' + agency) && !cleanAgency.includes('EQUIPE ' + agency)) {
+            return false;
+          }
+        }
+        return true;
+      });
+
+      let totalKm = 0;
+      let totalSegs = 0;
+      let rowsHtml = '';
+
+      if (filtered.length > 0) {
+        filtered.forEach(row => {
+          totalKm += row.km;
+          totalSegs += row.segmentsCount;
+          
+          rowsHtml += `
+            <tr style="border-bottom: 1px solid rgba(255,255,255,0.03);">
+              <td style="padding: 10px 12px; font-weight: 700; font-family: monospace; color: var(--text-main);">${row.v}</td>
+              <td style="padding: 10px 12px; color: var(--text-muted);">${row.agence}</td>
+              <td style="padding: 10px 12px; text-align: right; font-weight: 600; color: var(--text-main);">${row.segmentsCount}</td>
+              <td style="padding: 10px 12px; text-align: right; font-weight: 700; color: var(--accent-sky);">${row.km.toLocaleString('fr-FR')} KM</td>
+            </tr>
+          `;
+        });
+      } else {
+        rowsHtml = `
+          <tr>
+            <td colspan="4" style="text-align: center; padding: 30px; color: var(--text-muted); font-style: italic;">
+              Aucun camion ne correspond aux critères de recherche.
+            </td>
+          </tr>
+        `;
+      }
+
+      tbody.innerHTML = rowsHtml;
+      
+      document.getElementById('km-modal-count-trucks').textContent = filtered.length;
+      document.getElementById('km-modal-count-segs').textContent = totalSegs;
+      document.getElementById('km-modal-total-km').textContent = totalKm.toLocaleString('fr-FR') + ' KM';
+    }
+    window.filterKmModalTable = filterKmModalTable;
+
     // Vérifier si une équipe passe le filtre sélectionné
     function isTeamInFilter(team, filterValue) {
       if (!team) return false;
@@ -1366,6 +1505,15 @@
         });
       }
 
+      // 9. KM d'Exploitation (tracking)
+      let totalKm = 0;
+      if (segments) {
+        segments.forEach(s => {
+          totalKm += parseFloat(s.km) || 0;
+        });
+      }
+      const avgKm = totalKm / t;
+
       // Déterminer la couleur de l'agence
       let agencyColor = '#38bdf8'; // Bleu par défaut
       if (agencyCode === 'A') agencyColor = '#38bdf8';
@@ -1401,6 +1549,16 @@
                 <div class="kpi-subtext">segs / camion / jour</div>
               </div>
               <i class="fa-solid fa-chart-line kpi-icon"></i>
+            </div>
+
+            <!-- KPI 2b : KM Moyen d'Exploitation -->
+            <div class="kpi-card blue">
+              <div class="kpi-info">
+                <h3>KM Moyen d'Exploitation</h3>
+                <div class="kpi-value">${Math.round(avgKm).toLocaleString('fr-FR')} KM</div>
+                <div class="kpi-subtext">Total: ${Math.round(totalKm).toLocaleString('fr-FR')} KM</div>
+              </div>
+              <i class="fa-solid fa-road kpi-icon"></i>
             </div>
 
             <!-- KPI 3 : Segments Livrés -->
@@ -1719,7 +1877,11 @@
                   if (norm.includes('seg') || norm.includes('vehicule') || norm.includes('rep')) return false;
                   return norm.includes('statut') || norm.includes('etat') || norm.includes('situation') || norm.includes('phase') || norm.includes('etape') || norm.includes('ot') || norm.includes('progression') || norm.includes('stat');
                 });
-              })()
+              })(),
+              km: cells.findIndex(h => {
+                const norm = h.trim().toLowerCase();
+                return norm.includes('km exploitation') || norm.includes('exploitation') || norm === 'km' || norm.includes('kilometre');
+              })
             };
             break;
           }
@@ -1753,7 +1915,8 @@
             chauffeur: indexMap.chauffeur !== -1 ? cols[indexMap.chauffeur]?.trim() : '—',
             marchandise: indexMap.marchandise !== -1 ? cols[indexMap.marchandise]?.trim() : '—',
             csr: indexMap.csr !== -1 ? cols[indexMap.csr]?.trim() : '—',
-            statut: indexMap.statut !== -1 ? cols[indexMap.statut]?.trim() : '—'
+            statut: indexMap.statut !== -1 ? cols[indexMap.statut]?.trim() : '—',
+            km: indexMap.km !== -1 ? parseFloat(String(cols[indexMap.km]).replace(/[\s,]+/g, '')) || 0 : 0
           });
         }
 
