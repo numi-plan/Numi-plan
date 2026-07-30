@@ -1415,7 +1415,7 @@
         renderKpis(filteredDispos, filteredPannes, filteredNcs, filteredSegments, filteredBls, truckToTeamMap);
         renderAvailabilityChart(filteredDispos);
         renderTables(filteredPannes, filteredNcs);
-        renderFlashTicker(filteredPannes, flashList);
+        renderFlashTicker(filteredSegments, flashList);
         
 
       } catch (err) {
@@ -1836,23 +1836,49 @@
     }
 
     // Gestion et rendu du ticker de news TV
-    function renderFlashTicker(pannes, flashes) {
+    function renderFlashTicker(segments, flashes) {
       const tickerContainer = document.getElementById('ticker-content');
       const items = [];
 
-      // 1. Ajouter les pannes actives (limitées aux 10 plus récentes)
-      const activePannes = pannes.filter(p => p.etat !== 'Clôturé' && p.etat !== 'Cloture');
-      const recentPannes = activePannes.slice(0, 10);
-      recentPannes.forEach(p => {
-        items.push(`
-          <div class="ticker-item" style="color: #f87171;">
-            <span class="ticker-dot" style="background: #ef4444;"></span>
-            🚨 PANNE ACTIVE : Camion ${p.immat} (${p.type || 'Inconnu'}) - Chauffeur: ${p.chauffeur || '—'}
-          </div>
-        `);
+      // 1. Calculer le rendement et le km moyen par jour pour chaque camion
+      const trucksData = {};
+      if (segments) {
+        segments.forEach(s => {
+          const tr = s.tracteur;
+          if (!tr) return;
+          
+          if (!trucksData[tr]) {
+            trucksData[tr] = {
+              v: tr,
+              chauffeur: s.chauffeur || '—',
+              agence: s.agence || 'INCONNU',
+              km: 0,
+              dates: new Set()
+            };
+          }
+          trucksData[tr].km += parseFloat(s.km) || 0;
+          if (s.date) {
+            trucksData[tr].dates.add(s.date);
+          }
+        });
+      }
+
+      // 2. Identifier les camions avec km moyen par jour <= 300km (seuil critique)
+      Object.values(trucksData).forEach(row => {
+        const uniqueDays = row.dates.size || 1;
+        const avgPerDay = row.km / uniqueDays;
+        
+        if (avgPerDay <= 300) {
+          items.push(`
+            <div class="ticker-item" style="color: #fb923c;">
+              <span class="ticker-dot" style="background: #f97316;"></span>
+              ⚠️ SEUIL CRITIQUE : Camion ${row.v} (Chauffeur: ${row.chauffeur} - ${row.agence}) - Moyenne: ${Math.round(avgPerDay)} km/j
+            </div>
+          `);
+        }
       });
 
-      // 2. Ajouter les messages administratifs
+      // 3. Ajouter les messages administratifs (flashes)
       if (flashes && flashes.length > 0) {
         flashes.forEach(f => {
           items.push(`
@@ -1867,7 +1893,7 @@
       // Ticker par défaut si vide
       if (items.length === 0) {
         items.push(`
-          <div class="ticker-item"><span class="ticker-dot"></span>Aucune panne ou alerte en cours. Flotte sous contrôle.</div>
+          <div class="ticker-item"><span class="ticker-dot"></span>Aucun camion en seuil critique. Flotte sous contrôle.</div>
           <div class="ticker-item"><span class="ticker-dot"></span>Pensez à importer les derniers segments journaliers.</div>
         `);
       }
