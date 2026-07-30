@@ -13681,7 +13681,7 @@ async function renderPoiPage() {
     // Contrôle des balises GPS inactives (n'émettant plus)
     let dispos = null;
     try {
-      dispos = await poiSupabaseFetch(`np_dispo?select=v,geoloc,geoloc_date&team=eq.${activeTeam}`);
+      dispos = await poiSupabaseFetch(`np_dispo?select=v,geoloc,geoloc_date,etat,chauffeur&team=eq.${activeTeam}`);
       if (dispos && sessionStorage.getItem('numiplan_gps_alert_shown') !== 'yes') {
         const todayStr = new Date().toISOString().split('T')[0];
         const todayTime = new Date(todayStr).getTime();
@@ -13752,7 +13752,14 @@ async function renderPoiPage() {
       const blacklistPois = new Set(pois.filter(p => p.is_blacklist).map(p => p.name));
       
       liveActiveVisits.forEach(v => {
-        const driverName = window.DB && window.DB.dispo ? (window.DB.dispo.find(d => (d.v || "").trim().toUpperCase() === (v.v || "").trim().toUpperCase())?.chauffeur || "—") : "—";
+        const truckDispo = dispos ? dispos.find(d => d.v.trim().toUpperCase() === v.v.trim().toUpperCase()) : null;
+        const driverName = truckDispo?.chauffeur || (window.DB && window.DB.dispo ? (window.DB.dispo.find(d => (d.v || "").trim().toUpperCase() === (v.v || "").trim().toUpperCase())?.chauffeur || "—") : "—");
+        
+        let panneBadge = '';
+        if (truckDispo && (truckDispo.etat === 'En panne' || truckDispo.etat === 'PANNE')) {
+          panneBadge = `<span style="background:#ef4444; color:white; padding:1px 6px; border-radius:4px; font-size:10px; margin-left:8px; font-weight:bold; white-space:nowrap; display:inline-block;"><i class="fa-solid fa-wrench"></i> EN PANNE</span>`;
+        }
+
         const hours = Math.floor(v.duration_hours);
         const mins = Math.round((v.duration_hours - hours) * 60);
         const waitStr = `${hours}h ${mins}m`;
@@ -13775,7 +13782,7 @@ async function renderPoiPage() {
         
         activeBody.innerHTML += `
           <tr ${rowBg}>
-            <td class="mono" style="color:var(--acc);font-weight:600">${v.v}</td>
+            <td class="mono" style="color:var(--acc);font-weight:600">${v.v}${panneBadge}</td>
             <td>${driverName}</td>
             <td style="font-weight:600;color:${isBlacklisted ? '#ef4444' : 'var(--txt1)'}">${v.poi_name}</td>
             <td>${new Date(v.arrived_at).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}</td>
@@ -14337,7 +14344,14 @@ function filterPoiHistory() {
     historyBody.innerHTML = `<tr><td colspan="7" style="text-align:center;color:var(--txt3)">Aucune immobilisation ne correspond aux filtres.</td></tr>`;
   } else {
     filtered.forEach(v => {
-      const driverName = window.DB && window.DB.dispo ? (window.DB.dispo.find(d => (d.v || "").trim().toUpperCase() === (v.v || "").trim().toUpperCase())?.chauffeur || "—") : "—";
+      const truckDispo = window.DB && window.DB.dispo ? window.DB.dispo.find(d => (d.v || "").trim().toUpperCase() === (v.v || "").trim().toUpperCase()) : null;
+      const driverName = truckDispo?.chauffeur || "—";
+      
+      let panneBadge = '';
+      if (truckDispo && (truckDispo.etat === 'En panne' || truckDispo.etat === 'PANNE')) {
+        panneBadge = `<span style="background:#ef4444; color:white; padding:1px 6px; border-radius:4px; font-size:10px; margin-left:8px; font-weight:bold; white-space:nowrap; display:inline-block;"><i class="fa-solid fa-wrench"></i> EN PANNE</span>`;
+      }
+
       const hours = Math.floor(v.duration_hours);
       const mins = Math.round((v.duration_hours - hours) * 60);
       const durationStr = `${hours}h ${mins}m`;
@@ -14345,7 +14359,7 @@ function filterPoiHistory() {
       historyBody.innerHTML += `
         <tr>
           <td>${new Date(v.arrived_at).toLocaleDateString('fr-FR')}</td>
-          <td class="mono">${v.v}</td>
+          <td class="mono">${v.v}${panneBadge}</td>
           <td>${driverName}</td>
           <td style="font-weight:600">${v.poi_name}</td>
           <td>${new Date(v.arrived_at).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}</td>
