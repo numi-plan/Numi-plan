@@ -685,6 +685,7 @@
     
     let supabaseClient = null;
     let rawCsvData = [];
+    let rawPannesData = [];
     let charts = {};
     let tvInterval = null;
     let activeTabIndex = 0;
@@ -1099,12 +1100,7 @@
         document.getElementById('modal-flash-manager').remove();
         await refreshData();
       } catch (err) {
-        alert("Erreur de suppression: " + err.message);
-      }
-    }
-    window.deleteFlashGroup = deleteFlashGroup;
-
-    // Modal d'affichage des détails KM par camion
+        alert("Erreur de suppression: " + err.message)    // Modal d'affichage des détails KM par camion
     function openKmDetailsModal() {
       const trucksData = {};
       const startDate = document.getElementById('date-start').value;
@@ -1117,12 +1113,16 @@
         if (!tr) return;
         
         if (!trucksData[tr]) {
+          // Calculer le nombre de pannes déclarées sur la période pour ce camion
+          const truckPannesCount = (rawPannesData || []).filter(p => p.immat && p.immat.trim().toUpperCase() === tr.trim().toUpperCase()).length;
+          
           trucksData[tr] = {
             v: tr,
             agence: s.agence || 'INCONNU',
             chauffeur: s.chauffeur || '—',
             segmentsCount: 0,
             km: 0,
+            pannesCount: truckPannesCount,
             dates: new Set()
           };
         }
@@ -1133,14 +1133,18 @@
         }
       });
 
-      const list = Object.values(trucksData).sort((a, b) => b.km - a.km);
+      const list = Object.values(trucksData);
+      
+      // Tri par défaut : plus grand nombre de segments descendant
+      window.KM_MODAL_SORT = { field: 'segmentsCount', asc: false };
+      list.sort((a, b) => b.segmentsCount - a.segmentsCount);
 
       const existing = document.getElementById('modal-km-details');
       if (existing) existing.remove();
 
       const modalHtml = `
         <div id="modal-km-details" class="modal-backdrop" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); backdrop-filter: blur(5px); z-index: 9999; display: flex; align-items: center; justify-content: center;">
-          <div style="background: #0f172a; border: 1px solid var(--border-color); border-radius: 16px; width: 90%; max-width: 950px; padding: 25px; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.5); color: var(--text-main); display: flex; flex-direction: column; max-height: 85%;">
+          <div style="background: #0f172a; border: 1px solid var(--border-color); border-radius: 16px; width: 90%; max-width: 1000px; padding: 25px; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.5); color: var(--text-main); display: flex; flex-direction: column; max-height: 85%;">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; border-bottom: 1px solid var(--border-color); padding-bottom: 12px;">
               <h3 style="font-size: 18px; font-weight: 700; display: flex; align-items: center; gap: 8px; color: var(--text-main);">
                 <i class="fa-solid fa-road" style="color: var(--accent-sky);"></i> Détail des KM d'Exploitation par Camion
@@ -1153,10 +1157,10 @@
               
               <select id="km-modal-agency" onchange="filterKmModalTable()" style="background: rgba(0,0,0,0.3); border: 1px solid var(--border-color); border-radius: 6px; padding: 8px 12px; color: var(--text-main); font-size: 13px; cursor: pointer;">
                 <option value="ALL">Toutes les agences</option>
-                <option value="A">Agence A</option>
-                <option value="B">Agence B</option>
-                <option value="C">Agence C</option>
-                <option value="D">Agence D</option>
+                <option value="A">Agence A (PART A)</option>
+                <option value="B">Agence B (PART B)</option>
+                <option value="C">Agence C (PART C)</option>
+                <option value="D">Agence D (PART D)</option>
               </select>
             </div>
 
@@ -1164,12 +1168,13 @@
               <table style="width: 100%; border-collapse: collapse; text-align: left; font-size: 13px;">
                 <thead>
                   <tr style="background: rgba(255,255,255,0.03); border-bottom: 1px solid var(--border-color);">
-                    <th style="padding: 12px; color: var(--text-muted); width: 140px;">Camion</th>
-                    <th style="padding: 12px; color: var(--text-muted);">Chauffeur</th>
-                    <th style="padding: 12px; color: var(--text-muted); width: 120px;">Agence</th>
-                    <th style="padding: 12px; color: var(--text-muted); text-align: right; width: 100px;">Segments</th>
-                    <th style="padding: 12px; color: var(--text-muted); text-align: right; width: 140px;">Moyenne / Jour</th>
-                    <th style="padding: 12px; color: var(--text-muted); text-align: right; width: 140px;">KM d'Exploitation</th>
+                    <th onclick="sortKmModal('v')" style="padding: 12px; color: var(--text-muted); cursor: pointer; user-select: none; width: 140px;">Camion <span id="sort-icon-v"></span></th>
+                    <th onclick="sortKmModal('chauffeur')" style="padding: 12px; color: var(--text-muted); cursor: pointer; user-select: none;">Chauffeur <span id="sort-icon-chauffeur"></span></th>
+                    <th onclick="sortKmModal('agence')" style="padding: 12px; color: var(--text-muted); cursor: pointer; user-select: none; width: 120px;">Agence <span id="sort-icon-agence"></span></th>
+                    <th onclick="sortKmModal('segmentsCount')" style="padding: 12px; color: var(--text-muted); text-align: right; cursor: pointer; user-select: none; width: 110px;">Segments <span id="sort-icon-segmentsCount"> 🔽</span></th>
+                    <th onclick="sortKmModal('avgPerDay')" style="padding: 12px; color: var(--text-muted); text-align: right; cursor: pointer; user-select: none; width: 130px;">Moyenne / Jour <span id="sort-icon-avgPerDay"></span></th>
+                    <th onclick="sortKmModal('km')" style="padding: 12px; color: var(--text-muted); text-align: right; cursor: pointer; user-select: none; width: 140px;">KM d'Exploitation <span id="sort-icon-km"></span></th>
+                    <th onclick="sortKmModal('pannesCount')" style="padding: 12px; color: var(--text-muted); text-align: right; cursor: pointer; user-select: none; width: 110px;">Pannes <span id="sort-icon-pannesCount"></span></th>
                   </tr>
                 </thead>
                 <tbody id="km-modal-tbody"></tbody>
@@ -1205,8 +1210,10 @@
           if (!matchTruck && !matchDriver) return false;
         }
         if (agency !== 'ALL') {
-          const cleanAgency = row.agence.trim().toUpperCase();
-          if (cleanAgency !== agency && !cleanAgency.includes('AGENCE ' + agency) && !cleanAgency.includes('EQ ' + agency) && !cleanAgency.includes('EQUIPE ' + agency)) {
+          const rowAgency = (row.agence || '').trim().toUpperCase();
+          // Filtre intelligent : cherche le code d'agence entouré de délimiteurs de mots ou après PART/AGENCE/EQ
+          const rx = new RegExp('(^|\\s|PART\\s+|AGENCE\\s+|EQ\\s+|EQUIPE\\s+)' + agency + '(\\s+|$)', 'i');
+          if (!rx.test(rowAgency)) {
             return false;
           }
         }
@@ -1225,6 +1232,9 @@
           const uniqueDays = row.dates.size || 1;
           const avgPerDay = row.km / uniqueDays;
           
+          const panneStyle = row.pannesCount > 0 ? 'color:#ef4444; font-weight:700;' : 'color:var(--text-muted);';
+          const panneText = row.pannesCount > 0 ? `🛠️ ${row.pannesCount}` : '0';
+
           rowsHtml += `
             <tr style="border-bottom: 1px solid rgba(255,255,255,0.03);">
               <td style="padding: 10px 12px; font-weight: 700; font-family: monospace; color: var(--text-main);">${row.v}</td>
@@ -1233,13 +1243,14 @@
               <td style="padding: 10px 12px; text-align: right; font-weight: 600; color: var(--text-main);">${row.segmentsCount}</td>
               <td style="padding: 10px 12px; text-align: right; font-weight: 600; color: var(--accent-orange);">${Math.round(avgPerDay).toLocaleString('fr-FR')} KM/j</td>
               <td style="padding: 10px 12px; text-align: right; font-weight: 700; color: var(--accent-sky);">${row.km.toLocaleString('fr-FR')} KM</td>
+              <td style="padding: 10px 12px; text-align: right; ${panneStyle}">${panneText}</td>
             </tr>
           `;
         });
       } else {
         rowsHtml = `
           <tr>
-            <td colspan="6" style="text-align: center; padding: 30px; color: var(--text-muted); font-style: italic;">
+            <td colspan="7" style="text-align: center; padding: 30px; color: var(--text-muted); font-style: italic;">
               Aucun camion ou chauffeur ne correspond aux critères de recherche.
             </td>
           </tr>
@@ -1253,6 +1264,53 @@
       document.getElementById('km-modal-total-km').textContent = totalKm.toLocaleString('fr-FR') + ' KM';
     }
     window.filterKmModalTable = filterKmModalTable;
+
+    function sortKmModal(field) {
+      const current = window.KM_MODAL_SORT || { field: 'segmentsCount', asc: false };
+      if (current.field === field) {
+        current.asc = !current.asc;
+      } else {
+        current.field = field;
+        // Tri ascendant par défaut pour le texte, descendant pour les nombres
+        current.asc = (field === 'v' || field === 'chauffeur' || field === 'agence') ? true : false;
+      }
+      window.KM_MODAL_SORT = current;
+
+      if (window.KM_MODAL_LIST) {
+        window.KM_MODAL_LIST.sort((a, b) => {
+          let valA = a[field];
+          let valB = b[field];
+
+          if (field === 'avgPerDay') {
+            const daysA = a.dates.size || 1;
+            valA = a.km / daysA;
+            const daysB = b.dates.size || 1;
+            valB = b.km / daysB;
+          }
+
+          if (typeof valA === 'string') {
+            return current.asc ? valA.localeCompare(valB) : valB.localeCompare(valA);
+          } else {
+            return current.asc ? valA - valB : valB - valA;
+          }
+        });
+      }
+
+      filterKmModalTable();
+
+      // Mettre à jour les icônes de tri dans les en-têtes
+      ['v', 'chauffeur', 'agence', 'segmentsCount', 'avgPerDay', 'km', 'pannesCount'].forEach(f => {
+        const icon = document.getElementById('sort-icon-' + f);
+        if (icon) {
+          if (f === current.field) {
+            icon.innerHTML = current.asc ? ' 🔼' : ' 🔽';
+          } else {
+            icon.innerHTML = '';
+          }
+        }
+      });
+    }
+    window.sortKmModal = sortKmModal;
 
     // Vérifier si une équipe passe le filtre sélectionné
     function isTeamInFilter(team, filterValue) {
@@ -1311,6 +1369,7 @@
           .gte('date', startDate)
           .lte('date', endDate);
         if (errP) throw errP;
+        rawPannesData = pannesList || [];
 
         // 3. Lire np_nc sur la période
         const { data: ncList, error: errN } = await supabaseClient
