@@ -1387,8 +1387,9 @@
         // 4. Lire np_flash_infos
         const { data: flashList, error: errF } = await supabaseClient
           .from('np_flash_infos')
-          .select('text')
-          .limit(5);
+          .select('titre, contenu, team')
+          .order('created_at', { ascending: false })
+          .limit(10);
 
         // 5. Lire np_bl (Bons de Livraison)
         const { data: blList, error: errBL } = await supabaseClient
@@ -1415,7 +1416,12 @@
         renderKpis(filteredDispos, filteredPannes, filteredNcs, filteredSegments, filteredBls, truckToTeamMap);
         renderAvailabilityChart(filteredDispos);
         renderTables(filteredPannes, filteredNcs);
-        renderFlashTicker(filteredSegments, flashList);
+        let filteredFlashes = flashList || [];
+        if (agencyFilter !== 'ALL') {
+          filteredFlashes = filteredFlashes.filter(f => isTeamInFilter(f.team, agencyFilter));
+        }
+
+        renderFlashTicker(filteredSegments, filteredFlashes);
         
 
       } catch (err) {
@@ -1884,7 +1890,7 @@
           items.push(`
             <div class="ticker-item">
               <span class="ticker-dot"></span>
-              ${f.text}
+              ${f.titre}
             </div>
           `);
         });
