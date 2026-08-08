@@ -2880,6 +2880,40 @@ mark.hl { background: rgba(56,189,248,.25); color: var(--acc); border-radius: 3p
   })();
 </script>
 
+<!-- Modal Pointage GPS Obligatoire -->
+<div id="modal-pointage-gps-required" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.92);backdrop-filter:blur(8px);z-index:999999;align-items:center;justify-content:center">
+  <div style="background:#0f172a;border:2px solid #ef4444;border-radius:18px;width:520px;max-width:92vw;padding:32px 28px;display:flex;flex-direction:column;align-items:center;text-align:center;box-shadow:0 25px 80px rgba(239,68,68,.25)">
+    <div style="width:68px;height:68px;border-radius:50%;background:rgba(239,68,68,0.15);border:2px solid #ef4444;display:flex;align-items:center;justify-content:center;margin-bottom:18px;font-size:30px;color:#ef4444;">
+      <i class="fa-solid fa-satellite-dish"></i>
+    </div>
+    
+    <div style="font-size:16px;font-weight:900;color:#ef4444;letter-spacing:1.5px;text-transform:uppercase;margin-bottom:8px">
+      Synchronisation GPS Obligatoire
+    </div>
+    
+    <div style="font-size:13px;color:#cbd5e1;line-height:1.6;margin-bottom:20px">
+      Aucun signal satellite n'a été enregistré pour la journée d'aujourd'hui.<br>
+      Pour débloquer la saisie et garantir le suivi des temps d'attente chez les clients, la synchronisation des balises GPS est obligatoire.
+    </div>
+
+    <div style="background:rgba(255,255,255,0.03);border:1px dashed rgba(255,255,255,0.15);border-radius:10px;padding:14px 18px;margin-bottom:24px;text-align:left;font-size:12px;color:#94a3b8;width:100%;box-sizing:border-box">
+      <div style="font-weight:700;color:#f8fafc;margin-bottom:6px">📋 Procédure rapide :</div>
+      1. Ouvrez <b>IDEGPS</b> via le bouton ci-dessous.<br>
+      2. Cliquez sur votre favori <b>« NumiPlan - Suivi Camions »</b>.<br>
+      3. Cliquez ensuite sur <b>« J'ai synchronisé »</b> pour débloquer.
+    </div>
+
+    <div style="display:flex;gap:12px;width:100%;justify-content:center">
+      <a href="https://idegps.com/map" target="_blank" class="btn" style="background:#38bdf8;color:#0f172a;font-weight:800;padding:12px 18px;border-radius:8px;text-decoration:none;display:inline-flex;align-items:center;gap:8px;font-size:13px">
+        <i class="fa-solid fa-arrow-up-right-from-square"></i> Ouvrir IDEGPS
+      </a>
+      <button onclick="verifierDeblocageGps()" class="btn" style="background:#10b981;color:#ffffff;font-weight:800;padding:12px 18px;border-radius:8px;border:none;cursor:pointer;display:inline-flex;align-items:center;gap:8px;font-size:13px">
+        <i class="fa-solid fa-rotate"></i> J'ai synchronisé
+      </button>
+    </div>
+  </div>
+</div>
+
 <!-- Modal Pointage Anomalies (bloquant post-bascule) -->
 <div id="modal-pointage-anomalies" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.88);z-index:99998;align-items:center;justify-content:center">
   <div style="background:#0f1623;border:2px solid #f59e0b;border-radius:18px;padding:0;width:740px;max-width:96vw;max-height:88vh;display:flex;flex-direction:column;box-shadow:0 24px 80px rgba(0,0,0,.9)">
