@@ -160,7 +160,7 @@
 
               const localFact = localItem.kmFactures || [];
               const remoteFact = remoteItem.kmFactures || [];
-              const isLocalNewer = (itemLocalTs >= itemRemoteTs) || isRecentlyEditedLocally;
+              const isLocalNewer = (itemLocalTs >= itemRemoteTs) || isRecentlyEditedLocally || ((Date.now() - localGlobalTs) < 600000);
               const mergedFact = [];
               mergedWeeks.forEach(w => {
                 const lIdx = localWeeks.indexOf(w);
@@ -168,12 +168,15 @@
                 const lVal = lIdx >= 0 ? localFact[lIdx] : null;
                 const rVal = rIdx >= 0 ? remoteFact[rIdx] : null;
                 if (isLocalNewer) {
-                  mergedFact.push((lVal !== null && lVal !== undefined) ? lVal : null);
+                  mergedFact.push((lVal !== null && lVal !== undefined) ? lVal : (rVal !== null && rVal !== undefined ? rVal : null));
                 } else {
                   mergedFact.push((rVal !== null && rVal !== undefined) ? rVal : lVal);
                 }
               });
               mergedItem.kmFactures = mergedFact;
+              if (isLocalNewer && (localItem.kmFacture !== undefined && localItem.kmFacture !== null)) {
+                mergedItem.kmFacture = localItem.kmFacture;
+              }
             }
             mergedList.push(mergedItem);
           }
@@ -5974,8 +5977,10 @@ function showToast(msg, isErr=false) {
 
 function openModal(id, editIdx=-1) {
   document.getElementById(id).classList.add('open');
-  const hi = document.querySelector(`#${id} input[type=hidden]`);
-  if (hi) hi.value = editIdx;
+  if (editIdx !== -1) {
+    const hi = document.querySelector(`#${id} input[type=hidden]`);
+    if (hi) hi.value = editIdx;
+  }
   if (id === 'modal-odo' && editIdx === -1) buildOdoWeekInputs();
   if (id === 'modal-odo-export') initOdoExportModal();
   if (id === 'modal-panne') {
@@ -6019,13 +6024,13 @@ function today() {
 }
 
 function switchTab(name, btn) {
-  const lock = sessionStorage.getItem('numiplan_team_lock');
-  if (name === 'odo' && lock) return;
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
   document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
   document.getElementById('page-'+name).classList.add('active');
   if (btn) btn.classList.add('active');
   else document.querySelector(`[onclick*="switchTab('${name}"]`)?.classList.add('active');
+  if (name==='odo') renderOdo();
+  if (name==='cspc') renderCSPC();
   if (name==='analytics') renderAnalytics();
   if (name==='archives') {
     if (!window._archivesLoaded) {
@@ -8703,14 +8708,19 @@ function importKmFacture(input) {
         });
 
         // 4. Sauvegarder immédiatement toutes les équipes sur Supabase et LocalStorage
+        const nowTs = Date.now();
         for (const eq of EQUIPS) {
           const eqDb = (eq === CURRENT_EQUIPE && typeof window.DB !== 'undefined') ? window.DB : window['DB_' + eq];
           if (eqDb) {
-            eqDb._localTs = Date.now();
+            eqDb._localTs = nowTs;
+            if (eqDb.odo) {
+              eqDb.odo.forEach(item => { item._lastEditedTs = nowTs; });
+            }
             if (eq === CURRENT_EQUIPE && typeof saveDB === 'function') {
               saveDB();
-            }
-            if (typeof supabaseUpsertTeam === 'function') {
+            } else if (typeof window.saveTeamDB === 'function') {
+              window.saveTeamDB(eq, eqDb);
+            } else if (typeof supabaseUpsertTeam === 'function') {
               try {
                 await supabaseUpsertTeam(eq, eqDb);
               } catch (errSup) {
@@ -8720,6 +8730,23 @@ function importKmFacture(input) {
           }
         }
 
+        try {
+          localStorage.setItem(STORAGE_KEY, JSON.stringify({
+            version: 3,
+            active: CURRENT_EQUIPE,
+            teams: {
+              A: window.DB_A,
+              B: window.DB_B,
+              C: window.DB_C,
+              D: window.DB_D,
+              E: window.DB_E,
+              F: window.DB_F
+            }
+          }));
+        } catch(e) { console.warn('LocalStorage multi-team save error', e); }
+
+        if (typeof alignOdoWeeksGlobal === 'function') alignOdoWeeksGlobal();
+        if (typeof updateHeaderRAC === 'function') updateHeaderRAC();
         if (typeof renderOdo === 'function') renderOdo();
         showToast("✅ Écrasement et Importation réussis : " + countUpdated + " camions mis à jour (" + Object.keys(importedTrucks).length + " camions importés)");
       } catch (e) {
@@ -9773,10 +9800,21 @@ function pointerAnomalieItem(key, immat, extraChauffeur = '', extraLieu = '') {
       if (sel) sel.focus();
       return;
     }
+    if (!detail) {
+      showToast('⚠️ La précision / détail est obligatoire avant de valider !', true);
+      if (input) {
+        input.style.border = '1px solid #f87171';
+        input.focus();
+      }
+      return;
+    }
   } else if (key.startsWith('viol_')) {
     if (!detail) {
       showToast('⚠️ Saisissez une justification avant de valider', true);
-      if (input) input.focus();
+      if (input) {
+        input.style.border = '1px solid #f87171';
+        input.focus();
+      }
       return;
     }
   }
@@ -13616,14 +13654,14 @@ function modifierAnomalie(eq, key) {
   
   const item = dbEq.anomaliesPointees[key];
   
+  openModal('modal-modifier-anomalie');
+  
   document.getElementById('edit-anom-eq').value = eq;
   document.getElementById('edit-anom-key').value = key;
   document.getElementById('edit-anom-v').textContent = key.split('_')[0] || '—';
   document.getElementById('edit-anom-chauf').textContent = item.chauffeur || '—';
-  document.getElementById('edit-anom-motif').value = item.motif || 'Orientation';
+  document.getElementById('edit-anom-motif').value = item.motif || (item.justif || 'Orientation');
   document.getElementById('edit-anom-detail').value = item.detail || '';
-  
-  openModal('modal-modifier-anomalie');
 }
 
 function saveModifiedAnomalie() {
@@ -13637,6 +13675,16 @@ function saveModifiedAnomalie() {
     showToast(`⚠️ Lecture seule — vous ne pouvez modifier que les anomalies de l'Équipe ${lock}`, true);
     return;
   }
+
+  if (!detail) {
+    showToast("⚠️ La précision / détail est obligatoire !", true);
+    const detailEl = document.getElementById('edit-anom-detail');
+    if (detailEl) {
+      detailEl.style.border = '1px solid #f87171';
+      detailEl.focus();
+    }
+    return;
+  }
   
   const dbEq = (eq === CURRENT_EQUIPE && typeof window.DB !== 'undefined') ? window.DB : window['DB_' + eq];
   if (!dbEq || !dbEq.anomaliesPointees || !dbEq.anomaliesPointees[key]) {
@@ -13646,27 +13694,26 @@ function saveModifiedAnomalie() {
   
   // Update in memory
   dbEq.anomaliesPointees[key].motif = motif;
+  dbEq.anomaliesPointees[key].justif = motif;
   dbEq.anomaliesPointees[key].detail = detail;
+  dbEq.anomaliesPointees[key]._lastEditedTs = Date.now();
+  dbEq._localTs = Date.now();
   
   // Save database
-  if (eq === CURRENT_EQUIPE) {
+  if (eq === CURRENT_EQUIPE && typeof saveDB === 'function') {
     saveDB();
-  } else {
-    if (window.saveTeamDB) {
-      window.saveTeamDB(eq, dbEq);
-    } else {
-      try {
-        const raw = localStorage.getItem('numiplan_v2');
-        let parsed = raw ? JSON.parse(raw) : { teams: {} };
-        if (!parsed.teams) parsed.teams = {};
-        parsed.teams[eq] = dbEq;
-        localStorage.setItem('numiplan_v2', JSON.stringify(parsed));
-      } catch(e) { console.error(e); }
-    }
+  } else if (typeof window.saveTeamDB === 'function') {
+    window.saveTeamDB(eq, dbEq);
+  }
+  
+  if (typeof supabaseUpsertTeam === 'function') {
+    supabaseUpsertTeam(eq, dbEq);
   }
   
   closeModal('modal-modifier-anomalie');
-  renderHistoriqueAnomalies();
+  if (typeof renderHistoriqueAnomalies === 'function') {
+    renderHistoriqueAnomalies();
+  }
   showToast('✅ Anomalie modifiée avec succès');
 }
 
@@ -14358,6 +14405,28 @@ window.addEventListener('load', () => {
 
 // --- ASSISTANT DIAGNOSTIC GPS & POI ---
 function openGpsDiagnosticModal() {
+  // Construire la liste de tous les camions existants pour la liste déroulante
+  const allVehiclesMap = new Map();
+  const EQUIPES = ['A', 'B', 'C', 'D', 'E', 'F'];
+  EQUIPES.forEach(eq => {
+    const db = (eq === window.CURRENT_EQUIPE && typeof window.DB !== 'undefined') ? window.DB : window['DB_' + eq];
+    if (db && db.dispo) {
+      db.dispo.forEach(r => {
+        if (r.v) {
+          const vNorm = r.v.trim().toUpperCase();
+          allVehiclesMap.set(vNorm, { v: vNorm, chauf: r.chauffeur || '', team: eq });
+        }
+      });
+    }
+  });
+
+  const datalistOptions = Array.from(allVehiclesMap.values())
+    .sort((a, b) => a.v.localeCompare(b.v))
+    .map(item => `<option value="${item.v}">${item.v} · ${item.chauf} (Équipe ${item.team})</option>`)
+    .join('');
+
+  const firstVehicle = allVehiclesMap.keys().next().value || '000732-514-16';
+
   const modalHtml = `
     <div id="modal-gps-diag" class="modal-backdrop" style="position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.75);backdrop-filter:blur(6px);z-index:99999;display:flex;align-items:center;justify-content:center">
       <div style="background:var(--bg2, #18223f);border:1.5px solid var(--border, #2d3b5f);border-radius:16px;width:95%;max-width:600px;max-height:85vh;overflow-y:auto;padding:24px;box-shadow:0 25px 50px -12px rgba(0,0,0,0.5);color:#fff;text-align:left;animation:scale-in 0.3s ease-out">
@@ -14367,11 +14436,15 @@ function openGpsDiagnosticModal() {
         </div>
         
         <p style="font-size:12px;color:#aaa;margin-bottom:16px;line-height:1.5">
-          Entrez l'immatriculation d'un camion pour analyser sa présence dans les équipes et sa distance par rapport aux points d'intérêt (POI).
+          Sélectionnez un camion dans la liste ou tapez les premiers chiffres pour analyser sa présence et sa position GPS.
         </p>
 
+        <datalist id="dl-diag-immats">
+          ${datalistOptions}
+        </datalist>
+
         <div style="display:flex;gap:10px;margin-bottom:20px">
-          <input type="text" id="diag-immat-input" placeholder="Ex: 000732-514-16" style="flex:1;background:var(--bg3, #0a0f1e);border:1px solid var(--border, #2d3b5f);color:#fff;border-radius:8px;padding:10px 12px;font-family:monospace;font-size:13px;outline:none" value="000732-514-16">
+          <input type="text" id="diag-immat-input" list="dl-diag-immats" autocomplete="off" placeholder="Tapez 3 chiffres ou le chauffeur (ex: 000779)..." onkeydown="if(event.key==='Enter')runGpsDiagnostic()" style="flex:1;background:var(--bg3, #0a0f1e);border:1px solid var(--border, #2d3b5f);color:#fff;border-radius:8px;padding:10px 12px;font-family:monospace;font-size:13px;outline:none" value="${firstVehicle}">
           <button onclick="runGpsDiagnostic()" style="background:#00d2ff;color:#0a0f1e;border:none;border-radius:8px;padding:10px 20px;font-weight:700;font-size:13px;cursor:pointer">Analyser ⚡</button>
         </div>
 
@@ -14390,10 +14463,38 @@ async function runGpsDiagnostic() {
   const resultsEl = document.getElementById('diag-results');
   if (!inputEl || !resultsEl) return;
 
-  const rawImmat = inputEl.value.trim().toUpperCase();
+  let rawImmat = inputEl.value.trim().toUpperCase();
   if (!rawImmat) {
     resultsEl.innerHTML = `<div style="color:#ef4444">⚠️ Veuillez entrer une immatriculation.</div>`;
     return;
+  }
+
+  // Nettoyage si le format "000779-514-16 · CHAUFFEUR" a été inséré
+  if (rawImmat.includes('·')) {
+    rawImmat = rawImmat.split('·')[0].trim();
+  }
+
+  // Résolution intelligente par saisie partielle (ex: "000779" -> "000779-514-16")
+  const EQUIPES = ['A', 'B', 'C', 'D', 'E', 'F'];
+  let candidateVehicles = [];
+  EQUIPES.forEach(eq => {
+    const db = (eq === window.CURRENT_EQUIPE && typeof window.DB !== 'undefined') ? window.DB : window['DB_' + eq];
+    if (db && db.dispo) {
+      db.dispo.forEach(r => {
+        const v = (r.v || '').trim().toUpperCase();
+        const ch = (r.chauffeur || '').trim().toUpperCase();
+        if (v === rawImmat) {
+          candidateVehicles.unshift({ v, chauffeur: r.chauffeur, team: eq, exact: true });
+        } else if (v.includes(rawImmat) || (ch && ch.includes(rawImmat))) {
+          candidateVehicles.push({ v, chauffeur: r.chauffeur, team: eq, exact: false });
+        }
+      });
+    }
+  });
+
+  if (candidateVehicles.length > 0) {
+    rawImmat = candidateVehicles[0].v;
+    inputEl.value = rawImmat;
   }
 
   resultsEl.innerHTML = `<div style="text-align:center;color:#aaa;padding-top:20px">⏳ Analyse en cours...</div>`;
@@ -14401,7 +14502,6 @@ async function runGpsDiagnostic() {
   try {
     // 1. Check local sheet state
     let foundInTeams = [];
-    const EQUIPES = ['A', 'B', 'C', 'D', 'E', 'F'];
     EQUIPES.forEach(eq => {
       const db = (eq === window.CURRENT_EQUIPE && typeof window.DB !== 'undefined') ? window.DB : window['DB_' + eq];
       if (db && db.dispo) {
@@ -14412,11 +14512,23 @@ async function runGpsDiagnostic() {
       }
     });
 
-    // 2. Query np_dispo from Supabase for this vehicle
-    const { data: dispoData, error: dispoError } = await window.supabase
+    // 2. Query np_dispo from Supabase for this vehicle (with fallback search if partial)
+    let { data: dispoData, error: dispoError } = await window.supabase
       .from('np_dispo')
       .select('*')
       .eq('v', rawImmat);
+
+    if (!dispoData || dispoData.length === 0) {
+      const { data: dispoPartial } = await window.supabase
+        .from('np_dispo')
+        .select('*')
+        .ilike('v', '%' + rawImmat + '%');
+      if (dispoPartial && dispoPartial.length > 0) {
+        dispoData = dispoPartial;
+        rawImmat = dispoData[0].v;
+        inputEl.value = rawImmat;
+      }
+    }
 
     if (dispoError) throw dispoError;
 
