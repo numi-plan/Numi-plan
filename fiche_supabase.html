@@ -9960,6 +9960,11 @@ function getBlockingKpis() {
 window.getBlockingKpis = getBlockingKpis;
 
 function handlePointageOverlayClick() {
+  if (typeof isGpsSyncToday === 'function' && !isGpsSyncToday()) {
+    const gpsModal = document.getElementById('modal-pointage-gps-required');
+    if (gpsModal) gpsModal.style.setProperty('display', 'flex', 'important');
+    return;
+  }
   const anomalies = typeof getAnomaliesAPointer === 'function' ? getAnomaliesAPointer() : [];
   const violations = typeof getBlacklistViolations === 'function' ? getBlacklistViolations() : [];
   const blockingKpis = typeof getBlockingKpis === 'function' ? getBlockingKpis() : [];
@@ -10205,6 +10210,53 @@ function renderHistoriqueAnomalies() {
 
 
 
+function isGpsSyncToday() {
+  if (!window.DB || !window.DB.dispo || window.DB.dispo.length === 0) return true;
+  
+  const d = new Date();
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  
+  const isoDate = `${y}-${m}-${day}`; // e.g. "2026-08-09"
+  const frDate = `${day}/${m}/${y}`;  // e.g. "09/08/2026"
+  
+  const eq = typeof window.CURRENT_EQUIPE !== 'undefined' ? window.CURRENT_EQUIPE : 'A';
+  const teamDispos = window.DB.dispo.filter(row => !row.team || row.team === eq);
+  const listToCheck = teamDispos.length > 0 ? teamDispos : window.DB.dispo;
+
+  const hasGpsToday = listToCheck.some(row => {
+    if (!row.geoloc_date) return false;
+    const gDate = String(row.geoloc_date).trim();
+    return gDate.startsWith(isoDate) || gDate.includes(isoDate) || gDate.startsWith(frDate) || gDate.includes(frDate);
+  });
+  
+  return hasGpsToday;
+}
+window.isGpsSyncToday = isGpsSyncToday;
+
+async function verifierDeblocageGps() {
+  showToast("⏳ Vérification des signaux GPS du jour...");
+  if (typeof loadDB === 'function') {
+    await loadDB();
+  }
+  
+  if (isGpsSyncToday()) {
+    const gpsModal = document.getElementById('modal-pointage-gps-required');
+    if (gpsModal) gpsModal.style.setProperty('display', 'none', 'important');
+    if (typeof checkPointageRequired === 'function') {
+      checkPointageRequired();
+    } else {
+      _setActionsBloqueesPointage(false);
+    }
+    showToast("✅ Synchronisation GPS confirmée ! Application débloquée.");
+    if (typeof renderDispo === 'function') renderDispo();
+  } else {
+    showToast("❌ Aucun signal GPS reçu pour aujourd'hui. Veuillez exécuter le favori sur IDEGPS.", true);
+  }
+}
+window.verifierDeblocageGps = verifierDeblocageGps;
+
 // Bloque / débloque les boutons d'action critiques pendant le pointage
 function _setActionsBloqueesPointage(bloquer) {
   window._actionsBloquees = bloquer;
@@ -10216,6 +10268,12 @@ function _setActionsBloqueesPointage(bloquer) {
 
 // Intercepteur : vérifie si les actions sont bloquées
 function _checkActionsLibres(nomAction) {
+  if (!isGpsSyncToday()) {
+    const gpsModal = document.getElementById('modal-pointage-gps-required');
+    if (gpsModal) gpsModal.style.setProperty('display', 'flex', 'important');
+    showToast('⚠️ Synchronisation GPS obligatoire avant toute action', true);
+    return false;
+  }
   if (!window._actionsBloquees) return true;
   
   const anomalies = typeof getAnomaliesAPointer === 'function' ? getAnomaliesAPointer() : [];
@@ -10247,7 +10305,26 @@ function checkPointageRequired() {
     return false;
   }
 
-  // 2. Si session Admin (aucun verrou d'équipe), pas de pointage requis ni d'overlay
+  // 2. VÉRIFICATION GPS DU JOUR (Prioritaire pour TOUS les utilisateurs, y compris Admin)
+  if (!isGpsSyncToday()) {
+    _setActionsBloqueesPointage(true);
+    const overlay = document.getElementById('pointage-block-overlay');
+    if (overlay) {
+      const textEl = overlay.querySelector('div');
+      if (textEl) {
+        textEl.innerHTML = `⚠️ SYNCHRONISATION GPS OBLIGATOIRE EN ATTENTE<br>
+                            <span style="font-size:12px;color:var(--txt2);font-weight:400">Cliquez n'importe où pour ouvrir les instructions de synchronisation GPS</span>`;
+      }
+    }
+    const gpsModal = document.getElementById('modal-pointage-gps-required');
+    if (gpsModal) gpsModal.style.setProperty('display', 'flex', 'important');
+    return true;
+  } else {
+    const gpsModal = document.getElementById('modal-pointage-gps-required');
+    if (gpsModal) gpsModal.style.setProperty('display', 'none', 'important');
+  }
+
+  // 3. Si session Admin (aucun verrou d'équipe), pas de pointage d'anomalies requis ni d'overlay
   const lock = sessionStorage.getItem('numiplan_team_lock');
   if (!lock) {
     _setActionsBloqueesPointage(false);
@@ -10258,7 +10335,7 @@ function checkPointageRequired() {
     return false;
   }
 
-  // 3. Si l'équipe active n'est pas celle verrouillée (mode lecture seule), pas de blocage
+  // 4. Si l'équipe active n'est pas celle verrouillée (mode lecture seule), pas de blocage
   const eq = typeof window.CURRENT_EQUIPE !== 'undefined' ? window.CURRENT_EQUIPE : 'A';
   const isReadOnly = lock !== eq;
   if (isReadOnly) {
