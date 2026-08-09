@@ -703,6 +703,14 @@
       document.getElementById('date-end').value = today;
 
       // 2. Tenter de récupérer la session existante
+      // Restaurer le cache des segments si présent
+      try {
+        const cachedCsv = localStorage.getItem('sharik_tv_raw_csv');
+        if (cachedCsv) {
+          rawCsvData = JSON.parse(cachedCsv);
+        }
+      } catch(e) {}
+
       const savedSession = localStorage.getItem('supabase.auth.token');
       if (savedSession) {
         try {
@@ -1111,7 +1119,14 @@
       const startDate = document.getElementById('date-start').value;
       const endDate = document.getElementById('date-end').value;
       
-      const filteredCsv = rawCsvData.filter(row => row.date >= startDate && row.date <= endDate);
+      let filteredCsv = rawCsvData.filter(row => row.date >= startDate && row.date <= endDate);
+      let isShowingAllDates = false;
+
+      // Si aucun segment n'est daté d'aujourd'hui, mais qu'on a des segments chargés : afficher l'ensemble des segments
+      if (filteredCsv.length === 0 && rawCsvData.length > 0) {
+        filteredCsv = rawCsvData;
+        isShowingAllDates = true;
+      }
 
       filteredCsv.forEach(s => {
         const tr = s.tracteur;
@@ -1255,8 +1270,13 @@
       } else {
         rowsHtml = `
           <tr>
-            <td colspan="7" style="text-align: center; padding: 30px; color: var(--text-muted); font-style: italic;">
-              Aucun camion ou chauffeur ne correspond aux critères de recherche.
+            <td colspan="7" style="text-align: center; padding: 40px 20px; color: var(--text-muted);">
+              <div style="font-size: 32px; margin-bottom: 10px;">📊</div>
+              <div style="font-size: 14px; font-weight: 700; color: var(--text-main); margin-bottom: 6px;">Aucun segment ou activité trouvé</div>
+              <div style="font-size: 12px; margin-bottom: 16px;">Aucun segment ne correspond aux filtres actuels ou aucun fichier de segments Numiflow n'a encore été importé.</div>
+              <button onclick="document.getElementById('csv-file-input').click()" class="btn" style="background: var(--accent-sky); color: #0f172a; font-weight: 700; padding: 8px 18px; border-radius: 6px; border: none; cursor: pointer; font-size: 12px; display: inline-flex; align-items: center; gap: 6px;">
+                <i class="fa-solid fa-file-import"></i> Importer un fichier Segments / Numiflow
+              </button>
             </td>
           </tr>
         `;
@@ -1361,6 +1381,57 @@
       const agencyFilter = document.getElementById('agency-filter').value;
 
       try {
+        // 0. Auto-chargement des activités depuis les équipes Supabase si aucun CSV local n'est chargé
+        if (rawCsvData.length === 0) {
+          try {
+            const { data: teamsData } = await supabaseClient
+              .from('numiplan_teams')
+              .select('team, payload');
+            if (teamsData) {
+              const allActivite = [];
+              teamsData.forEach(t => {
+                const p = t.payload;
+                if (p) {
+                  if (p.activite && Array.isArray(p.activite)) {
+                    p.activite.forEach(act => {
+                      allActivite.push({
+                        date: act.date || act.date_op || '',
+                        tracteur: (act.tr || act.tracteur || '').toUpperCase(),
+                        agence: t.team || 'A',
+                        chauffeur: act.chauffeur || '—',
+                        marchandise: act.marchandise || act.client || '—',
+                        csr: act.csr || '—',
+                        statut: act.statut || act.etat || '—',
+                        km: parseFloat(act.km) || parseFloat(act.km_reel) || parseFloat(act.kmFacture) || 0
+                      });
+                    });
+                  }
+                  if (p.perfRaw && Array.isArray(p.perfRaw)) {
+                    p.perfRaw.forEach(prf => {
+                      allActivite.push({
+                        date: (prf.date ? String(prf.date).split('T')[0] : ''),
+                        tracteur: (prf.tracteur || prf.tr || '').toUpperCase(),
+                        agence: prf.agence || t.team || 'A',
+                        chauffeur: prf.chauffeur || '—',
+                        marchandise: prf.marchandise || '—',
+                        csr: prf.csr || '—',
+                        statut: prf.statut || '—',
+                        km: parseFloat(prf.km) || 0
+                      });
+                    });
+                  }
+                }
+              });
+              if (allActivite.length > 0) {
+                rawCsvData = allActivite;
+                console.log(`[Supabase] Auto-chargé ${allActivite.length} activités/segments depuis les équipes.`);
+              }
+            }
+          } catch (errAct) {
+            console.warn("Impossible d'auto-charger les activités depuis numiplan_teams:", errAct);
+          }
+        }
+
         // 1. Lire np_dispo (état live de la flotte)
         const { data: dispoList, error: errD } = await supabaseClient
           .from('np_dispo')
@@ -2032,6 +2103,9 @@
           });
         }
 
+        try {
+          localStorage.setItem('sharik_tv_raw_csv', JSON.stringify(rawCsvData.slice(0, 10000)));
+        } catch(e) {}
         alert(`📥 Importation réussie ! ${rawCsvData.length} lignes de segments chargées.`);
         await refreshData();
       };
