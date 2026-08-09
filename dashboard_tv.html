@@ -1633,8 +1633,9 @@
       const totalCount = dispos.length || 1;
       const availRate = Math.round((operationalCount / totalCount) * 100);
 
-      // 6. Pannes actives
+      // 6. Pannes actives et camions immobilisés en direct
       const activePannesCount = pannes.filter(p => p.etat !== 'Clôturé' && p.etat !== 'Cloture').length;
+      const enPanneLiveCount = dispos.filter(d => d.etat === 'En panne' || d.etat === 'Panne').length;
 
       // 7. Roulage à charge (Manuel)
       const storedRoulage = JSON.parse(localStorage.getItem('sharik_tv_roulage') || '{"A":0,"B":0,"C":0,"D":0}');
@@ -1753,7 +1754,7 @@
               <div class="kpi-info">
                 <h3>Pannes Signalées</h3>
                 <div class="kpi-value">${activePannesCount}</div>
-                <div class="kpi-subtext">En cours ou déclarées</div>
+                <div class="kpi-subtext">${enPanneLiveCount} camion(s) immobilisé(s) en direct</div>
               </div>
               <i class="fa-solid fa-wrench kpi-icon"></i>
             </div>
