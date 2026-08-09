@@ -8399,27 +8399,20 @@ function renderOdo() {
       delta = `<span style="color:${d>0?'var(--grn)':'var(--red)'}">${d>0?'+':''}${d.toLocaleString('fr-FR')}</span>`;
     }
     
-    let kmFacture = 0;
-    let hasExplicitFact = false;
-    filteredWeeks.forEach(w => {
-      const origIdx = weeks.indexOf(w);
+    let kmFacture = null;
+    if (filteredWeeks.length === 1) {
+      const origIdx = weeks.indexOf(filteredWeeks[0]);
       if (r.kmFactures && r.kmFactures[origIdx] !== undefined && r.kmFactures[origIdx] !== null) {
-        kmFacture += r.kmFactures[origIdx];
-        hasExplicitFact = true;
-      }
-    });
-    if (!hasExplicitFact) {
-      const lastW = weeks[weeks.length - 1];
-      if (filteredWeeks.includes(lastW)) {
-        kmFacture = (r.kmFacture !== undefined && r.kmFacture !== null) ? r.kmFacture : null;
+        kmFacture = r.kmFactures[origIdx];
       } else {
-        kmFacture = null;
+        kmFacture = (r.kmFacture !== undefined && r.kmFacture !== null) ? r.kmFacture : null;
       }
     } else {
-      if (kmFacture === 0) kmFacture = null;
+      kmFacture = (r.kmFacture !== undefined && r.kmFacture !== null) ? r.kmFacture : null;
     }
-    const kmFactureStr = kmFacture !== null ? kmFacture.toLocaleString('fr-FR') : '?';
-    let racStr = '?';
+    if (kmFacture === 0) kmFacture = null;
+    const kmFactureStr = kmFacture !== null ? kmFacture.toLocaleString('fr-FR') : '—';
+    let racStr = '—';
     if (deltaVal !== null && deltaVal > 0 && kmFacture !== null && kmFacture > 0) {
       const rac = (kmFacture / deltaVal) * 100;
       let badgeStyle = '';
