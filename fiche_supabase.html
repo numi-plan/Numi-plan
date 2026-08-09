@@ -122,6 +122,8 @@
 
       const allKeys = new Set([...localMap.keys(), ...remoteMap.keys()]);
       const mergedList = [];
+      const localGlobalTs = local._localTs || 0;
+      const remoteGlobalTs = remote._localTs || (remote._last_edited_at ? new Date(remote._last_edited_at).getTime() : 0);
 
       for (const key of allKeys) {
         const localItem = localMap.get(key);
@@ -131,7 +133,18 @@
           if (isRecordBeingEdited(key, listName)) {
             mergedList.push(localItem);
           } else {
-            const mergedItem = Object.assign({}, localItem, remoteItem);
+            const itemLocalTs = localItem._lastEditedTs || localGlobalTs || 0;
+            const itemRemoteTs = remoteItem._lastEditedTs || remoteGlobalTs || 0;
+            const isRecentlyEditedLocally = (Date.now() - itemLocalTs) < 30000;
+
+            let mergedItem;
+            // Protection anti-rollback : si l'élément local a été édité il y a moins de 30s ou est plus récent, LOCAL GAGNE !
+            if (isRecentlyEditedLocally || itemLocalTs >= itemRemoteTs) {
+              mergedItem = Object.assign({}, remoteItem, localItem);
+            } else {
+              mergedItem = Object.assign({}, localItem, remoteItem);
+            }
+
             if (listName === 'odo') {
               const localVals = localItem.vals || [];
               const remoteVals = remoteItem.vals || [];
@@ -147,7 +160,7 @@
 
               const localFact = localItem.kmFactures || [];
               const remoteFact = remoteItem.kmFactures || [];
-              const isLocalNewer = (localDb && localDb._localTs && remoteDb && remoteDb._updated_at) ? (localDb._localTs >= new Date(remoteDb._updated_at).getTime()) : true;
+              const isLocalNewer = (itemLocalTs >= itemRemoteTs) || isRecentlyEditedLocally;
               const mergedFact = [];
               mergedWeeks.forEach(w => {
                 const lIdx = localWeeks.indexOf(w);
@@ -165,7 +178,9 @@
             mergedList.push(mergedItem);
           }
         } else if (localItem) {
-          if (isRecordBeingEdited(key, listName) || listName === 'odo') {
+          const itemLocalTs = localItem._lastEditedTs || localGlobalTs || 0;
+          const isRecentlyEditedLocally = (Date.now() - itemLocalTs) < 60000;
+          if (isRecentlyEditedLocally || isRecordBeingEdited(key, listName) || listName === 'odo') {
             if (listName === 'odo') {
               const localVals = localItem.vals || [];
               const mergedVals = mergedWeeks.map(w => {
@@ -6539,6 +6554,7 @@ function saveDispo() {
           }
         }
         
+        obj._lastEditedTs = Date.now();
         DB.dispo[idx] = obj;
       } else {
         // Mode création
@@ -11360,6 +11376,7 @@ function saveInlineInput(el) {
   }
   el.value = val;
   el.style.borderBottomColor = 'transparent';
+  DB.dispo[idx]._lastEditedTs = Date.now();
   DB.dispo[idx][field] = val;
   if (field === 'lieuJ1') {
     if (shouldUpdateLieuJ1Initial(DB.dispo[idx], val)) {
@@ -11384,6 +11401,7 @@ function saveInline(el) {
     setTimeout(() => { el.style.outline = ''; el.focus(); }, 1200);
     return;
   }
+  DB.dispo[idx]._lastEditedTs = Date.now();
   if (field === 'hor') {
     // Accept HH:MM format → convert to fraction, or keep raw
     const m = val.match(/^(\d{1,2}):(\d{2})$/);
@@ -11448,6 +11466,7 @@ function setEtat(idx, nouvelEtat) {
       return;
     }
   }
+  DB.dispo[idx]._lastEditedTs = Date.now();
   DB.dispo[idx].etat = nouvelEtat;
   saveDB();
   renderDispo();
@@ -11467,6 +11486,7 @@ function validerMiniLieu(idx, nouvelEtat) {
     document.getElementById('mini-lieuJ1').focus();
     return;
   }
+  DB.dispo[idx]._lastEditedTs = Date.now();
   DB.dispo[idx].lieuJ  = lieuJ;
   DB.dispo[idx].lieuJ1 = lieuJ1;
   DB.dispo[idx].etat   = nouvelEtat;
