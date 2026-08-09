@@ -2883,8 +2883,8 @@ mark.hl { background: rgba(56,189,248,.25); color: var(--acc); border-radius: 3p
 <!-- Modal Pointage GPS Obligatoire -->
 <div id="modal-pointage-gps-required" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.92);backdrop-filter:blur(8px);z-index:999999;align-items:center;justify-content:center">
   <div style="background:#0f172a;border:2px solid #ef4444;border-radius:18px;width:520px;max-width:92vw;padding:32px 28px;display:flex;flex-direction:column;align-items:center;text-align:center;box-shadow:0 25px 80px rgba(239,68,68,.25)">
-    <div style="width:68px;height:68px;border-radius:50%;background:rgba(239,68,68,0.15);border:2px solid #ef4444;display:flex;align-items:center;justify-content:center;margin-bottom:18px;font-size:30px;color:#ef4444;">
-      <i class="fa-solid fa-satellite-dish"></i>
+    <div style="width:68px;height:68px;border-radius:50%;background:rgba(239,68,68,0.15);border:2px solid #ef4444;display:flex;align-items:center;justify-content:center;margin-bottom:18px;font-size:32px;">
+      📡
     </div>
     
     <div style="font-size:16px;font-weight:900;color:#ef4444;letter-spacing:1.5px;text-transform:uppercase;margin-bottom:8px">
@@ -10211,6 +10211,7 @@ function renderHistoriqueAnomalies() {
 
 
 function isGpsSyncToday() {
+  if (window._gpsForceUnlocked) return true;
   if (!window.DB || !window.DB.dispo || window.DB.dispo.length === 0) return true;
   
   const d = new Date();
@@ -10236,23 +10237,70 @@ function isGpsSyncToday() {
 window.isGpsSyncToday = isGpsSyncToday;
 
 async function verifierDeblocageGps() {
-  showToast("⏳ Vérification des signaux GPS du jour...");
-  if (typeof loadDB === 'function') {
-    await loadDB();
-  }
+  showToast("⏳ Vérification des signaux GPS sur Supabase...");
   
-  if (isGpsSyncToday()) {
-    const gpsModal = document.getElementById('modal-pointage-gps-required');
-    if (gpsModal) gpsModal.style.setProperty('display', 'none', 'important');
-    if (typeof checkPointageRequired === 'function') {
-      checkPointageRequired();
-    } else {
-      _setActionsBloqueesPointage(false);
+  try {
+    const todayStr = today(); // e.g. "2026-08-09"
+    const d = new Date();
+    const frDate = `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`;
+    
+    // 1. Lire np_dispo en direct depuis Supabase
+    let records = [];
+    if (typeof poiSupabaseFetch === 'function') {
+      try {
+        records = await poiSupabaseFetch('np_dispo?select=v,team,geoloc_date&order=geoloc_date.desc.nullslast&limit=50');
+      } catch (errFetch) {
+        console.warn("poiSupabaseFetch failed, trying fallback", errFetch);
+      }
     }
-    showToast("✅ Synchronisation GPS confirmée ! Application débloquée.");
-    if (typeof renderDispo === 'function') renderDispo();
-  } else {
-    showToast("❌ Aucun signal GPS reçu pour aujourd'hui. Veuillez exécuter le favori sur IDEGPS.", true);
+    
+    // Si poiSupabaseFetch n'a rien renvoyé, essayer le client Supabase global
+    if ((!records || records.length === 0) && window.supabase) {
+      const { data } = await window.supabase.from('np_dispo').select('v,team,geoloc_date').order('geoloc_date', { ascending: false }).limit(50);
+      records = data || [];
+    }
+    
+    console.log("Dernières positions GPS reçues dans la base :", records);
+    
+    // 2. Vérifier si un camion a une position aujourd'hui
+    const hasSyncToday = (records || []).some(r => {
+      if (!r.geoloc_date) return false;
+      const gd = String(r.geoloc_date).trim();
+      return gd.startsWith(todayStr) || gd.includes(todayStr) || gd.startsWith(frDate) || gd.includes(frDate);
+    });
+    
+    if (hasSyncToday) {
+      // Mettre à jour DB.dispo en mémoire
+      if (window.DB && window.DB.dispo) {
+        (records || []).forEach(r => {
+          const match = window.DB.dispo.find(d => d.v && d.v.trim().toUpperCase() === (r.v || '').trim().toUpperCase());
+          if (match) {
+            match.geoloc_date = r.geoloc_date;
+          }
+        });
+      }
+      
+      window._gpsForceUnlocked = true;
+      
+      const gpsModal = document.getElementById('modal-pointage-gps-required');
+      if (gpsModal) gpsModal.style.setProperty('display', 'none', 'important');
+      
+      const overlay = document.getElementById('pointage-block-overlay');
+      if (overlay) overlay.style.setProperty('display', 'none', 'important');
+      
+      _setActionsBloqueesPointage(false);
+      showToast("✅ Synchronisation GPS confirmée ! Application débloquée.");
+      
+      if (typeof renderDispo === 'function') renderDispo();
+      if (typeof checkPointageRequired === 'function') checkPointageRequired();
+      return true;
+    } else {
+      showToast("❌ Aucun signal GPS reçu pour aujourd'hui (" + frDate + "). Avez-vous cliqué sur le favori sur IDEGPS ?", true);
+      return false;
+    }
+  } catch (err) {
+    console.error("Erreur lors de la vérification GPS:", err);
+    showToast("⚠️ Erreur de connexion Supabase: " + err.message, true);
   }
 }
 window.verifierDeblocageGps = verifierDeblocageGps;
