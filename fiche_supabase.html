@@ -147,13 +147,18 @@
 
               const localFact = localItem.kmFactures || [];
               const remoteFact = remoteItem.kmFactures || [];
+              const isLocalNewer = (localDb && localDb._localTs && remoteDb && remoteDb._updated_at) ? (localDb._localTs >= new Date(remoteDb._updated_at).getTime()) : true;
               const mergedFact = [];
               mergedWeeks.forEach(w => {
                 const lIdx = localWeeks.indexOf(w);
                 const rIdx = remoteWeeks.indexOf(w);
                 const lVal = lIdx >= 0 ? localFact[lIdx] : null;
                 const rVal = rIdx >= 0 ? remoteFact[rIdx] : null;
-                mergedFact.push((lVal !== null && lVal !== undefined) ? lVal : rVal);
+                if (isLocalNewer) {
+                  mergedFact.push((lVal !== null && lVal !== undefined) ? lVal : null);
+                } else {
+                  mergedFact.push((rVal !== null && rVal !== undefined) ? rVal : lVal);
+                }
               });
               mergedItem.kmFactures = mergedFact;
             }
@@ -8556,10 +8561,18 @@ function importKmFacture(input) {
   if (!file) return;
   const doLoad = () => {
     const reader = new FileReader();
-    reader.onload = e => {
+    reader.onload = async e => {
       try {
-        // Clear all existing billed km for all databases to overwrite completely
+        showToast("⏳ Importation et écrasement des KM facturés en cours...");
+        
+        const wb = XLSX.read(e.target.result, {type:'array'});
+        const ws = wb.Sheets[wb.SheetNames[0]];
+        const raw = XLSX.utils.sheet_to_json(ws);
+
+        const teamMap = typeof buildTracteurEquipeMap === 'function' ? buildTracteurEquipeMap() : {};
         const EQUIPS = ['A', 'B', 'C', 'D', 'E', 'F'];
+
+        // 1. Écraser et remettre à zéro TOUS les km facturés existants sur toutes les équipes
         EQUIPS.forEach(eq => {
           const eqDb = (eq === CURRENT_EQUIPE && typeof window.DB !== 'undefined') ? window.DB : window['DB_' + eq];
           if (eqDb && eqDb.odo) {
@@ -8570,18 +8583,20 @@ function importKmFacture(input) {
           }
         });
 
-        const wb = XLSX.read(e.target.result, {type:'array'});
-        const ws = wb.Sheets[wb.SheetNames[0]];
-        const raw = XLSX.utils.sheet_to_json(ws);
-
-        const teamMap = typeof buildTracteurEquipeMap === 'function' ? buildTracteurEquipeMap() : {};
-
-        let countUpdated = 0;
-        let countAdded = 0;
+        // 2. Agréger les montants du fichier Excel par camion
+        const importedTrucks = {};
+        let startStr = null;
+        let endStr = null;
 
         raw.forEach(r => {
-          const camionKey = Object.keys(r).find(k => k.toLowerCase().includes('camion') || k.toLowerCase().includes('vehicule') || k.toLowerCase().includes('immat'));
-          const kmKey = Object.keys(r).find(k => k.toLowerCase().includes('factur') || k.toLowerCase().includes('km'));
+          const camionKey = Object.keys(r).find(k => {
+            const kl = k.toLowerCase();
+            return kl.includes('camion') || kl.includes('vehicule') || kl.includes('immat') || kl.includes('tracteur');
+          });
+          const kmKey = Object.keys(r).find(k => {
+            const kl = k.toLowerCase();
+            return kl.includes('factur') || kl.includes('km');
+          });
 
           if (!camionKey || !kmKey) return;
 
@@ -8590,6 +8605,32 @@ function importKmFacture(input) {
 
           if (!v || isNaN(km)) return;
 
+          if (!importedTrucks[v]) {
+            importedTrucks[v] = 0;
+          }
+          importedTrucks[v] += km;
+
+          if (!startStr) {
+            const startDateKey = Object.keys(r).find(k => {
+              const kl = k.toLowerCase();
+              return kl.includes('date du') || kl.includes('date_du') || kl.includes('du') || kl.includes('start') || kl.includes('debut');
+            });
+            if (startDateKey) startStr = parseExcelDate(r[startDateKey]);
+          }
+          if (!endStr) {
+            const endDateKey = Object.keys(r).find(k => {
+              const kl = k.toLowerCase();
+              return kl.includes('date au') || kl.includes('date_au') || kl.includes('au') || kl.includes('date') || kl.includes('period') || kl.includes('fin') || kl.includes('end');
+            });
+            if (endDateKey) endStr = parseExcelDate(r[endDateKey]);
+          }
+        });
+
+        let countUpdated = 0;
+        let countAdded = 0;
+
+        // 3. Appliquer les valeurs écrasées dans chaque base d'équipe
+        Object.entries(importedTrucks).forEach(([v, kmTotal]) => {
           let targetEq = teamMap[v] || CURRENT_EQUIPE;
           let targetDb = (targetEq === CURRENT_EQUIPE && typeof window.DB !== 'undefined') ? window.DB : window['DB_' + targetEq];
 
@@ -8597,18 +8638,6 @@ function importKmFacture(input) {
           if (!targetDb.odo) targetDb.odo = [];
 
           let weekIdx = -1;
-          const startDateKey = Object.keys(r).find(k => {
-            const kl = k.toLowerCase();
-            return kl.includes('date du') || kl.includes('date_du') || kl.includes('du') || kl.includes('start') || kl.includes('debut');
-          });
-          const endDateKey = Object.keys(r).find(k => {
-            const kl = k.toLowerCase();
-            return kl.includes('date au') || kl.includes('date_au') || kl.includes('au') || kl.includes('date') || kl.includes('period') || kl.includes('fin') || kl.includes('end');
-          });
-          
-          const startStr = startDateKey ? parseExcelDate(r[startDateKey]) : null;
-          const endStr = endDateKey ? parseExcelDate(r[endDateKey]) : null;
-
           if (endStr && targetDb.odo_weeks) {
             weekIdx = targetDb.odo_weeks.indexOf(endStr);
             if (weekIdx === -1) {
@@ -8621,36 +8650,25 @@ function importKmFacture(input) {
               }
             }
           }
-          
           if (weekIdx === -1) {
             weekIdx = targetDb.odo_weeks ? targetDb.odo_weeks.length - 1 : 0;
           }
 
           let odoRec = targetDb.odo.find(item => item.v && item.v.trim().toUpperCase() === v);
           if (odoRec) {
-            odoRec.kmFacture = km;
-            if (!odoRec.kmFactures) odoRec.kmFactures = [];
-            
-            // Clear intermediate weeks in this imported period
-            if (startStr && endStr && targetDb.odo_weeks) {
-              targetDb.odo_weeks.forEach((w, idx) => {
-                if (w > startStr && w < endStr) {
-                  odoRec.kmFactures[idx] = null;
-                }
-              });
-            }
-            
-            odoRec.kmFactures[weekIdx] = km;
+            odoRec.kmFacture = kmTotal;
+            odoRec.kmFactures = [];
+            odoRec.kmFactures[weekIdx] = kmTotal;
             countUpdated++;
           } else {
             const newRec = {
               v: v,
               chauffeur: '',
               vals: new Array(targetDb.odo_weeks ? targetDb.odo_weeks.length : 0).fill(null),
-              kmFacture: km,
+              kmFacture: kmTotal,
               kmFactures: []
             };
-            newRec.kmFactures[weekIdx] = km;
+            newRec.kmFactures[weekIdx] = kmTotal;
             targetDb.odo.push(newRec);
             countAdded++;
           }
@@ -8658,51 +8676,48 @@ function importKmFacture(input) {
           if (targetEq === CURRENT_EQUIPE && typeof window.DB !== 'undefined') {
             let activeRec = window.DB.odo.find(item => item.v && item.v.trim().toUpperCase() === v);
             if (activeRec) {
-              activeRec.kmFacture = km;
-              if (!activeRec.kmFactures) activeRec.kmFactures = [];
-              
-              // Clear intermediate weeks in this imported period
-              if (startStr && endStr && window.DB.odo_weeks) {
-                window.DB.odo_weeks.forEach((w, idx) => {
-                  if (w > startStr && w < endStr) {
-                    activeRec.kmFactures[idx] = null;
-                  }
-                });
-              }
-              
-              activeRec.kmFactures[weekIdx] = km;
+              activeRec.kmFacture = kmTotal;
+              activeRec.kmFactures = [];
+              activeRec.kmFactures[weekIdx] = kmTotal;
             } else {
               const newRec = {
                 v: v,
                 chauffeur: '',
                 vals: new Array(window.DB.odo_weeks ? window.DB.odo_weeks.length : 0).fill(null),
-                kmFacture: km,
+                kmFacture: kmTotal,
                 kmFactures: []
               };
-              newRec.kmFactures[weekIdx] = km;
+              newRec.kmFactures[weekIdx] = kmTotal;
               window.DB.odo.push(newRec);
             }
           }
         });
 
-        const EQUIPS_TO_SAVE = ['A', 'B', 'C', 'D', 'E', 'F'];
-        EQUIPS_TO_SAVE.forEach(eq => {
+        // 4. Sauvegarder immédiatement toutes les équipes sur Supabase et LocalStorage
+        for (const eq of EQUIPS) {
           const eqDb = (eq === CURRENT_EQUIPE && typeof window.DB !== 'undefined') ? window.DB : window['DB_' + eq];
           if (eqDb) {
             eqDb._localTs = Date.now();
-            if (eq === CURRENT_EQUIPE) {
+            if (eq === CURRENT_EQUIPE && typeof saveDB === 'function') {
               saveDB();
-            } else if (window.saveTeamDB) {
-              window.saveTeamDB(eq, eqDb);
+            }
+            if (typeof supabaseUpsertTeam === 'function') {
+              try {
+                await supabaseUpsertTeam(eq, eqDb);
+              } catch (errSup) {
+                console.warn("Supabase upsert for team " + eq + " failed:", errSup);
+              }
             }
           }
-        });
+        }
 
-        renderOdo();
-        showToast(`📊 Importation KM Facturé réussie : ${countUpdated} mis à jour, ${countAdded} ajoutés`);
+        if (typeof renderOdo === 'function') renderOdo();
+        showToast("✅ Écrasement et Importation réussis : " + countUpdated + " camions mis à jour (" + Object.keys(importedTrucks).length + " camions importés)");
       } catch (e) {
         console.error(e);
-        showToast("⚠️ Erreur lors de l'importation du fichier", true);
+        showToast("⚠️ Erreur lors de l'importation du fichier: " + e.message, true);
+      } finally {
+        input.value = '';
       }
     };
     reader.readAsArrayBuffer(file);
@@ -8718,6 +8733,7 @@ function importKmFacture(input) {
   }
   input.value = '';
 }
+
 
 function openOdoRacHistoryModal() {
   const currentEq = typeof window.CURRENT_EQUIPE !== 'undefined' ? window.CURRENT_EQUIPE : 'A';
