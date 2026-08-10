@@ -14218,71 +14218,34 @@ async function saveNewPoi() {
 }
 
 async function checkPoiAlerts() {
-  const activeTeam = typeof window.CURRENT_EQUIPE !== 'undefined' ? window.CURRENT_EQUIPE : 'A';
-  if (!activeTeam) return;
-
   try {
-    // 1. Fetch all unnotified active visits for the team
-    const unnotifiedVisits = await poiSupabaseFetch(`np_poi_visits?team=eq.${activeTeam}&left_at=is.null&notified=eq.false`);
-    if (!unnotifiedVisits || unnotifiedVisits.length === 0) return;
+    // 1. Récupérer TOUTES les visites en cours sur TOUTES les équipes confondues (A à F)
+    const activeVisitsList = await poiSupabaseFetch(`np_poi_visits?left_at=is.null`);
+    if (!activeVisitsList || activeVisitsList.length === 0) return;
 
-    // 2. Fetch all POIs to check for blacklist status
+    // 2. Récupérer la liste des POI blacklistés
     const pois = await poiSupabaseFetch("np_pois?select=name,is_blacklist");
     const blacklistPois = new Set(pois ? pois.filter(p => p.is_blacklist).map(p => p.name) : []);
 
-    // 3. Fetch dispos to check last GPS signal age (must be <= 48 hours)
-    const dispos = await poiSupabaseFetch(`np_dispo?select=v,geoloc,geoloc_date&team=eq.${activeTeam}`);
-    const activeGpsTrucks = new Set();
-    
-    if (dispos) {
-      const todayStr = new Date().toISOString().split('T')[0];
-      const todayTime = new Date(todayStr).getTime();
-      dispos.forEach(d => {
-        if (d.geoloc_date) {
-          const gpsTime = new Date(d.geoloc_date).getTime();
-          const diffDays = Math.round((todayTime - gpsTime) / (1000 * 60 * 60 * 24));
-          if (d.geoloc !== 'OFF' && diffDays <= 2) { // GPS actif (<= 48h et pas marqué OFF)
-            activeGpsTrucks.add(d.v.trim().toUpperCase());
-          }
-        }
-      });
-    }
+    let clientAlertedSet = new Set(JSON.parse(sessionStorage.getItem('client_alerted_blacklist_ids') || '[]'));
 
-    // 4. Process each unnotified visit
-    for (const v of unnotifiedVisits) {
-      const isGpsActive = activeGpsTrucks.has(v.v.trim().toUpperCase());
-      
-      // Si la balise GPS n'est plus active (> 48h), on ignore l'alerte
-      // et on la marque comme notifiée pour ne plus être spammé
-      if (!isGpsActive) {
-        await poiSupabaseFetch(`np_poi_visits?id=eq.${v.id}`, "PATCH", { notified: true });
-        continue;
-      }
-
-      // Si la visite a commencé avant aujourd'hui (date passée), on la marque comme notifiée
-      // et on ne déclenche pas d'alerte rétroactive pour ne pas polluer l'écran.
-      const arrivedDate = new Date(v.arrived_at);
-      const todayDate = new Date();
-      if (arrivedDate.toDateString() !== todayDate.toDateString()) {
-        await poiSupabaseFetch(`np_poi_visits?id=eq.${v.id}`, "PATCH", { notified: true });
-        continue;
-      }
-
+    // 3. Traiter chaque visite active
+    for (const v of activeVisitsList) {
       const isBlacklisted = blacklistPois.has(v.poi_name);
 
       if (isBlacklisted) {
-        // Alerte Blacklist immédiate (sans attendre 2h !)
-        window.ALERTED_BLACKLIST_VISITS = window.ALERTED_BLACKLIST_VISITS || new Set();
-        if (!window.ALERTED_BLACKLIST_VISITS.has(v.id)) {
-          window.ALERTED_BLACKLIST_VISITS.add(v.id);
+        if (!clientAlertedSet.has(v.id)) {
+          clientAlertedSet.add(v.id);
+          sessionStorage.setItem('client_alerted_blacklist_ids', JSON.stringify([...clientAlertedSet]));
           const timeStr = new Date(v.arrived_at).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
-          showBlacklistAlertModal(v.v, v.poi_name, timeStr);
+          showBlacklistAlertModal(v.v, v.poi_name, timeStr, v.team);
         }
-        await poiSupabaseFetch(`np_poi_visits?id=eq.${v.id}`, "PATCH", { notified: true });
-      } else if (v.duration_hours >= 2.0) {
-        // Alerte longue attente (> 2h)
-        showPoiWarningModal(v);
-        await poiSupabaseFetch(`np_poi_visits?id=eq.${v.id}`, "PATCH", { notified: true });
+      } else if (v.duration_hours >= 2.0 && !v.notified) {
+        const activeTeam = typeof window.CURRENT_EQUIPE !== 'undefined' ? window.CURRENT_EQUIPE : 'A';
+        if (!v.team || v.team === activeTeam) {
+          showPoiWarningModal(v);
+          await poiSupabaseFetch(`np_poi_visits?id=eq.${v.id}`, "PATCH", { notified: true });
+        }
       }
     }
     
@@ -14820,7 +14783,7 @@ function playBlacklistAlarm() {
   }
 }
 
-function showBlacklistAlertModal(truck, client, time) {
+function showBlacklistAlertModal(truck, client, time, team) {
   const existing = document.getElementById('modal-blacklist-alert');
   if (existing) existing.remove();
   
@@ -14841,15 +14804,18 @@ function showBlacklistAlertModal(truck, client, time) {
     document.head.appendChild(style);
   }
 
+  const teamBadge = team ? `<span style="display:inline-block;background:#ef4444;color:#fff;padding:2px 10px;border-radius:6px;font-size:13px;font-weight:800;margin-left:8px;vertical-align:middle">ÉQUIPE ${team}</span>` : '';
+
   const alertHtml = `
-    <div id="modal-blacklist-alert" class="modal-backdrop" style="position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(239,68,68,0.3);backdrop-filter:blur(6px);z-index:999999;display:flex;align-items:center;justify-content:center">
-      <div style="background:#181316;border:3px solid #ef4444;border-radius:16px;width:90%;max-width:450px;padding:32px;box-shadow:0 0 40px rgba(239,68,68,0.5);color:#fff;text-align:center;animation:pulse-alert 1s infinite alternate">
+    <div id="modal-blacklist-alert" class="modal-backdrop" style="position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(239,68,68,0.4);backdrop-filter:blur(8px);z-index:999999;display:flex;align-items:center;justify-content:center">
+      <div style="background:#181316;border:3px solid #ef4444;border-radius:16px;width:90%;max-width:480px;padding:32px;box-shadow:0 0 50px rgba(239,68,68,0.6);color:#fff;text-align:center;animation:pulse-alert 1s infinite alternate">
         <div style="font-size:60px;margin-bottom:16px">🚨</div>
         <h3 style="color:#ef4444;font-size:22px;font-weight:800;margin:0 0 16px 0;letter-spacing:1.5px">ALERTE CLIENT BLACKLISTÉ</h3>
         
         <p style="font-size:14px;color:#eee;line-height:1.6;margin-bottom:24px">
-          Le camion <strong style="color:#ef4444;font-family:monospace;font-size:18px">${truck}</strong> vient d'entrer chez le client blacklisté :<br>
-          <strong style="color:#fff;font-size:18px;display:block;margin:8px 0">${client}</strong>
+          Le camion <strong style="color:#ef4444;font-family:monospace;font-size:18px">${truck}</strong> ${teamBadge}<br>
+          vient d'entrer chez le client blacklisté :<br>
+          <strong style="color:#fff;font-size:20px;display:block;margin:10px 0;text-transform:uppercase">${client}</strong>
           Heure de détection : <strong style="color:#fbbf24;font-size:15px">${time}</strong>
         </p>
 
