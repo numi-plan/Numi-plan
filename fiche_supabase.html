@@ -5984,6 +5984,8 @@ function openModal(id, editIdx=-1) {
   if (id === 'modal-odo' && editIdx === -1) buildOdoWeekInputs();
   if (id === 'modal-odo-export') initOdoExportModal();
   if (id === 'modal-panne') {
+    const editInput = document.getElementById('panne-edit-idx');
+    if (editInput) editInput.value = editIdx;
     const isAdmin = !sessionStorage.getItem('numiplan_team_lock');
     const kpiSelect = document.getElementById('f-panne-kpi');
     if (kpiSelect) {
@@ -5994,6 +5996,10 @@ function openModal(id, editIdx=-1) {
       document.getElementById('f-panne-kpi').value = '';
       const cetEl = document.getElementById('f-panne-cet');
       if (cetEl && !cetEl.value) cetEl.value = sessionStorage.getItem('numiplan_username') || '';
+      const dateEl = document.getElementById('f-panne-date');
+      if (dateEl) dateEl.value = today();
+      const chargeEl = document.getElementById('f-panne-charge');
+      if (chargeEl) chargeEl.value = '';
     }
   }
   if (id === 'modal-gasoil' && editIdx === -1) {
@@ -6786,88 +6792,104 @@ function deletePanne(idx) {
 }
 
 function savePanne() {
-  if (!_checkActionsLibres('savePanne')) return;
-  const immat = document.getElementById('f-panne-immat').value.trim();
-  if (!immat) { showToast('⚠️ Immatriculation requise', true); return; }
-  
-  const di = document.getElementById('f-panne-di').value.trim();
-  if (!di) {
-    showToast('⚠️ Numéro DI obligatoire', true);
-    document.getElementById('f-panne-di').style.borderColor = '#ef4444';
-    document.getElementById('f-panne-di').focus();
-    return;
-  }
-  document.getElementById('f-panne-di').style.borderColor = 'var(--border)';
-  
-  const charge = document.getElementById('f-panne-charge').value;
-  if (!charge) {
-    showToast('⚠️ Spécification "Camion à charge" obligatoire', true);
-    document.getElementById('f-panne-charge').style.borderColor = '#ef4444';
-    document.getElementById('f-panne-charge').focus();
-    return;
-  }
-  document.getElementById('f-panne-charge').style.borderColor = 'var(--border)';
-  
-  const idx = parseInt(document.getElementById('panne-edit-idx').value);
-  const newKpi = document.getElementById('f-panne-kpi').value || '';
-  
-  let kpiHistory = idx >= 0 ? (DB.pannes[idx].kpiHistory || []) : [];
-  let kpiLastPointageDate = idx >= 0 ? (DB.pannes[idx].kpiLastPointageDate || '') : '';
-  let kpiDate = idx >= 0 ? (DB.pannes[idx].kpiDate || '') : '';
-  
-  if (idx < 0) {
-    kpiHistory.push({
-      date: today(),
-      response: newKpi,
-      ts: new Date().toISOString(),
-      equipe: typeof window.CURRENT_EQUIPE !== 'undefined' ? window.CURRENT_EQUIPE : 'A'
-    });
-    kpiDate = (newKpi === 'OUI' || newKpi === 'NON') ? today() : '';
-    kpiLastPointageDate = '';
-  } else if (DB.pannes[idx].kpi !== newKpi) {
-    kpiHistory.push({
-      date: today(),
-      response: newKpi,
-      ts: new Date().toISOString(),
-      equipe: typeof window.CURRENT_EQUIPE !== 'undefined' ? window.CURRENT_EQUIPE : 'A'
-    });
-    kpiDate = (newKpi === 'OUI' || newKpi === 'NON') ? today() : '';
-    kpiLastPointageDate = '';
-  }
-
-  const obj = {
-    date: document.getElementById('f-panne-date').value||today(),
-    chauffeur: document.getElementById('f-panne-chauffeur').value.trim().toUpperCase(),
-    immat, type: document.getElementById('f-panne-type').value,
-    di: document.getElementById('f-panne-di').value.trim(),
-    desc: document.getElementById('f-panne-desc').value.trim(),
-    cet: document.getElementById('f-panne-cet').value.trim(),
-    kpi: newKpi,
-    kpiHistory,
-    kpiDate,
-    kpiLastPointageDate,
-    charge: charge,
-    created_at: idx >= 0 ? (DB.pannes[idx].created_at || new Date().toISOString()) : new Date().toISOString()
-  };
-  
-  // Sync dispo état si le véhicule est là
-  const dispoMatch = DB.dispo.find(d => d.v === immat);
-  if (dispoMatch && !dispoMatch.etat.toLowerCase().includes('panne')) {
-    if (confirm(`Mettre à jour l'état de ${immat} en "En panne" dans la disponibilité ?`)) {
-      dispoMatch.etat = 'En panne';
+  try {
+    const immat = document.getElementById('f-panne-immat').value.trim().toUpperCase();
+    if (!immat) {
+      showToast('⚠️ Immatriculation requise', true);
+      document.getElementById('f-panne-immat').style.borderColor = '#ef4444';
+      document.getElementById('f-panne-immat').focus();
+      return;
     }
-  }
-  if (idx >= 0) DB.pannes[idx] = obj; else DB.pannes.push(obj);
-  saveDB(); closeModal('modal-panne'); renderPannes();
-  // Sync automatique état dispo → En panne
-  const immatSync = obj.immat;
-  const dispoEntry = DB.dispo.find(d => d.v === immat);
-  if (dispoEntry && dispoEntry.etat.toLowerCase() !== 'en panne') {
-    dispoEntry.etat = 'En panne';
+    document.getElementById('f-panne-immat').style.borderColor = 'var(--border)';
+    
+    const di = document.getElementById('f-panne-di').value.trim();
+    if (!di) {
+      showToast('⚠️ Numéro DI obligatoire', true);
+      document.getElementById('f-panne-di').style.borderColor = '#ef4444';
+      document.getElementById('f-panne-di').focus();
+      return;
+    }
+    document.getElementById('f-panne-di').style.borderColor = 'var(--border)';
+    
+    const charge = document.getElementById('f-panne-charge').value;
+    if (!charge) {
+      showToast('⚠️ Spécification "Camion à charge" obligatoire', true);
+      document.getElementById('f-panne-charge').style.borderColor = '#ef4444';
+      document.getElementById('f-panne-charge').focus();
+      return;
+    }
+    document.getElementById('f-panne-charge').style.borderColor = 'var(--border)';
+    
+    const rawIdx = document.getElementById('panne-edit-idx') ? document.getElementById('panne-edit-idx').value : '-1';
+    const parsed = parseInt(rawIdx);
+    const idx = (!isNaN(parsed) && parsed >= 0 && DB && DB.pannes && DB.pannes[parsed]) ? parsed : -1;
+    
+    const newKpi = document.getElementById('f-panne-kpi').value || '';
+    
+    let kpiHistory = idx >= 0 ? (DB.pannes[idx].kpiHistory || []) : [];
+    let kpiLastPointageDate = idx >= 0 ? (DB.pannes[idx].kpiLastPointageDate || '') : '';
+    let kpiDate = idx >= 0 ? (DB.pannes[idx].kpiDate || '') : '';
+    
+    if (idx < 0) {
+      kpiHistory.push({
+        date: today(),
+        response: newKpi,
+        ts: new Date().toISOString(),
+        equipe: typeof window.CURRENT_EQUIPE !== 'undefined' ? window.CURRENT_EQUIPE : 'A'
+      });
+      kpiDate = (newKpi === 'OUI' || newKpi === 'NON') ? today() : '';
+      kpiLastPointageDate = '';
+    } else if (DB.pannes[idx] && DB.pannes[idx].kpi !== newKpi) {
+      kpiHistory.push({
+        date: today(),
+        response: newKpi,
+        ts: new Date().toISOString(),
+        equipe: typeof window.CURRENT_EQUIPE !== 'undefined' ? window.CURRENT_EQUIPE : 'A'
+      });
+      kpiDate = (newKpi === 'OUI' || newKpi === 'NON') ? today() : '';
+      kpiLastPointageDate = '';
+    }
+
+    const obj = {
+      date: document.getElementById('f-panne-date').value || today(),
+      chauffeur: document.getElementById('f-panne-chauffeur').value.trim().toUpperCase(),
+      immat: immat,
+      type: document.getElementById('f-panne-type').value,
+      di: di,
+      desc: document.getElementById('f-panne-desc').value.trim(),
+      cet: document.getElementById('f-panne-cet').value.trim(),
+      kpi: newKpi,
+      kpiHistory: kpiHistory,
+      kpiDate: kpiDate,
+      kpiLastPointageDate: kpiLastPointageDate,
+      charge: charge,
+      created_at: idx >= 0 ? (DB.pannes[idx].created_at || new Date().toISOString()) : new Date().toISOString()
+    };
+    
+    if (!DB.pannes) DB.pannes = [];
+    if (idx >= 0) {
+      DB.pannes[idx] = obj;
+    } else {
+      DB.pannes.push(obj);
+    }
+
+    // Sync dispo état si le véhicule est là
+    if (DB.dispo) {
+      const dispoMatch = DB.dispo.find(d => d.v && d.v.trim().toUpperCase() === immat);
+      if (dispoMatch && (!dispoMatch.etat || !dispoMatch.etat.toLowerCase().includes('panne'))) {
+        dispoMatch.etat = 'En panne';
+      }
+    }
+    
     saveDB();
+    closeModal('modal-panne');
+    renderPannes();
+    if (typeof renderDispo === 'function') renderDispo();
+    showToast('✅ Panne enregistrée — ' + immat + ' mis En panne');
+  } catch (err) {
+    console.error("Erreur lors de l'enregistrement de la panne:", err);
+    showToast("⚠️ Erreur lors de l'enregistrement: " + err.message, true);
   }
-  renderDispo();
-  showToast('✅ Panne enregistrée — ' + immatSync + ' mis En panne automatiquement');
 }
 
 function toggleKpi(idx) {
