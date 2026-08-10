@@ -10275,27 +10275,35 @@ function renderHistoriqueAnomalies() {
 
 function isGpsSyncToday() {
   if (window._gpsForceUnlocked) return true;
-  if (!window.DB || !window.DB.dispo || window.DB.dispo.length === 0) return true;
   
   const d = new Date();
   const y = d.getFullYear();
   const m = String(d.getMonth() + 1).padStart(2, '0');
   const day = String(d.getDate()).padStart(2, '0');
+  const isoDate = `${y}-${m}-${day}`;
+  const frDate = `${day}/${m}/${y}`;
+  const frDateDash = `${day}-${m}-${y}`;
   
-  const isoDate = `${y}-${m}-${day}`; // e.g. "2026-08-09"
-  const frDate = `${day}/${m}/${y}`;  // e.g. "09/08/2026"
-  
-  const eq = typeof window.CURRENT_EQUIPE !== 'undefined' ? window.CURRENT_EQUIPE : 'A';
-  const teamDispos = window.DB.dispo.filter(row => !row.team || row.team === eq);
-  const listToCheck = teamDispos.length > 0 ? teamDispos : window.DB.dispo;
+  if (sessionStorage.getItem('numiplan_gps_unlocked_date') === isoDate) {
+    window._gpsForceUnlocked = true;
+    return true;
+  }
 
-  const hasGpsToday = listToCheck.some(row => {
-    if (!row.geoloc_date) return false;
-    const gDate = String(row.geoloc_date).trim();
-    return gDate.startsWith(isoDate) || gDate.includes(isoDate) || gDate.startsWith(frDate) || gDate.includes(frDate);
-  });
+  // Vérifier sur TOUTES les équipes confondues si au moins 1 camion a une position aujourd'hui
+  const EQUIPES = ['A', 'B', 'C', 'D', 'E', 'F'];
+  for (const eq of EQUIPES) {
+    const db = (eq === window.CURRENT_EQUIPE && typeof window.DB !== 'undefined') ? window.DB : window['DB_' + eq];
+    if (db && db.dispo && db.dispo.length > 0) {
+      const match = db.dispo.some(row => {
+        if (!row.geoloc_date) return false;
+        const gd = String(row.geoloc_date).trim();
+        return gd.includes(isoDate) || gd.includes(frDate) || gd.includes(frDateDash);
+      });
+      if (match) return true;
+    }
+  }
   
-  return hasGpsToday;
+  return false;
 }
 window.isGpsSyncToday = isGpsSyncToday;
 
@@ -10303,47 +10311,77 @@ async function verifierDeblocageGps() {
   showToast("⏳ Vérification des signaux GPS sur Supabase...");
   
   try {
-    const todayStr = today(); // e.g. "2026-08-09"
     const d = new Date();
-    const frDate = `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`;
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    const todayStr = `${y}-${m}-${day}`;
+    const frDate = `${day}/${m}/${y}`;
+    const frDateDash = `${day}-${m}-${y}`;
+    const nowMs = Date.now();
+    const twentyFourHoursMs = 24 * 60 * 60 * 1000;
     
-    // 1. Lire np_dispo en direct depuis Supabase
+    // 1. Lire np_dispo en direct depuis Supabase trié par updated_at (vrai timestamp)
     let records = [];
     if (typeof poiSupabaseFetch === 'function') {
       try {
-        records = await poiSupabaseFetch('np_dispo?select=v,team,geoloc_date&order=geoloc_date.desc.nullslast&limit=50');
+        records = await poiSupabaseFetch('np_dispo?select=v,team,geoloc_date,updated_at&order=updated_at.desc.nullslast&limit=200');
       } catch (errFetch) {
         console.warn("poiSupabaseFetch failed, trying fallback", errFetch);
       }
     }
     
-    // Si poiSupabaseFetch n'a rien renvoyé, essayer le client Supabase global
     if ((!records || records.length === 0) && window.supabase) {
-      const { data } = await window.supabase.from('np_dispo').select('v,team,geoloc_date').order('geoloc_date', { ascending: false }).limit(50);
+      const { data } = await window.supabase.from('np_dispo').select('v,team,geoloc_date,updated_at').order('updated_at', { ascending: false }).limit(200);
       records = data || [];
     }
     
-    console.log("Dernières positions GPS reçues dans la base :", records);
+    console.log("Positions GPS reçues de Supabase :", (records || []).length, "lignes");
     
-    // 2. Vérifier si un camion a une position aujourd'hui
-    const hasSyncToday = (records || []).some(r => {
-      if (!r.geoloc_date) return false;
-      const gd = String(r.geoloc_date).trim();
-      return gd.startsWith(todayStr) || gd.includes(todayStr) || gd.startsWith(frDate) || gd.includes(frDate);
+    // 2. Vérifier si un camion a une position aujourd'hui ou mis à jour dans les 24h
+    let hasSyncToday = (records || []).some(r => {
+      if (r.geoloc_date) {
+        const gd = String(r.geoloc_date).trim();
+        if (gd.includes(todayStr) || gd.includes(frDate) || gd.includes(frDateDash)) return true;
+      }
+      if (r.updated_at) {
+        const upMs = new Date(r.updated_at).getTime();
+        if (!isNaN(upMs) && (nowMs - upMs) < twentyFourHoursMs) return true;
+      }
+      return false;
     });
+
+    // 3. Fallback : vérifier aussi si une équipe dans numiplan_teams a été synchronisée aujourd'hui
+    if (!hasSyncToday && window.supabase) {
+      try {
+        const { data: teamRows } = await window.supabase.from('numiplan_teams').select('team,updated_at');
+        if (teamRows && teamRows.length > 0) {
+          hasSyncToday = teamRows.some(t => {
+            if (!t.updated_at) return false;
+            const upMs = new Date(t.updated_at).getTime();
+            return !isNaN(upMs) && (nowMs - upMs) < twentyFourHoursMs;
+          });
+        }
+      } catch(e) { console.warn('team check err', e); }
+    }
     
     if (hasSyncToday) {
-      // Mettre à jour DB.dispo en mémoire
-      if (window.DB && window.DB.dispo) {
-        (records || []).forEach(r => {
-          const match = window.DB.dispo.find(d => d.v && d.v.trim().toUpperCase() === (r.v || '').trim().toUpperCase());
-          if (match) {
-            match.geoloc_date = r.geoloc_date;
+      // Mettre à jour DB.dispo et toutes les équipes en mémoire
+      const EQUIPES = ['A', 'B', 'C', 'D', 'E', 'F'];
+      (records || []).forEach(r => {
+        if (!r.v) return;
+        const vNorm = r.v.trim().toUpperCase();
+        EQUIPES.forEach(eq => {
+          const db = (eq === window.CURRENT_EQUIPE && typeof window.DB !== 'undefined') ? window.DB : window['DB_' + eq];
+          if (db && db.dispo) {
+            const match = db.dispo.find(d => d.v && d.v.trim().toUpperCase() === vNorm);
+            if (match) match.geoloc_date = r.geoloc_date || frDate;
           }
         });
-      }
+      });
       
       window._gpsForceUnlocked = true;
+      sessionStorage.setItem('numiplan_gps_unlocked_date', todayStr);
       
       const gpsModal = document.getElementById('modal-pointage-gps-required');
       if (gpsModal) gpsModal.style.setProperty('display', 'none', 'important');
@@ -10352,18 +10390,24 @@ async function verifierDeblocageGps() {
       if (overlay) overlay.style.setProperty('display', 'none', 'important');
       
       _setActionsBloqueesPointage(false);
-      showToast("✅ Synchronisation GPS confirmée ! Application débloquée.");
+      showToast("✅ Synchronisation GPS confirmée ! Numiplan débloqué.");
       
       if (typeof renderDispo === 'function') renderDispo();
       if (typeof checkPointageRequired === 'function') checkPointageRequired();
       return true;
     } else {
-      showToast("❌ Aucun signal GPS reçu pour aujourd'hui (" + frDate + "). Avez-vous cliqué sur le favori sur IDEGPS ?", true);
+      showToast("❌ Aucun signal GPS récent reçu. Cliquez sur le favori IDEGPS sur la carte puis réessayez.", true);
       return false;
     }
   } catch (err) {
     console.error("Erreur lors de la vérification GPS:", err);
-    showToast("⚠️ Erreur de connexion Supabase: " + err.message, true);
+    // En cas d'erreur de connexion Supabase, débloquer pour ne pas laisser l'utilisateur coincé
+    window._gpsForceUnlocked = true;
+    const gpsModal = document.getElementById('modal-pointage-gps-required');
+    if (gpsModal) gpsModal.style.setProperty('display', 'none', 'important');
+    _setActionsBloqueesPointage(false);
+    showToast("⚠️ Déblocage de secours activé suite à une erreur réseau.", false);
+    return true;
   }
 }
 window.verifierDeblocageGps = verifierDeblocageGps;
