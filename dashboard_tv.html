@@ -809,7 +809,7 @@
     }
 
     // Modal d'alerte client blacklisté
-    function showBlacklistAlertModal(truck, client, time) {
+    function showBlacklistAlertModal(truck, client, time, team) {
       const existing = document.getElementById('modal-blacklist-alert');
       if (existing) existing.remove();
       
@@ -825,15 +825,18 @@
         document.head.appendChild(style);
       }
 
+      const teamBadge = team ? `<span style="display:inline-block;background:#ef4444;color:#fff;padding:2px 10px;border-radius:6px;font-size:14px;font-weight:800;margin-left:8px;vertical-align:middle">ÉQUIPE ${team}</span>` : '';
+
       const alertHtml = `
-        <div id="modal-blacklist-alert" class="modal-backdrop" style="position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(239,68,68,0.3);backdrop-filter:blur(6px);z-index:999999;display:flex;align-items:center;justify-content:center">
-          <div style="background:#181316;border:3px solid #ef4444;border-radius:16px;width:90%;max-width:450px;padding:32px;box-shadow:0 0 40px rgba(239,68,68,0.5);color:#fff;text-align:center;animation:pulse-alert 1s infinite alternate">
+        <div id="modal-blacklist-alert" class="modal-backdrop" style="position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(239,68,68,0.4);backdrop-filter:blur(8px);z-index:999999;display:flex;align-items:center;justify-content:center">
+          <div style="background:#181316;border:3px solid #ef4444;border-radius:16px;width:90%;max-width:480px;padding:32px;box-shadow:0 0 50px rgba(239,68,68,0.6);color:#fff;text-align:center;animation:pulse-alert 1s infinite alternate">
             <div style="font-size:60px;margin-bottom:16px">🚨</div>
             <h3 style="color:#ef4444;font-size:22px;font-weight:800;margin:0 0 16px 0;letter-spacing:1.5px">ALERTE CLIENT BLACKLISTÉ</h3>
             
             <p style="font-size:14px;color:#eee;line-height:1.6;margin-bottom:24px">
-              Le camion <strong style="color:#ef4444;font-family:monospace;font-size:18px">${truck}</strong> vient d'entrer chez le client blacklisté :<br>
-              <strong style="color:#fff;font-size:18px;display:block;margin:8px 0">${client}</strong>
+              Le camion <strong style="color:#ef4444;font-family:monospace;font-size:18px">${truck}</strong> ${teamBadge}<br>
+              vient d'entrer chez le client blacklisté :<br>
+              <strong style="color:#fff;font-size:20px;display:block;margin:10px 0;text-transform:uppercase">${client}</strong>
               Heure de détection : <strong style="color:#fbbf24;font-size:15px">${time}</strong>
             </p>
 
@@ -851,86 +854,38 @@
     async function checkPoiAlerts() {
       if (!supabaseClient) return;
 
-      const agencyFilter = document.getElementById('agency-filter').value;
-      
-      let activeTeams = [];
-      if (agencyFilter === 'ALL') {
-        activeTeams = ['A', 'B', 'C', 'D'];
-      } else if (agencyFilter === 'AB') {
-        activeTeams = ['A', 'B'];
-      } else if (agencyFilter === 'CD') {
-        activeTeams = ['C', 'D'];
-      } else {
-        activeTeams = [agencyFilter];
-      }
+      try {
+        // Récupérer TOUTES les visites en cours sur TOUTES les équipes confondues
+        const { data: activeVisits, error: errV } = await supabaseClient
+          .from('np_poi_visits')
+          .select('id,v,poi_name,arrived_at,team')
+          .is('left_at', null);
+        
+        if (errV) throw errV;
+        if (!activeVisits || activeVisits.length === 0) return;
 
-      for (const team of activeTeams) {
-        try {
-          const { data: unnotifiedVisits, error: errV } = await supabaseClient
-            .from('np_poi_visits')
-            .select('id,v,poi_name,arrived_at,duration_hours')
-            .eq('team', team)
-            .is('left_at', null)
-            .eq('notified', false);
-          
-          if (errV) throw errV;
-          if (!unnotifiedVisits || unnotifiedVisits.length === 0) continue;
+        const { data: pois, error: errP } = await supabaseClient
+          .from('np_pois')
+          .select('name,is_blacklist');
+        if (errP) throw errP;
+        const blacklistPois = new Set(pois ? pois.filter(p => p.is_blacklist).map(p => p.name) : []);
 
-          const { data: pois, error: errP } = await supabaseClient
-            .from('np_pois')
-            .select('name,is_blacklist');
-          if (errP) throw errP;
-          const blacklistPois = new Set(pois ? pois.filter(p => p.is_blacklist).map(p => p.name) : []);
+        let tvAlertedSet = new Set(JSON.parse(sessionStorage.getItem('tv_alerted_blacklist_ids') || '[]'));
 
-          const { data: dispos, error: errD } = await supabaseClient
-            .from('np_dispo')
-            .select('v,geoloc,geoloc_date')
-            .eq('team', team);
-          if (errD) throw errD;
-          
-          const activeGpsTrucks = new Set();
-          if (dispos) {
-            const todayStr = new Date().toISOString().split('T')[0];
-            const todayTime = new Date(todayStr).getTime();
-            dispos.forEach(d => {
-              if (d.geoloc_date) {
-                const gpsTime = new Date(d.geoloc_date).getTime();
-                const diffDays = Math.round((todayTime - gpsTime) / (1000 * 60 * 60 * 24));
-                if (d.geoloc !== 'OFF' && diffDays <= 2) {
-                  activeGpsTrucks.add(d.v.trim().toUpperCase());
-                }
-              }
-            });
-          }
-
-          for (const v of unnotifiedVisits) {
-            const isGpsActive = activeGpsTrucks.has(v.v.trim().toUpperCase());
-            if (!isGpsActive) {
-              await supabaseClient.from('np_poi_visits').update({ notified: true }).eq('id', v.id);
-              continue;
-            }
-
-            const arrivedDate = new Date(v.arrived_at);
-            const todayDate = new Date();
-            if (arrivedDate.toDateString() !== todayDate.toDateString()) {
-              await supabaseClient.from('np_poi_visits').update({ notified: true }).eq('id', v.id);
-              continue;
-            }
-
-            const isBlacklisted = blacklistPois.has(v.poi_name);
-            if (isBlacklisted) {
-              window.ALERTED_BLACKLIST_VISITS = window.ALERTED_BLACKLIST_VISITS || new Set();
-              if (!window.ALERTED_BLACKLIST_VISITS.has(v.id)) {
-                window.ALERTED_BLACKLIST_VISITS.add(v.id);
-                const timeStr = new Date(v.arrived_at).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
-                showBlacklistAlertModal(v.v, v.poi_name, timeStr);
-              }
-              await supabaseClient.from('np_poi_visits').update({ notified: true }).eq('id', v.id);
+        for (const v of activeVisits) {
+          const isBlacklisted = blacklistPois.has(v.poi_name);
+          if (isBlacklisted) {
+            if (!tvAlertedSet.has(v.id)) {
+              tvAlertedSet.add(v.id);
+              sessionStorage.setItem('tv_alerted_blacklist_ids', JSON.stringify([...tvAlertedSet]));
+              const timeStr = new Date(v.arrived_at).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+              console.warn(`🚨 ALERTE BLACKLIST TV: ${v.v} (Éq. ${v.team}) chez ${v.poi_name} à ${timeStr}`);
+              showBlacklistAlertModal(v.v, v.poi_name, timeStr, v.team);
             }
           }
-        } catch (e) {
-          console.error(`Error checking POI alerts for team ${team}:`, e);
         }
+      } catch (e) {
+        console.error('Error checking global POI alerts:', e);
       }
     }
 
