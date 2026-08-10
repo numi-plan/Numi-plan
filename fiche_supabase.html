@@ -32,6 +32,7 @@
   function cloneEquipePayload(src) {
     return JSON.parse(JSON.stringify(src));
   }
+  window.cloneEquipePayload = cloneEquipePayload;
 
   // FUSION INTELLIGENTE des listes entre local et distant
   function mergeTeamData(local, remote) {
@@ -920,6 +921,7 @@
       console.warn('[Normalized Sync] Erreur sauvegarde tables normalisées :', err);
     }
   }
+  window.saveNormalizedTables = saveNormalizedTables;
 
   // Helper interne pour sauvegarder et émettre l'upsert
   async function supabaseUpsertTeam(eq, payload) {
@@ -6519,7 +6521,8 @@ async function deleteDispo(idx) {
   DB._last_edited_by = sessionStorage.getItem('numiplan_username') || 'ADMIN';
   DB._last_edited_at = new Date().toISOString();
   
-  window['DB_' + eq] = cloneTeamData(DB);
+  const payloadCloud = JSON.parse(JSON.stringify(DB));
+  window['DB_' + eq] = payloadCloud;
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify({
       version: 3,
@@ -6536,7 +6539,6 @@ async function deleteDispo(idx) {
       // 1. Supprimer de np_dispo
       await window.supabase.from('np_dispo').delete().eq('team', eq).eq('v', deletedTruckImmat);
       // 2. Mettre à jour numiplan_teams dans Supabase
-      const payloadCloud = cloneEquipePayload(DB);
       const { error: upsertErr } = await window.supabase.from('numiplan_teams').upsert({
         team: eq,
         payload: payloadCloud,
@@ -6545,8 +6547,8 @@ async function deleteDispo(idx) {
       if (upsertErr) throw upsertErr;
       
       // 3. Sauvegarder les tables normalisées
-      if (typeof saveNormalizedTables === 'function') {
-        await saveNormalizedTables(eq, payloadCloud);
+      if (typeof window.saveNormalizedTables === 'function') {
+        await window.saveNormalizedTables(eq, payloadCloud);
       }
     }
     showToast('🗑 ' + label + ' supprimé définitivement du cloud');
