@@ -1734,9 +1734,6 @@ tr.dragging {
 
     <div style="display:flex; align-items:center; gap:8px;">
       <div class="date-badge" id="todayBadge" style="margin-right:0;"></div>
-      <select id="history-date-select" onfocus="if(typeof ensureArchivesLoaded==='function')ensureArchivesLoaded()" onchange="selectHistoryDate(this.value)" style="background:var(--bg3); border:1px solid var(--border); color:var(--txt); border-radius:8px; padding:6px 12px; font-size:11px; font-weight:700; cursor:pointer; outline:none; display:none; max-width:200px;">
-        <option value="">📅 En direct (Aujourd'hui)</option>
-      </select>
     </div>
     <button id="theme-toggle-btn" onclick="toggleTheme()" class="date-badge" style="cursor:pointer; font-weight:700; display:flex; align-items:center; justify-content:center; gap:6px; transition:all 0.2s" title="Basculer le mode Sombre / Clair">
       🌓 Mode
@@ -6261,12 +6258,6 @@ function renderDispo() {
       <div class="stat-num" style="color:var(--pur)">${extCount}</div>
       <div class="stat-lbl" style="color:var(--pur)">Extensions Éq. ${CURRENT_EQUIPE}</div>
     </div>`;
-    
-    adminComplianceCardHtml = `
-    <div class="stat-card pur" style="cursor:pointer;transition:opacity .2s;border-left-color:var(--pur);border-right:1px solid rgba(167,139,250,0.2)" onclick="ouvrirComplianceDashboard()" title="Voir le tableau de bord de respect des règles par agence">
-      <div class="stat-num" style="color:var(--pur)">📊</div>
-      <div class="stat-lbl" style="color:var(--pur)">Respect Règles</div>
-    </div>`;
   }
 
   document.getElementById('dispo-stats').innerHTML = `
@@ -6279,8 +6270,7 @@ function renderDispo() {
     <div class="${kpiClass}" style="cursor:pointer;transition:opacity .2s;border-left-color:${kpiBorder}" onclick="ouvrirPointageKpiAtelier('TO_POINT')" title="Voir les pannes non pointées pour passage atelier"><div class="stat-num" style="color:${kpiColor}">${kpiCount}</div><div class="stat-lbl" style="color:${kpiColor}">🛠️ KPI Atelier</div></div>
     ${adminKpiCardHtml}
     ${adminBlCardHtml}
-    ${adminExtensionsCardHtml}
-       ${adminComplianceCardHtml}`;
+    ${adminExtensionsCardHtml}`;
   document.getElementById('cnt-dispo').textContent = data.length;
   
   // Compter le nombre d'occurrences globales de chaque chauffeur dans TOUTES les équipes pour identifier les extensions
