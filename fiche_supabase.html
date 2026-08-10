@@ -6510,7 +6510,50 @@ async function deleteDispo(idx) {
     logMouvement('Sortie Chauffeur', 'Chauffeur', r.chauffeur, 'Supprimé avec le camion | ' + finalJustif);
   }
 
-  DB.dispo.splice(idx,1); saveDB(); renderDispo(); showToast('🗑 ' + label + ' supprimé');
+  const deletedTruckImmat = (r.v || '').trim().toUpperCase();
+  const eq = (typeof CURRENT_EQUIPE !== 'undefined' ? CURRENT_EQUIPE : 'A');
+  
+  showToast('⏳ Suppression cloud en cours...');
+  DB.dispo.splice(idx, 1);
+  DB._localTs = Date.now();
+  DB._last_edited_by = sessionStorage.getItem('numiplan_username') || 'ADMIN';
+  DB._last_edited_at = new Date().toISOString();
+  
+  window['DB_' + eq] = cloneTeamData(DB);
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({
+      version: 3,
+      active: eq,
+      teams: { A: window.DB_A, B: window.DB_B, C: window.DB_C, D: window.DB_D, E: window.DB_E, F: window.DB_F }
+    }));
+  } catch(e) {}
+  
+  renderDispo();
+  
+  // Suppression directe et synchrone dans Supabase
+  try {
+    if (window.supabase) {
+      // 1. Supprimer de np_dispo
+      await window.supabase.from('np_dispo').delete().eq('team', eq).eq('v', deletedTruckImmat);
+      // 2. Mettre à jour numiplan_teams dans Supabase
+      const payloadCloud = cloneEquipePayload(DB);
+      const { error: upsertErr } = await window.supabase.from('numiplan_teams').upsert({
+        team: eq,
+        payload: payloadCloud,
+        updated_at: new Date().toISOString()
+      });
+      if (upsertErr) throw upsertErr;
+      
+      // 3. Sauvegarder les tables normalisées
+      if (typeof saveNormalizedTables === 'function') {
+        await saveNormalizedTables(eq, payloadCloud);
+      }
+    }
+    showToast('🗑 ' + label + ' supprimé définitivement du cloud');
+  } catch(err) {
+    console.error("Erreur suppression cloud dispo:", err);
+    showToast('⚠️ Erreur suppression cloud: ' + err.message, true);
+  }
 }
 
 function saveDispo() {
