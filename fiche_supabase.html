@@ -463,16 +463,10 @@
     }
   }
 
-  // Chargement Initial depuis Supabase (Ciblé par équipe ou complet pour Admin)
+  // Chargement Initial depuis Supabase (Toutes les équipes sont synchronisées pour TOUS les utilisateurs)
   async function loadInitialTeams() {
     try {
-      const lock = sessionStorage.getItem('numiplan_team_lock');
-      let query = supabase.from('numiplan_teams').select('*');
-      if (lock && lock !== 'BL') {
-        query = query.eq('team', lock);
-      }
-      
-      const { data, error } = await query;
+      const { data, error } = await supabase.from('numiplan_teams').select('*');
       if (error) throw error;
       
       if (data) {
@@ -488,7 +482,8 @@
         });
         populateLoginUserDropdown();
         loadGlobalDispoForExtensions();
-        // loadArchivesFromFirebase(); // Defer loading to save Supabase Egress
+        if (typeof alignOdoWeeksGlobal === 'function') alignOdoWeeksGlobal();
+        if (typeof updateHeaderRAC === 'function') updateHeaderRAC();
       }
     } catch (e) {
       console.error("Error loading initial teams:", e);
@@ -496,44 +491,72 @@
     }
   }
   
-  // Abonnement Temps Réel ciblé ou global selon authentification
-  const lock = sessionStorage.getItem('numiplan_team_lock');
+  // Abonnement Temps Réel global pour TOUS les utilisateurs (Chefs d'équipe et Admin)
   const isAuthed = sessionStorage.getItem('numiplan_auth') === 'ok';
   
   function reconnectRealtimeChannel() {
-    const currentLock = sessionStorage.getItem('numiplan_team_lock');
     const currentAuthed = sessionStorage.getItem('numiplan_auth') === 'ok';
-    if (currentAuthed && !window.realtimeChannel) {
-      let filterConfig = { event: '*', schema: 'public', table: 'numiplan_teams' };
-      if (currentLock && currentLock !== 'BL') {
-        filterConfig.filter = `team=eq.${currentLock}`;
-      }
-      
-      window.realtimeChannel = supabase
-        .channel('supabase-realtime-teams')
-        .on(
-          'postgres_changes',
-          filterConfig,
-          payload => {
-            if (payload.new && payload.new.team) {
-              const eq = payload.new.team;
-              const data = payload.new.payload;
-              _fbLoaded[eq] = true;
-              const currentEq = getCurrentEquipe();
-              if (eq === currentEq) {
-                _fbReady = true;
+    if (currentAuthed) {
+      if (!window.realtimeChannel) {
+        window.realtimeChannel = supabase
+          .channel('supabase-realtime-teams')
+          .on(
+            'postgres_changes',
+            { event: '*', schema: 'public', table: 'numiplan_teams' },
+            payload => {
+              if (payload.new && payload.new.team) {
+                const eq = payload.new.team;
+                const data = payload.new.payload;
+                _fbLoaded[eq] = true;
+                const currentEq = getCurrentEquipe();
+                if (eq === currentEq) {
+                  _fbReady = true;
+                }
+                applyEquipeData(eq, data);
+                populateLoginUserDropdown();
+                if (typeof alignOdoWeeksGlobal === 'function') alignOdoWeeksGlobal();
+                if (typeof updateHeaderRAC === 'function') updateHeaderRAC();
               }
-              applyEquipeData(eq, data);
-              populateLoginUserDropdown();
             }
-          }
-        )
-        .subscribe((status) => {
-          if (status === 'SUBSCRIBED') {
-            console.log("Supabase Realtime Channel connected!");
-            loadInitialTeams();
-          }
-        });
+          )
+          .subscribe((status) => {
+            if (status === 'SUBSCRIBED') {
+              console.log("Supabase Realtime Channel connected!");
+              loadInitialTeams();
+            }
+          });
+      }
+
+      // Canal Realtime dédié aux alertes POI et Visites pour affichage instantané sur TOUS les écrans (< 100ms)
+      if (!window.realtimePoiChannel) {
+        window.realtimePoiChannel = supabase
+          .channel('supabase-realtime-poi-alerts')
+          .on(
+            'postgres_changes',
+            { event: '*', schema: 'public', table: 'np_poi_visits' },
+            payload => {
+              console.log("⚡ [Realtime] Événement visite POI détecté en direct :", payload);
+              if (typeof checkPoiAlerts === 'function') {
+                checkPoiAlerts();
+              }
+            }
+          )
+          .on(
+            'broadcast',
+            { event: 'blacklist_alert_broadcast' },
+            e => {
+              console.log("🚨 [Realtime Broadcast] Alerte Blacklist reçue :", e.payload);
+              if (e.payload) {
+                showBlacklistAlertModal(e.payload.truck, e.payload.client, e.payload.time, e.payload.team);
+              }
+            }
+          )
+          .subscribe((status) => {
+            if (status === 'SUBSCRIBED') {
+              console.log("⚡ Canal Realtime Alertes POI connecté avec succès !");
+            }
+          });
+      }
     }
   }
   window.reconnectRealtimeChannel = reconnectRealtimeChannel;
@@ -1507,18 +1530,30 @@ tr.dragging {
       }
     });
 
-    // 4. Masquer les autres équipes dans le header et archives si verrouillé
+    // 4. Masquer les autres équipes dans le header, badges RAC et archives si verrouillé
     ['A', 'B', 'C', 'D', 'E', 'F'].forEach(team => {
       const btnHeader = document.getElementById('btn-eq' + team);
       const btnArchive = document.getElementById('arc-btn-' + team);
+      const racBadge = document.getElementById('header-rac-' + team);
       if (lock && lock !== team) {
         if (btnHeader) btnHeader.style.setProperty('display', 'none', 'important');
         if (btnArchive) btnArchive.style.setProperty('display', 'none', 'important');
+        if (racBadge) racBadge.style.setProperty('display', 'none', 'important');
       } else {
         if (btnHeader) btnHeader.style.removeProperty('display');
         if (btnArchive) btnArchive.style.removeProperty('display');
+        if (racBadge) racBadge.style.removeProperty('display');
       }
     });
+
+    const globalRacBadge = document.getElementById('header-rac-global');
+    if (globalRacBadge) {
+      if (lock && lock !== 'BL') {
+        globalRacBadge.style.setProperty('display', 'none', 'important');
+      } else {
+        globalRacBadge.style.removeProperty('display');
+      }
+    }
 
     const tabFlash = document.getElementById('tab-flashinfo');
     if (tabFlash) {
@@ -4364,6 +4399,7 @@ function getTeamRACStatsForWeek(db, lastWeekIdx) {
 }
 
 function updateHeaderRAC() {
+  const lock = sessionStorage.getItem('numiplan_team_lock');
   const curEq = typeof CURRENT_EQUIPE !== 'undefined' ? CURRENT_EQUIPE : 'A';
   
   let totalFact = 0;
@@ -4381,12 +4417,23 @@ function updateHeaderRAC() {
     const el = document.getElementById('header-rac-' + eq);
     if (el) {
       el.innerHTML = `Éq. ${eq}: ${eqRacStr}`;
-      if (eq === curEq) {
-        el.style.border = '1px solid var(--acc)';
-        el.style.boxShadow = '0 0 4px rgba(56,189,248,0.4)';
+      if (lock && lock !== 'BL') {
+        if (eq === lock) {
+          el.style.removeProperty('display');
+          el.style.border = '1.5px solid var(--acc)';
+          el.style.boxShadow = '0 0 6px rgba(56,189,248,0.4)';
+        } else {
+          el.style.setProperty('display', 'none', 'important');
+        }
       } else {
-        el.style.border = '1px solid var(--border)';
-        el.style.boxShadow = 'none';
+        el.style.removeProperty('display');
+        if (eq === curEq) {
+          el.style.border = '1px solid var(--acc)';
+          el.style.boxShadow = '0 0 4px rgba(56,189,248,0.4)';
+        } else {
+          el.style.border = '1px solid var(--border)';
+          el.style.boxShadow = 'none';
+        }
       }
     }
   });
@@ -4397,6 +4444,11 @@ function updateHeaderRAC() {
   const elGlobal = document.getElementById('header-rac-global');
   if (elGlobal) {
     elGlobal.innerHTML = `Global: ${globalRacStr}`;
+    if (lock && lock !== 'BL') {
+      elGlobal.style.setProperty('display', 'none', 'important');
+    } else {
+      elGlobal.style.removeProperty('display');
+    }
   }
 }
 
@@ -14261,6 +14313,15 @@ async function checkPoiAlerts() {
           sessionStorage.setItem('client_alerted_blacklist_ids', JSON.stringify([...clientAlertedSet]));
           const timeStr = new Date(v.arrived_at).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
           showBlacklistAlertModal(v.v, v.poi_name, timeStr, v.team);
+
+          // Diffuser instantanément l'alerte à TOUS les autres postes connectés via Realtime Broadcast
+          if (window.realtimePoiChannel) {
+            window.realtimePoiChannel.send({
+              type: 'broadcast',
+              event: 'blacklist_alert_broadcast',
+              payload: { truck: v.v, client: v.poi_name, time: timeStr, team: v.team }
+            });
+          }
         }
       } else if (v.duration_hours >= 2.0 && !v.notified) {
         const activeTeam = typeof window.CURRENT_EQUIPE !== 'undefined' ? window.CURRENT_EQUIPE : 'A';
@@ -14330,8 +14391,8 @@ function showPoiWarningModal(alertRow) {
 }
 
 window.addEventListener('DOMContentLoaded', () => {
-  window.poiAlertsInterval = setInterval(checkPoiAlerts, 60000); // 1 min
-  setTimeout(checkPoiAlerts, 5000);   // 5s
+  window.poiAlertsInterval = setInterval(checkPoiAlerts, 15000); // 15s (Filet de sécurité ultra-réactif)
+  setTimeout(checkPoiAlerts, 3000);   // 3s
   
   // Alertes pannes à charge
   window.loadedPanneInterval = setInterval(checkLoadedBreakdowns, 60000); // 1 min
@@ -14356,11 +14417,11 @@ window.addEventListener('keypress', resetIdleTimer);
 window.addEventListener('click', resetIdleTimer);
 window.addEventListener('scroll', resetIdleTimer);
 
+// Ne pas suspendre la surveillance en arrière-plan pour que les alertes et sirènes sonnent toujours !
 document.addEventListener('visibilitychange', () => {
-  if (document.hidden) {
-    pauseSession();
-  } else {
+  if (!document.hidden) {
     resetIdleTimer();
+    checkPoiAlerts();
   }
 });
 
