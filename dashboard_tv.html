@@ -724,9 +724,34 @@
         document.getElementById('login-modal').classList.add('active');
       }
 
-      // 3. Lancer la surveillance des POI blacklistés en arrière-plan
-      setInterval(checkPoiAlerts, 60000);
-      setTimeout(checkPoiAlerts, 5000);
+      // 3. Lancer la surveillance des POI blacklistés en temps réel et arrière-plan
+      setInterval(checkPoiAlerts, 15000); // 15s (Filet de sécurité ultra-rapide)
+      setTimeout(checkPoiAlerts, 3000);
+
+      // Abonnement Realtime instantané pour les alertes Blacklist (< 100ms)
+      if (supabaseClient && !window.tvRealtimePoiChannel) {
+        window.tvRealtimePoiChannel = supabaseClient
+          .channel('tv-realtime-poi-alerts')
+          .on(
+            'postgres_changes',
+            { event: '*', schema: 'public', table: 'np_poi_visits' },
+            payload => {
+              console.log("⚡ [TV Realtime] Événement visite POI détecté :", payload);
+              checkPoiAlerts();
+            }
+          )
+          .on(
+            'broadcast',
+            { event: 'blacklist_alert_broadcast' },
+            e => {
+              console.log("🚨 [TV Broadcast] Alerte Blacklist reçue :", e.payload);
+              if (e.payload) {
+                showBlacklistAlertModal(e.payload.truck, e.payload.client, e.payload.time, e.payload.team);
+              }
+            }
+          )
+          .subscribe();
+      }
 
       // 4. Rafraîchir les données de performance Supabase automatiquement toutes les 5 minutes
       setInterval(refreshData, 300000);
