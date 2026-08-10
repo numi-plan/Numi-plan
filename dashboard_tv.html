@@ -1336,55 +1336,57 @@
       const agencyFilter = document.getElementById('agency-filter').value;
 
       try {
-        // 0. Auto-chargement des activités depuis les équipes Supabase si aucun CSV local n'est chargé
-        if (rawCsvData.length === 0) {
-          try {
-            const { data: teamsData } = await supabaseClient
-              .from('numiplan_teams')
-              .select('team, payload');
-            if (teamsData) {
-              const allActivite = [];
-              teamsData.forEach(t => {
-                const p = t.payload;
-                if (p) {
-                  if (p.activite && Array.isArray(p.activite)) {
-                    p.activite.forEach(act => {
-                      allActivite.push({
-                        date: act.date || act.date_op || '',
-                        tracteur: (act.tr || act.tracteur || '').toUpperCase(),
-                        agence: t.team || 'A',
-                        chauffeur: act.chauffeur || '—',
-                        marchandise: act.marchandise || act.client || '—',
-                        csr: act.csr || '—',
-                        statut: act.statut || act.etat || '—',
-                        km: parseFloat(act.km) || parseFloat(act.km_reel) || parseFloat(act.kmFacture) || 0
-                      });
-                    });
-                  }
-                  if (p.perfRaw && Array.isArray(p.perfRaw)) {
-                    p.perfRaw.forEach(prf => {
-                      allActivite.push({
-                        date: (prf.date ? String(prf.date).split('T')[0] : ''),
-                        tracteur: (prf.tracteur || prf.tr || '').toUpperCase(),
-                        agence: prf.agence || t.team || 'A',
-                        chauffeur: prf.chauffeur || '—',
-                        marchandise: prf.marchandise || '—',
-                        csr: prf.csr || '—',
-                        statut: prf.statut || '—',
-                        km: parseFloat(prf.km) || 0
-                      });
-                    });
-                  }
-                }
-              });
-              if (allActivite.length > 0) {
-                rawCsvData = allActivite;
-                console.log(`[Supabase] Auto-chargé ${allActivite.length} activités/segments depuis les équipes.`);
+        // 0. Chargement automatique de toutes les équipes depuis numiplan_teams (Odomètre, RAC, Activités)
+        window.NUMIPLAN_TEAMS_MAP = window.NUMIPLAN_TEAMS_MAP || {};
+        try {
+          const { data: teamsData, error: errT } = await supabaseClient
+            .from('numiplan_teams')
+            .select('team, payload');
+          if (!errT && teamsData) {
+            const allActivite = [];
+            teamsData.forEach(t => {
+              if (t.team && t.payload) {
+                window.NUMIPLAN_TEAMS_MAP[t.team] = t.payload;
               }
+              const p = t.payload;
+              if (p && rawCsvData.length === 0) {
+                if (p.activite && Array.isArray(p.activite)) {
+                  p.activite.forEach(act => {
+                    allActivite.push({
+                      date: act.date || act.date_op || '',
+                      tracteur: (act.tr || act.tracteur || '').toUpperCase(),
+                      agence: t.team || 'A',
+                      chauffeur: act.chauffeur || '—',
+                      marchandise: act.marchandise || act.client || '—',
+                      csr: act.csr || '—',
+                      statut: act.statut || act.etat || '—',
+                      km: parseFloat(act.km) || parseFloat(act.km_reel) || parseFloat(act.kmFacture) || 0
+                    });
+                  });
+                }
+                if (p.perfRaw && Array.isArray(p.perfRaw)) {
+                  p.perfRaw.forEach(prf => {
+                    allActivite.push({
+                      date: (prf.date ? String(prf.date).split('T')[0] : ''),
+                      tracteur: (prf.tracteur || prf.tr || '').toUpperCase(),
+                      agence: prf.agence || t.team || 'A',
+                      chauffeur: prf.chauffeur || '—',
+                      marchandise: prf.marchandise || '—',
+                      csr: prf.csr || '—',
+                      statut: prf.statut || '—',
+                      km: parseFloat(prf.km) || 0
+                    });
+                  });
+                }
+              }
+            });
+            if (rawCsvData.length === 0 && allActivite.length > 0) {
+              rawCsvData = allActivite;
+              console.log(`[Supabase] Auto-chargé ${allActivite.length} activités/segments depuis les équipes.`);
             }
-          } catch (errAct) {
-            console.warn("Impossible d'auto-charger les activités depuis numiplan_teams:", errAct);
           }
+        } catch (errAct) {
+          console.warn("Impossible d'auto-charger numiplan_teams:", errAct);
         }
 
         // 1. Lire np_dispo (état live de la flotte)
@@ -1543,6 +1545,77 @@
     }
 
     // Générer le code HTML des 8 KPIs pour une agence spécifique
+    
+    // Calcul automatique du Roulage à Charge (RAC) depuis les données Odomètre de Numiplan
+    function getTeamRACStats(db) {
+      if (!db || !db.odo || !db.odo_weeks || db.odo_weeks.length < 2) return { fact: 0, odo: 0 };
+      
+      const numWeeks = db.odo_weeks.length;
+      const counts = Array(numWeeks).fill(0);
+      db.odo.forEach(item => {
+        if (item.vals) {
+          for (let i = 0; i < numWeeks; i++) {
+            if (item.vals[i] && item.vals[i] > 1000) counts[i]++;
+          }
+        }
+      });
+      
+      for (let w = numWeeks - 1; w >= 0; w--) {
+        if (counts[w] > 0) {
+          const stats = getTeamRACStatsForWeek(db, w);
+          if (stats.odo > 0 && stats.fact > 0) {
+            return stats;
+          }
+        }
+      }
+      
+      for (let w = numWeeks - 1; w >= 0; w--) {
+        if (counts[w] > 0) {
+          return getTeamRACStatsForWeek(db, w);
+        }
+      }
+      
+      return { fact: 0, odo: 0 };
+    }
+
+    function getTeamRACStatsForWeek(db, lastWeekIdx) {
+      let fact = 0;
+      let odo = 0;
+
+      if (!db || !db.odo) return { fact: 0, odo: 0 };
+
+      db.odo.forEach(r => {
+        const vLast = r.vals ? r.vals[lastWeekIdx] : null;
+        if (vLast && vLast > 1000) {
+          let prevIdx = -1;
+          for (let k = lastWeekIdx - 1; k >= 0; k--) {
+            if (r.vals && r.vals[k] && r.vals[k] > 1000) {
+              prevIdx = k;
+              break;
+            }
+          }
+          if (prevIdx !== -1) {
+            const vPrev = r.vals[prevIdx];
+            const delta = vLast - vPrev;
+            if (delta > 0 && delta <= 10000) {
+              let kmF = 0;
+              if (r.kmFactures && r.kmFactures[lastWeekIdx] !== undefined && r.kmFactures[lastWeekIdx] !== null) {
+                kmF = r.kmFactures[lastWeekIdx];
+              } else if (r.kmFacture !== undefined && r.kmFacture !== null) {
+                kmF = r.kmFacture;
+              }
+              if (kmF > 0) {
+                fact += kmF;
+                odo += delta;
+              }
+            }
+          }
+        }
+      });
+
+      return { fact, odo };
+    }
+
     function generateAgencyKpisHtml(agencyCode, dispos, pannes, ncs, segments, bls) {
       // 1. Total Segments
       const totalSeg = segments ? segments.length : 0;
@@ -1592,9 +1665,14 @@
       const activePannesCount = pannes.filter(p => p.etat !== 'Clôturé' && p.etat !== 'Cloture').length;
       const enPanneLiveCount = dispos.filter(d => d.etat === 'En panne' || d.etat === 'Panne').length;
 
-      // 7. Roulage à charge (Manuel)
-      const storedRoulage = JSON.parse(localStorage.getItem('sharik_tv_roulage') || '{"A":0,"B":0,"C":0,"D":0}');
-      const roulage = storedRoulage[agencyCode] || 0;
+      // 7. Roulage à charge (Automatique synchronisé depuis Numiplan)
+      const teamPayload = (window.NUMIPLAN_TEAMS_MAP && window.NUMIPLAN_TEAMS_MAP[agencyCode]) ? window.NUMIPLAN_TEAMS_MAP[agencyCode] : null;
+      const racStats = getTeamRACStats(teamPayload);
+      const roulage = racStats.odo > 0 ? (racStats.fact / racStats.odo) * 100 : null;
+      const roulageStr = roulage !== null ? `${roulage.toFixed(1)} %` : '—';
+      const racSubtext = racStats.odo > 0 
+        ? `${Math.round(racStats.fact).toLocaleString('fr-FR')} km fact. / ${Math.round(racStats.odo).toLocaleString('fr-FR')} km parc.`
+        : 'Synchronisé depuis Numiplan';
 
       // 8. Chauffeurs BL Manquants
       const blMonths = ['mars','avril','mai','juin','juil','aout','sep','oct','nov','dec'];
@@ -1714,17 +1792,16 @@
               <i class="fa-solid fa-wrench kpi-icon"></i>
             </div>
 
-            <!-- KPI 7 : Roulage à charge (Manuel) -->
+            <!-- KPI 7 : Roulage à charge (Synchronisé Numiplan) -->
             <div class="kpi-card orange" style="position: relative;">
               <div class="kpi-info">
                 <h3 style="display: flex; align-items: center; gap: 8px;">
                   Roulage à Charge
-                  <button onclick="openRoulageModal()" class="btn-icon" style="background: none; border: none; color: var(--text-muted); cursor: pointer; font-size: 13px;" title="Modifier le roulage"><i class="fa-solid fa-pen-to-square"></i></button>
                 </h3>
-                <div class="kpi-value">${roulage.toLocaleString('fr-FR')} %</div>
-                <div class="kpi-subtext">Saisi manuellement</div>
+                <div class="kpi-value">${roulageStr}</div>
+                <div class="kpi-subtext">${racSubtext}</div>
               </div>
-              <i class="fa-solid fa-road kpi-icon"></i>
+              <i class="fa-solid fa-gauge-high kpi-icon"></i>
             </div>
 
             <!-- KPI 8 : Chauffeurs BL Manquants -->
