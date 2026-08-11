@@ -15225,6 +15225,120 @@ window.runGpsDiagnostic = runGpsDiagnostic;
 window.updatePoiRadius = updatePoiRadius;
 window.isAdmin = isAdmin;
 
+
+
+// ── GESTION ET VISUALISATION DES GÉOLOC OFF PAR ÉQUIPE ──
+function filterByGeoloc(status) {
+  const select = document.getElementById('dispo-etat');
+  if (select) {
+    select.value = status;
+    renderDispo();
+  }
+}
+window.filterByGeoloc = filterByGeoloc;
+
+function ouvrirModalGeolocToutesEquipes() {
+  const todayD = today();
+  const EQUIPES = ['A', 'B', 'C', 'D', 'E', 'F'];
+  const teamOffData = {};
+  let totalOff = 0;
+  let totalOn = 0;
+
+  EQUIPES.forEach(eq => {
+    const db = (eq === window.CURRENT_EQUIPE && typeof window.DB !== 'undefined') ? window.DB : window['DB_' + eq];
+    teamOffData[eq] = [];
+    if (db && db.dispo) {
+      db.dispo.forEach(r => {
+        const gDate = r.geolocDate;
+        const gVal = (gDate && gDate === todayD) ? (r.geoloc || '') : (r.geoloc || 'OFF');
+        if (gVal === 'OFF' || !r.geoloc || r.geoloc === 'OFF') {
+          teamOffData[eq].push(r);
+          totalOff++;
+        } else if (gVal === 'ON') {
+          totalOn++;
+        }
+      });
+    }
+  });
+
+  const modalId = 'modal-geoloc-teams-overview';
+  const existing = document.getElementById(modalId);
+  if (existing) existing.remove();
+
+  let teamSectionsHtml = '';
+  EQUIPES.forEach(eq => {
+    const list = teamOffData[eq] || [];
+    const count = list.length;
+    const badgeColor = count > 0 ? '#ef4444' : '#22c55e';
+
+    let rowsHtml = '';
+    if (count === 0) {
+      rowsHtml = `<tr><td colspan="5" style="text-align:center;color:#22c55e;padding:12px;font-size:12px">✅ Toutes les balises de l'Équipe ${eq} sont actives (Géoloc ON)</td></tr>`;
+    } else {
+      rowsHtml = list.map(r => `
+        <tr style="border-bottom:1px solid rgba(255,255,255,0.05)">
+          <td style="font-family:monospace;font-weight:700;color:var(--acc, #00d2ff);padding:8px 12px">${r.v}</td>
+          <td style="font-weight:600;padding:8px 12px">${r.chauffeur || '—'}</td>
+          <td style="padding:8px 12px">${stateBadge ? stateBadge(r.etat) : (r.etat || '—')}</td>
+          <td style="padding:8px 12px;font-size:11px;color:#aaa">${r.geolocDate || 'Non renseignée'}</td>
+          <td style="padding:8px 12px;text-align:center">
+            <button onclick="document.getElementById('${modalId}').remove(); switchEquipe('${eq}'); setTimeout(() => filterByGeoloc('GEOLOC_OFF'), 200);" style="background:rgba(0,210,255,0.15);border:1px solid rgba(0,210,255,0.4);color:var(--acc, #00d2ff);border-radius:6px;padding:4px 10px;font-size:11px;font-weight:700;cursor:pointer">Voir 🔍</button>
+          </td>
+        </tr>
+      `).join('');
+    }
+
+    teamSectionsHtml += `
+      <div style="background:var(--bg3, #0a0f1e);border:1px solid var(--border, #2d3b5f);border-radius:12px;margin-bottom:16px;overflow:hidden">
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:12px 16px;background:rgba(255,255,255,0.02);border-bottom:1px solid var(--border, #2d3b5f)">
+          <span style="font-weight:800;font-size:14px;color:#fff">ÉQUIPE ${eq}</span>
+          <span style="background:${badgeColor}22;color:${badgeColor};border:1px solid ${badgeColor}66;padding:3px 10px;border-radius:12px;font-size:11px;font-weight:800">
+            ${count} Balise(s) OFF
+          </span>
+        </div>
+        <table style="width:100%;border-collapse:collapse;font-size:12px">
+          <thead>
+            <tr style="background:rgba(0,0,0,0.2);color:#94a3b8;font-size:11px;text-transform:uppercase">
+              <th style="padding:8px 12px;text-align:left">Véhicule</th>
+              <th style="padding:8px 12px;text-align:left">Chauffeur</th>
+              <th style="padding:8px 12px;text-align:left">État</th>
+              <th style="padding:8px 12px;text-align:left">Dernier Signal</th>
+              <th style="padding:8px 12px;text-align:center">Action</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${rowsHtml}
+          </tbody>
+        </table>
+      </div>
+    `;
+  });
+
+  const modalHtml = `
+    <div id="${modalId}" class="modal-backdrop" style="position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.75);backdrop-filter:blur(6px);z-index:99999;display:flex;align-items:center;justify-content:center">
+      <div style="background:var(--bg2, #18223f);border:1.5px solid var(--border, #2d3b5f);border-radius:16px;width:95%;max-width:850px;max-height:88vh;overflow-y:auto;padding:24px;box-shadow:0 25px 50px -12px rgba(0,0,0,0.5);color:#fff;text-align:left;animation:scale-in 0.3s ease-out">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;border-bottom:1px solid var(--border, #2d3b5f);padding-bottom:12px">
+          <div>
+            <h3 style="color:#ef4444;font-size:18px;font-weight:800;margin:0;display:flex;align-items:center;gap:8px">
+              🔴 Bilan des Balises GPS Inactives (Géoloc OFF) par Équipe
+            </h3>
+            <div style="font-size:12px;color:#94a3b8;margin-top:4px">
+              Total flotte : <b style="color:#ef4444">${totalOff} OFF</b> · <b style="color:#22c55e">${totalOn} ON</b>
+            </div>
+          </div>
+          <button onclick="document.getElementById('${modalId}').remove()" style="background:none;border:none;color:#aaa;font-size:24px;cursor:pointer;line-height:1">✕</button>
+        </div>
+
+        <div style="max-height:65vh;overflow-y:auto;padding-right:4px">
+          ${teamSectionsHtml}
+        </div>
+      </div>
+    </div>
+  `;
+
+  document.body.insertAdjacentHTML('beforeend', modalHtml);
+}
+window.ouvrirModalGeolocToutesEquipes = ouvrirModalGeolocToutesEquipes;
 </script>
 
 <!-- MODAL EXPORT NUMIFLOW + ARCHIVAGE AUTO -->
@@ -15444,118 +15558,6 @@ window.isAdmin = isAdmin;
   </div>
 </div>
 
+
 </body>
 </html>
-
-// ── GESTION ET VISUALISATION DES GÉOLOC OFF PAR ÉQUIPE ──
-function filterByGeoloc(status) {
-  const select = document.getElementById('dispo-etat');
-  if (select) {
-    select.value = status;
-    renderDispo();
-  }
-}
-window.filterByGeoloc = filterByGeoloc;
-
-function ouvrirModalGeolocToutesEquipes() {
-  const todayD = today();
-  const EQUIPES = ['A', 'B', 'C', 'D', 'E', 'F'];
-  const teamOffData = {};
-  let totalOff = 0;
-  let totalOn = 0;
-
-  EQUIPES.forEach(eq => {
-    const db = (eq === window.CURRENT_EQUIPE && typeof window.DB !== 'undefined') ? window.DB : window['DB_' + eq];
-    teamOffData[eq] = [];
-    if (db && db.dispo) {
-      db.dispo.forEach(r => {
-        const gDate = r.geolocDate;
-        const gVal = (gDate && gDate === todayD) ? (r.geoloc || '') : (r.geoloc || 'OFF');
-        if (gVal === 'OFF' || !r.geoloc || r.geoloc === 'OFF') {
-          teamOffData[eq].push(r);
-          totalOff++;
-        } else if (gVal === 'ON') {
-          totalOn++;
-        }
-      });
-    }
-  });
-
-  const modalId = 'modal-geoloc-teams-overview';
-  const existing = document.getElementById(modalId);
-  if (existing) existing.remove();
-
-  let teamSectionsHtml = '';
-  EQUIPES.forEach(eq => {
-    const list = teamOffData[eq] || [];
-    const count = list.length;
-    const badgeColor = count > 0 ? '#ef4444' : '#22c55e';
-
-    let rowsHtml = '';
-    if (count === 0) {
-      rowsHtml = `<tr><td colspan="5" style="text-align:center;color:#22c55e;padding:12px;font-size:12px">✅ Toutes les balises de l'Équipe ${eq} sont actives (Géoloc ON)</td></tr>`;
-    } else {
-      rowsHtml = list.map(r => `
-        <tr style="border-bottom:1px solid rgba(255,255,255,0.05)">
-          <td style="font-family:monospace;font-weight:700;color:var(--acc, #00d2ff);padding:8px 12px">${r.v}</td>
-          <td style="font-weight:600;padding:8px 12px">${r.chauffeur || '—'}</td>
-          <td style="padding:8px 12px">${stateBadge ? stateBadge(r.etat) : (r.etat || '—')}</td>
-          <td style="padding:8px 12px;font-size:11px;color:#aaa">${r.geolocDate || 'Non renseignée'}</td>
-          <td style="padding:8px 12px;text-align:center">
-            <button onclick="document.getElementById('${modalId}').remove(); switchEquipe('${eq}'); setTimeout(() => filterByGeoloc('GEOLOC_OFF'), 200);" style="background:rgba(0,210,255,0.15);border:1px solid rgba(0,210,255,0.4);color:var(--acc, #00d2ff);border-radius:6px;padding:4px 10px;font-size:11px;font-weight:700;cursor:pointer">Voir 🔍</button>
-          </td>
-        </tr>
-      `).join('');
-    }
-
-    teamSectionsHtml += `
-      <div style="background:var(--bg3, #0a0f1e);border:1px solid var(--border, #2d3b5f);border-radius:12px;margin-bottom:16px;overflow:hidden">
-        <div style="display:flex;justify-content:space-between;align-items:center;padding:12px 16px;background:rgba(255,255,255,0.02);border-bottom:1px solid var(--border, #2d3b5f)">
-          <span style="font-weight:800;font-size:14px;color:#fff">ÉQUIPE ${eq}</span>
-          <span style="background:${badgeColor}22;color:${badgeColor};border:1px solid ${badgeColor}66;padding:3px 10px;border-radius:12px;font-size:11px;font-weight:800">
-            ${count} Balise(s) OFF
-          </span>
-        </div>
-        <table style="width:100%;border-collapse:collapse;font-size:12px">
-          <thead>
-            <tr style="background:rgba(0,0,0,0.2);color:#94a3b8;font-size:11px;text-transform:uppercase">
-              <th style="padding:8px 12px;text-align:left">Véhicule</th>
-              <th style="padding:8px 12px;text-align:left">Chauffeur</th>
-              <th style="padding:8px 12px;text-align:left">État</th>
-              <th style="padding:8px 12px;text-align:left">Dernier Signal</th>
-              <th style="padding:8px 12px;text-align:center">Action</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${rowsHtml}
-          </tbody>
-        </table>
-      </div>
-    `;
-  });
-
-  const modalHtml = `
-    <div id="${modalId}" class="modal-backdrop" style="position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.75);backdrop-filter:blur(6px);z-index:99999;display:flex;align-items:center;justify-content:center">
-      <div style="background:var(--bg2, #18223f);border:1.5px solid var(--border, #2d3b5f);border-radius:16px;width:95%;max-width:850px;max-height:88vh;overflow-y:auto;padding:24px;box-shadow:0 25px 50px -12px rgba(0,0,0,0.5);color:#fff;text-align:left;animation:scale-in 0.3s ease-out">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;border-bottom:1px solid var(--border, #2d3b5f);padding-bottom:12px">
-          <div>
-            <h3 style="color:#ef4444;font-size:18px;font-weight:800;margin:0;display:flex;align-items:center;gap:8px">
-              🔴 Bilan des Balises GPS Inactives (Géoloc OFF) par Équipe
-            </h3>
-            <div style="font-size:12px;color:#94a3b8;margin-top:4px">
-              Total flotte : <b style="color:#ef4444">${totalOff} OFF</b> · <b style="color:#22c55e">${totalOn} ON</b>
-            </div>
-          </div>
-          <button onclick="document.getElementById('${modalId}').remove()" style="background:none;border:none;color:#aaa;font-size:24px;cursor:pointer;line-height:1">✕</button>
-        </div>
-
-        <div style="max-height:65vh;overflow-y:auto;padding-right:4px">
-          ${teamSectionsHtml}
-        </div>
-      </div>
-    </div>
-  `;
-
-  document.body.insertAdjacentHTML('beforeend', modalHtml);
-}
-window.ouvrirModalGeolocToutesEquipes = ouvrirModalGeolocToutesEquipes;
