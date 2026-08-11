@@ -1933,37 +1933,37 @@ mark.hl { background: rgba(56,189,248,.25); color: var(--acc); border-radius: 3p
       if (!src) return;
       (src.dispo||[]).forEach(r => {
         if ([r.v, r.chauffeur, r.lieuJ, r.lieuJ1, r.prog].some(f => match(f, q)))
-          results.push({ eq, tab:'dispo', icon:'🚛', title: r.v||'—', sub: [r.chauffeur, r.lieuJ, r.lieuJ1].filter(Boolean).join(' · '), tabLabel:'Disponibilité' });
+          results.push({ eq, tab:'dispo', icon:'🚛', title: r.v||'—', sub: [r.chauffeur, r.lieuJ, r.lieuJ1].filter(Boolean).join(' · '), tabLabel:'Disponibilité', searchKey: r.v || r.chauffeur || '' });
       });
       (src.pannes||[]).forEach(r => {
-        if ([r.immat, r.chauffeur, r.desc].some(f => match(f, q)))
-          results.push({ eq, tab:'pannes', icon:'🔧', title: r.immat||'—', sub: [r.chauffeur, r.date, r.desc].filter(Boolean).join(' · '), tabLabel:'Pannes' });
+        if ([r.immat, r.chauffeur, r.desc, r.di].some(f => match(f, q)))
+          results.push({ eq, tab:'pannes', icon:'🔧', title: r.immat||'—', sub: [r.chauffeur, r.date, r.desc].filter(Boolean).join(' · '), tabLabel:'Pannes', searchKey: r.immat || r.chauffeur || '' });
       });
       (src.nc||[]).forEach(r => {
-        if ([r.sharik, r.immat, r.obs].some(f => match(f, q)))
-          results.push({ eq, tab:'nc', icon:'⚠️', title: r.immat||r.sharik||'—', sub: [r.sharik, r.type, r.obs].filter(Boolean).join(' · '), tabLabel:'Non-conformités' });
+        if ([r.sharik, r.immat, r.obs, r.chgt].some(f => match(f, q)))
+          results.push({ eq, tab:'nc', icon:'⚠️', title: r.immat||r.sharik||'—', sub: [r.sharik, r.type, r.obs].filter(Boolean).join(' · '), tabLabel:'Non-conformités', searchKey: r.immat || r.sharik || '' });
       });
       (src.gasoil||[]).forEach(r => {
         if ([r.immat, r.chauffeur, r.agence, r.site].some(f => match(f, q)))
-          results.push({ eq, tab:'gasoil', icon:'⛽', title: r.immat||'—', sub: [r.chauffeur, r.agence, r.site, r.date].filter(Boolean).join(' · '), tabLabel:'Gasoil' });
+          results.push({ eq, tab:'gasoil', icon:'⛽', title: r.immat||'—', sub: [r.chauffeur, r.agence, r.site, r.date].filter(Boolean).join(' · '), tabLabel:'Gasoil', searchKey: r.immat || r.chauffeur || '' });
       });
       (src.activite||[]).forEach(r => {
         if ([r.chauffeur, r.site, r.v].some(f => match(f, q)))
-          results.push({ eq, tab:'activite', icon:'📋', title: r.v||r.chauffeur||'—', sub: [r.chauffeur, r.site, r.etat].filter(Boolean).join(' · '), tabLabel:'Activité Sharik' });
+          results.push({ eq, tab:'activite', icon:'📋', title: r.v||r.chauffeur||'—', sub: [r.chauffeur, r.site, r.etat].filter(Boolean).join(' · '), tabLabel:'Activité Sharik', searchKey: r.v || r.chauffeur || '' });
       });
       (src.bl||[]).forEach(r => {
         if ([r.v, r.chauffeur, r.agence].some(f => match(f, q)))
-          results.push({ eq, tab:'bl', icon:'📄', title: r.v||'—', sub: [r.chauffeur, r.agence, r.depot].filter(Boolean).join(' · '), tabLabel:'Suivi BL' });
+          results.push({ eq, tab:'bl', icon:'📄', title: r.v||'—', sub: [r.chauffeur, r.agence, r.depot].filter(Boolean).join(' · '), tabLabel:'Suivi BL', searchKey: r.v || r.chauffeur || '' });
       });
       if (!lock) {
         (src.odo||[]).forEach(r => {
           if ([r.v, r.chauffeur].some(f => match(f, q)))
-            results.push({ eq, tab:'odo', icon:'🛣️', title: r.v||'—', sub: [r.chauffeur].filter(Boolean).join(' · '), tabLabel:'Odomètre' });
+            results.push({ eq, tab:'odo', icon:'🛣️', title: r.v||'—', sub: [r.chauffeur].filter(Boolean).join(' · '), tabLabel:'Odomètre', searchKey: r.v || r.chauffeur || '' });
         });
       }
       (src.equip||[]).forEach(r => {
         if ([r.v, r.chauffeur, r.agence].some(f => match(f, q)))
-          results.push({ eq, tab:'equip', icon:'🔩', title: r.v||'—', sub: [r.chauffeur, r.agence, r.equip].filter(Boolean).join(' · '), tabLabel:'Équipements' });
+          results.push({ eq, tab:'equip', icon:'🔩', title: r.v||'—', sub: [r.chauffeur, r.agence, r.equip].filter(Boolean).join(' · '), tabLabel:'Équipements', searchKey: r.v || r.chauffeur || '' });
       });
     });
     return results;
@@ -1984,7 +1984,8 @@ mark.hl { background: rgba(56,189,248,.25); color: var(--acc); border-radius: 3p
     for (const [tabLabel, items] of Object.entries(grouped)) {
       html += '<div class="gr-section">' + items[0].icon + ' ' + tabLabel + ' <span style="color:var(--txt3);font-weight:400">(' + items.length + ')</span></div>';
       items.forEach(item => {
-        html += '<div class="gr-item" onclick="goToResult(\'' + item.eq + '\',\'' + item.tab + '\')">'
+        const safeSearch = encodeURIComponent(item.searchKey || item.title || rawQ);
+        html += '<div class="gr-item" style="cursor:pointer;transition:background 0.2s;" onclick="goToResult(\'' + item.eq + '\',\'' + item.tab + '\',\'' + safeSearch + '\')">'
           + '<div class="gr-item-main">'
           + '<div class="gr-item-title">' + hl(item.title, rawQ) + '</div>'
           + '<div class="gr-item-sub">' + hl(item.sub, rawQ) + '</div>'
@@ -1998,17 +1999,57 @@ mark.hl { background: rgba(56,189,248,.25); color: var(--acc); border-radius: 3p
     body.innerHTML = html;
   }
 
-  window.goToResult = function(eq, tab) {
-    if (typeof switchEquipe === 'function') switchEquipe(eq);
+  window.goToResult = function(eq, tab, encodedSearch) {
+    const searchTerm = decodeURIComponent(encodedSearch || '');
+    closeGlobalSearch();
+
+    // 1. Basculer vers l'équipe concernée
+    if (typeof switchEquipe === 'function') {
+      switchEquipe(eq);
+    }
+
     setTimeout(() => {
+      // 2. Basculer vers l'onglet du menu concerné
       const tabBtn = document.querySelector('.tab-btn[onclick*="\'' + tab + '\'"]');
       if (tabBtn) {
         document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
         tabBtn.classList.add('active');
-        if (typeof switchTab === 'function') switchTab(tab, tabBtn);
+        if (typeof switchTab === 'function') {
+          switchTab(tab, tabBtn);
+        }
       }
+
+      // 3. Filtrer et afficher directement le camion/chauffeur recherché
+      setTimeout(() => {
+        const inputMap = {
+          'dispo': { id: 'dispo-search', fn: () => { if (typeof renderDispo === 'function') renderDispo(); } },
+          'pannes': { id: 'panne-search', fn: () => { if (typeof renderPannes === 'function') renderPannes(); } },
+          'nc': { id: 'nc-search', fn: () => { if (typeof renderNC === 'function') renderNC(); } },
+          'gasoil': { id: 'gasoil-search', fn: () => { if (typeof renderGasoil === 'function') renderGasoil(); } },
+          'equip': { id: 'equip-search', fn: () => { if (typeof renderEquip === 'function') renderEquip(); } },
+          'activite': { id: 'activite-search', fn: () => { if (typeof renderActivite === 'function') renderActivite(); } },
+          'bl': { id: 'bl-search', fn: () => { if (typeof renderBL === 'function') renderBL(); } },
+          'odo': { id: 'odo-search', fn: () => { if (typeof renderOdo === 'function') renderOdo(); } },
+          'cspc': { id: 'cspc-search', fn: () => { if (typeof renderCSPC === 'function') renderCSPC(); } },
+          'blacklist': { id: 'blacklist-search', fn: () => { if (typeof renderBlacklist === 'function') renderBlacklist(); } },
+          'incidents-livraison': { id: 'inc-search', fn: () => { if (typeof renderIncidentsLivraisonPage === 'function') renderIncidentsLivraisonPage(); } },
+          'tracabilite': { id: 'tracabilite-search', fn: () => { if (typeof renderTracabilite === 'function') renderTracabilite(); } }
+        };
+
+        if (searchTerm && inputMap[tab]) {
+          const cfg = inputMap[tab];
+          const inputEl = document.getElementById(cfg.id);
+          if (inputEl) {
+            inputEl.value = searchTerm;
+            if (cfg.fn) cfg.fn();
+            inputEl.focus();
+            if (typeof showToast === 'function') {
+              showToast(`🔍 Affichage de « ${searchTerm} » dans l'Équipe ${eq} (${tab})`);
+            }
+          }
+        }
+      }, 150);
     }, 120);
-    closeGlobalSearch();
   };
 
   let _gst = null;
