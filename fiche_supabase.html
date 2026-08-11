@@ -2169,42 +2169,44 @@ mark.hl { background: rgba(56,189,248,.25); color: var(--acc); border-radius: 3p
 
   <!-- SOUS-PAGE 1 : ENTRÉES & SORTIES -->
   <div id="admin-subpage-entrees-sorties" class="admin-subpage" style="display:block">
-    <div class="filter-bar" style="margin-bottom:16px">
-      <input type="text" id="admin-es-search" class="filter-input" placeholder="Rechercher camion, chauffeur, motif..." oninput="renderAdminEntreesSorties()">
-      <select id="admin-es-type-filter" class="filter-input" onchange="renderAdminEntreesSorties()" style="max-width:180px">
-        <option value="">Tous mouvements</option>
-        <option value="Entrée">🟢 Entrées uniquement</option>
-        <option value="Sortie">🔴 Sorties uniquement</option>
+    <div class="filter-bar" style="margin-bottom:16px;flex-wrap:wrap;gap:8px">
+      <input type="text" id="admin-es-search" class="filter-input" placeholder="Rechercher chauffeur, code tier, motif..." oninput="renderAdminEntreesSorties()">
+      <select id="admin-es-status-filter" class="filter-input" onchange="renderAdminEntreesSorties()" style="max-width:180px">
+        <option value="">Tous statuts</option>
+        <option value="ACTIF">🟢 Actifs en poste</option>
+        <option value="INACTIF">🔴 Sortis / Résiliés</option>
       </select>
-      <select id="admin-es-team-filter" class="filter-input" onchange="renderAdminEntreesSorties()" style="max-width:160px">
-        <option value="">Toutes équipes (A à F)</option>
-        <option value="A">Équipe A</option>
-        <option value="B">Équipe B</option>
-        <option value="C">Équipe C</option>
-        <option value="D">Équipe D</option>
-        <option value="E">Équipe E</option>
-        <option value="F">Équipe F</option>
+      <select id="admin-es-contrat-filter" class="filter-input" onchange="renderAdminEntreesSorties()" style="max-width:160px">
+        <option value="">Tous contrats</option>
+        <option value="CDD">CDD</option>
+        <option value="CDI">CDI</option>
       </select>
-      <button class="btn btn-reset" onclick="document.getElementById('admin-es-search').value='';document.getElementById('admin-es-type-filter').value='';document.getElementById('admin-es-team-filter').value='';renderAdminEntreesSorties()">↺ Reset</button>
-      <button class="btn" onclick="exporterExcelEntreesSorties()" style="margin-left:auto;background:linear-gradient(135deg,#10b981,#059669);color:#fff;font-weight:700">📥 Exporter Excel</button>
+      <button class="btn btn-reset" onclick="document.getElementById('admin-es-search').value='';document.getElementById('admin-es-status-filter').value='';document.getElementById('admin-es-contrat-filter').value='';renderAdminEntreesSorties()">↺ Reset</button>
+      
+      <div style="margin-left:auto;display:flex;gap:8px">
+        <input type="file" id="admin-es-excel-file" accept=".xlsx, .xls" style="display:none" onchange="importerExcelEntreesSorties(this)">
+        <button class="btn" onclick="document.getElementById('admin-es-excel-file').click()" style="background:rgba(255,255,255,0.08);border:1px solid var(--border);color:var(--txt);font-weight:700">📁 Importer / Maj Excel</button>
+        <button class="btn" onclick="exporterExcelEntreesSorties()" style="background:linear-gradient(135deg,#10b981,#059669);color:#fff;font-weight:700">📥 Exporter Registre</button>
+      </div>
     </div>
 
     <div class="stats-row" style="margin-bottom:20px">
-      <div class="stat-card blue"><div class="stat-num" id="admin-es-stat-total">0</div><div class="stat-lbl">Total Mouvements</div></div>
-      <div class="stat-card green"><div class="stat-num" id="admin-es-stat-entrees">0</div><div class="stat-lbl">Entrées Enregistrées</div></div>
-      <div class="stat-card red"><div class="stat-num" id="admin-es-stat-sorties">0</div><div class="stat-lbl">Sorties Enregistrées</div></div>
+      <div class="stat-card blue"><div class="stat-num" id="admin-es-stat-total">0</div><div class="stat-lbl">Total Chauffeurs Registre</div></div>
+      <div class="stat-card green"><div class="stat-num" id="admin-es-stat-entrees">0</div><div class="stat-lbl">Chauffeurs Actifs (🟢)</div></div>
+      <div class="stat-card red"><div class="stat-num" id="admin-es-stat-sorties">0</div><div class="stat-lbl">Chauffeurs Sortis (🔴)</div></div>
     </div>
 
     <div class="table-wrap">
       <table>
         <thead>
           <tr>
-            <th>Date &amp; Heure</th>
-            <th>Type de Mouvement</th>
-            <th>Cible (Véhicule / Chauffeur)</th>
-            <th>Équipe</th>
-            <th>Motif / Justification</th>
-            <th>Utilisateur / Validateur</th>
+            <th>Code Tier</th>
+            <th>Chauffeur (Sharik)</th>
+            <th>Date Entrée / Démarrage</th>
+            <th>Date Sortie / Résiliation</th>
+            <th>Contrat &amp; Régime</th>
+            <th>Motif Résiliation / Mouvement</th>
+            <th style="text-align:center">Statut</th>
           </tr>
         </thead>
         <tbody id="admin-es-body"></tbody>
@@ -15667,85 +15669,178 @@ function switchAdminSubTab(subTabId) {
 }
 window.switchAdminSubTab = switchAdminSubTab;
 
-// 1. REGISTRE ENTRÉES & SORTIES
+// 1. REGISTRE ENTRÉES & SORTIES (Données Sharik intégrées)
+const INITIAL_ADMIN_SHARIK_DATA = [{"code": "1016113", "sharik": "KHELLIF RACHID", "date_in": "2026-04-15", "date_reinteg": "", "contrat": "CDD", "flotte": "1", "regime": "IFU", "date_out": "", "motif_out": "", "statut": "ACTIF"}, {"code": "1016143", "sharik": "LACHTAR NABIL", "date_in": "2026-03-31", "date_reinteg": "2026-03-31", "contrat": "CDD", "flotte": "1", "regime": "IFU", "date_out": "", "motif_out": "", "statut": "ACTIF"}, {"code": "1016076", "sharik": "HADJ MOUSSA NOURREDINE", "date_in": "2026-03-17", "date_reinteg": "2026-03-17", "contrat": "CDD", "flotte": "1", "regime": "IFU", "date_out": "", "motif_out": "", "statut": "ACTIF"}, {"code": "1016075", "sharik": "DANI KEBIR SAID", "date_in": "2026-03-06", "date_reinteg": "2026-03-06", "contrat": "CDD", "flotte": "1", "regime": "IFU", "date_out": "2026-08-09", "motif_out": "", "statut": "INACTIF"}, {"code": "1016201", "sharik": "BENMESSAOUD ADEL", "date_in": "2026-03-01", "date_reinteg": "2026-03-01", "contrat": "CDD", "flotte": "1", "regime": "IFU", "date_out": "", "motif_out": "", "statut": "ACTIF"}, {"code": "1016083", "sharik": "FERROUDJ NABIL", "date_in": "2026-02-23", "date_reinteg": "2026-02-23", "contrat": "CDD", "flotte": "1", "regime": "IFU", "date_out": "2026-07-30", "motif_out": "", "statut": "INACTIF"}, {"code": "1015816", "sharik": "GUENNOUCHE MOHAND CHERIF", "date_in": "2026-01-30", "date_reinteg": "2026-01-30", "contrat": "CDD", "flotte": "1", "regime": "IFU", "date_out": "", "motif_out": "", "statut": "ACTIF"}, {"code": "1015731", "sharik": "SALHI BRAHIM", "date_in": "2026-01-29", "date_reinteg": "2026-01-29", "contrat": "CDD", "flotte": "1", "regime": "IFU", "date_out": "", "motif_out": "", "statut": "ACTIF"}, {"code": "1015981", "sharik": "DEBBACHE SLIMANE", "date_in": "2026-01-16", "date_reinteg": "2026-01-16", "contrat": "CDD", "flotte": "1", "regime": "IFU", "date_out": "2026-01-26", "motif_out": "", "statut": "INACTIF"}, {"code": "1016025", "sharik": "DRIES MOURAD", "date_in": "2026-01-13", "date_reinteg": "2026-01-13", "contrat": "CDD", "flotte": "1", "regime": "IFU", "date_out": "", "motif_out": "", "statut": "ACTIF"}, {"code": "1016020", "sharik": "BOUGRINE ADEL", "date_in": "2026-01-13", "date_reinteg": "2026-01-13", "contrat": "CDD", "flotte": "1", "regime": "IFU", "date_out": "", "motif_out": "", "statut": "ACTIF"}, {"code": "1015742", "sharik": "HAMICHE DJAMAL", "date_in": "2025-12-21", "date_reinteg": "2025-12-21", "contrat": "CDD", "flotte": "1", "regime": "IFU", "date_out": "", "motif_out": "", "statut": "ACTIF"}, {"code": "1015710", "sharik": "TALEB SALIM", "date_in": "2025-12-17", "date_reinteg": "2025-12-17", "contrat": "CDD", "flotte": "1", "regime": "IFU", "date_out": "", "motif_out": "", "statut": "ACTIF"}, {"code": "1015120", "sharik": "GOFER ABDELHAMID", "date_in": "2025-09-02", "date_reinteg": "2025-09-02", "contrat": "CDD", "flotte": "3", "regime": "IFU", "date_out": "", "motif_out": "", "statut": "ACTIF"}, {"code": "1015286", "sharik": "GUENANA MOULOUD", "date_in": "2025-07-01", "date_reinteg": "2025-07-01", "contrat": "CDD", "flotte": "1", "regime": "IFU", "date_out": "", "motif_out": "", "statut": "ACTIF"}, {"code": "1015291", "sharik": "TALEB YOUNESSE", "date_in": "2025-07-01", "date_reinteg": "2025-07-01", "contrat": "CDD", "flotte": "1", "regime": "IFU", "date_out": "", "motif_out": "", "statut": "ACTIF"}, {"code": "1015292", "sharik": "MEGOUAS M'HAMED", "date_in": "2025-07-01", "date_reinteg": "2025-07-01", "contrat": "CDD", "flotte": "1", "regime": "IFU", "date_out": "", "motif_out": "", "statut": "ACTIF"}, {"code": "1015130", "sharik": "SMAILI MOULOUD", "date_in": "2025-04-15", "date_reinteg": "2025-04-15", "contrat": "CDD", "flotte": "1", "regime": "IFU", "date_out": "", "motif_out": "", "statut": "ACTIF"}, {"code": "1015122", "sharik": "BOULKARIA -OU-HAROUNE", "date_in": "2025-04-13", "date_reinteg": "2025-04-13", "contrat": "CDD", "flotte": "1", "regime": "IFU", "date_out": "2026-08-02", "motif_out": "", "statut": "INACTIF"}, {"code": "1015131", "sharik": "LAGAB RABAH", "date_in": "2025-04-12", "date_reinteg": "2025-04-12", "contrat": "CDD", "flotte": "1", "regime": "IFU", "date_out": "", "motif_out": "", "statut": "ACTIF"}, {"code": "1015098", "sharik": "AGUERCIF GHILAS", "date_in": "2025-04-11", "date_reinteg": "2025-04-11", "contrat": "CDD", "flotte": "1", "regime": "IFU", "date_out": "", "motif_out": "", "statut": "ACTIF"}, {"code": "1015145", "sharik": "DAHMANI HABIB", "date_in": "2025-04-11", "date_reinteg": "2025-04-11", "contrat": "CDD", "flotte": "1", "regime": "IFU", "date_out": "", "motif_out": "", "statut": "ACTIF"}, {"code": "1015096", "sharik": "AIT IGHIL LYES", "date_in": "2025-04-01", "date_reinteg": "2025-04-01", "contrat": "CDD", "flotte": "1", "regime": "IFU", "date_out": "2026-07-26", "motif_out": "", "statut": "INACTIF"}, {"code": "1015121", "sharik": "GUERMI MOUSSA", "date_in": "2025-04-01", "date_reinteg": "2025-04-01", "contrat": "CDD", "flotte": "1", "regime": "IFU", "date_out": "", "motif_out": "", "statut": "ACTIF"}, {"code": "1015044", "sharik": "LAMARA RIDHA", "date_in": "2025-02-11", "date_reinteg": "2025-02-11", "contrat": "CDD", "flotte": "2", "regime": "IFU", "date_out": "", "motif_out": "", "statut": "ACTIF"}, {"code": "1015047", "sharik": "BOUSMAHA MEJDOUB", "date_in": "2025-02-08", "date_reinteg": "2025-02-08", "contrat": "CDD", "flotte": "1", "regime": "IFU", "date_out": "", "motif_out": "", "statut": "ACTIF"}, {"code": "1014922", "sharik": "CHENITI CHERIF", "date_in": "2025-01-22", "date_reinteg": "2025-01-22", "contrat": "CDD", "flotte": "1", "regime": "IFU", "date_out": "2025-01-31", "motif_out": "", "statut": "INACTIF"}, {"code": "1014939", "sharik": "AHADDAD FARID", "date_in": "2025-01-09", "date_reinteg": "2025-01-09", "contrat": "CDD", "flotte": "1", "regime": "IFU", "date_out": "", "motif_out": "", "statut": "ACTIF"}, {"code": "1014943", "sharik": "BENACHERINE MESSOUAD", "date_in": "2025-01-09", "date_reinteg": "2025-01-09", "contrat": "CDD", "flotte": "1", "regime": "IFU", "date_out": "2025-03-16", "motif_out": "", "statut": "INACTIF"}, {"code": "1014915", "sharik": "BENAISSA WALID", "date_in": "2025-01-01", "date_reinteg": "2025-01-01", "contrat": "CDD", "flotte": "1", "regime": "IFU", "date_out": "2025-05-30", "motif_out": "", "statut": "INACTIF"}, {"code": "1014979", "sharik": "CHACHA NABIL", "date_in": "2025-01-01", "date_reinteg": "2025-01-01", "contrat": "CDD", "flotte": "2", "regime": "IFU", "date_out": "", "motif_out": "", "statut": "ACTIF"}, {"code": "1014995", "sharik": "SKANDER HAMIMI", "date_in": "2025-01-01", "date_reinteg": "2025-01-01", "contrat": "CDD", "flotte": "1", "regime": "IFU", "date_out": "", "motif_out": "", "statut": "ACTIF"}, {"code": "1014996", "sharik": "SEMMANE MOHAMMED", "date_in": "2025-01-01", "date_reinteg": "2025-01-01", "contrat": "CDD", "flotte": "1", "regime": "IFU", "date_out": "2025-11-30", "motif_out": "", "statut": "INACTIF"}, {"code": "1015016", "sharik": "NASRI ABDESLAM", "date_in": "2025-01-01", "date_reinteg": "2025-01-01", "contrat": "CDD", "flotte": "2", "regime": "IFU", "date_out": "", "motif_out": "", "statut": "ACTIF"}, {"code": "1015030", "sharik": "LEFSIHANE MOHAMED", "date_in": "2025-01-01", "date_reinteg": "2025-01-01", "contrat": "CDD", "flotte": "2", "regime": "IFU", "date_out": "", "motif_out": "", "statut": "ACTIF"}, {"code": "1015032", "sharik": "SIADJ TOUFIK", "date_in": "2025-01-01", "date_reinteg": "2026-04-01", "contrat": "CDD", "flotte": "1", "regime": "IFU", "date_out": "", "motif_out": "", "statut": "ACTIF"}, {"code": "1015033", "sharik": "NEMLI ACHOUR", "date_in": "2025-01-01", "date_reinteg": "2025-01-01", "contrat": "CDD", "flotte": "1", "regime": "IFU", "date_out": "2025-04-30", "motif_out": "", "statut": "INACTIF"}, {"code": "1015051", "sharik": "KHEBAT FARES", "date_in": "2025-01-01", "date_reinteg": "2025-01-01", "contrat": "CDD", "flotte": "1", "regime": "IFU", "date_out": "", "motif_out": "", "statut": "ACTIF"}, {"code": "1015804", "sharik": "BELKACEMI MOHAMED AMEZIANE", "date_in": "2025-01-01", "date_reinteg": "2025-01-01", "contrat": "CDI", "flotte": "1", "regime": "IFU", "date_out": "2026-03-31", "motif_out": "", "statut": "INACTIF"}, {"code": "1014898", "sharik": "SAHI BRAHIM", "date_in": "2024-12-01", "date_reinteg": "2024-12-01", "contrat": "CDD", "flotte": "1", "regime": "IFU", "date_out": "", "motif_out": "", "statut": "ACTIF"}, {"code": "1014937", "sharik": "BOUKHENFIR LYAZID", "date_in": "2024-12-01", "date_reinteg": "2024-12-01", "contrat": "CDD", "flotte": "1", "regime": "IFU", "date_out": "", "motif_out": "", "statut": "ACTIF"}, {"code": "1014938", "sharik": "AYAD FAYCAL", "date_in": "2024-12-01", "date_reinteg": "2024-12-01", "contrat": "CDD", "flotte": "1", "regime": "IFU", "date_out": "", "motif_out": "", "statut": "ACTIF"}, {"code": "1014940", "sharik": "ZEROUALI MOHAMED AMINE", "date_in": "2024-12-01", "date_reinteg": "2026-06-09", "contrat": "CDD", "flotte": "1", "regime": "IFU", "date_out": "2025-03-30", "motif_out": "", "statut": "INACTIF"}, {"code": "1014954", "sharik": "ABBAS AMAR", "date_in": "2024-12-01", "date_reinteg": "2024-12-01", "contrat": "CDD", "flotte": "1", "regime": "IFU", "date_out": "", "motif_out": "2", "statut": "ACTIF"}, {"code": "1014956", "sharik": "OUBERNINE ABDELGHANI", "date_in": "2024-12-01", "date_reinteg": "2024-12-01", "contrat": "CDD", "flotte": "1", "regime": "IFU", "date_out": "", "motif_out": "", "statut": "ACTIF"}, {"code": "1014933", "sharik": "BOUKERROUCHE ADEL", "date_in": "2024-11-11", "date_reinteg": "2024-11-11", "contrat": "CDD", "flotte": "1", "regime": "IFU", "date_out": "2025-07-31", "motif_out": "", "statut": "INACTIF"}, {"code": "1014829", "sharik": "RABIA MESSAOUD", "date_in": "2024-11-01", "date_reinteg": "2024-11-01", "contrat": "CDD", "flotte": "1", "regime": "IFU", "date_out": "", "motif_out": "", "statut": "ACTIF"}, {"code": "1014931", "sharik": "CHELGHOUM NADIR", "date_in": "2024-11-01", "date_reinteg": "2024-11-01", "contrat": "CDD", "flotte": "1", "regime": "IFU", "date_out": "", "motif_out": "", "statut": "ACTIF"}, {"code": "1014932", "sharik": "ZIAT RACHID", "date_in": "2024-11-01", "date_reinteg": "2024-11-01", "contrat": "CDD", "flotte": "1", "regime": "IFU", "date_out": "", "motif_out": "", "statut": "ACTIF"}, {"code": "1014935", "sharik": "SEGHIR HAKIM", "date_in": "2024-11-01", "date_reinteg": "2024-11-01", "contrat": "CDD", "flotte": "1", "regime": "IFU", "date_out": "", "motif_out": "", "statut": "ACTIF"}, {"code": "1014936", "sharik": "KERBOUB ABDELOUAHEB", "date_in": "2024-11-01", "date_reinteg": "2024-11-01", "contrat": "CDD", "flotte": "2", "regime": "IFU", "date_out": "", "motif_out": "", "statut": "ACTIF"}, {"code": "1014947", "sharik": "BACHA KARIM", "date_in": "2024-11-01", "date_reinteg": "2024-11-01", "contrat": "CDD", "flotte": "1", "regime": "IFU", "date_out": "", "motif_out": "", "statut": "ACTIF"}, {"code": "1014948", "sharik": "MOUZAOUI MOURAD", "date_in": "2024-11-01", "date_reinteg": "2024-11-01", "contrat": "CDD", "flotte": "1", "regime": "IFU", "date_out": "", "motif_out": "", "statut": "ACTIF"}, {"code": "1014949", "sharik": "ZAIDI FATSEH", "date_in": "2024-11-01", "date_reinteg": "2024-11-01", "contrat": "CDD", "flotte": "3", "regime": "IFU", "date_out": "", "motif_out": "", "statut": "ACTIF"}, {"code": "1014955", "sharik": "ABBAS MOHAMED", "date_in": "2024-11-01", "date_reinteg": "2024-11-01", "contrat": "CDD", "flotte": "2", "regime": "IFU", "date_out": "2025-03-31", "motif_out": "", "statut": "INACTIF"}, {"code": "1014593", "sharik": "BENHENNICHE ZOUBIR", "date_in": "2024-10-02", "date_reinteg": "2024-10-02", "contrat": "CDD", "flotte": "1", "regime": "IFU", "date_out": "2024-12-31", "motif_out": "", "statut": "INACTIF"}, {"code": "1014778", "sharik": "KHALDI ALA", "date_in": "2024-10-02", "date_reinteg": "2024-10-02", "contrat": "CDD", "flotte": "1", "regime": "IFU", "date_out": "2025-03-30", "motif_out": "", "statut": "INACTIF"}, {"code": "1014957", "sharik": "NADJI ABDELGHANI", "date_in": "2024-10-02", "date_reinteg": "2024-10-02", "contrat": "CDD", "flotte": "1", "regime": "IFU", "date_out": "2024-12-31", "motif_out": "", "statut": "INACTIF"}, {"code": "1014763", "sharik": "HAMICHI HAKIM", "date_in": "2024-10-01", "date_reinteg": "2024-10-01", "contrat": "CDD", "flotte": "1", "regime": "IFU", "date_out": "", "motif_out": "", "statut": "ACTIF"}, {"code": "1014764", "sharik": "DABDIBI YOUCEF", "date_in": "2024-10-01", "date_reinteg": "2024-10-01", "contrat": "CDD", "flotte": "1", "regime": "IFU", "date_out": "2025-02-15", "motif_out": "", "statut": "INACTIF"}, {"code": "1014775", "sharik": "SAIDI YOUCEF", "date_in": "2024-10-01", "date_reinteg": "2024-10-01", "contrat": "CDD", "flotte": "1", "regime": "IFU", "date_out": "2026-06-21", "motif_out": "", "statut": "INACTIF"}, {"code": "1014779", "sharik": "FATMI ZAKARYA", "date_in": "2024-10-01", "date_reinteg": "2024-10-01", "contrat": "CDD", "flotte": "1", "regime": "IFU", "date_out": "2026-07-13", "motif_out": "", "statut": "INACTIF"}, {"code": "1014832", "sharik": "BENHALIS KAMEL", "date_in": "2024-10-01", "date_reinteg": "2024-10-01", "contrat": "CDD", "flotte": "1", "regime": "IFU", "date_out": "", "motif_out": "", "statut": "ACTIF"}, {"code": "1014921", "sharik": "DAOUD ZABI", "date_in": "2024-10-01", "date_reinteg": "2024-10-01", "contrat": "CDD", "flotte": "1", "regime": "IFU", "date_out": "2026-07-11", "motif_out": "", "statut": "INACTIF"}, {"code": "1014930", "sharik": "CHOUDER CHERIF", "date_in": "2024-10-01", "date_reinteg": "2024-10-01", "contrat": "CDD", "flotte": "1", "regime": "IFU", "date_out": "2025-12-01", "motif_out": "", "statut": "INACTIF"}, {"code": "1014934", "sharik": "DEHAL MAHFOUD", "date_in": "2024-10-01", "date_reinteg": "2024-10-01", "contrat": "CDD", "flotte": "1", "regime": "IFU", "date_out": "2025-10-30", "motif_out": "", "statut": "INACTIF"}, {"code": "1014950", "sharik": "DEHIMAT FARID", "date_in": "2024-10-01", "date_reinteg": "2024-10-01", "contrat": "CDD", "flotte": "1", "regime": "IFU", "date_out": "", "motif_out": "", "statut": "ACTIF"}, {"code": "1014673", "sharik": "AIT TOUATI NADJIM", "date_in": "2024-09-01", "date_reinteg": "2024-09-01", "contrat": "CDD", "flotte": "1", "regime": "IFU", "date_out": "", "motif_out": "", "statut": "ACTIF"}, {"code": "1014684", "sharik": "CHAIB SAMIR", "date_in": "2024-09-01", "date_reinteg": "2024-09-01", "contrat": "CDD", "flotte": "1", "regime": "IFU", "date_out": "", "motif_out": "", "statut": "ACTIF"}, {"code": "1014738", "sharik": "HELLAL KAMEL", "date_in": "2024-09-01", "date_reinteg": "2024-09-01", "contrat": "CDD", "flotte": "1", "regime": "IFU", "date_out": "", "motif_out": "", "statut": "ACTIF"}, {"code": "1014828", "sharik": "BOUAZZA MOHAMED", "date_in": "2024-09-01", "date_reinteg": "2024-09-01", "contrat": "CDD", "flotte": "1", "regime": "IFU", "date_out": "2025-03-30", "motif_out": "", "statut": "INACTIF"}, {"code": "1014831", "sharik": "RAHMI NOUR EDDINE", "date_in": "2024-09-01", "date_reinteg": "2024-09-01", "contrat": "CDD", "flotte": "1", "regime": "IFU", "date_out": "", "motif_out": "", "statut": "ACTIF"}, {"code": "1014941", "sharik": "HALLADJ YAKOUB SALAH", "date_in": "2024-09-01", "date_reinteg": "2024-09-01", "contrat": "CDD", "flotte": "1", "regime": "IFU", "date_out": "", "motif_out": "", "statut": "ACTIF"}, {"code": "1014942", "sharik": "YAKKEN BILEL", "date_in": "2024-09-01", "date_reinteg": "2024-09-01", "contrat": "CDD", "flotte": "1", "regime": "IFU", "date_out": "", "motif_out": "", "statut": "ACTIF"}, {"code": "1014944", "sharik": "DINE SAID", "date_in": "2024-09-01", "date_reinteg": "2024-09-01", "contrat": "CDD", "flotte": "2", "regime": "IFU", "date_out": "", "motif_out": "", "statut": "ACTIF"}, {"code": "1014952", "sharik": "BOUADEM SOFIANE", "date_in": "2024-09-01", "date_reinteg": "2024-09-01", "contrat": "CDD", "flotte": "1", "regime": "IFU", "date_out": "2025-03-30", "motif_out": "", "statut": "INACTIF"}, {"code": "1014953", "sharik": "DECHACHE SLIMANE", "date_in": "2024-09-01", "date_reinteg": "2024-09-01", "contrat": "CDD", "flotte": "1", "regime": "IFU", "date_out": "2026-07-10", "motif_out": "", "statut": "INACTIF"}, {"code": "1014904", "sharik": "SAIM NABIL", "date_in": "2024-08-08", "date_reinteg": "2024-08-08", "contrat": "CDD", "flotte": "1", "regime": "IFU", "date_out": "2025-06-30", "motif_out": "", "statut": "INACTIF"}, {"code": "1014505", "sharik": "LAHOUAZI MOULOUD", "date_in": "2024-07-04", "date_reinteg": "2024-07-04", "contrat": "CDD", "flotte": "1", "regime": "IFU", "date_out": "2024-12-31", "motif_out": "", "statut": "INACTIF"}, {"code": "1014072", "sharik": "LAMIRI HAMID", "date_in": "2024-07-01", "date_reinteg": "2024-07-01", "contrat": "CDD", "flotte": "1", "regime": "IFU", "date_out": "2025-01-09", "motif_out": "", "statut": "INACTIF"}, {"code": "1014470", "sharik": "ELAOUARI MAWLOUD", "date_in": "2024-07-01", "date_reinteg": "2024-07-01", "contrat": "CDD", "flotte": "1", "regime": "IFU", "date_out": "2025-01-31", "motif_out": "", "statut": "INACTIF"}, {"code": "1014674", "sharik": "DRIF ABDELLAHAK", "date_in": "2024-07-01", "date_reinteg": "2024-07-01", "contrat": "CDD", "flotte": "1", "regime": "IFU", "date_out": "2025-01-31", "motif_out": "", "statut": "INACTIF"}, {"code": "1014685", "sharik": "BARA FAROUK", "date_in": "2024-07-01", "date_reinteg": "2024-07-01", "contrat": "CDD", "flotte": "1", "regime": "IFU", "date_out": "2026-07-13", "motif_out": "", "statut": "INACTIF"}, {"code": "1014699", "sharik": "SEGHIR BADREDDINE", "date_in": "2024-07-01", "date_reinteg": "2024-07-01", "contrat": "CDD", "flotte": "3", "regime": "IFU", "date_out": "", "motif_out": "", "statut": "ACTIF"}, {"code": "1014701", "sharik": "AMROUCHE ABDELGHANI", "date_in": "2024-07-01", "date_reinteg": "2024-07-01", "contrat": "CDD", "flotte": "3", "regime": "IFU", "date_out": "", "motif_out": "", "statut": "ACTIF"}, {"code": "1014703", "sharik": "DADDI AHCENE", "date_in": "2024-07-01", "date_reinteg": "2024-07-01", "contrat": "CDD", "flotte": "2", "regime": "IFU", "date_out": "", "motif_out": "", "statut": "ACTIF"}, {"code": "1014734", "sharik": "MAMACHE NADIR", "date_in": "2024-07-01", "date_reinteg": "2024-07-01", "contrat": "CDD", "flotte": "1", "regime": "IFU", "date_out": "", "motif_out": "", "statut": "ACTIF"}, {"code": "1014736", "sharik": "MEZINE MUSTAPHA", "date_in": "2024-07-01", "date_reinteg": "2024-07-01", "contrat": "CDD", "flotte": "2", "regime": "IFU", "date_out": "", "motif_out": "", "statut": "ACTIF"}, {"code": "1014830", "sharik": "SEBIA SAAD", "date_in": "2024-07-01", "date_reinteg": "2024-07-01", "contrat": "CDD", "flotte": "1", "regime": "IFU", "date_out": "2026-07-26", "motif_out": "", "statut": "INACTIF"}, {"code": "1014908", "sharik": "KADI MEBAREK", "date_in": "2024-07-01", "date_reinteg": "2024-07-01", "contrat": "CDD", "flotte": "2", "regime": "IFU", "date_out": "", "motif_out": "", "statut": "ACTIF"}, {"code": "1014062", "sharik": "KADDOUR MOHAMED", "date_in": "2024-06-24", "date_reinteg": "2024-06-24", "contrat": "CDD", "flotte": "1", "regime": "IFU", "date_out": "2025-01-31", "motif_out": "", "statut": "INACTIF"}, {"code": "1014471", "sharik": "BOUDIB ELHEIT MOHAMMED", "date_in": "2024-06-24", "date_reinteg": "2024-06-24", "contrat": "CDD", "flotte": "1", "regime": "IFU", "date_out": "2025-01-31", "motif_out": "", "statut": "INACTIF"}, {"code": "1014946", "sharik": "BELESKEM MOHAMED", "date_in": "2024-06-06", "date_reinteg": "2024-06-06", "contrat": "CDD", "flotte": "1", "regime": "IFU", "date_out": "", "motif_out": "", "statut": "ACTIF"}, {"code": "1014467", "sharik": "BOUAMRANE OMAR", "date_in": "2024-06-01", "date_reinteg": "2024-06-01", "contrat": "CDD", "flotte": "2", "regime": "IFU", "date_out": "", "motif_out": "", "statut": "ACTIF"}, {"code": "1014468", "sharik": "SAIDI SAID", "date_in": "2024-06-01", "date_reinteg": "2024-06-01", "contrat": "CDD", "flotte": "1", "regime": "IFU", "date_out": "2025-02-04", "motif_out": "", "statut": "INACTIF"}, {"code": "1014469", "sharik": "ELOUCIF MEFTAH", "date_in": "2024-06-01", "date_reinteg": "2024-06-01", "contrat": "CDD", "flotte": "2", "regime": "IFU", "date_out": "", "motif_out": "", "statut": "ACTIF"}, {"code": "1014506", "sharik": "KASSA MENAOUAR", "date_in": "2024-06-01", "date_reinteg": "2024-06-01", "contrat": "CDD", "flotte": "1", "regime": "IFU", "date_out": "", "motif_out": "", "statut": "ACTIF"}, {"code": "1014507", "sharik": "HAMALI KAMAL", "date_in": "2024-06-01", "date_reinteg": "2024-06-01", "contrat": "CDD", "flotte": "1", "regime": "IFU", "date_out": "", "motif_out": "", "statut": "ACTIF"}, {"code": "1014508", "sharik": "BALA NASSIM", "date_in": "2024-06-01", "date_reinteg": "2024-06-01", "contrat": "CDD", "flotte": "1", "regime": "IFU", "date_out": "", "motif_out": "", "statut": "ACTIF"}, {"code": "1014509", "sharik": "BENLAHDJER ABDERRAZEQ", "date_in": "2024-06-01", "date_reinteg": "2024-06-01", "contrat": "CDD", "flotte": "1", "regime": "IFU", "date_out": "", "motif_out": "", "statut": "ACTIF"}, {"code": "1014515", "sharik": "DEBBECHA ABDELMALEK", "date_in": "2024-06-01", "date_reinteg": "2024-06-01", "contrat": "CDD", "flotte": "1", "regime": "IFU", "date_out": "", "motif_out": "", "statut": "ACTIF"}, {"code": "1014535", "sharik": "KEHILI FARID", "date_in": "2024-06-01", "date_reinteg": "2024-06-01", "contrat": "CDD", "flotte": "1", "regime": "IFU", "date_out": "", "motif_out": "", "statut": "ACTIF"}, {"code": "1014549", "sharik": "HAMMOUDI ABDENNOUR", "date_in": "2024-06-01", "date_reinteg": "2024-06-01", "contrat": "CDD", "flotte": "1", "regime": "IFU", "date_out": "", "motif_out": "", "statut": "ACTIF"}, {"code": "1014550", "sharik": "NOUISSI NOUREDDINE", "date_in": "2024-06-01", "date_reinteg": "2024-06-01", "contrat": "CDD", "flotte": "1", "regime": "IFU", "date_out": "2026-02-16", "motif_out": "", "statut": "INACTIF"}, {"code": "1014551", "sharik": "BOUGOUFFA ADEL", "date_in": "2024-06-01", "date_reinteg": "2024-06-01", "contrat": "CDD", "flotte": "1", "regime": "IFU", "date_out": "2025-03-30", "motif_out": "", "statut": "INACTIF"}, {"code": "1014552", "sharik": "CHELLAL ABDALLAH", "date_in": "2024-06-01", "date_reinteg": "2024-06-01", "contrat": "CDD", "flotte": "1", "regime": "IFU", "date_out": "", "motif_out": "", "statut": "ACTIF"}, {"code": "1014553", "sharik": "BENSAAD MAHFOUD", "date_in": "2024-06-01", "date_reinteg": "2024-06-01", "contrat": "CDD", "flotte": "1", "regime": "IFU", "date_out": "2025-12-31", "motif_out": "", "statut": "INACTIF"}, {"code": "1014554", "sharik": "NEGHZA AMMAR", "date_in": "2024-06-01", "date_reinteg": "2024-06-01", "contrat": "CDD", "flotte": "5", "regime": "IFU", "date_out": "", "motif_out": "", "statut": "ACTIF"}, {"code": "1014594", "sharik": "REZAIKI NABIL", "date_in": "2024-06-01", "date_reinteg": "2024-06-01", "contrat": "CDD", "flotte": "1", "regime": "IFU", "date_out": "2025-08-30", "motif_out": "", "statut": "INACTIF"}, {"code": "1014602", "sharik": "BLAM KHALID", "date_in": "2024-06-01", "date_reinteg": "2024-06-01", "contrat": "CDD", "flotte": "2", "regime": "IFU", "date_out": "", "motif_out": "", "statut": "ACTIF"}, {"code": "1014733", "sharik": "BELAHDJAR TOUFIK", "date_in": "2024-06-01", "date_reinteg": "2024-06-01", "contrat": "CDD", "flotte": "3", "regime": "IFU", "date_out": "", "motif_out": "", "statut": "ACTIF"}, {"code": "1014916", "sharik": "SAOUDI AMAR", "date_in": "2024-06-01", "date_reinteg": "2024-06-01", "contrat": "CDD", "flotte": "1", "regime": "IFU", "date_out": "2025-02-09", "motif_out": "", "statut": "INACTIF"}, {"code": "1014920", "sharik": "ABDELHILAL IHAMMOUCHEN", "date_in": "2024-06-01", "date_reinteg": "2024-06-01", "contrat": "CDD", "flotte": "2", "regime": "IFU", "date_out": "", "motif_out": "", "statut": "ACTIF"}, {"code": "1014945", "sharik": "BAMEBAREK SALAH", "date_in": "2024-06-01", "date_reinteg": "2024-06-01", "contrat": "CDD", "flotte": "1", "regime": "IFU", "date_out": "", "motif_out": "", "statut": "ACTIF"}, {"code": "1014301", "sharik": "ALI MOHAND HACENE", "date_in": "2024-04-01", "date_reinteg": "2024-04-01", "contrat": "CDD", "flotte": "1", "regime": "IFU", "date_out": "", "motif_out": "", "statut": "ACTIF"}, {"code": "1014302", "sharik": "BENABDALLAH MOHAMED", "date_in": "2024-04-01", "date_reinteg": "2024-04-01", "contrat": "CDD", "flotte": "1", "regime": "IFU", "date_out": "2025-07-31", "motif_out": "", "statut": "INACTIF"}, {"code": "1014303", "sharik": "BEKKA ABDELKRIM", "date_in": "2024-04-01", "date_reinteg": "2024-04-01", "contrat": "CDD", "flotte": "1", "regime": "IFU", "date_out": "", "motif_out": "", "statut": "ACTIF"}, {"code": "1014304", "sharik": "BENDRISS BRAHIM", "date_in": "2024-04-01", "date_reinteg": "2024-04-01", "contrat": "CDD", "flotte": "1", "regime": "IFU", "date_out": "2026-08-03", "motif_out": "VOL", "statut": "INACTIF"}, {"code": "1014306", "sharik": "MENADI HAMMOUCHE", "date_in": "2024-04-01", "date_reinteg": "2024-04-01", "contrat": "CDD", "flotte": "2", "regime": "IFU", "date_out": "2026-07-14", "motif_out": "", "statut": "INACTIF"}, {"code": "1014307", "sharik": "BOUKHEDIMI MOHAMMED", "date_in": "2024-04-01", "date_reinteg": "2024-04-01", "contrat": "CDD", "flotte": "1", "regime": "IFU", "date_out": "", "motif_out": "", "statut": "ACTIF"}, {"code": "1014332", "sharik": "BENTALIA M'HAMMED", "date_in": "2024-04-01", "date_reinteg": "2024-04-01", "contrat": "CDD", "flotte": "1", "regime": "IFU", "date_out": "2025-01-31", "motif_out": "", "statut": "INACTIF"}, {"code": "1014399", "sharik": "DAOUDI ABDALLAH", "date_in": "2024-04-01", "date_reinteg": "2024-04-01", "contrat": "CDD", "flotte": "1", "regime": "IFU", "date_out": "", "motif_out": "", "statut": "ACTIF"}, {"code": "1014166", "sharik": "YAHIAOUI DJAMAL", "date_in": "2024-03-01", "date_reinteg": "2024-03-01", "contrat": "CDD", "flotte": "2", "regime": "IFU", "date_out": "", "motif_out": "", "statut": "ACTIF"}, {"code": "1014167", "sharik": "MIDOUNA FATAH", "date_in": "2024-03-01", "date_reinteg": "2024-03-01", "contrat": "CDD", "flotte": "1", "regime": "IFU", "date_out": "", "motif_out": "", "statut": "ACTIF"}, {"code": "1014168", "sharik": "LEBNA DJILALI", "date_in": "2024-03-01", "date_reinteg": "2024-03-01", "contrat": "CDD", "flotte": "1", "regime": "IFU", "date_out": "2026-07-20", "motif_out": "", "statut": "INACTIF"}, {"code": "1014169", "sharik": "HAMITOUCHE MOHAMMED", "date_in": "2024-03-01", "date_reinteg": "2024-03-01", "contrat": "CDD", "flotte": "1", "regime": "IFU", "date_out": "2025-09-30", "motif_out": "", "statut": "INACTIF"}, {"code": "1014170", "sharik": "DEHOUCHE DJEBAR", "date_in": "2024-03-01", "date_reinteg": "2024-03-01", "contrat": "CDD", "flotte": "1", "regime": "IFU", "date_out": "", "motif_out": "", "statut": "ACTIF"}, {"code": "1014171", "sharik": "BOUFALA RACHID", "date_in": "2024-03-01", "date_reinteg": "2024-03-01", "contrat": "CDD", "flotte": "1", "regime": "IFU", "date_out": "2025-12-30", "motif_out": "", "statut": "INACTIF"}, {"code": "1014172", "sharik": "ABDI MANSOUR", "date_in": "2024-03-01", "date_reinteg": "2024-03-01", "contrat": "CDD", "flotte": "1", "regime": "IFU", "date_out": "2025-05-01", "motif_out": "", "statut": "INACTIF"}, {"code": "1014173", "sharik": "BENYEBKA BENADJILA", "date_in": "2024-03-01", "date_reinteg": "2024-03-01", "contrat": "CDD", "flotte": "1", "regime": "IFU", "date_out": "2025-06-30", "motif_out": "", "statut": "INACTIF"}, {"code": "1014266", "sharik": "LARBI SAID", "date_in": "2024-03-01", "date_reinteg": "2024-03-01", "contrat": "CDD", "flotte": "2", "regime": "IFU", "date_out": "", "motif_out": "", "statut": "ACTIF"}, {"code": "1014058", "sharik": "DJOUAD ABDELHAFID", "date_in": "2024-02-01", "date_reinteg": "2024-02-01", "contrat": "CDD", "flotte": "3", "regime": "IFU", "date_out": "", "motif_out": "", "statut": "ACTIF"}, {"code": "1014061", "sharik": "KHELILI MOHAMED", "date_in": "2024-02-01", "date_reinteg": "2024-02-01", "contrat": "CDD", "flotte": "1", "regime": "IFU", "date_out": "", "motif_out": "", "statut": "ACTIF"}, {"code": "1014063", "sharik": "HADJERSSI LAKHDAR", "date_in": "2024-02-01", "date_reinteg": "2024-02-01", "contrat": "CDD", "flotte": "1", "regime": "IFU", "date_out": "", "motif_out": "", "statut": "ACTIF"}, {"code": "1014064", "sharik": "LABDI HABIB", "date_in": "2024-02-01", "date_reinteg": "2024-02-01", "contrat": "CDD", "flotte": "3", "regime": "IFU", "date_out": "", "motif_out": "", "statut": "ACTIF"}, {"code": "1014065", "sharik": "DERICHE ZOUAOUI", "date_in": "2024-02-01", "date_reinteg": "2024-02-01", "contrat": "CDD", "flotte": "1", "regime": "IFU", "date_out": "A confirme", "motif_out": "", "statut": "INACTIF"}, {"code": "1014066", "sharik": "SEGHIER MOHAMMED", "date_in": "2024-02-01", "date_reinteg": "2024-02-01", "contrat": "CDD", "flotte": "1", "regime": "IFU", "date_out": "", "motif_out": "", "statut": "ACTIF"}, {"code": "1014067", "sharik": "OURIDNI MOHAMMED", "date_in": "2024-02-01", "date_reinteg": "2026-04-15", "contrat": "CDD", "flotte": "1", "regime": "IFU", "date_out": "", "motif_out": "", "statut": "ACTIF"}, {"code": "1014068", "sharik": "OULD AHMED MHAMED", "date_in": "2024-02-01", "date_reinteg": "2024-02-01", "contrat": "CDD", "flotte": "1", "regime": "IFU", "date_out": "", "motif_out": "", "statut": "ACTIF"}, {"code": "1014069", "sharik": "TAIB LAMRI", "date_in": "2024-02-01", "date_reinteg": "2024-02-01", "contrat": "CDD", "flotte": "1", "regime": "IFU", "date_out": "", "motif_out": "", "statut": "ACTIF"}, {"code": "1014070", "sharik": "SENOUNE SAMIR", "date_in": "2024-02-01", "date_reinteg": "2024-02-01", "contrat": "CDD", "flotte": "1", "regime": "IFU", "date_out": "2025-06-03", "motif_out": "", "statut": "INACTIF"}, {"code": "1014071", "sharik": "TAZIR BELAHCENE MILOUD", "date_in": "2024-02-01", "date_reinteg": "2024-02-01", "contrat": "CDD", "flotte": "2", "regime": "IFU", "date_out": "2026-03-01", "motif_out": "", "statut": "INACTIF"}, {"code": "1014073", "sharik": "AZDOUFAL HOCINE", "date_in": "2024-02-01", "date_reinteg": "2024-02-01", "contrat": "CDD", "flotte": "1", "regime": "IFU", "date_out": "", "motif_out": "", "statut": "ACTIF"}, {"code": "1014222", "sharik": "TALBI NOUAR", "date_in": "2024-02-01", "date_reinteg": "2024-02-01", "contrat": "CDD", "flotte": "1", "regime": "IFU", "date_out": "", "motif_out": "", "statut": "ACTIF"}, {"code": "1014706", "sharik": "ROUI HABIB", "date_in": "2024-02-01", "date_reinteg": "2024-02-01", "contrat": "CDD", "flotte": "1", "regime": "IFU", "date_out": "2025-11-25", "motif_out": "", "statut": "INACTIF"}, {"code": "1013882", "sharik": "BENAISSA ABDELMOUNAIME", "date_in": "2023-11-01", "date_reinteg": "2023-11-01", "contrat": "CDD", "flotte": "1", "regime": "IFU", "date_out": "", "motif_out": "", "statut": "ACTIF"}, {"code": "1013883", "sharik": "MEDDAH HAMID", "date_in": "2023-11-01", "date_reinteg": "2023-11-01", "contrat": "CDD", "flotte": "1", "regime": "IFU", "date_out": "2026-02-26", "motif_out": "", "statut": "INACTIF"}, {"code": "1013891", "sharik": "TOUMI NACER", "date_in": "2023-11-01", "date_reinteg": "2026-05-06", "contrat": "CDD", "flotte": "1", "regime": "IFU", "date_out": "2026-02-20", "motif_out": "", "statut": "INACTIF"}, {"code": "1013894", "sharik": "MEZIANI MOHAMED OUALI", "date_in": "2023-11-01", "date_reinteg": "2023-11-01", "contrat": "CDD", "flotte": "2", "regime": "IFU", "date_out": "2026-01-01", "motif_out": "", "statut": "INACTIF"}, {"code": "1013923", "sharik": "BENACHERINE NABIL", "date_in": "2023-11-01", "date_reinteg": "2023-11-01", "contrat": "CDD", "flotte": "1", "regime": "IFU", "date_out": "2025-03-18", "motif_out": "", "statut": "INACTIF"}, {"code": "1013817", "sharik": "KHERBANE CHERIF", "date_in": "2023-09-01", "date_reinteg": "2023-09-01", "contrat": "CDD", "flotte": "1", "regime": "IFU", "date_out": "2025-12-05", "motif_out": "", "statut": "INACTIF"}, {"code": "1013818", "sharik": "ZAIDI LIASSINE", "date_in": "2023-09-01", "date_reinteg": "2023-09-01", "contrat": "CDD", "flotte": "2", "regime": "IFU", "date_out": "", "motif_out": "", "statut": "ACTIF"}, {"code": "1013822", "sharik": "DEGHEDICHE AMAR", "date_in": "2023-09-01", "date_reinteg": "2023-09-01", "contrat": "CDD", "flotte": "1", "regime": "IFU", "date_out": "", "motif_out": "", "statut": "ACTIF"}, {"code": "1013823", "sharik": "BELHADI MOURAD", "date_in": "2023-09-01", "date_reinteg": "2023-09-01", "contrat": "CDD", "flotte": "1", "regime": "IFU", "date_out": "", "motif_out": "", "statut": "ACTIF"}, {"code": "1013826", "sharik": "BANOUH BOUALEM", "date_in": "2023-09-01", "date_reinteg": "2023-09-01", "contrat": "CDD", "flotte": "1", "regime": "IFU", "date_out": "", "motif_out": "", "statut": "ACTIF"}, {"code": "1013165", "sharik": "BERKAK MERZOUG", "date_in": "2023-05-01", "date_reinteg": "2023-05-01", "contrat": "CDD", "flotte": "1", "regime": "IFU", "date_out": "", "motif_out": "", "statut": "ACTIF"}, {"code": "1013166", "sharik": "ROUABHIA KHALED", "date_in": "2023-05-01", "date_reinteg": "2023-05-01", "contrat": "CDD", "flotte": "2", "regime": "IFU", "date_out": "2025-11-30", "motif_out": "", "statut": "INACTIF"}, {"code": "1013167", "sharik": "MOUSSAOUI HAKIM BENSMAIL", "date_in": "2023-05-01", "date_reinteg": "2023-05-01", "contrat": "CDD", "flotte": "1", "regime": "IFU", "date_out": "", "motif_out": "", "statut": "ACTIF"}, {"code": "1013173", "sharik": "CHEBOUT MOHAMED", "date_in": "2023-05-01", "date_reinteg": "2023-05-01", "contrat": "CDD", "flotte": "1", "regime": "IFU", "date_out": "", "motif_out": "", "statut": "ACTIF"}, {"code": "1013174", "sharik": "AIOUADJ NOUREDDINE", "date_in": "2023-05-01", "date_reinteg": "2023-05-01", "contrat": "CDD", "flotte": "1", "regime": "IFU", "date_out": "2024-05-31", "motif_out": "", "statut": "INACTIF"}, {"code": "1010906", "sharik": "YOUNSI DJAMEL", "date_in": "2023-01-01", "date_reinteg": "2023-01-01", "contrat": "CDD", "flotte": "2", "regime": "IFU", "date_out": "2026-01-01", "motif_out": "", "statut": "INACTIF"}, {"code": "1010907", "sharik": "DECHIR MUSTAPHA", "date_in": "2023-01-01", "date_reinteg": "2023-01-01", "contrat": "CDD", "flotte": "4", "regime": "IFU", "date_out": "", "motif_out": "", "statut": "ACTIF"}, {"code": "1010908", "sharik": "BOUDRISSA RABAH", "date_in": "2023-01-01", "date_reinteg": "2023-01-01", "contrat": "CDD", "flotte": "4", "regime": "IFU", "date_out": "", "motif_out": "", "statut": "ACTIF"}, {"code": "1010909", "sharik": "BENMEHDIA ABDELKADER", "date_in": "2023-01-01", "date_reinteg": "2023-01-01", "contrat": "CDD", "flotte": "3", "regime": "IFU", "date_out": "", "motif_out": "", "statut": "ACTIF"}, {"code": "1010910", "sharik": "HEBRI MOURAD", "date_in": "2023-01-01", "date_reinteg": "2023-01-01", "contrat": "CDD", "flotte": "1", "regime": "IFU", "date_out": "2025-09-30", "motif_out": "", "statut": "INACTIF"}, {"code": "1009341", "sharik": "ADJAOUT DJAMAL", "date_in": "2022-09-01", "date_reinteg": "2022-09-01", "contrat": "CDD", "flotte": "1", "regime": "IFU", "date_out": "", "motif_out": "", "statut": "ACTIF"}, {"code": "1009342", "sharik": "AKKOUCHE LARBI", "date_in": "2022-09-01", "date_reinteg": "2022-09-01", "contrat": "CDD", "flotte": "1", "regime": "IFU", "date_out": "", "motif_out": "", "statut": "ACTIF"}, {"code": "1009343", "sharik": "BENBERKANE YOUCEF", "date_in": "2022-09-01", "date_reinteg": "2022-09-01", "contrat": "CDD", "flotte": "1", "regime": "IFU", "date_out": "", "motif_out": "", "statut": "ACTIF"}, {"code": "1009355", "sharik": "MEKKID LYASSE", "date_in": "2022-09-01", "date_reinteg": "2022-09-01", "contrat": "CDD", "flotte": "1", "regime": "IFU", "date_out": "", "motif_out": "", "statut": "ACTIF"}, {"code": "1009475", "sharik": "AGOUN MAHI", "date_in": "2022-09-01", "date_reinteg": "2022-09-01", "contrat": "CDD", "flotte": "1", "regime": "IFU", "date_out": "", "motif_out": "", "statut": "ACTIF"}, {"code": "1008995", "sharik": "ZAHIR HADDOUCHE", "date_in": "2022-05-01", "date_reinteg": "2022-05-01", "contrat": "CDD", "flotte": "1", "regime": "IFU", "date_out": "Décés", "motif_out": "", "statut": "INACTIF"}, {"code": "1009077", "sharik": "LAKHDAR BOUASSA", "date_in": "2022-05-01", "date_reinteg": "2022-05-01", "contrat": "CDD", "flotte": "1", "regime": "IFU", "date_out": "", "motif_out": "", "statut": "ACTIF"}, {"code": "1009078", "sharik": "TABLI CHAFIK", "date_in": "2022-05-01", "date_reinteg": "2022-05-01", "contrat": "CDD", "flotte": "5", "regime": "IFU", "date_out": "", "motif_out": "", "statut": "ACTIF"}, {"code": "1009079", "sharik": "SLIMANE GOUFI", "date_in": "2022-05-01", "date_reinteg": "2022-05-01", "contrat": "CDD", "flotte": "1", "regime": "IFU", "date_out": "", "motif_out": "", "statut": "ACTIF"}, {"code": "1009084", "sharik": "ABDELMADJID ATMANE", "date_in": "2022-05-01", "date_reinteg": "2022-05-01", "contrat": "CDD", "flotte": "3", "regime": "IFU", "date_out": "", "motif_out": "", "statut": "ACTIF"}, {"code": "1016219", "sharik": "RAHAL YAHIA", "date_in": "2026-03-01", "date_reinteg": "2026-03-01", "contrat": "CDI", "flotte": "1", "regime": "IFU", "date_out": "2026-07-22", "motif_out": "", "statut": "INACTIF"}, {"code": "1016299", "sharik": "MAAMAR IDIR", "date_in": "2026-05-17", "date_reinteg": "", "contrat": "CDD", "flotte": "1", "regime": "IFU", "date_out": "", "motif_out": "", "statut": "ACTIF"}, {"code": "1016306", "sharik": "BENAMAR SAID", "date_in": "2026-05-02", "date_reinteg": "", "contrat": "CDD", "flotte": "1", "regime": "IFU", "date_out": "", "motif_out": "", "statut": "ACTIF"}, {"code": "1016304", "sharik": "AIOUADJ HICHAM", "date_in": "2026-05-11", "date_reinteg": "", "contrat": "CDD", "flotte": "1", "regime": "IFU", "date_out": "", "motif_out": "", "statut": "ACTIF"}, {"code": "1016026", "sharik": "HAMITOUCHE REDA", "date_in": "2026-05-12", "date_reinteg": "", "contrat": "CDD", "flotte": "1", "regime": "IFU", "date_out": "", "motif_out": "", "statut": "ACTIF"}, {"code": "1008241", "sharik": "FARES KHELLIF", "date_in": "2026-05-10", "date_reinteg": "", "contrat": "CDD", "flotte": "5", "regime": "IFU", "date_out": "", "motif_out": "", "statut": "ACTIF"}, {"code": "1005080", "sharik": "SARL NATIONAL EXPRESS TILKOUT", "date_in": "", "date_reinteg": "", "contrat": "CDD", "flotte": "5", "regime": "IFU", "date_out": "", "motif_out": "", "statut": "ACTIF"}, {"code": "1016404", "sharik": "MEKADEM MOHAMED", "date_in": "2026-07-03", "date_reinteg": "", "contrat": "CDD", "flotte": "1", "regime": "IFU", "date_out": "", "motif_out": "", "statut": "ACTIF"}, {"code": "1016403", "sharik": "LACHANI AMOR", "date_in": "REE", "date_reinteg": "", "contrat": "CDD", "flotte": "1", "regime": "IFU", "date_out": "", "motif_out": "", "statut": "ACTIF"}, {"code": "1016426", "sharik": "DJENNADI MUSTAPHA", "date_in": "", "date_reinteg": "", "contrat": "CDD", "flotte": "1", "regime": "IFU", "date_out": "", "motif_out": "", "statut": "ACTIF"}];
+
+let _ADMIN_SHARIK_ENTREES_SORTIES = JSON.parse(localStorage.getItem('numiplan_admin_sharik_data') || 'null') || INITIAL_ADMIN_SHARIK_DATA;
+
 function renderAdminEntreesSorties() {
   const q = (document.getElementById('admin-es-search')?.value || '').trim().toLowerCase();
-  const typeF = document.getElementById('admin-es-type-filter')?.value || '';
-  const teamF = document.getElementById('admin-es-team-filter')?.value || '';
+  const statusF = document.getElementById('admin-es-status-filter')?.value || '';
+  const contratF = document.getElementById('admin-es-contrat-filter')?.value || '';
 
-  const allLogs = [];
+  // 1. Base des chauffeurs Sharik
+  const list = [..._ADMIN_SHARIK_ENTREES_SORTIES];
+
+  // 2. Intégrer également les sorties dynamiques enregistrées récemment dans la traçabilité Numiplan
   const EQUIPES = ['A', 'B', 'C', 'D', 'E', 'F'];
-  
   EQUIPES.forEach(eq => {
     const db = (eq === window.CURRENT_EQUIPE && typeof window.DB !== 'undefined') ? window.DB : window['DB_' + eq];
     if (db && db.tracabilite) {
       db.tracabilite.forEach(log => {
-        const type = log.type || '';
-        if (type.includes('Entrée') || type.includes('Sortie') || type.includes('Entree')) {
-          allLogs.push(Object.assign({}, log, { team: eq }));
+        if (log.type === 'Sortie Chauffeur' && log.target) {
+          const targetName = log.target.trim().toUpperCase();
+          const existing = list.find(r => r.sharik && r.sharik.trim().toUpperCase() === targetName);
+          if (existing) {
+            existing.statut = 'INACTIF';
+            if (!existing.date_out) existing.date_out = (log.timestamp || log.date || '').slice(0, 10);
+            if (!existing.motif_out) existing.motif_out = log.motif || 'Sortie enregistrée dans Numiplan';
+          }
         }
       });
     }
   });
 
-  // Trier par date/timestamp décroissant
-  allLogs.sort((a, b) => {
-    const tsA = new Date(a.timestamp || a.date || 0).getTime();
-    const tsB = new Date(b.timestamp || b.date || 0).getTime();
-    return tsB - tsA;
-  });
-
-  let filtered = allLogs.filter(r => {
-    if (teamF && r.team !== teamF) return false;
-    if (typeF && !r.type.includes(typeF)) return false;
+  let filtered = list.filter(r => {
+    if (statusF && r.statut !== statusF) return false;
+    if (contratF && r.contrat !== contratF) return false;
     if (q) {
-      const match = (r.target || '').toLowerCase().includes(q) ||
-                    (r.motif || '').toLowerCase().includes(q) ||
-                    (r.user || '').toLowerCase().includes(q) ||
-                    (r.type || '').toLowerCase().includes(q);
+      const match = (r.sharik || '').toLowerCase().includes(q) ||
+                    (r.code || '').toLowerCase().includes(q) ||
+                    (r.motif_out || '').toLowerCase().includes(q) ||
+                    (r.contrat || '').toLowerCase().includes(q);
       if (!match) return false;
     }
     return true;
   });
 
-  const totalEntrees = allLogs.filter(r => r.type.includes('Entrée') || r.type.includes('Entree')).length;
-  const totalSorties = allLogs.filter(r => r.type.includes('Sortie')).length;
+  const totalActifs = list.filter(r => r.statut === 'ACTIF').length;
+  const totalInactifs = list.filter(r => r.statut === 'INACTIF').length;
 
-  document.getElementById('admin-es-stat-total').textContent = allLogs.length;
-  document.getElementById('admin-es-stat-entrees').textContent = totalEntrees;
-  document.getElementById('admin-es-stat-sorties').textContent = totalSorties;
+  const statTotalEl = document.getElementById('admin-es-stat-total');
+  const statEntreesEl = document.getElementById('admin-es-stat-entrees');
+  const statSortiesEl = document.getElementById('admin-es-stat-sorties');
+
+  if (statTotalEl) statTotalEl.textContent = list.length;
+  if (statEntreesEl) statEntreesEl.textContent = totalActifs;
+  if (statSortiesEl) statSortiesEl.textContent = totalInactifs;
 
   const tbody = document.getElementById('admin-es-body');
   if (!tbody) return;
 
   if (filtered.length === 0) {
-    tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;padding:24px;color:#94a3b8">Aucun mouvement enregistré correspondant aux critères.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="7" style="text-align:center;padding:24px;color:#94a3b8">Aucun chauffeur correspondant aux critères.</td></tr>`;
     return;
   }
 
   tbody.innerHTML = filtered.map(r => {
-    const isEntree = r.type.includes('Entrée') || r.type.includes('Entree');
-    const badgeBg = isEntree ? 'rgba(34,197,94,0.15)' : 'rgba(239,68,68,0.15)';
-    const badgeColor = isEntree ? '#22c55e' : '#ef4444';
-    const badgeIcon = isEntree ? '🟢' : '🔴';
+    const isActif = r.statut === 'ACTIF';
+    const statusBadge = isActif 
+      ? '<span style="background:rgba(34,197,94,0.15);color:#22c55e;border:1px solid rgba(34,197,94,0.4);border-radius:6px;padding:2px 8px;font-size:11px;font-weight:800">🟢 ACTIF</span>'
+      : '<span style="background:rgba(239,68,68,0.15);color:#ef4444;border:1px solid rgba(239,68,68,0.4);border-radius:6px;padding:2px 8px;font-size:11px;font-weight:800">🔴 SORTIE / INACTIF</span>';
 
     return `
       <tr style="border-bottom:1px solid rgba(255,255,255,0.05)">
-        <td style="font-family:monospace;font-size:11px;color:#aaa">${r.timestamp || r.date || '—'}</td>
-        <td>
-          <span style="background:${badgeBg};color:${badgeColor};border:1px solid ${badgeColor}44;padding:3px 8px;border-radius:6px;font-size:11px;font-weight:700">
-            ${badgeIcon} ${r.type}
-          </span>
-        </td>
-        <td style="font-weight:800;color:var(--acc, #00d2ff);font-family:monospace">${r.target || '—'}</td>
-        <td><span class="gr-badge-eq">ÉQ. ${r.team}</span></td>
-        <td style="font-size:12px;color:var(--txt)">${r.motif || '—'}</td>
-        <td style="font-size:11px;color:#94a3b8;font-weight:600">${r.user || r.role || 'Admin'}</td>
+        <td style="font-family:monospace;font-weight:700;color:var(--acc, #00d2ff)">${r.code || '—'}</td>
+        <td style="font-weight:800;color:#fff">${r.sharik || '—'}</td>
+        <td style="font-family:monospace;font-size:11px;color:#22c55e">${r.date_in || '—'}</td>
+        <td style="font-family:monospace;font-size:11px;color:${r.date_out ? '#ef4444' : '#aaa'}">${r.date_out || '—'}</td>
+        <td style="font-size:11px"><span style="background:rgba(255,255,255,0.06);padding:2px 6px;border-radius:4px">${r.contrat || 'CDD'}</span> ${r.regime ? '· ' + r.regime : ''}</td>
+        <td style="font-size:12px;color:var(--txt)">${r.motif_out || '—'}</td>
+        <td style="text-align:center">${statusBadge}</td>
       </tr>
     `;
   }).join('');
 }
 window.renderAdminEntreesSorties = renderAdminEntreesSorties;
+
+function importerExcelEntreesSorties(input) {
+  const file = input.files[0];
+  if (!file) return;
+
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    try {
+      const data = new Uint8Array(e.target.result);
+      const workbook = XLSX.read(data, { type: 'array' });
+      const sheet = workbook.Sheets[workbook.SheetNames[0]];
+      const rawRows = XLSX.utils.sheet_to_json(sheet, { header: 1 });
+
+      if (!rawRows || rawRows.length < 3) {
+        showToast('⚠️ Fichier Excel vide ou format invalide', true);
+        return;
+      }
+
+      const parsed = [];
+      for (let i = 2; i < rawRows.length; i++) {
+        const row = rawRows[i];
+        if (!row) continue;
+        const code = (row[1] || '').toString().trim();
+        const name = (row[2] || '').toString().trim();
+        if (!name && !code) continue;
+
+        const dateIn = row[3] ? row[3].toString().slice(0, 10) : '';
+        const dateOut = row[8] ? row[8].toString().slice(0, 10) : '';
+        const motifOut = row[9] ? row[9].toString().trim() : '';
+        const statutRaw = (row[10] || '').toString().trim().toUpperCase();
+        const statut = (dateOut || statutRaw.includes('INACTIF')) ? 'INACTIF' : 'ACTIF';
+
+        parsed.push({
+          code: code,
+          sharik: name,
+          date_in: dateIn,
+          date_reinteg: row[4] ? row[4].toString().slice(0, 10) : '',
+          contrat: row[5] ? row[5].toString().trim() : 'CDD',
+          flotte: row[6] ? row[6].toString().trim() : '1',
+          regime: row[7] ? row[7].toString().trim() : 'IFU',
+          date_out: dateOut,
+          motif_out: motifOut,
+          statut: statut
+        });
+      }
+
+      _ADMIN_SHARIK_ENTREES_SORTIES = parsed;
+      localStorage.setItem('numiplan_admin_sharik_data', JSON.stringify(parsed));
+      renderAdminEntreesSorties();
+      showToast(`✅ Registre mis à jour : ${parsed.length} chauffeurs importés`);
+    } catch(err) {
+      console.error("Erreur import Excel:", err);
+      showToast('❌ Erreur lecture Excel: ' + err.message, true);
+    }
+  };
+  reader.readAsArrayBuffer(file);
+}
+window.importerExcelEntreesSorties = importerExcelEntreesSorties;
+
+function exporterExcelEntreesSorties() {
+  if (typeof XLSX === 'undefined') {
+    showToast('⚠️ SheetJS non chargé', true);
+    return;
+  }
+  const data = [['Code Tier', 'Désignation SHARIK', 'Date Démarrage', 'DATE Réintég', 'Type de contrat', 'Flotte', 'Régime Comptable', 'Date de Sortie (Résiliation)', 'Motif de résiliation', 'Statut']];
+  
+  _ADMIN_SHARIK_ENTREES_SORTIES.forEach(r => {
+    data.push([
+      r.code || '',
+      r.sharik || '',
+      r.date_in || '',
+      r.date_reinteg || '',
+      r.contrat || 'CDD',
+      r.flotte || '1',
+      r.regime || 'IFU',
+      r.date_out || '',
+      r.motif_out || '',
+      r.statut || 'ACTIF'
+    ]);
+  });
+
+  const ws = XLSX.utils.aoa_to_sheet(data);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, "Entrees_Sorties_Sharik");
+  XLSX.writeFile(wb, "Numiplan_Registre_Sharik_" + today() + ".xlsx");
+  showToast("📥 Registre des Chauffeurs Sharik exporté avec succès !");
+}
+window.exporterExcelEntreesSorties = exporterExcelEntreesSorties;
 
 function exporterExcelEntreesSorties() {
   if (typeof XLSX === 'undefined') {
