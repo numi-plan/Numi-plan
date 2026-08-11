@@ -5833,6 +5833,33 @@ function imprimerListeBLManquants() {
   </div>
 </div>
 
+
+<!-- Modal Saisie Mot de Passe Sécurisé Masqué (Étoiles / Puces) -->
+<div class="modal-overlay" id="modal-security-password-prompt" style="z-index:999999; backdrop-filter:blur(6px)">
+  <div class="modal" style="width:440px; max-width:92vw; background:var(--bg2, #18223f); border:1.5px solid #38bdf8; border-radius:16px; padding:24px; box-shadow:0 25px 50px -12px rgba(0,0,0,0.8); text-align:left">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px; border-bottom:1px solid var(--border); padding-bottom:10px">
+      <h3 id="sec-pwd-title" style="margin:0; font-size:15px; color:#38bdf8; display:flex; align-items:center; gap:8px">
+        🔒 Authentification Sécurisée
+      </h3>
+      <button class="del-btn" onclick="_rejectSecurityPasswordPrompt()" style="background:none; border:none; color:#aaa; font-size:22px; cursor:pointer">✕</button>
+    </div>
+    
+    <p id="sec-pwd-desc" style="font-size:12px; color:#cbd5e1; margin-bottom:16px; line-height:1.5">
+      Veuillez saisir votre code d'accès pour confirmer cette opération :
+    </p>
+
+    <div style="margin-bottom:20px">
+      <input type="password" id="sec-pwd-input" placeholder="••••••••••••" style="width:100%; background:var(--bg3, #0f172a); border:1.5px solid var(--border, #334155); border-radius:8px; padding:10px 14px; color:#fff; font-size:16px; letter-spacing:3px" autocomplete="off">
+      <div id="sec-pwd-error" style="color:#ef4444; font-size:11px; font-weight:700; margin-top:6px; min-height:16px"></div>
+    </div>
+
+    <div style="display:flex; justify-content:flex-end; gap:10px">
+      <button class="btn btn-reset" onclick="_rejectSecurityPasswordPrompt()" style="padding:8px 16px">Annuler</button>
+      <button class="btn" onclick="_resolveSecurityPasswordPrompt()" style="background:#38bdf8; color:#000; font-weight:800; padding:8px 20px">Valider</button>
+    </div>
+  </div>
+</div>
+
 </body>
     </html>
   `);
@@ -6949,9 +6976,9 @@ async function deleteDispo(idx) {
   const r = DB.dispo[idx];
   const label = r ? (r.v + ' — ' + (r.chauffeur||'')) : 'cette entrée';
   // Demander le mot de passe admin
-  const pwd = prompt('🔒 Suppression protégée\n\nVéhicule : ' + label + '\n\nMot de passe administrateur requis :');
+  const pwd = await demanderMotDePasseMasque('🔒 Suppression Sécurisée', 'Véhicule : ' + label + '\nVeuillez saisir votre mot de passe administrateur :');
   if (pwd === null) return; // Annulé
-  if (pwd !== 'RexSharik@2026') {
+  if (pwd !== 'RexSharik@2026' && (pwd || '').trim().toUpperCase() !== 'DIREX') {
     showToast('⛔ Mot de passe incorrect — suppression annulée', true);
     return;
   }
@@ -15787,25 +15814,89 @@ window.ouvrirModalGeolocToutesEquipes = ouvrirModalGeolocToutesEquipes;
 
 
 // ══════════════════════════════════════════════════════════════════════════════
+let _securityPwdResolve = null;
+
+function demanderMotDePasseMasque(titre, description) {
+  return new Promise((resolve) => {
+    _securityPwdResolve = resolve;
+    
+    const modal = document.getElementById('modal-security-password-prompt');
+    const titleEl = document.getElementById('sec-pwd-title');
+    const descEl = document.getElementById('sec-pwd-desc');
+    const inputEl = document.getElementById('sec-pwd-input');
+    const errEl = document.getElementById('sec-pwd-error');
+    
+    if (titleEl) titleEl.textContent = titre || '🔒 Authentification Sécurisée';
+    if (descEl) descEl.textContent = description || 'Veuillez saisir votre code d\'accès pour confirmer cette opération :';
+    if (inputEl) {
+      inputEl.value = '';
+      setTimeout(() => inputEl.focus(), 120);
+    }
+    if (errEl) errEl.textContent = '';
+    
+    if (modal) {
+      modal.classList.add('open');
+      modal.style.display = 'flex';
+    }
+  });
+}
+window.demanderMotDePasseMasque = demanderMotDePasseMasque;
+
+function _resolveSecurityPasswordPrompt() {
+  const inputEl = document.getElementById('sec-pwd-input');
+  const val = inputEl ? inputEl.value : '';
+  const modal = document.getElementById('modal-security-password-prompt');
+  if (modal) {
+    modal.classList.remove('open');
+    modal.style.display = 'none';
+  }
+  if (_securityPwdResolve) {
+    _securityPwdResolve(val);
+    _securityPwdResolve = null;
+  }
+}
+window._resolveSecurityPasswordPrompt = _resolveSecurityPasswordPrompt;
+
+function _rejectSecurityPasswordPrompt() {
+  const modal = document.getElementById('modal-security-password-prompt');
+  if (modal) {
+    modal.classList.remove('open');
+    modal.style.display = 'none';
+  }
+  if (_securityPwdResolve) {
+    _securityPwdResolve(null);
+    _securityPwdResolve = null;
+  }
+}
+window._rejectSecurityPasswordPrompt = _rejectSecurityPasswordPrompt;
+
+document.addEventListener('keydown', (e) => {
+  const modal = document.getElementById('modal-security-password-prompt');
+  if (modal && (modal.classList.contains('open') || modal.style.display === 'flex')) {
+    if (e.key === 'Enter') _resolveSecurityPasswordPrompt();
+    if (e.key === 'Escape') _rejectSecurityPasswordPrompt();
+  }
+});
+
+
 // MODULE : ESPACE DIRECTION & ADMINISTRATIF SÉCURISÉ
 // ══════════════════════════════════════════════════════════════════════════════
 let _DIRECTION_UNLOCKED_SESSION = false;
 
-function ouvrirEspaceAdminDirection(btn) {
+async function ouvrirEspaceAdminDirection(btn) {
   // Si déjà connecté avec le profil isolé direction_only, accès automatique
   const role = sessionStorage.getItem('numiplan_user_role');
   if (role === 'direction_only') {
     _DIRECTION_UNLOCKED_SESSION = true;
   }
 
-  // Si pas encore déverrouillé pour cette session, demander le mot de passe DIREX
+  // Si pas encore déverrouillé pour cette session, demander le mot de passe masqué
   if (!_DIRECTION_UNLOCKED_SESSION) {
-    const pwd = prompt("🔒 Accès Sécurisé Direction : Veuillez saisir le mot de passe Direction (DIREX) :");
+    const pwd = await demanderMotDePasseMasque("🔒 Accès Espace Direction", "Veuillez saisir votre mot de passe d'accès sécurisé :");
     if (pwd === null) return; // Annulé
 
     const cleanPwd = (pwd || '').trim();
-    if (cleanPwd.toUpperCase() !== 'DIREX' && cleanPwd !== 'Numilog@26') {
-      alert("⛔ Mot de passe Direction incorrect ! Accès strictement réservé.");
+    if (cleanPwd.toUpperCase() !== 'DIREX' && cleanPwd !== 'Numilog@26' && cleanPwd !== 'RexSharik@2026') {
       showToast("⛔ Mot de passe Direction incorrect !", true);
       return;
     }
@@ -15954,13 +16045,13 @@ function renderAdminValidations() {
 }
 window.renderAdminValidations = renderAdminValidations;
 
-function deciderDemandeValidation(reqId, approve) {
-  const pwd = prompt("🔒 Sécurité Direction : Entrez le mot de passe DIREX pour confirmer cette décision :");
+async function deciderDemandeValidation(reqId, approve) {
+  const pwd = await demanderMotDePasseMasque("🔒 Décision Direction", "Veuillez saisir votre mot de passe pour confirmer cette décision :");
   if (pwd === null) return;
 
-  if (pwd.trim().toUpperCase() !== 'DIREX') {
-    alert("⛔ Mot de passe incorrect ! Action refusée.");
-    showToast("⛔ Mot de passe DIREX incorrect !", true);
+  const cleanPwd = (pwd || '').trim();
+  if (cleanPwd.toUpperCase() !== 'DIREX' && cleanPwd !== 'Numilog@26' && cleanPwd !== 'RexSharik@2026') {
+    showToast("⛔ Mot de passe incorrect !", true);
     return;
   }
 
@@ -16330,13 +16421,13 @@ function renderAdminEntreesSorties() {
 }
 window.renderAdminEntreesSorties = renderAdminEntreesSorties;
 
-function validerLiaisonSuggestion(editKey, targetName, targetV, targetRm) {
-  const pwd = prompt("🔒 Sécurité Direction : Entrez le mot de passe administrateur pour valider cette ressemblance :");
+async function validerLiaisonSuggestion(editKey, targetName, targetV, targetRm) {
+  const pwd = await demanderMotDePasseMasque("🔒 Validation Sécurisée Direction", "Veuillez saisir votre mot de passe pour confirmer cette correspondance :");
   if (pwd === null) return; // Annulation
   
-  if (pwd.trim().toUpperCase() !== 'DIREX') {
-    alert("⛔ Mot de passe incorrect ! Action refusée.");
-    showToast("⛔ Mot de passe DIREX incorrect !", true);
+  const cleanPwd = (pwd || '').trim();
+  if (cleanPwd.toUpperCase() !== 'DIREX' && cleanPwd !== 'Numilog@26' && cleanPwd !== 'RexSharik@2026') {
+    showToast("⛔ Mot de passe incorrect !", true);
     return;
   }
 
