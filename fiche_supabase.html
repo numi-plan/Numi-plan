@@ -16302,6 +16302,7 @@ function renderAdminEntreesSorties() {
     r._suggestion = null;
 
     if (numiMatch) {
+      // Chauffeur trouvé et en correspondance avec Numiplan
       if (r.statut === 'INACTIF') {
         r._incoherence = true;
         r._incoherenceType = `🚨 Marqué Sorti au registre mais tourne sur ${numiMatch.v} (Éq. ${numiMatch.team})`;
@@ -16313,6 +16314,19 @@ function renderAdminEntreesSorties() {
       }
       if (!r.tracteur && numiMatch.v) r.tracteur = numiMatch.v;
       if (!r.remorque && numiMatch.rm) r.remorque = numiMatch.rm;
+    } else {
+      // Aucun match direct : chercher une ressemblance orthographique
+      const suggestion = findBestNumiplanSuggestion(r.sharik, numiplanActiveDrivers);
+      if (suggestion) {
+        r._suggestion = suggestion;
+        r._incoherence = true;
+        r._incoherenceType = `💡 Ressemblance Numiplan : ${suggestion.name} (${suggestion.v || 'Sans camion'}, Éq. ${suggestion.team})`;
+        countIncoherences++;
+      } else if (r.statut === 'ACTIF') {
+        r._incoherence = true;
+        r._incoherenceType = `⚠️ Actif au registre mais absent du planning Numiplan`;
+        countIncoherences++;
+      }
     }
     
     // Résolution de remorque garantie à 100% via le Master Parc
@@ -16326,18 +16340,6 @@ function renderAdminEntreesSorties() {
           r.remorque = dInfo.rm;
           break;
         }
-      }
-    } else {
-      const suggestion = findBestNumiplanSuggestion(r.sharik, numiplanActiveDrivers);
-      if (suggestion) {
-        r._suggestion = suggestion;
-        r._incoherence = true;
-        r._incoherenceType = `💡 Ressemblance Numiplan : ${suggestion.name} (${suggestion.v || 'Sans camion'}, Éq. ${suggestion.team})`;
-        countIncoherences++;
-      } else if (r.statut === 'ACTIF') {
-        r._incoherence = true;
-        r._incoherenceType = `⚠️ Actif au registre mais absent du planning Numiplan`;
-        countIncoherences++;
       }
     }
   });
