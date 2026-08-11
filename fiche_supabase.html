@@ -14656,7 +14656,8 @@ async function checkPoiAlerts() {
     }
     
     // Update sidebar badge for long stays (> 2h)
-    const activeVisits = await poiSupabaseFetch(`np_poi_visits?select=id,v&team=eq.${activeTeam}&left_at=is.null&duration_hours=gte.2`);
+    const currentActiveTeam = typeof window.CURRENT_EQUIPE !== 'undefined' ? window.CURRENT_EQUIPE : 'A';
+    const activeVisits = await poiSupabaseFetch(`np_poi_visits?select=id,v&team=eq.${currentActiveTeam}&left_at=is.null&duration_hours=gte.2`);
     let totalAlerts = 0;
     if (activeVisits) {
       // Uniquement ceux qui ont un GPS actif
@@ -15674,25 +15675,29 @@ function renderAdminEntreesSorties() {
   const statusF = document.getElementById('admin-es-status-filter')?.value || '';
   const contratF = document.getElementById('admin-es-contrat-filter')?.value || '';
 
-  // 1. Base des chauffeurs Sharik
-  const list = [..._ADMIN_SHARIK_ENTREES_SORTIES];
+  // 1. Base des 185 chauffeurs Sharik
+  const list = JSON.parse(JSON.stringify(INITIAL_ADMIN_SHARIK_DATA));
 
   // 2. Intégrer également les sorties dynamiques enregistrées récemment dans la traçabilité Numiplan
   const EQUIPES = ['A', 'B', 'C', 'D', 'E', 'F'];
   EQUIPES.forEach(eq => {
-    const db = (eq === window.CURRENT_EQUIPE && typeof window.DB !== 'undefined') ? window.DB : window['DB_' + eq];
-    if (db && db.tracabilite) {
-      db.tracabilite.forEach(log => {
-        if (log.type === 'Sortie Chauffeur' && log.target) {
-          const targetName = log.target.trim().toUpperCase();
-          const existing = list.find(r => r.sharik && r.sharik.trim().toUpperCase() === targetName);
-          if (existing) {
-            existing.statut = 'INACTIF';
-            if (!existing.date_out) existing.date_out = (log.timestamp || log.date || '').slice(0, 10);
-            if (!existing.motif_out) existing.motif_out = log.motif || 'Sortie enregistrée dans Numiplan';
+    try {
+      const db = (eq === window.CURRENT_EQUIPE && typeof window.DB !== 'undefined') ? window.DB : window['DB_' + eq];
+      if (db && Array.isArray(db.tracabilite)) {
+        db.tracabilite.forEach(log => {
+          if (log && log.type === 'Sortie Chauffeur' && log.target) {
+            const targetName = (log.target || '').trim().toUpperCase();
+            const existing = list.find(r => r.sharik && r.sharik.trim().toUpperCase() === targetName);
+            if (existing) {
+              existing.statut = 'INACTIF';
+              if (!existing.date_out) existing.date_out = (log.timestamp || log.date || '').slice(0, 10);
+              if (!existing.motif_out) existing.motif_out = log.motif || 'Sortie enregistrée dans Numiplan';
+            }
           }
-        }
-      });
+        });
+      }
+    } catch(errEq) {
+      console.warn("Erreur lecture traçabilité équipe " + eq, errEq);
     }
   });
 
