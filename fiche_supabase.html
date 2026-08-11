@@ -2000,7 +2000,7 @@ mark.hl { background: rgba(56,189,248,.25); color: var(--acc); border-radius: 3p
   }
 
   window.goToResult = function(eq, tab, encodedSearch) {
-    const searchTerm = decodeURIComponent(encodedSearch || '');
+    const searchTerm = decodeURIComponent(encodedSearch || '').trim();
     closeGlobalSearch();
 
     // 1. Basculer vers l'équipe concernée
@@ -2008,48 +2008,77 @@ mark.hl { background: rgba(56,189,248,.25); color: var(--acc); border-radius: 3p
       switchEquipe(eq);
     }
 
-    setTimeout(() => {
-      // 2. Basculer vers l'onglet du menu concerné
-      const tabBtn = document.querySelector('.tab-btn[onclick*="\'' + tab + '\'"]');
-      if (tabBtn) {
-        document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-        tabBtn.classList.add('active');
-        if (typeof switchTab === 'function') {
-          switchTab(tab, tabBtn);
+    // 2. Basculer vers l'onglet du menu concerné
+    const tabBtn = document.querySelector('.tab-btn[onclick*="\'' + tab + '\'"]');
+    if (tabBtn) {
+      document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+      tabBtn.classList.add('active');
+    }
+    if (typeof switchTab === 'function') {
+      switchTab(tab, tabBtn);
+    }
+
+    // 3. Filtrer et afficher directement le camion / chauffeur ciblé
+    const executeFilterAndFocus = () => {
+      const inputMap = {
+        'dispo': { id: 'dispo-search', fn: typeof renderDispo === 'function' ? renderDispo : null },
+        'pannes': { id: 'panne-search', fn: typeof renderPannes === 'function' ? renderPannes : null },
+        'nc': { id: 'nc-search', fn: typeof renderNC === 'function' ? renderNC : null },
+        'gasoil': { id: 'gasoil-search', fn: typeof renderGasoil === 'function' ? renderGasoil : null },
+        'equip': { id: 'equip-search', fn: typeof renderEquip === 'function' ? renderEquip : null },
+        'activite': { id: 'activite-search', fn: typeof renderActivite === 'function' ? renderActivite : null },
+        'bl': { id: 'bl-search', fn: typeof renderBL === 'function' ? renderBL : null },
+        'odo': { id: 'odo-search', fn: typeof renderOdo === 'function' ? renderOdo : null },
+        'cspc': { id: 'cspc-search', fn: typeof renderCSPC === 'function' ? renderCSPC : null },
+        'blacklist': { id: 'blacklist-search', fn: typeof renderBlacklist === 'function' ? renderBlacklist : null },
+        'incidents-livraison': { id: 'inc-search', fn: typeof renderIncidentsLivraisonPage === 'function' ? renderIncidentsLivraisonPage : null },
+        'tracabilite': { id: 'tracabilite-search', fn: typeof renderTracabilite === 'function' ? renderTracabilite : null }
+      };
+
+      if (searchTerm && inputMap[tab]) {
+        const cfg = inputMap[tab];
+        const inputEl = document.getElementById(cfg.id);
+        if (inputEl) {
+          inputEl.value = searchTerm;
+          if (cfg.fn) cfg.fn();
+          inputEl.focus();
         }
       }
 
-      // 3. Filtrer et afficher directement le camion/chauffeur recherché
-      setTimeout(() => {
-        const inputMap = {
-          'dispo': { id: 'dispo-search', fn: () => { if (typeof renderDispo === 'function') renderDispo(); } },
-          'pannes': { id: 'panne-search', fn: () => { if (typeof renderPannes === 'function') renderPannes(); } },
-          'nc': { id: 'nc-search', fn: () => { if (typeof renderNC === 'function') renderNC(); } },
-          'gasoil': { id: 'gasoil-search', fn: () => { if (typeof renderGasoil === 'function') renderGasoil(); } },
-          'equip': { id: 'equip-search', fn: () => { if (typeof renderEquip === 'function') renderEquip(); } },
-          'activite': { id: 'activite-search', fn: () => { if (typeof renderActivite === 'function') renderActivite(); } },
-          'bl': { id: 'bl-search', fn: () => { if (typeof renderBL === 'function') renderBL(); } },
-          'odo': { id: 'odo-search', fn: () => { if (typeof renderOdo === 'function') renderOdo(); } },
-          'cspc': { id: 'cspc-search', fn: () => { if (typeof renderCSPC === 'function') renderCSPC(); } },
-          'blacklist': { id: 'blacklist-search', fn: () => { if (typeof renderBlacklist === 'function') renderBlacklist(); } },
-          'incidents-livraison': { id: 'inc-search', fn: () => { if (typeof renderIncidentsLivraisonPage === 'function') renderIncidentsLivraisonPage(); } },
-          'tracabilite': { id: 'tracabilite-search', fn: () => { if (typeof renderTracabilite === 'function') renderTracabilite(); } }
-        };
-
-        if (searchTerm && inputMap[tab]) {
-          const cfg = inputMap[tab];
-          const inputEl = document.getElementById(cfg.id);
-          if (inputEl) {
-            inputEl.value = searchTerm;
-            if (cfg.fn) cfg.fn();
-            inputEl.focus();
-            if (typeof showToast === 'function') {
-              showToast(`🔍 Affichage de « ${searchTerm} » dans l'Équipe ${eq} (${tab})`);
-            }
+      // 4. Mettre en surbrillance (Glow) la ligne du camion ciblé et la faire défiler au centre de l'écran
+      const pageEl = document.getElementById('page-' + tab);
+      if (pageEl && searchTerm) {
+        const rows = pageEl.querySelectorAll('tbody tr');
+        let matchedRow = null;
+        for (const tr of rows) {
+          if (tr.textContent.toUpperCase().includes(searchTerm.toUpperCase())) {
+            matchedRow = tr;
+            break;
           }
         }
-      }, 150);
-    }, 120);
+        if (matchedRow) {
+          matchedRow.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          matchedRow.style.transition = 'all 0.4s ease';
+          matchedRow.style.outline = '3px solid #00d2ff';
+          matchedRow.style.background = 'rgba(0, 210, 255, 0.25)';
+          matchedRow.style.boxShadow = '0 0 20px rgba(0, 210, 255, 0.6)';
+          setTimeout(() => {
+            matchedRow.style.outline = '';
+            matchedRow.style.background = '';
+            matchedRow.style.boxShadow = '';
+          }, 3500);
+        }
+      }
+
+      if (typeof showToast === 'function' && searchTerm) {
+        showToast(`🎯 Camion ciblé : « ${searchTerm} » (Équipe ${eq})`);
+      }
+    };
+
+    // Exécuter immédiatement puis à 100ms et 250ms pour garantir l'affichage même si les données se chargent
+    executeFilterAndFocus();
+    setTimeout(executeFilterAndFocus, 100);
+    setTimeout(executeFilterAndFocus, 250);
   };
 
   let _gst = null;
