@@ -14870,8 +14870,8 @@ async function checkPoiAlerts() {
     const activeVisits = await poiSupabaseFetch(`np_poi_visits?select=id,v&team=eq.${currentActiveTeam}&left_at=is.null&duration_hours=gte.2`);
     let totalAlerts = 0;
     if (activeVisits) {
-      // Uniquement ceux qui ont un GPS actif
-      totalAlerts = activeVisits.filter(x => activeGpsTrucks.has(x.v.trim().toUpperCase())).length;
+      const gpsSet = (typeof window.ACTIVE_GPS_TRUCKS !== 'undefined' && window.ACTIVE_GPS_TRUCKS instanceof Set) ? window.ACTIVE_GPS_TRUCKS : new Set();
+      totalAlerts = activeVisits.filter(x => gpsSet.has((x.v || '').trim().toUpperCase())).length;
     }
 
     // Rafraîchir les listes de la page POI en direct si elle est active et que l'utilisateur ne filtre pas
@@ -15820,24 +15820,52 @@ function demanderMotDePasseMasque(titre, description) {
   return new Promise((resolve) => {
     _securityPwdResolve = resolve;
     
-    const modal = document.getElementById('modal-security-password-prompt');
+    let modal = document.getElementById('modal-security-password-prompt');
+    if (!modal) {
+      const modalDiv = document.createElement('div');
+      modalDiv.id = 'modal-security-password-prompt';
+      modalDiv.className = 'modal-overlay';
+      modalDiv.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.8);backdrop-filter:blur(6px);z-index:999999;display:flex;align-items:center;justify-content:center;';
+      modalDiv.innerHTML = `
+        <div class="modal" style="width:440px;max-width:92vw;background:var(--bg2, #18223f);border:1.5px solid #38bdf8;border-radius:16px;padding:24px;box-shadow:0 25px 50px -12px rgba(0,0,0,0.8);text-align:left">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;border-bottom:1px solid var(--border);padding-bottom:10px">
+            <h3 id="sec-pwd-title" style="margin:0;font-size:15px;color:#38bdf8;display:flex;align-items:center;gap:8px">
+              🔒 Authentification Sécurisée
+            </h3>
+            <button class="del-btn" onclick="_rejectSecurityPasswordPrompt()" style="background:none;border:none;color:#aaa;font-size:22px;cursor:pointer">✕</button>
+          </div>
+          <p id="sec-pwd-desc" style="font-size:12px;color:#cbd5e1;margin-bottom:16px;line-height:1.5">
+            Veuillez saisir votre code d'accès pour confirmer cette opération :
+          </p>
+          <div style="margin-bottom:20px">
+            <input type="password" id="sec-pwd-input" placeholder="••••••••••••" style="width:100%;background:var(--bg3, #0f172a);border:1.5px solid var(--border, #334155);border-radius:8px;padding:10px 14px;color:#fff;font-size:16px;letter-spacing:3px" autocomplete="off">
+            <div id="sec-pwd-error" style="color:#ef4444;font-size:11px;font-weight:700;margin-top:6px;min-height:16px"></div>
+          </div>
+          <div style="display:flex;justify-content:flex-end;gap:10px">
+            <button class="btn btn-reset" onclick="_rejectSecurityPasswordPrompt()" style="padding:8px 16px">Annuler</button>
+            <button class="btn" onclick="_resolveSecurityPasswordPrompt()" style="background:#38bdf8;color:#000;font-weight:800;padding:8px 20px">Valider</button>
+          </div>
+        </div>
+      `;
+      document.body.appendChild(modalDiv);
+      modal = modalDiv;
+    }
+    
     const titleEl = document.getElementById('sec-pwd-title');
     const descEl = document.getElementById('sec-pwd-desc');
     const inputEl = document.getElementById('sec-pwd-input');
     const errEl = document.getElementById('sec-pwd-error');
     
     if (titleEl) titleEl.textContent = titre || '🔒 Authentification Sécurisée';
-    if (descEl) descEl.textContent = description || 'Veuillez saisir votre code d\'accès pour confirmer cette opération :';
+    if (descEl) descEl.textContent = description || "Veuillez saisir votre code d'accès pour confirmer cette opération :";
     if (inputEl) {
       inputEl.value = '';
-      setTimeout(() => inputEl.focus(), 120);
+      setTimeout(() => inputEl.focus(), 150);
     }
     if (errEl) errEl.textContent = '';
     
-    if (modal) {
-      modal.classList.add('open');
-      modal.style.display = 'flex';
-    }
+    modal.classList.add('open');
+    modal.style.display = 'flex';
   });
 }
 window.demanderMotDePasseMasque = demanderMotDePasseMasque;
