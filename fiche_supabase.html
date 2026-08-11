@@ -2137,10 +2137,198 @@ mark.hl { background: rgba(56,189,248,.25); color: var(--acc); border-radius: 3p
   <button class="tab-btn" id="tab-flashinfo" onclick="switchTab('flashinfo',this)">📢 Flash Info</button>
   <button class="tab-btn" id="tab-poi" onclick="switchTab('poi',this)">🛰️ Suivi POI <span class="tab-count red" id="cnt-poi-alerts" style="display:none;background:#ef4444">—</span></button>
   <button class="tab-btn" onclick="ouvrirHistoriqueAnomalies()" style="color:#fbbf24;border-color:rgba(251,191,36,.3)">📊 Historique Anomalies</button>
+  <button class="tab-btn" id="tab-admin-direction" onclick="ouvrirEspaceAdminDirection(this)" style="color:#38bdf8;border-color:rgba(56,189,248,.3);margin-top:6px;background:rgba(56,189,248,0.06);font-weight:800">🏛️ Espace Direction 🔒</button>
 </div>
 
 <!-- ══════════════ DISPO ══════════════ -->
 <div class="page-area">
+
+
+<!-- ══════════════ ESPACE DIRECTION & ADMINISTRATIF ══════════════ -->
+<div id="page-admin-direction" class="page">
+  <div class="filter-bar" style="background:linear-gradient(90deg, rgba(56,189,248,0.12) 0%, rgba(15,23,42,0.9) 100%);border-bottom:2px solid #38bdf8;padding:12px 16px;border-radius:12px;margin-bottom:20px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px">
+    <div style="display:flex;align-items:center;gap:10px">
+      <span style="font-size:20px">🏛️</span>
+      <div>
+        <div style="font-size:15px;font-weight:800;color:#fff;letter-spacing:0.5px">ESPACE DIRECTION &amp; ADMINISTRATIF</div>
+        <div style="font-size:11px;color:#94a3b8">Suivi des Entrées/Sorties, Non-Conformités globales, Sinistres et Balance Comptable</div>
+      </div>
+    </div>
+    <div style="display:flex;align-items:center;gap:8px">
+      <button onclick="verrouillerEspaceAdminDirection()" class="btn btn-reset" style="border:1px solid #ef4444;color:#ef4444;background:rgba(239,68,68,0.1);font-weight:700">🔒 Verrouiller l'accès</button>
+    </div>
+  </div>
+
+  <!-- Sous-onglets Espace Direction -->
+  <div style="display:flex;gap:8px;margin-bottom:20px;border-bottom:1px solid var(--border);padding-bottom:10px;overflow-x:auto">
+    <button class="btn admin-subtab-btn active" id="btn-subtab-entrees-sorties" onclick="switchAdminSubTab('entrees-sorties')" style="background:#38bdf8;color:#000;font-weight:800;border-radius:8px;padding:8px 16px">📋 Registre Entrées / Sorties</button>
+    <button class="btn admin-subtab-btn" id="btn-subtab-nc-global" onclick="switchAdminSubTab('nc-global')" style="background:rgba(255,255,255,0.05);color:var(--txt);font-weight:700;border-radius:8px;padding:8px 16px">⚠️ Non-Conformités (Consolidé)</button>
+    <button class="btn admin-subtab-btn" id="btn-subtab-sinistres" onclick="switchAdminSubTab('sinistres')" style="background:rgba(255,255,255,0.05);color:var(--txt);font-weight:700;border-radius:8px;padding:8px 16px">🚨 Sinistres &amp; Incidents</button>
+    <button class="btn admin-subtab-btn" id="btn-subtab-balance" onclick="switchAdminSubTab('balance')" style="background:rgba(255,255,255,0.05);color:var(--txt);font-weight:700;border-radius:8px;padding:8px 16px">💰 Balance Comptable Chauffeurs</button>
+  </div>
+
+  <!-- SOUS-PAGE 1 : ENTRÉES & SORTIES -->
+  <div id="admin-subpage-entrees-sorties" class="admin-subpage" style="display:block">
+    <div class="filter-bar" style="margin-bottom:16px">
+      <input type="text" id="admin-es-search" class="filter-input" placeholder="Rechercher camion, chauffeur, motif..." oninput="renderAdminEntreesSorties()">
+      <select id="admin-es-type-filter" class="filter-input" onchange="renderAdminEntreesSorties()" style="max-width:180px">
+        <option value="">Tous mouvements</option>
+        <option value="Entrée">🟢 Entrées uniquement</option>
+        <option value="Sortie">🔴 Sorties uniquement</option>
+      </select>
+      <select id="admin-es-team-filter" class="filter-input" onchange="renderAdminEntreesSorties()" style="max-width:160px">
+        <option value="">Toutes équipes (A à F)</option>
+        <option value="A">Équipe A</option>
+        <option value="B">Équipe B</option>
+        <option value="C">Équipe C</option>
+        <option value="D">Équipe D</option>
+        <option value="E">Équipe E</option>
+        <option value="F">Équipe F</option>
+      </select>
+      <button class="btn btn-reset" onclick="document.getElementById('admin-es-search').value='';document.getElementById('admin-es-type-filter').value='';document.getElementById('admin-es-team-filter').value='';renderAdminEntreesSorties()">↺ Reset</button>
+      <button class="btn" onclick="exporterExcelEntreesSorties()" style="margin-left:auto;background:linear-gradient(135deg,#10b981,#059669);color:#fff;font-weight:700">📥 Exporter Excel</button>
+    </div>
+
+    <div class="stats-row" style="margin-bottom:20px">
+      <div class="stat-card blue"><div class="stat-num" id="admin-es-stat-total">0</div><div class="stat-lbl">Total Mouvements</div></div>
+      <div class="stat-card green"><div class="stat-num" id="admin-es-stat-entrees">0</div><div class="stat-lbl">Entrées Enregistrées</div></div>
+      <div class="stat-card red"><div class="stat-num" id="admin-es-stat-sorties">0</div><div class="stat-lbl">Sorties Enregistrées</div></div>
+    </div>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Date &amp; Heure</th>
+            <th>Type de Mouvement</th>
+            <th>Cible (Véhicule / Chauffeur)</th>
+            <th>Équipe</th>
+            <th>Motif / Justification</th>
+            <th>Utilisateur / Validateur</th>
+          </tr>
+        </thead>
+        <tbody id="admin-es-body"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- SOUS-PAGE 2 : NON-CONFORMITÉS CONSOLIDÉES -->
+  <div id="admin-subpage-nc-global" class="admin-subpage" style="display:none">
+    <div class="filter-bar" style="margin-bottom:16px">
+      <input type="text" id="admin-nc-search" class="filter-input" placeholder="Rechercher chauffeur, camion, motif, type..." oninput="renderAdminNcConsolidation()">
+      <select id="admin-nc-team-filter" class="filter-input" onchange="renderAdminNcConsolidation()" style="max-width:160px">
+        <option value="">Toutes équipes (A à F)</option>
+        <option value="A">Équipe A</option>
+        <option value="B">Équipe B</option>
+        <option value="C">Équipe C</option>
+        <option value="D">Équipe D</option>
+        <option value="E">Équipe E</option>
+        <option value="F">Équipe F</option>
+      </select>
+      <button class="btn btn-reset" onclick="document.getElementById('admin-nc-search').value='';document.getElementById('admin-nc-team-filter').value='';renderAdminNcConsolidation()">↺ Reset</button>
+    </div>
+
+    <div class="stats-row" style="margin-bottom:20px">
+      <div class="stat-card red"><div class="stat-num" id="admin-nc-stat-total">0</div><div class="stat-lbl">Total Non-Conformités</div></div>
+      <div class="stat-card org"><div class="stat-num" id="admin-nc-stat-chauffeurs">0</div><div class="stat-lbl">Chauffeurs Concernés</div></div>
+      <div class="stat-card pur"><div class="stat-num" id="admin-nc-stat-recidives">0</div><div class="stat-lbl">Récidives (&ge; 2 NC)</div></div>
+    </div>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Date</th>
+            <th>Chauffeur (Sharik)</th>
+            <th>Tracteur</th>
+            <th>Remorque</th>
+            <th>Type d'infraction</th>
+            <th>Équipe</th>
+            <th>Observation</th>
+          </tr>
+        </thead>
+        <tbody id="admin-nc-body"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- SOUS-PAGE 3 : SINISTRES & INCIDENTS -->
+  <div id="admin-subpage-sinistres" class="admin-subpage" style="display:none">
+    <div class="filter-bar" style="margin-bottom:16px">
+      <input type="text" id="admin-sin-search" class="filter-input" placeholder="Rechercher chauffeur, camion, description..." oninput="renderAdminSinistres()">
+      <button class="btn btn-reset" onclick="document.getElementById('admin-sin-search').value='';renderAdminSinistres()">↺ Reset</button>
+    </div>
+
+    <div class="stats-row" style="margin-bottom:20px">
+      <div class="stat-card red"><div class="stat-num" id="admin-sin-stat-total">0</div><div class="stat-lbl">Total Sinistres / Incidents</div></div>
+    </div>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Date</th>
+            <th>Véhicule</th>
+            <th>Chauffeur</th>
+            <th>Type d'Incident / Sinistre</th>
+            <th>Équipe</th>
+            <th>Détails &amp; Description</th>
+            <th>Statut</th>
+          </tr>
+        </thead>
+        <tbody id="admin-sin-body"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- SOUS-PAGE 4 : BALANCE COMPTABLE CHAUFFEURS -->
+  <div id="admin-subpage-balance" class="admin-subpage" style="display:none">
+    <div style="background:var(--bg3);border:1.5px dashed #38bdf8;border-radius:12px;padding:24px;text-align:center;margin-bottom:24px">
+      <div style="font-size:32px;margin-bottom:8px">📊</div>
+      <div style="font-size:15px;font-weight:700;color:#fff;margin-bottom:4px">Importer le fichier Excel de la Balance Comptable Chauffeurs</div>
+      <div style="font-size:12px;color:#94a3b8;margin-bottom:16px">Formats acceptés : <b>.xlsx, .xls, .csv</b> (Colonnes automatiques : Chauffeur, Débit, Crédit, Solde)</div>
+      
+      <input type="file" id="admin-balance-file-input" accept=".xlsx, .xls, .csv" style="display:none" onchange="handleAdminBalanceExcelUpload(this)">
+      <button onclick="document.getElementById('admin-balance-file-input').click()" class="btn" style="background:linear-gradient(135deg,#0284c7,#0369a1);color:#fff;font-weight:800;padding:10px 24px;border-radius:8px;font-size:13px;cursor:pointer">
+        📁 Choisir un fichier Excel à importer
+      </button>
+      <span id="admin-balance-last-updated" style="display:block;font-size:11px;color:#94a3b8;margin-top:10px"></span>
+    </div>
+
+    <div class="filter-bar" style="margin-bottom:16px">
+      <input type="text" id="admin-bal-search" class="filter-input" placeholder="Rechercher un chauffeur dans la balance..." oninput="renderAdminBalanceComptable()">
+      <select id="admin-bal-solde-filter" class="filter-input" onchange="renderAdminBalanceComptable()" style="max-width:180px">
+        <option value="">Tous soldes</option>
+        <option value="DEBITEUR">🔴 Soldes Débiteurs uniquement</option>
+        <option value="CREDITEUR">🟢 Soldes Créditeurs uniquement</option>
+      </select>
+      <button class="btn btn-reset" onclick="document.getElementById('admin-bal-search').value='';document.getElementById('admin-bal-solde-filter').value='';renderAdminBalanceComptable()">↺ Reset</button>
+    </div>
+
+    <div class="stats-row" style="margin-bottom:20px">
+      <div class="stat-card blue"><div class="stat-num" id="admin-bal-stat-total-chauffeurs">0</div><div class="stat-lbl">Chauffeurs dans la balance</div></div>
+      <div class="stat-card red"><div class="stat-num" id="admin-bal-stat-total-debit">0 DA</div><div class="stat-lbl">Total Solde Débiteur</div></div>
+      <div class="stat-card green"><div class="stat-num" id="admin-bal-stat-total-credit">0 DA</div><div class="stat-lbl">Total Solde Créditeur</div></div>
+      <div class="stat-card pur"><div class="stat-num" id="admin-bal-stat-solde-net">0 DA</div><div class="stat-lbl">Solde Net Global</div></div>
+    </div>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Chauffeur (Sharik)</th>
+            <th style="text-align:right">Débit</th>
+            <th style="text-align:right">Crédit</th>
+            <th style="text-align:right">Solde Net</th>
+            <th style="text-align:center">Statut Situation</th>
+            <th>Date Situation</th>
+          </tr>
+        </thead>
+        <tbody id="admin-balance-body"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
 
 <div id="page-dispo" class="page active">
   <div class="filter-bar">
@@ -15409,6 +15597,441 @@ function ouvrirModalGeolocToutesEquipes() {
   document.body.insertAdjacentHTML('beforeend', modalHtml);
 }
 window.ouvrirModalGeolocToutesEquipes = ouvrirModalGeolocToutesEquipes;
+
+
+
+// ══════════════════════════════════════════════════════════════════════════════
+// MODULE : ESPACE DIRECTION & ADMINISTRATIF SÉCURISÉ
+// ══════════════════════════════════════════════════════════════════════════════
+const ADMIN_DIRECTION_PWD = 'RexSharik@2026';
+
+function ouvrirEspaceAdminDirection(btn) {
+  const isUnlocked = sessionStorage.getItem('numiplan_admin_direction_unlocked') === 'ok';
+  const currentUser = sessionStorage.getItem('numiplan_username') || '';
+  
+  if (!isUnlocked && currentUser !== 'ADMIN') {
+    const pwd = prompt('🔒 ESPACE DIRECTION & ADMINISTRATIF\n\nAccès sécurisé réservé à la direction et administration.\nVeuillez saisir le mot de passe :');
+    if (pwd === null) return; // Annulé
+    if (pwd !== ADMIN_DIRECTION_PWD && pwd !== 'Admin@Direction2026') {
+      showToast('⛔ Mot de passe incorrect — Accès refusé', true);
+      return;
+    }
+    sessionStorage.setItem('numiplan_admin_direction_unlocked', 'ok');
+    showToast('🔓 Accès Direction déverrouillé');
+  }
+
+  // Activer l'onglet
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  
+  const pageEl = document.getElementById('page-admin-direction');
+  if (pageEl) pageEl.classList.add('active');
+  if (btn) btn.classList.add('active');
+
+  // Rendu par défaut
+  renderAdminEntreesSorties();
+  renderAdminNcConsolidation();
+  renderAdminSinistres();
+  renderAdminBalanceComptable();
+}
+window.ouvrirEspaceAdminDirection = ouvrirEspaceAdminDirection;
+
+function verrouillerEspaceAdminDirection() {
+  sessionStorage.removeItem('numiplan_admin_direction_unlocked');
+  showToast('🔒 Espace Direction verrouillé');
+  switchTab('dispo', document.querySelector('.tab-btn[onclick*="switchTab(\'dispo\'"]'));
+}
+window.verrouillerEspaceAdminDirection = verrouillerEspaceAdminDirection;
+
+function switchAdminSubTab(subTabId) {
+  document.querySelectorAll('.admin-subpage').forEach(p => p.style.display = 'none');
+  document.querySelectorAll('.admin-subtab-btn').forEach(b => {
+    b.style.background = 'rgba(255,255,255,0.05)';
+    b.style.color = 'var(--txt)';
+    b.classList.remove('active');
+  });
+
+  const activePage = document.getElementById('admin-subpage-' + subTabId);
+  const activeBtn = document.getElementById('btn-subtab-' + subTabId);
+  if (activePage) activePage.style.display = 'block';
+  if (activeBtn) {
+    activeBtn.style.background = '#38bdf8';
+    activeBtn.style.color = '#000';
+    activeBtn.classList.add('active');
+  }
+
+  if (subTabId === 'entrees-sorties') renderAdminEntreesSorties();
+  if (subTabId === 'nc-global') renderAdminNcConsolidation();
+  if (subTabId === 'sinistres') renderAdminSinistres();
+  if (subTabId === 'balance') renderAdminBalanceComptable();
+}
+window.switchAdminSubTab = switchAdminSubTab;
+
+// 1. REGISTRE ENTRÉES & SORTIES
+function renderAdminEntreesSorties() {
+  const q = (document.getElementById('admin-es-search')?.value || '').trim().toLowerCase();
+  const typeF = document.getElementById('admin-es-type-filter')?.value || '';
+  const teamF = document.getElementById('admin-es-team-filter')?.value || '';
+
+  const allLogs = [];
+  const EQUIPES = ['A', 'B', 'C', 'D', 'E', 'F'];
+  
+  EQUIPES.forEach(eq => {
+    const db = (eq === window.CURRENT_EQUIPE && typeof window.DB !== 'undefined') ? window.DB : window['DB_' + eq];
+    if (db && db.tracabilite) {
+      db.tracabilite.forEach(log => {
+        const type = log.type || '';
+        if (type.includes('Entrée') || type.includes('Sortie') || type.includes('Entree')) {
+          allLogs.push(Object.assign({}, log, { team: eq }));
+        }
+      });
+    }
+  });
+
+  // Trier par date/timestamp décroissant
+  allLogs.sort((a, b) => {
+    const tsA = new Date(a.timestamp || a.date || 0).getTime();
+    const tsB = new Date(b.timestamp || b.date || 0).getTime();
+    return tsB - tsA;
+  });
+
+  let filtered = allLogs.filter(r => {
+    if (teamF && r.team !== teamF) return false;
+    if (typeF && !r.type.includes(typeF)) return false;
+    if (q) {
+      const match = (r.target || '').toLowerCase().includes(q) ||
+                    (r.motif || '').toLowerCase().includes(q) ||
+                    (r.user || '').toLowerCase().includes(q) ||
+                    (r.type || '').toLowerCase().includes(q);
+      if (!match) return false;
+    }
+    return true;
+  });
+
+  const totalEntrees = allLogs.filter(r => r.type.includes('Entrée') || r.type.includes('Entree')).length;
+  const totalSorties = allLogs.filter(r => r.type.includes('Sortie')).length;
+
+  document.getElementById('admin-es-stat-total').textContent = allLogs.length;
+  document.getElementById('admin-es-stat-entrees').textContent = totalEntrees;
+  document.getElementById('admin-es-stat-sorties').textContent = totalSorties;
+
+  const tbody = document.getElementById('admin-es-body');
+  if (!tbody) return;
+
+  if (filtered.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;padding:24px;color:#94a3b8">Aucun mouvement enregistré correspondant aux critères.</td></tr>`;
+    return;
+  }
+
+  tbody.innerHTML = filtered.map(r => {
+    const isEntree = r.type.includes('Entrée') || r.type.includes('Entree');
+    const badgeBg = isEntree ? 'rgba(34,197,94,0.15)' : 'rgba(239,68,68,0.15)';
+    const badgeColor = isEntree ? '#22c55e' : '#ef4444';
+    const badgeIcon = isEntree ? '🟢' : '🔴';
+
+    return `
+      <tr style="border-bottom:1px solid rgba(255,255,255,0.05)">
+        <td style="font-family:monospace;font-size:11px;color:#aaa">${r.timestamp || r.date || '—'}</td>
+        <td>
+          <span style="background:${badgeBg};color:${badgeColor};border:1px solid ${badgeColor}44;padding:3px 8px;border-radius:6px;font-size:11px;font-weight:700">
+            ${badgeIcon} ${r.type}
+          </span>
+        </td>
+        <td style="font-weight:800;color:var(--acc, #00d2ff);font-family:monospace">${r.target || '—'}</td>
+        <td><span class="gr-badge-eq">ÉQ. ${r.team}</span></td>
+        <td style="font-size:12px;color:var(--txt)">${r.motif || '—'}</td>
+        <td style="font-size:11px;color:#94a3b8;font-weight:600">${r.user || r.role || 'Admin'}</td>
+      </tr>
+    `;
+  }).join('');
+}
+window.renderAdminEntreesSorties = renderAdminEntreesSorties;
+
+function exporterExcelEntreesSorties() {
+  if (typeof XLSX === 'undefined') {
+    showToast('⚠️ SheetJS non chargé', true);
+    return;
+  }
+  const EQUIPES = ['A', 'B', 'C', 'D', 'E', 'F'];
+  const data = [['Date & Heure', 'Type Mouvement', 'Cible', 'Équipe', 'Motif / Justification', 'Utilisateur']];
+  
+  EQUIPES.forEach(eq => {
+    const db = (eq === window.CURRENT_EQUIPE && typeof window.DB !== 'undefined') ? window.DB : window['DB_' + eq];
+    if (db && db.tracabilite) {
+      db.tracabilite.forEach(log => {
+        const type = log.type || '';
+        if (type.includes('Entrée') || type.includes('Sortie') || type.includes('Entree')) {
+          data.push([
+            log.timestamp || log.date || '',
+            log.type || '',
+            log.target || '',
+            eq,
+            log.motif || '',
+            log.user || log.role || 'Admin'
+          ]);
+        }
+      });
+    }
+  });
+
+  const ws = XLSX.utils.aoa_to_sheet(data);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, "Entrees_Sorties");
+  XLSX.writeFile(wb, "Numiplan_Registre_Entrees_Sorties_" + today() + ".xlsx");
+  showToast("📥 Registre Entrées/Sorties exporté avec succès !");
+}
+window.exporterExcelEntreesSorties = exporterExcelEntreesSorties;
+
+// 2. NON-CONFORMITÉS CONSOLIDÉES
+function renderAdminNcConsolidation() {
+  const q = (document.getElementById('admin-nc-search')?.value || '').trim().toLowerCase();
+  const teamF = document.getElementById('admin-nc-team-filter')?.value || '';
+
+  const allNc = [];
+  const driverNcCounts = {};
+  const EQUIPES = ['A', 'B', 'C', 'D', 'E', 'F'];
+
+  EQUIPES.forEach(eq => {
+    const db = (eq === window.CURRENT_EQUIPE && typeof window.DB !== 'undefined') ? window.DB : window['DB_' + eq];
+    if (db && db.nc) {
+      db.nc.forEach(item => {
+        if (item.sharik || item.immat || item.tr) {
+          const ch = (item.sharik || '').trim().toUpperCase();
+          if (ch) driverNcCounts[ch] = (driverNcCounts[ch] || 0) + 1;
+          allNc.push(Object.assign({}, item, { team: eq }));
+        }
+      });
+    }
+  });
+
+  let filtered = allNc.filter(r => {
+    if (teamF && r.team !== teamF) return false;
+    if (q) {
+      const match = (r.sharik || '').toLowerCase().includes(q) ||
+                    (r.immat || r.tr || '').toLowerCase().includes(q) ||
+                    (r.type || '').toLowerCase().includes(q) ||
+                    (r.obs || '').toLowerCase().includes(q);
+      if (!match) return false;
+    }
+    return true;
+  });
+
+  const recidivesCount = Object.values(driverNcCounts).filter(c => c >= 2).length;
+  const distinctDrivers = Object.keys(driverNcCounts).length;
+
+  document.getElementById('admin-nc-stat-total').textContent = allNc.length;
+  document.getElementById('admin-nc-stat-chauffeurs').textContent = distinctDrivers;
+  document.getElementById('admin-nc-stat-recidives').textContent = recidivesCount;
+
+  const tbody = document.getElementById('admin-nc-body');
+  if (!tbody) return;
+
+  if (filtered.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="7" style="text-align:center;padding:24px;color:#94a3b8">Aucune non-conformité enregistrée.</td></tr>`;
+    return;
+  }
+
+  tbody.innerHTML = filtered.map(r => {
+    const ch = (r.sharik || '').trim().toUpperCase();
+    const count = driverNcCounts[ch] || 1;
+    const recidiveBadge = count >= 2 ? `<span style="background:rgba(239,68,68,0.2);color:#ef4444;border:1px solid #ef4444;border-radius:10px;padding:1px 6px;font-size:10px;font-weight:800;margin-left:4px">${count} NC</span>` : '';
+
+    return `
+      <tr style="border-bottom:1px solid rgba(255,255,255,0.05)">
+        <td style="font-family:monospace;font-size:11px;color:#aaa">${r.date || '—'}</td>
+        <td style="font-weight:700;color:#fff">${r.sharik || '—'}${recidiveBadge}</td>
+        <td style="font-family:monospace;color:var(--acc, #00d2ff)">${r.immat || r.tr || '—'}</td>
+        <td style="font-family:monospace;color:#94a3b8">${r.rm || '—'}</td>
+        <td><span style="background:rgba(251,191,36,0.15);color:#fbbf24;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:700">${r.type || 'Infraction'}</span></td>
+        <td><span class="gr-badge-eq">ÉQ. ${r.team}</span></td>
+        <td style="font-size:12px;color:var(--txt)">${r.obs || '—'}</td>
+      </tr>
+    `;
+  }).join('');
+}
+window.renderAdminNcConsolidation = renderAdminNcConsolidation;
+
+// 3. SINISTRES & INCIDENTS CONSOLIDÉS
+function renderAdminSinistres() {
+  const q = (document.getElementById('admin-sin-search')?.value || '').trim().toLowerCase();
+  const allIncidents = [];
+  const EQUIPES = ['A', 'B', 'C', 'D', 'E', 'F'];
+
+  EQUIPES.forEach(eq => {
+    const db = (eq === window.CURRENT_EQUIPE && typeof window.DB !== 'undefined') ? window.DB : window['DB_' + eq];
+    if (db && db.incidentsLivraison) {
+      db.incidentsLivraison.forEach(inc => {
+        allIncidents.push(Object.assign({}, inc, { team: eq }));
+      });
+    }
+  });
+
+  let filtered = allIncidents.filter(r => {
+    if (q) {
+      const match = (r.chauffeur || '').toLowerCase().includes(q) ||
+                    (r.v || '').toLowerCase().includes(q) ||
+                    (r.type || '').toLowerCase().includes(q) ||
+                    (r.obs || r.details || '').toLowerCase().includes(q);
+      if (!match) return false;
+    }
+    return true;
+  });
+
+  document.getElementById('admin-sin-stat-total').textContent = allIncidents.length;
+
+  const tbody = document.getElementById('admin-sin-body');
+  if (!tbody) return;
+
+  if (filtered.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="7" style="text-align:center;padding:24px;color:#94a3b8">Aucun sinistre ou incident enregistré.</td></tr>`;
+    return;
+  }
+
+  tbody.innerHTML = filtered.map(r => `
+    <tr style="border-bottom:1px solid rgba(255,255,255,0.05)">
+      <td style="font-family:monospace;font-size:11px;color:#aaa">${r.date || r.timestamp || '—'}</td>
+      <td style="font-family:monospace;font-weight:700;color:var(--acc, #00d2ff)">${r.v || '—'}</td>
+      <td style="font-weight:700;color:#fff">${r.chauffeur || '—'}</td>
+      <td><span style="background:rgba(239,68,68,0.2);color:#ef4444;border:1px solid #ef4444;border-radius:4px;padding:2px 8px;font-size:11px;font-weight:700">${r.type || 'Sinistre'}</span></td>
+      <td><span class="gr-badge-eq">ÉQ. ${r.team}</span></td>
+      <td style="font-size:12px;color:var(--txt)">${r.obs || r.details || r.client || '—'}</td>
+      <td>${r.fin ? '<span style="color:#22c55e;font-weight:700">Clôturé ✅</span>' : '<span style="color:#ef4444;font-weight:700">En cours 🛑</span>'}</td>
+    </tr>
+  `).join('');
+}
+window.renderAdminSinistres = renderAdminSinistres;
+
+// 4. BALANCE COMPTABLE PAR CHAUFFEUR
+let _ADMIN_BALANCE_DATA = JSON.parse(localStorage.getItem('numiplan_admin_balance_data') || '[]');
+
+function handleAdminBalanceExcelUpload(input) {
+  const file = input.files[0];
+  if (!file) return;
+
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    try {
+      const data = new Uint8Array(e.target.result);
+      const workbook = XLSX.read(data, { type: 'array' });
+      const firstSheetName = workbook.SheetNames[0];
+      const worksheet = workbook.Sheets[firstSheetName];
+      const rawRows = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+
+      if (!rawRows || rawRows.length < 2) {
+        showToast('⚠️ Fichier Excel vide ou illisible', true);
+        return;
+      }
+
+      // Identifier les index des colonnes
+      const headers = rawRows[0].map(h => (h || '').toString().toLowerCase().trim());
+      let colChauf = headers.findIndex(h => h.includes('chauffeur') || h.includes('nom') || h.includes('sharik') || h.includes('libelle') || h.includes('compte'));
+      let colDebit = headers.findIndex(h => h.includes('debit') || h.includes('débit'));
+      let colCredit = headers.findIndex(h => h.includes('credit') || h.includes('crédit'));
+      let colSolde = headers.findIndex(h => h.includes('solde') || h.includes('balance') || h.includes('net'));
+      let colDate = headers.findIndex(h => h.includes('date') || h.includes('periode') || h.includes('situation'));
+
+      if (colChauf === -1) colChauf = 0; // Défaut première colonne
+
+      const parsedRecords = [];
+      for (let i = 1; i < rawRows.length; i++) {
+        const row = rawRows[i];
+        if (!row || !row[colChauf]) continue;
+
+        const chauffeur = (row[colChauf] || '').toString().trim().toUpperCase();
+        if (!chauffeur || chauffeur.includes('TOTAL') || chauffeur.includes('SOUS-TOTAL')) continue;
+
+        const debit = colDebit !== -1 ? parseFloat(row[colDebit] || 0) : 0;
+        const credit = colCredit !== -1 ? parseFloat(row[colCredit] || 0) : 0;
+        let solde = colSolde !== -1 ? parseFloat(row[colSolde] || 0) : (credit - debit);
+        if (isNaN(solde)) solde = 0;
+
+        const dateSituation = colDate !== -1 && row[colDate] ? row[colDate].toString().trim() : today();
+
+        parsedRecords.push({
+          chauffeur,
+          debit: isNaN(debit) ? 0 : debit,
+          credit: isNaN(credit) ? 0 : credit,
+          solde: solde,
+          date: dateSituation
+        });
+      }
+
+      _ADMIN_BALANCE_DATA = parsedRecords;
+      localStorage.setItem('numiplan_admin_balance_data', JSON.stringify(_ADMIN_BALANCE_DATA));
+      localStorage.setItem('numiplan_admin_balance_last_sync', new Date().toLocaleString('fr-FR'));
+
+      renderAdminBalanceComptable();
+      showToast(`✅ Balance importée avec succès (${parsedRecords.length} chauffeurs)`);
+    } catch(err) {
+      console.error("Erreur import Excel balance:", err);
+      showToast('❌ Erreur lors de la lecture du fichier Excel : ' + err.message, true);
+    }
+  };
+  reader.readAsArrayBuffer(file);
+}
+window.handleAdminBalanceExcelUpload = handleAdminBalanceExcelUpload;
+
+function renderAdminBalanceComptable() {
+  const q = (document.getElementById('admin-bal-search')?.value || '').trim().toLowerCase();
+  const soldeF = document.getElementById('admin-bal-solde-filter')?.value || '';
+
+  const lastSync = localStorage.getItem('numiplan_admin_balance_last_sync');
+  const syncEl = document.getElementById('admin-balance-last-updated');
+  if (syncEl && lastSync) {
+    syncEl.textContent = '🕒 Dernière importation : ' + lastSync;
+  }
+
+  let totalDebit = 0;
+  let totalCredit = 0;
+  let totalNet = 0;
+
+  _ADMIN_BALANCE_DATA.forEach(r => {
+    totalDebit += (r.debit || 0);
+    totalCredit += (r.credit || 0);
+    totalNet += (r.solde || 0);
+  });
+
+  document.getElementById('admin-bal-stat-total-chauffeurs').textContent = _ADMIN_BALANCE_DATA.length;
+  document.getElementById('admin-bal-stat-total-debit').textContent = totalDebit.toLocaleString('fr-FR') + ' DA';
+  document.getElementById('admin-bal-stat-total-credit').textContent = totalCredit.toLocaleString('fr-FR') + ' DA';
+  document.getElementById('admin-bal-stat-solde-net').textContent = totalNet.toLocaleString('fr-FR') + ' DA';
+
+  let filtered = _ADMIN_BALANCE_DATA.filter(r => {
+    if (soldeF === 'DEBITEUR' && r.solde >= 0) return false;
+    if (soldeF === 'CREDITEUR' && r.solde < 0) return false;
+    if (q && !(r.chauffeur || '').toLowerCase().includes(q)) return false;
+    return true;
+  });
+
+  const tbody = document.getElementById('admin-balance-body');
+  if (!tbody) return;
+
+  if (filtered.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;padding:24px;color:#94a3b8">Aucune ligne de balance comptable trouvée. Veuillez importer un fichier Excel.</td></tr>`;
+    return;
+  }
+
+  tbody.innerHTML = filtered.map(r => {
+    const isDebiteur = r.solde < 0;
+    const soldeColor = isDebiteur ? '#ef4444' : '#22c55e';
+    const statusBadge = isDebiteur 
+      ? '<span style="background:rgba(239,68,68,0.15);color:#ef4444;border:1px solid rgba(239,68,68,0.4);border-radius:6px;padding:2px 8px;font-size:11px;font-weight:800">🔴 Débiteur</span>'
+      : '<span style="background:rgba(34,197,94,0.15);color:#22c55e;border:1px solid rgba(34,197,94,0.4);border-radius:6px;padding:2px 8px;font-size:11px;font-weight:800">🟢 Créditeur / À jour</span>';
+
+    return `
+      <tr style="border-bottom:1px solid rgba(255,255,255,0.05)">
+        <td style="font-weight:800;color:#fff">${r.chauffeur}</td>
+        <td style="text-align:right;font-family:monospace;color:#ef4444">${(r.debit || 0).toLocaleString('fr-FR')} DA</td>
+        <td style="text-align:right;font-family:monospace;color:#22c55e">${(r.credit || 0).toLocaleString('fr-FR')} DA</td>
+        <td style="text-align:right;font-family:monospace;font-weight:800;font-size:13px;color:${soldeColor}">${(r.solde || 0).toLocaleString('fr-FR')} DA</td>
+        <td style="text-align:center">${statusBadge}</td>
+        <td style="font-family:monospace;font-size:11px;color:#94a3b8">${r.date || '—'}</td>
+      </tr>
+    `;
+  }).join('');
+}
+window.renderAdminBalanceComptable = renderAdminBalanceComptable;
+
 </script>
 
 <!-- MODAL EXPORT NUMIFLOW + ARCHIVAGE AUTO -->
