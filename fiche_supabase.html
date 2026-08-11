@@ -15774,8 +15774,81 @@ function areNamesMatching(nameA, nameB) {
   const partsA = nA.split(' ').sort().join(' ');
   const partsB = nB.split(' ').sort().join(' ');
   if (partsA === partsB) return true;
-  if (nA.includes(nB) || nB.includes(nA)) return true;
   return false;
+}
+
+function levenshteinDistance(a, b) {
+  const an = a ? a.length : 0;
+  const bn = b ? b.length : 0;
+  if (an === 0) return bn;
+  if (bn === 0) return an;
+  const matrix = [];
+  for (let i = 0; i <= bn; i++) matrix[i] = [i];
+  for (let j = 0; j <= an; j++) matrix[0][j] = j;
+  for (let i = 1; i <= bn; i++) {
+    for (let j = 1; j <= an; j++) {
+      if (b.charAt(i - 1) === a.charAt(j - 1)) {
+        matrix[i][j] = matrix[i - 1][j - 1];
+      } else {
+        matrix[i][j] = Math.min(
+          matrix[i - 1][j - 1] + 1,
+          matrix[i][j - 1] + 1,
+          matrix[i - 1][j] + 1
+        );
+      }
+    }
+  }
+  return matrix[bn][an];
+}
+
+function findBestNumiplanSuggestion(registryName, numiplanDrivers) {
+  const normReg = normalizeDriverName(registryName);
+  if (!normReg || normReg.length < 3) return null;
+  
+  let best = null;
+  let minDistance = 999;
+  
+  const regParts = normReg.split(' ').sort().join(' ');
+  const regWords = normReg.split(' ').filter(w => w.length > 2);
+
+  for (const [nKey, nVal] of Object.entries(numiplanDrivers)) {
+    const numiParts = nKey.split(' ').sort().join(' ');
+    const numiWords = nKey.split(' ').filter(w => w.length > 2);
+
+    // 1. Distance Levenshtein sur les noms ordonnés
+    const dOrdered = levenshteinDistance(regParts, numiParts);
+    // 2. Distance directe
+    const dDirect = levenshteinDistance(normReg, nKey);
+    // 3. Distance inversée
+    const dReversed = levenshteinDistance(normReg.split(' ').reverse().join(' '), nKey);
+    
+    let dist = Math.min(dOrdered, dDirect, dReversed);
+
+    // 4. Vérifier si un mot clé principal matche avec 1 lettre d'écart
+    let wordMatch = false;
+    for (const rw of regWords) {
+      for (const nw of numiWords) {
+        if (rw === nw || levenshteinDistance(rw, nw) <= 1) {
+          wordMatch = true;
+          break;
+        }
+      }
+      if (wordMatch) break;
+    }
+
+    const maxAllowedDist = normReg.length > 8 ? 3 : 2;
+    if ((dist <= maxAllowedDist || (wordMatch && dist <= 4)) && dist < minDistance) {
+      minDistance = dist;
+      best = {
+        name: nVal.rawName || nKey,
+        team: nVal.team,
+        v: nVal.v || '',
+        rm: nVal.rm || '',
+        dist: dist
+      };
+    }
+  }
+  return best;
 }
 
 // Stockage des personnalisations et modifications administratives
@@ -15810,6 +15883,7 @@ function renderAdminEntreesSorties() {
             if (r && r.chauffeur && !['AC/DC', '—', '-', 'DISPONIBLE'].includes(r.chauffeur.trim().toUpperCase())) {
               const chKey = normalizeDriverName(r.chauffeur);
               numiplanActiveDrivers[chKey] = {
+                rawName: r.chauffeur.trim(),
                 team: eq,
                 v: r.v || '',
                 rm: r.rm || '',
@@ -15818,16 +15892,32 @@ function renderAdminEntreesSorties() {
             }
           });
         }
+        if (Array.isArray(db.equip)) {
+          db.equip.forEach(r => {
+            if (r && r.chauffeur && !['AC/DC', '—', '-', 'DISPONIBLE'].includes(r.chauffeur.trim().toUpperCase())) {
+              const chKey = normalizeDriverName(r.chauffeur);
+              if (!numiplanActiveDrivers[chKey]) {
+                numiplanActiveDrivers[chKey] = {
+                  rawName: r.chauffeur.trim(),
+                  team: eq,
+                  v: r.v || '',
+                  rm: r.rm || '',
+                  etat: 'OK'
+                };
+              }
+            }
+          });
+        }
       }
     } catch(e) {}
   });
 
-  // 4. Analyser les incohérences pour chaque ligne
+  // 4. Analyser les correspondances exactes et suggestions de ressemblance pour chaque ligne
   let countIncoherences = 0;
   rawList.forEach((r, idx) => {
     r._idx = idx;
     
-    // Trouver si le chauffeur tourne sur Numiplan
+    // Trouver si le chauffeur tourne sur Numiplan (Match direct)
     let numiMatch = null;
     for (const [nKey, nVal] of Object.entries(numiplanActiveDrivers)) {
       if (areNamesMatching(r.sharik, nKey)) {
@@ -15839,24 +15929,34 @@ function renderAdminEntreesSorties() {
     r._numiMatch = numiMatch;
     r._incoherence = false;
     r._incoherenceType = '';
+    r._suggestion = null;
 
-    if (r.statut === 'INACTIF' && numiMatch) {
-      r._incoherence = true;
-      r._incoherenceType = `🚨 Marqué Sorti au registre mais tourne sur ${numiMatch.v} (Éq. ${numiMatch.team})`;
-      countIncoherences++;
-    } else if (r.statut === 'ACTIF' && !numiMatch) {
-      r._incoherence = true;
-      r._incoherenceType = `⚠️ Actif au registre mais absent du planning Numiplan`;
-      countIncoherences++;
-    } else if (numiMatch && r.tracteur && numiMatch.v && r.tracteur !== numiMatch.v) {
-      r._incoherence = true;
-      r._incoherenceType = `ℹ️ Camion registre (${r.tracteur}) ≠ Camion Numiplan (${numiMatch.v})`;
-      countIncoherences++;
+    if (numiMatch) {
+      if (r.statut === 'INACTIF') {
+        r._incoherence = true;
+        r._incoherenceType = `🚨 Marqué Sorti au registre mais tourne sur ${numiMatch.v} (Éq. ${numiMatch.team})`;
+        countIncoherences++;
+      } else if (r.tracteur && numiMatch.v && r.tracteur !== numiMatch.v) {
+        r._incoherence = true;
+        r._incoherenceType = `ℹ️ Camion registre (${r.tracteur}) ≠ Camion Numiplan (${numiMatch.v})`;
+        countIncoherences++;
+      }
+      if (!r.tracteur && numiMatch.v) r.tracteur = numiMatch.v;
+      if (!r.remorque && numiMatch.rm) r.remorque = numiMatch.rm;
+    } else {
+      // Pas de match exact -> Chercher une ressemblance intelligente dans Numiplan
+      const suggestion = findBestNumiplanSuggestion(r.sharik, numiplanActiveDrivers);
+      if (suggestion) {
+        r._suggestion = suggestion;
+        r._incoherence = true;
+        r._incoherenceType = `💡 Ressemblance Numiplan : ${suggestion.name} (${suggestion.v || 'Sans camion'}, Éq. ${suggestion.team})`;
+        countIncoherences++;
+      } else if (r.statut === 'ACTIF') {
+        r._incoherence = true;
+        r._incoherenceType = `⚠️ Actif au registre mais absent du planning Numiplan`;
+        countIncoherences++;
+      }
     }
-
-    // Auto-remplir tracteur/remorque si vide au registre
-    if (!r.tracteur && numiMatch && numiMatch.v) r.tracteur = numiMatch.v;
-    if (!r.remorque && numiMatch && numiMatch.rm) r.remorque = numiMatch.rm;
   });
 
   let filtered = rawList.filter(r => {
@@ -15904,9 +16004,22 @@ function renderAdminEntreesSorties() {
     const rmHtml = r.remorque ? `<span style="font-family:monospace;font-weight:700;color:#fbbf24;background:rgba(251,191,36,0.08);padding:2px 6px;border-radius:4px">${r.remorque}</span>` : '<span style="color:#64748b">—</span>';
     const motifHtml = r.motif_out ? `<span style="color:#f87171;font-weight:600">${r.motif_out}</span>` : '<span style="color:#64748b">—</span>';
 
-    const incoherenceBadge = r._incoherence 
-      ? `<div style="font-size:10px;font-weight:700;color:#fbbf24;margin-top:4px;background:rgba(251,191,36,0.1);border:1px solid rgba(251,191,36,0.3);padding:2px 6px;border-radius:4px;text-align:left">${r._incoherenceType}</div>` 
-      : '';
+    let incoherenceBadge = '';
+    if (r._suggestion) {
+      const editKey = r.code || r.sharik || String(r._idx);
+      const safeSugName = (r._suggestion.name || '').replace(/'/g, "\'");
+      const safeSugV = (r._suggestion.v || '').replace(/'/g, "\'");
+      const safeSugRm = (r._suggestion.rm || '').replace(/'/g, "\'");
+
+      incoherenceBadge = `
+        <div style="font-size:11px;font-weight:700;color:#38bdf8;margin-top:4px;background:rgba(56,189,248,0.12);border:1px solid rgba(56,189,248,0.4);padding:4px 8px;border-radius:6px;text-align:left;display:flex;align-items:center;justify-content:space-between;gap:6px">
+          <span>💡 Ressemblance : <b>${r._suggestion.name}</b> (${r._suggestion.v || 'Sans camion'}, Éq. ${r._suggestion.team})</span>
+          <button onclick="validerLiaisonSuggestion('${editKey}', '${safeSugName}', '${safeSugV}', '${safeSugRm}')" style="background:#38bdf8;color:#000;border:none;border-radius:4px;font-size:10px;font-weight:900;padding:3px 8px;cursor:pointer;white-space:nowrap">🔗 Valider (DIREX)</button>
+        </div>
+      `;
+    } else if (r._incoherence) {
+      incoherenceBadge = `<div style="font-size:10px;font-weight:700;color:#fbbf24;margin-top:4px;background:rgba(251,191,36,0.1);border:1px solid rgba(251,191,36,0.3);padding:2px 6px;border-radius:4px;text-align:left">${r._incoherenceType}</div>`;
+    }
 
     return `
       <tr style="border-bottom:1px solid rgba(255,255,255,0.05);transition:background 0.2s">
@@ -15931,6 +16044,33 @@ function renderAdminEntreesSorties() {
 }
 window.renderAdminEntreesSorties = renderAdminEntreesSorties;
 
+function validerLiaisonSuggestion(editKey, targetName, targetV, targetRm) {
+  const pwd = prompt("🔒 Sécurité Direction : Entrez le mot de passe administrateur pour valider cette ressemblance :");
+  if (pwd === null) return; // Annulation
+  
+  if (pwd.trim().toUpperCase() !== 'DIREX') {
+    alert("⛔ Mot de passe incorrect ! Action refusée.");
+    showToast("⛔ Mot de passe DIREX incorrect !", true);
+    return;
+  }
+
+  // Mot de passe validé !
+  if (!_ADMIN_SHARIK_CUSTOM_EDITS[editKey]) {
+    _ADMIN_SHARIK_CUSTOM_EDITS[editKey] = {};
+  }
+
+  _ADMIN_SHARIK_CUSTOM_EDITS[editKey].sharik = targetName;
+  if (targetV) _ADMIN_SHARIK_CUSTOM_EDITS[editKey].tracteur = targetV;
+  if (targetRm) _ADMIN_SHARIK_CUSTOM_EDITS[editKey].remorque = targetRm;
+  _ADMIN_SHARIK_CUSTOM_EDITS[editKey].statut = 'ACTIF';
+
+  localStorage.setItem('numiplan_admin_sharik_custom_edits', JSON.stringify(_ADMIN_SHARIK_CUSTOM_EDITS));
+
+  renderAdminEntreesSorties();
+  showToast(`✅ Liaison avec « ${targetName} » validée par la Direction`);
+}
+window.validerLiaisonSuggestion = validerLiaisonSuggestion;
+
 function ouvrirModalEditionSharik(idx) {
   const rawList = JSON.parse(JSON.stringify(INITIAL_ADMIN_SHARIK_DATA));
   const r = rawList[idx];
@@ -15954,7 +16094,10 @@ function ouvrirModalEditionSharik(idx) {
   document.getElementById('edit-sharik-motif').value = r.motif_out || '';
 
   const modal = document.getElementById('modal-admin-edit-sharik');
-  if (modal) modal.classList.add('active');
+  if (modal) {
+    modal.classList.add('open');
+    modal.style.display = 'flex';
+  }
 }
 window.ouvrirModalEditionSharik = ouvrirModalEditionSharik;
 
@@ -15978,7 +16121,12 @@ function saveAdminSharikEdit() {
   _ADMIN_SHARIK_CUSTOM_EDITS[editKey] = updatedObj;
   localStorage.setItem('numiplan_admin_sharik_custom_edits', JSON.stringify(_ADMIN_SHARIK_CUSTOM_EDITS));
 
-  closeModal('modal-admin-edit-sharik');
+  const modal = document.getElementById('modal-admin-edit-sharik');
+  if (modal) {
+    modal.classList.remove('open');
+    modal.style.display = 'none';
+  }
+
   renderAdminEntreesSorties();
   showToast(`✅ Fiche de « ${updatedObj.sharik} » mise à jour dans le registre`);
 }
