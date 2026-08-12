@@ -2336,10 +2336,27 @@ mark.hl { background: rgba(56,189,248,.25); color: var(--acc); border-radius: 3p
       </div>
     </div>
 
-    <div class="stats-row" style="margin-bottom:20px">
-      <div class="stat-card blue"><div class="stat-num" id="admin-es-stat-total">0</div><div class="stat-lbl">Total Chauffeurs Registre</div></div>
-      <div class="stat-card green"><div class="stat-num" id="admin-es-stat-entrees">0</div><div class="stat-lbl">Chauffeurs Actifs (🟢)</div></div>
-      <div class="stat-card red"><div class="stat-num" id="admin-es-stat-sorties">0</div><div class="stat-lbl">Chauffeurs Sortis (🔴)</div></div>
+    <div class="stats-row" style="margin-bottom:20px; display:grid; grid-template-columns:repeat(auto-fit, minmax(180px, 1fr)); gap:12px">
+      <div class="stat-card blue" style="cursor:pointer; transition:all 0.2s; border-left:4px solid #38bdf8" onclick="filterRegistreByCard('ALL')" title="Cliquer pour afficher tous les chauffeurs">
+        <div class="stat-num" id="admin-es-stat-total">0</div>
+        <div class="stat-lbl">👥 TOTAL CHAUFFEURS (Tous) ↺</div>
+      </div>
+      <div class="stat-card green" style="cursor:pointer; transition:all 0.2s; border-left:4px solid #22c55e" onclick="filterRegistreByCard('ACTIF')" title="Cliquer pour filtrer uniquement les chauffeurs Actifs">
+        <div class="stat-num" id="admin-es-stat-entrees">0</div>
+        <div class="stat-lbl">🟢 CHAUFFEURS ACTIFS</div>
+      </div>
+      <div class="stat-card red" style="cursor:pointer; transition:all 0.2s; border-left:4px solid #ef4444" onclick="filterRegistreByCard('INACTIF')" title="Cliquer pour filtrer uniquement les chauffeurs Sortis">
+        <div class="stat-num" id="admin-es-stat-sorties">0</div>
+        <div class="stat-lbl">🔴 CHAUFFEURS SORTIS</div>
+      </div>
+      <div class="stat-card yellow" style="cursor:pointer; transition:all 0.2s; border-left:4px solid #fbbf24" onclick="filterRegistreByCard('CAMIONS')" title="Cliquer pour filtrer les chauffeurs avec Camions assignés">
+        <div class="stat-num" id="admin-es-stat-camions">0</div>
+        <div class="stat-lbl">🚛 TOTAL CAMIONS PARC</div>
+      </div>
+      <div class="stat-card pur" style="cursor:pointer; transition:all 0.2s; border-left:4px solid #a855f7" onclick="filterRegistreByCard('EXTENSION')" title="Cliquer pour filtrer les chauffeurs en Extension">
+        <div class="stat-num" id="admin-es-stat-extensions">0</div>
+        <div class="stat-lbl">⭐ EXTENSIONS</div>
+      </div>
     </div>
 
     <div class="table-wrap">
@@ -2379,10 +2396,19 @@ mark.hl { background: rgba(56,189,248,.25); color: var(--acc); border-radius: 3p
       <button class="btn btn-reset" onclick="document.getElementById('admin-nc-search').value='';document.getElementById('admin-nc-team-filter').value='';renderAdminNcConsolidation()">↺ Reset</button>
     </div>
 
-    <div class="stats-row" style="margin-bottom:20px">
-      <div class="stat-card red"><div class="stat-num" id="admin-nc-stat-total">0</div><div class="stat-lbl">Total Non-Conformités</div></div>
-      <div class="stat-card org"><div class="stat-num" id="admin-nc-stat-chauffeurs">0</div><div class="stat-lbl">Chauffeurs Concernés</div></div>
-      <div class="stat-card pur"><div class="stat-num" id="admin-nc-stat-recidives">0</div><div class="stat-lbl">Récidives (&ge; 2 NC)</div></div>
+    <div class="stats-row" style="margin-bottom:20px; display:grid; grid-template-columns:repeat(auto-fit, minmax(180px, 1fr)); gap:12px">
+      <div class="stat-card red" style="cursor:pointer; transition:all 0.2s" onclick="document.getElementById('admin-nc-search').value='';renderAdminNcConsolidation();showToast('⚠️ Toutes les NC affichées')" title="Cliquer pour afficher toutes les NC">
+        <div class="stat-num" id="admin-nc-stat-total">0</div>
+        <div class="stat-lbl">Total Non-Conformités ↺</div>
+      </div>
+      <div class="stat-card org" style="cursor:pointer; transition:all 0.2s" onclick="document.getElementById('admin-nc-search').value='';renderAdminNcConsolidation()" title="Chauffeurs concernés">
+        <div class="stat-num" id="admin-nc-stat-chauffeurs">0</div>
+        <div class="stat-lbl">Chauffeurs Concernés</div>
+      </div>
+      <div class="stat-card pur" style="cursor:pointer; transition:all 0.2s" onclick="filterNcRecidives()" title="Cliquer pour filtrer uniquement les récidivistes">
+        <div class="stat-num" id="admin-nc-stat-recidives">0</div>
+        <div class="stat-lbl">🚨 Récidives (&ge; 2 NC)</div>
+      </div>
     </div>
 
     <div class="table-wrap">
@@ -16367,6 +16393,36 @@ function findBestNumiplanSuggestion(registryName, numiplanDrivers) {
 // Stockage des personnalisations et modifications administratives
 let _ADMIN_SHARIK_CUSTOM_EDITS = JSON.parse(localStorage.getItem('numiplan_admin_sharik_custom_edits') || '{}');
 
+
+window._REGISTRE_ACTIVE_CARD_FILTER = 'ALL';
+function filterRegistreByCard(filterType) {
+  window._REGISTRE_ACTIVE_CARD_FILTER = filterType;
+  
+  const searchInput = document.getElementById('admin-es-search');
+  const statusSelect = document.getElementById('admin-es-status-filter');
+  
+  if (filterType === 'ALL') {
+    if (searchInput) searchInput.value = '';
+    if (statusSelect) statusSelect.value = '';
+    showToast("👥 Affichage de tous les chauffeurs du registre");
+  } else if (filterType === 'ACTIF') {
+    if (statusSelect) statusSelect.value = '';
+    showToast("🟢 Filtrage : Chauffeurs Actifs");
+  } else if (filterType === 'INACTIF') {
+    if (statusSelect) statusSelect.value = '';
+    showToast("🔴 Filtrage : Chauffeurs Sortis (Résiliés)");
+  } else if (filterType === 'EXTENSION') {
+    if (statusSelect) statusSelect.value = '';
+    showToast("⭐ Filtrage : Chauffeurs avec Extensions");
+  } else if (filterType === 'CAMIONS') {
+    if (statusSelect) statusSelect.value = '';
+    showToast("🚛 Filtrage : Chauffeurs avec Camions assignés");
+  }
+  
+  renderAdminEntreesSorties();
+}
+window.filterRegistreByCard = filterRegistreByCard;
+
 function renderAdminEntreesSorties() {
   const q = (document.getElementById('admin-es-search')?.value || '').trim().toLowerCase();
   const statusF = document.getElementById('admin-es-status-filter')?.value || '';
@@ -16490,9 +16546,49 @@ function renderAdminEntreesSorties() {
     }
   });
 
+  // Calcul du nombre total de camions / tracteurs uniques dans le parc
+  const uniqueTrucksSet = new Set();
+  rawList.forEach(r => {
+    const trList = (r.tracteurs && r.tracteurs.length > 0) ? r.tracteurs : (r.tracteur ? r.tracteur.split(' · ') : []);
+    trList.forEach(t => {
+      const clean = (t || '').trim();
+      if (clean && clean !== '—' && clean !== '-') uniqueTrucksSet.add(clean);
+    });
+  });
+  // Ajouter également les camions du dictionnaire Master
+  if (typeof MASTER_TRUCK_PARC !== 'undefined') {
+    Object.keys(MASTER_TRUCK_PARC).forEach(t => uniqueTrucksSet.add(t));
+  }
+  const totalCamionsParc = uniqueTrucksSet.size;
+
+  const totalActifs = rawList.filter(r => r.statut === 'ACTIF').length;
+  const totalInactifs = rawList.filter(r => r.statut === 'INACTIF').length;
+  const totalExtensions = rawList.filter(r => r.is_extension || (r.tracteurs && r.tracteurs.length > 1)).length;
+
+  const statTotalEl = document.getElementById('admin-es-stat-total');
+  const statEntreesEl = document.getElementById('admin-es-stat-entrees');
+  const statSortiesEl = document.getElementById('admin-es-stat-sorties');
+  const statCamionsEl = document.getElementById('admin-es-stat-camions');
+  const statExtensionsEl = document.getElementById('admin-es-stat-extensions');
+
+  if (statTotalEl) statTotalEl.textContent = rawList.length;
+  if (statEntreesEl) statEntreesEl.textContent = totalActifs;
+  if (statSortiesEl) statSortiesEl.textContent = totalInactifs;
+  if (statCamionsEl) statCamionsEl.textContent = totalCamionsParc;
+  if (statExtensionsEl) statExtensionsEl.textContent = totalExtensions;
+
   let filtered = rawList.filter(r => {
+    // Filtre direct par carte cliquée
+    if (window._REGISTRE_ACTIVE_CARD_FILTER === 'ACTIF' && r.statut !== 'ACTIF') return false;
+    if (window._REGISTRE_ACTIVE_CARD_FILTER === 'INACTIF' && r.statut !== 'INACTIF') return false;
+    if (window._REGISTRE_ACTIVE_CARD_FILTER === 'EXTENSION' && !r.is_extension && (!r.tracteurs || r.tracteurs.length <= 1)) return false;
+    if (window._REGISTRE_ACTIVE_CARD_FILTER === 'CAMIONS') {
+      const trList = (r.tracteurs && r.tracteurs.length > 0) ? r.tracteurs : (r.tracteur ? r.tracteur.split(' · ') : []);
+      if (trList.length === 0) return false;
+    }
+
     if (statusF === 'INCOHERENCE' && !r._incoherence) return false;
-    if (statusF === 'EXTENSION' && !r.is_extension && r.nb_camions <= 1) return false;
+    if (statusF === 'EXTENSION' && !r.is_extension && (!r.tracteurs || r.tracteurs.length <= 1)) return false;
     if (statusF && !['INCOHERENCE', 'EXTENSION'].includes(statusF) && r.statut !== statusF) return false;
     if (contratF && r.contrat !== contratF) return false;
     if (q) {
@@ -16506,20 +16602,6 @@ function renderAdminEntreesSorties() {
     }
     return true;
   });
-
-  const totalActifs = rawList.filter(r => r.statut === 'ACTIF').length;
-  const totalInactifs = rawList.filter(r => r.statut === 'INACTIF').length;
-  const totalExtensions = rawList.filter(r => r.is_extension || (r.tracteurs && r.tracteurs.length > 1)).length;
-
-  const statTotalEl = document.getElementById('admin-es-stat-total');
-  const statEntreesEl = document.getElementById('admin-es-stat-entrees');
-  const statSortiesEl = document.getElementById('admin-es-stat-sorties');
-  const statExtensionsEl = document.getElementById('admin-es-stat-extensions');
-
-  if (statTotalEl) statTotalEl.textContent = rawList.length;
-  if (statEntreesEl) statEntreesEl.textContent = totalActifs;
-  if (statSortiesEl) statSortiesEl.textContent = totalInactifs;
-  if (statExtensionsEl) statExtensionsEl.textContent = totalExtensions;
 
   const tbody = document.getElementById('admin-es-body');
   if (!tbody) return;
@@ -16789,6 +16871,14 @@ function exporterExcelEntreesSorties() {
 window.exporterExcelEntreesSorties = exporterExcelEntreesSorties;
 
 // 2. NON-CONFORMITÉS CONSOLIDÉES
+
+function filterNcRecidives() {
+  window._NC_RECIDIVES_ONLY = !window._NC_RECIDIVES_ONLY;
+  renderAdminNcConsolidation();
+  showToast(window._NC_RECIDIVES_ONLY ? "🚨 Filtrage : Récidivistes uniquement (>= 2 NC)" : "Toutes les non-conformités");
+}
+window.filterNcRecidives = filterNcRecidives;
+
 function renderAdminNcConsolidation() {
   const q = (document.getElementById('admin-nc-search')?.value || '').trim().toLowerCase();
   const teamF = document.getElementById('admin-nc-team-filter')?.value || '';
