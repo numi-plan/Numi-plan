@@ -1617,18 +1617,30 @@ function applyTeamLockUI(eq) {
   if (sessionStorage.getItem('numiplan_auth') === 'ok') {
     document.getElementById('login-screen').style.display = 'none';
     startSessionTimers();
-    // Appliquer le verrou de l'équipe active au démarrage
-    setTimeout(() => {
-      const lock = sessionStorage.getItem('numiplan_team_lock');
-      if (lock && lock !== 'BL' && typeof window.switchEquipe === 'function') {
-        window.switchEquipe(lock);
-      } else {
-        applyTeamLockUI(typeof window.CURRENT_EQUIPE !== 'undefined' ? window.CURRENT_EQUIPE : 'A');
-      }
-      if (typeof window.checkPointageRequired === 'function') {
-        window.checkPointageRequired();
-      }
-    }, 250);
+    
+    // Si connecté avec le profil isolé DIRECTION, ouvrir immédiatement l'Espace Direction
+    const userRole = sessionStorage.getItem('numiplan_user_role');
+    if (userRole === 'direction_only') {
+      setTimeout(() => {
+        applyDirectionOnlyIsolation();
+        if (typeof window.ouvrirEspaceAdminDirection === 'function') {
+          window.ouvrirEspaceAdminDirection();
+        }
+      }, 100);
+    } else {
+      // Appliquer le verrou de l'équipe active au démarrage
+      setTimeout(() => {
+        const lock = sessionStorage.getItem('numiplan_team_lock');
+        if (lock && lock !== 'BL' && typeof window.switchEquipe === 'function') {
+          window.switchEquipe(lock);
+        } else {
+          applyTeamLockUI(typeof window.CURRENT_EQUIPE !== 'undefined' ? window.CURRENT_EQUIPE : 'A');
+        }
+        if (typeof window.checkPointageRequired === 'function') {
+          window.checkPointageRequired();
+        }
+      }, 250);
+    }
   }
 
   async function checkPassword() {
@@ -1648,8 +1660,13 @@ function applyTeamLockUI(eq) {
       return;
     }
 
-    // 1. Accès dédié et isolé DIRECTION & REGISTRE
-    if (username.toUpperCase() === 'REGISTRE' && password === 'Numilog@26') {
+    // 1. Accès dédié et isolé DIRECTION & REGISTRE (Tolérant aux minuscules / majuscules et espaces)
+    const uClean = username.trim().toUpperCase();
+    const pClean = password.trim();
+    const pUpper = pClean.toUpperCase();
+
+    if ((uClean.includes('REGISTRE') || uClean.includes('DIRECTION')) && 
+        (pClean === 'Numilog@26' || pUpper === 'NUMILOG@26' || pUpper === 'DIREX' || pClean === 'RexSharik@2026' || pUpper === 'REXSHARIK@2026')) {
       sessionStorage.setItem('numiplan_auth', 'ok');
       sessionStorage.setItem('numiplan_username', 'REGISTRE');
       sessionStorage.setItem('numiplan_user_role', 'direction_only');
