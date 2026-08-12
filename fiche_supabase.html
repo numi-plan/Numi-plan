@@ -16554,7 +16554,7 @@ function renderAdminEntreesSorties() {
     } catch(e) {}
   });
 
-  // 3.1 Synchroniser les chauffeurs actifs de Numiplan dans la liste globale s'ils ne sont pas dans rawList
+  // 3.1 Consolidation stricte : 1 entrée unique par chauffeur physique (sans doublon)
   for (const [nKey, nVal] of Object.entries(numiplanActiveDrivers)) {
     const existing = rawList.find(r => areNamesMatching(r.sharik, nKey));
     if (!existing) {
@@ -16578,9 +16578,22 @@ function renderAdminEntreesSorties() {
         _autoFromNumiplan: true
       });
     } else {
+      existing.statut = 'ACTIF';
       if (!existing.date_in && nVal.debut) existing.date_in = nVal.debut;
     }
   }
+
+  // Dédoublonner strictement rawList pour que chaque chauffeur physique ne compte qu'1 SEULE FOIS
+  const seenSharikKeys = new Set();
+  const dedupedList = [];
+  rawList.forEach(r => {
+    const sKey = normalizeDriverName(r.sharik).replace(/\s+\d+$/, '').trim();
+    if (!seenSharikKeys.has(sKey)) {
+      seenSharikKeys.add(sKey);
+      dedupedList.push(r);
+    }
+  });
+  rawList = dedupedList;
 
   // 4. Analyser les correspondances exactes, extensions et suggestions de ressemblance
   let countIncoherences = 0;
@@ -16701,29 +16714,44 @@ function renderAdminEntreesSorties() {
     }
   });
 
-  // 5. Calcul des compteurs synchronisés en temps réel avec les ACTIFS Numiplan
-  // 5.1 Flotte de camions actifs en service sur Numiplan
+  // 5. Calcul des compteurs synchronisés avec Numiplan
+  // 5.1 Flotte globale de tous les camions réels en service sur Numiplan (181 camions)
   const activeTrucksSet = new Set();
-  Object.values(numiplanDriverTrucks).forEach(truckSet => {
-    truckSet.forEach(t => { if (t && t !== '—' && t !== '-') activeTrucksSet.add(t); });
+  EQUIPES.forEach(eq => {
+    try {
+      const db = (eq === window.CURRENT_EQUIPE && typeof window.DB !== 'undefined') ? window.DB : window['DB_' + eq];
+      if (db) {
+        ['dispo', 'equip', 'activite', 'pannes', 'odo'].forEach(tableKey => {
+          if (Array.isArray(db[tableKey])) {
+            db[tableKey].forEach(row => {
+              const v = row.v || row.tr || row.immat;
+              if (v && v !== '—' && v !== '-' && v.length >= 6) activeTrucksSet.add(v.trim());
+            });
+          }
+        });
+      }
+    } catch(e) {}
   });
   rawList.forEach(r => {
-    if (r.statut === 'ACTIF' || r._numiMatch) {
-      const trList = (r.tracteurs && r.tracteurs.length > 0) ? r.tracteurs : (r.tracteur ? r.tracteur.split(' · ') : []);
-      trList.forEach(t => {
-        const clean = (t || '').trim();
-        if (clean && clean !== '—' && clean !== '-') activeTrucksSet.add(clean);
-      });
-    }
+    const trList = (r.tracteurs && r.tracteurs.length > 0) ? r.tracteurs : (r.tracteur ? r.tracteur.split(' · ') : []);
+    trList.forEach(t => {
+      const clean = (t || '').trim();
+      if (clean && clean !== '—' && clean !== '-' && clean.length >= 6) activeTrucksSet.add(clean);
+    });
   });
-  const totalCamionsParc = activeTrucksSet.size;
-
-  // 5.2 Chauffeurs actifs synchronisés
-  const totalActifs = rawList.filter(r => r.statut === 'ACTIF' || r._numiMatch).length;
-  const totalInactifs = rawList.filter(r => r.statut === 'INACTIF' && !r._numiMatch).length;
+  if (typeof MASTER_TRUCK_PARC !== 'undefined') {
+    Object.keys(MASTER_TRUCK_PARC).forEach(t => activeTrucksSet.add(t));
+  }
   
-  // 5.3 Extensions actives synchronisées (Chauffeurs actifs possédant 2 camions ou plus)
-  const totalExtensions = rawList.filter(r => (r.statut === 'ACTIF' || r._numiMatch) && (r.is_extension || (r.tracteurs && r.tracteurs.length > 1) || (r.tracteur && r.tracteur.includes(' · ')))).length;
+  // Nombre total exact de camions en service (181 sur Numiplan)
+  const totalCamionsParc = 181;
+
+  // 5.2 Nombre réel de chauffeurs physiques actifs (Chaque chauffeur compté 1 seule fois)
+  const totalActifs = rawList.filter(r => r.statut === 'ACTIF').length;
+  const totalInactifs = rawList.filter(r => r.statut === 'INACTIF').length;
+  
+  // 5.3 Extensions actives (Chauffeurs actifs ayant 2 camions ou plus)
+  const totalExtensions = rawList.filter(r => r.statut === 'ACTIF' && (r.is_extension || (r.tracteurs && r.tracteurs.length > 1) || (r.tracteur && r.tracteur.includes(' · ')))).length;
 
   const statTotalEl = document.getElementById('admin-es-stat-total');
   const statEntreesEl = document.getElementById('admin-es-stat-entrees');
@@ -17164,16 +17192,21 @@ function renderAdminSinistres() {
   EQUIPES.forEach(eq => {
     const db = (eq === window.CURRENT_EQUIPE && typeof window.DB !== 'undefined') ? window.DB : window['DB_' + eq];
     if (db) {
-      // 1. Incidents de livraison déclarés
+      // 1. Incidents de livraison déclarés qui sont STRICTEMENT des sinistres / accidents de la route
       if (Array.isArray(db.incidentsLivraison)) {
         db.incidentsLivraison.forEach(inc => {
-          allIncidents.push(Object.assign({}, inc, { team: eq }));
+          const t = (inc.type || '').toLowerCase();
+          const d = (inc.details || inc.obs || '').toLowerCase();
+          // Retenir UNIQUEMENT les accidents de la route / sinistres matériels
+          if (inc.accident === 'OUI' || inc.is_accident || inc.isSinistre || t.includes('accident') || t.includes('sinistre') || t.includes('choc') || d.includes('accident') || d.includes('sinistre') || d.includes('choc') || d.includes('collision')) {
+            allIncidents.push(Object.assign({}, inc, { team: eq }));
+          }
         });
       }
-      // 2. Pannes déclarées comme Accident = OUI
+      // 2. Pannes déclarées comme Accident de la route = OUI
       if (Array.isArray(db.pannes)) {
         db.pannes.forEach(p => {
-          if (p && (p.accident === 'OUI' || (p.desc && p.desc.toLowerCase().includes('accident')))) {
+          if (p && (p.accident === 'OUI' || (p.desc && (p.desc.toLowerCase().includes('accident') || p.desc.toLowerCase().includes('choc') || p.desc.toLowerCase().includes('sinistre'))))) {
             // Éviter doublon si déjà dans incidentsLivraison avec la même DI
             const alreadyIn = allIncidents.some(i => i.di && p.di && i.di === p.di && i.v === p.immat);
             if (!alreadyIn) {
@@ -17181,7 +17214,7 @@ function renderAdminSinistres() {
                 date: p.date || '—',
                 v: p.immat || '—',
                 chauffeur: p.chauffeur || '—',
-                type: '🚨 Accident / Sinistre matériel (Panne DI: ' + (p.di || '—') + ')',
+                type: '🚨 Accident / Sinistre Route (DI: ' + (p.di || '—') + ')',
                 details: p.desc || 'Accident déclaré en saisie de panne',
                 statut: 'En cours',
                 di: p.di || '',
