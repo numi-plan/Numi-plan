@@ -2986,8 +2986,7 @@ mark.hl { background: rgba(56,189,248,.25); color: var(--acc); border-radius: 3p
       <option value="Panne sur route">Panne sur route</option>
       <option value="Changement de destination">Changement de destination</option>
       <option value="Changement de référence commande">Changement de référence commande</option>
-      <option value="Autre incident">Autre incident</option>
-    </select>
+          </select>
     <input type="date" class="filter-input" id="inc-date-from" onchange="renderIncidentsLivraisonPage()">
     <input type="date" class="filter-input" id="inc-date-to" onchange="renderIncidentsLivraisonPage()">
     <button class="btn btn-reset" onclick="resetIncFilters()">↺ Reset</button>
@@ -3036,8 +3035,7 @@ mark.hl { background: rgba(56,189,248,.25); color: var(--acc); border-radius: 3p
           <option value="Changement de destination">Changement de destination</option>
           <option value="Changement de référence commande">Changement de référence commande</option>
           <option value="Manque produit">Manque produit</option>
-          <option value="Autre incident">Autre incident</option>
-        </select>
+                  </select>
       </div>
       <div style="display:grid; grid-template-columns:1fr; gap:12px">
         <div class="form-group"><label>Client</label><input id="f-inc-liv-client" placeholder="Nom du client" style="text-transform:uppercase"></div>
@@ -3657,6 +3655,13 @@ mark.hl { background: rgba(56,189,248,.25); color: var(--acc); border-radius: 3p
           <option value="">Sélectionnez...</option>
           <option value="OUI">OUI (Le camion est chargé)</option>
           <option value="NON">NON (Le camion est à vide)</option>
+        </select>
+      </div>
+      <div class="form-group"><label>Accident / Choc ? <span style="color:#ef4444">*</span></label>
+        <select id="f-panne-accident" style="border:1.5px solid #ef4444; font-weight:700">
+          <option value="">Sélectionnez...</option>
+          <option value="NON">NON (Panne normale / Usure mécanique)</option>
+          <option value="OUI">OUI (Sinistre / Accident de la route)</option>
         </select>
       </div>
       <div class="form-group full"><label>Description</label><textarea id="f-panne-desc" placeholder="Description de la panne…"></textarea></div>
@@ -7459,6 +7464,7 @@ function editPanne(idx) {
   document.getElementById('f-panne-cet').value = r.cet||'';
   document.getElementById('f-panne-kpi').value = r.kpi||'';
   document.getElementById('f-panne-charge').value = r.charge||'';
+  document.getElementById('f-panne-accident').value = r.accident||'NON';
   openModal('modal-panne', idx);
 }
 
@@ -7496,6 +7502,15 @@ function savePanne() {
       return;
     }
     document.getElementById('f-panne-charge').style.borderColor = 'var(--border)';
+
+    const accident = document.getElementById('f-panne-accident').value;
+    if (!accident) {
+      showToast('⚠️ Spécification "Accident ?" obligatoire (OUI ou NON)', true);
+      document.getElementById('f-panne-accident').style.borderColor = '#ef4444';
+      document.getElementById('f-panne-accident').focus();
+      return;
+    }
+    document.getElementById('f-panne-accident').style.borderColor = 'var(--border)';
     
     const rawIdx = document.getElementById('panne-edit-idx') ? document.getElementById('panne-edit-idx').value : '-1';
     const parsed = parseInt(rawIdx);
@@ -7540,8 +7555,42 @@ function savePanne() {
       kpiDate: kpiDate,
       kpiLastPointageDate: kpiLastPointageDate,
       charge: charge,
+      accident: accident,
       created_at: idx >= 0 ? (DB.pannes[idx].created_at || new Date().toISOString()) : new Date().toISOString()
     };
+
+    // Si ACCIDENT = OUI -> Synchronisation immédiate vers les Sinistres & Incidents
+    if (accident === 'OUI') {
+      if (!DB.incidentsLivraison) DB.incidentsLivraison = [];
+      
+      const chName = document.getElementById('f-panne-chauffeur').value.trim().toUpperCase();
+      const descVal = document.getElementById('f-panne-desc').value.trim();
+      const pDate = document.getElementById('f-panne-date').value || today();
+      
+      // Vérifier si pas déjà existant pour éviter doublon
+      const exists = DB.incidentsLivraison.some(inc => inc && inc.di === di && inc.v === immat);
+      if (!exists) {
+        DB.incidentsLivraison.unshift({
+          id: 'SIN_ACC_' + Date.now(),
+          date: pDate,
+          v: immat,
+          chauffeur: chName,
+          type: 'Accident / Sinistre (DI ' + di + ')',
+          details: (descVal ? descVal + ' · ' : '') + 'Panne suite à accident (DI: ' + di + ')',
+          obs: descVal || 'Sinistre déclaré lors de la déclaration de panne',
+          statut: 'En cours',
+          di: di,
+          is_accident: true,
+          equipe: typeof window.CURRENT_EQUIPE !== 'undefined' ? window.CURRENT_EQUIPE : 'A',
+          created_at: new Date().toISOString()
+        });
+        
+        // Log dans la traçabilité
+        if (typeof logMouvement === 'function') {
+          logMouvement('Déclaration Sinistre/Accident', 'Camion', immat, 'Accident DI ' + di + ' (' + chName + ') : ' + (descVal || 'Sinistre'));
+        }
+      }
+    }
     
     if (!DB.pannes) DB.pannes = [];
     if (idx >= 0) {
@@ -16864,10 +16913,35 @@ function renderAdminSinistres() {
 
   EQUIPES.forEach(eq => {
     const db = (eq === window.CURRENT_EQUIPE && typeof window.DB !== 'undefined') ? window.DB : window['DB_' + eq];
-    if (db && db.incidentsLivraison) {
-      db.incidentsLivraison.forEach(inc => {
-        allIncidents.push(Object.assign({}, inc, { team: eq }));
-      });
+    if (db) {
+      // 1. Incidents de livraison déclarés
+      if (Array.isArray(db.incidentsLivraison)) {
+        db.incidentsLivraison.forEach(inc => {
+          allIncidents.push(Object.assign({}, inc, { team: eq }));
+        });
+      }
+      // 2. Pannes déclarées comme Accident = OUI
+      if (Array.isArray(db.pannes)) {
+        db.pannes.forEach(p => {
+          if (p && (p.accident === 'OUI' || (p.desc && p.desc.toLowerCase().includes('accident')))) {
+            // Éviter doublon si déjà dans incidentsLivraison avec la même DI
+            const alreadyIn = allIncidents.some(i => i.di && p.di && i.di === p.di && i.v === p.immat);
+            if (!alreadyIn) {
+              allIncidents.push({
+                date: p.date || '—',
+                v: p.immat || '—',
+                chauffeur: p.chauffeur || '—',
+                type: '🚨 Accident / Sinistre matériel (Panne DI: ' + (p.di || '—') + ')',
+                details: p.desc || 'Accident déclaré en saisie de panne',
+                statut: 'En cours',
+                di: p.di || '',
+                is_accident: true,
+                team: eq
+              });
+            }
+          }
+        });
+      }
     }
   });
 
