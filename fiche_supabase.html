@@ -14876,7 +14876,7 @@ async function renderPoiPage() {
           if (!window.ALERTED_BLACKLIST_VISITS.has(v.id)) {
             window.ALERTED_BLACKLIST_VISITS.add(v.id);
             const timeStr = new Date(v.arrived_at).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
-            showBlacklistAlertModal(v.v, v.poi_name, timeStr);
+            showBlacklistAlertModal(v.v, v.poi_name, timeStr, v.team, v.chauffeur);
           }
         }
         
@@ -15023,7 +15023,7 @@ async function checkPoiAlerts() {
           clientAlertedSet.add(v.id);
           sessionStorage.setItem('client_alerted_blacklist_ids', JSON.stringify([...clientAlertedSet]));
           const timeStr = new Date(v.arrived_at).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
-          showBlacklistAlertModal(v.v, v.poi_name, timeStr, v.team);
+          showBlacklistAlertModal(v.v, v.poi_name, timeStr, v.team, v.chauffeur);
 
           // Diffuser instantanément l'alerte à TOUS les autres postes connectés via Realtime Broadcast
           if (window.realtimePoiChannel) {
@@ -15578,10 +15578,59 @@ function playBlacklistAlarm() {
   }
 }
 
-function showBlacklistAlertModal(truck, client, time, team) {
+function showBlacklistAlertModal(truck, client, time, team, driver) {
   const existing = document.getElementById('modal-blacklist-alert');
   if (existing) existing.remove();
   
+  // 1. Résolution automatique du nom du chauffeur en temps réel
+  let chauffeurName = driver || '';
+  if (!chauffeurName && truck) {
+    const teams = ['A', 'B', 'C', 'D', 'E', 'F'];
+    for (const eq of teams) {
+      try {
+        const db = window['DB_' + eq] || (eq === window.CURRENT_EQUIPE ? window.DB : null);
+        if (db) {
+          if (Array.isArray(db.dispo)) {
+            const found = db.dispo.find(x => x && x.v && x.v.trim().toUpperCase() === truck.trim().toUpperCase());
+            if (found && found.chauffeur && !['AC/DC', '—', '-', 'DISPONIBLE', 'MANQUE CHAUFFEUR'].includes(found.chauffeur.trim().toUpperCase())) {
+              chauffeurName = found.chauffeur.trim();
+              if (!team) team = eq;
+              break;
+            }
+          }
+          if (!chauffeurName && Array.isArray(db.equip)) {
+            const found = db.equip.find(x => x && x.v && x.v.trim().toUpperCase() === truck.trim().toUpperCase());
+            if (found && found.chauffeur && !['AC/DC', '—', '-', 'DISPONIBLE', 'MANQUE CHAUFFEUR'].includes(found.chauffeur.trim().toUpperCase())) {
+              chauffeurName = found.chauffeur.trim();
+              if (!team) team = eq;
+              break;
+            }
+          }
+        }
+      } catch(e) {}
+    }
+  }
+
+  if (!chauffeurName && typeof MASTER_DRIVER_PARC !== 'undefined') {
+    for (const [dName, dInfo] of Object.entries(MASTER_DRIVER_PARC)) {
+      if (dInfo.tr === truck) {
+        chauffeurName = dName;
+        break;
+      }
+    }
+  }
+  if (!chauffeurName && typeof INITIAL_ADMIN_SHARIK_DATA !== 'undefined') {
+    const sFound = INITIAL_ADMIN_SHARIK_DATA.find(s => s && s.tracteur && s.tracteur.includes(truck));
+    if (sFound && sFound.sharik) chauffeurName = sFound.sharik;
+  }
+
+  const driverBadgeHtml = chauffeurName
+    ? `<div style="margin:8px 0;background:rgba(56,189,248,0.12);border:1px solid rgba(56,189,248,0.4);border-radius:8px;padding:6px 14px;display:inline-block">
+         <span style="font-size:11px;color:#94a3b8;font-weight:600;text-transform:uppercase;letter-spacing:1px">👤 Chauffeur :</span>
+         <strong style="color:#38bdf8;font-size:15px;margin-left:6px">${chauffeurName}</strong>
+       </div>`
+    : '';
+
   if (!document.getElementById('blacklist-alert-keyframes')) {
     const style = document.createElement('style');
     style.id = 'blacklist-alert-keyframes';
@@ -15607,8 +15656,9 @@ function showBlacklistAlertModal(truck, client, time, team) {
         <div style="font-size:60px;margin-bottom:16px">🚨</div>
         <h3 style="color:#ef4444;font-size:22px;font-weight:800;margin:0 0 16px 0;letter-spacing:1.5px">ALERTE CLIENT BLACKLISTÉ</h3>
         
-        <p style="font-size:14px;color:#eee;line-height:1.6;margin-bottom:24px">
+        <p style="font-size:14px;color:#eee;line-height:1.6;margin-bottom:20px">
           Le camion <strong style="color:#ef4444;font-family:monospace;font-size:18px">${truck}</strong> ${teamBadge}<br>
+          ${driverBadgeHtml}<br>
           vient d'entrer chez le client blacklisté :<br>
           <strong style="color:#fff;font-size:20px;display:block;margin:10px 0;text-transform:uppercase">${client}</strong>
           Heure de détection : <strong style="color:#fbbf24;font-size:15px">${time}</strong>
