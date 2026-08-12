@@ -16496,7 +16496,7 @@ function renderAdminEntreesSorties() {
   const contratF = document.getElementById('admin-es-contrat-filter')?.value || '';
 
   // 1. Base des 185 chauffeurs Sharik (Strictement préservée)
-  const rawList = JSON.parse(JSON.stringify(INITIAL_ADMIN_SHARIK_DATA));
+  let rawList = JSON.parse(JSON.stringify(INITIAL_ADMIN_SHARIK_DATA));
 
   // 2. Appliquer les modifications manuelles de l'administrateur
   rawList.forEach((r, idx) => {
