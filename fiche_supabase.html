@@ -1307,7 +1307,52 @@ tr.dragging {
   transform: scale(1.05);
   box-shadow: 0 0 15px rgba(52, 211, 153, 0.4);
 }
+
+/* ─── ISOLATION TOTALE ESPACE DIRECTION & REGISTRE ─── */
+body.direction-isolated-view .global-search-bar,
+body.direction-isolated-view #global-results-panel,
+body.direction-isolated-view .equipe-bar,
+body.direction-isolated-view .team-switcher,
+body.direction-isolated-view .tabs-bar,
+body.direction-isolated-view .rac-badge,
+body.direction-isolated-view .tab-btn:not(#tab-admin-direction) {
+  display: none !important;
+}
+
+body.direction-isolated-view .app-layout {
+  display: block !important;
+  grid-template-columns: 1fr !important;
+  width: 100% !important;
+  padding: 0 !important;
+}
+
+body.direction-isolated-view .page-area {
+  width: 100% !important;
+  max-width: 100% !important;
+  padding: 20px 24px !important;
+}
+
+body.direction-isolated-view #page-admin-direction {
+  display: block !important;
+}
+
 </style>
+<script>
+  // Application immédiate de l'isolation Direction dès l'exécution du script
+  (function() {
+    try {
+      if (sessionStorage.getItem('numiplan_user_role') === 'direction_only') {
+        document.documentElement.classList.add('direction-isolated-view');
+        window.addEventListener('DOMContentLoaded', () => {
+          document.body.classList.add('direction-isolated-view');
+          if (typeof applyDirectionOnlyIsolation === 'function') {
+            applyDirectionOnlyIsolation();
+          }
+        });
+      }
+    } catch(e) {}
+  })();
+</script>
 </head>
 <body>
 <!-- ═══════════════════════════════════════════════════════════════
@@ -1451,38 +1496,42 @@ tr.dragging {
   function applyDirectionOnlyIsolation() {
   const role = sessionStorage.getItem('numiplan_user_role');
   if (role === 'direction_only') {
-    // Masquer tous les menus opérationnels de Numiplan
-    const operationalTabs = [
-      'tab-dispo', 'tab-equip', 'tab-pannes', 'tab-gasoil', 'tab-nc', 
-      'tab-tracabilite', 'tab-poi', 'tab-activite', 'tab-cspc', 'tab-odo', 
-      'tab-kpi', 'tab-blacklist', 'tab-rapport'
-    ];
-    operationalTabs.forEach(id => {
-      const el = document.getElementById(id);
-      if (el) el.style.display = 'none';
+    document.body.classList.add('direction-isolated-view');
+    
+    // Masquer toutes les autres pages
+    document.querySelectorAll('.page').forEach(p => {
+      if (p.id !== 'page-admin-direction') {
+        p.classList.remove('active');
+        p.style.display = 'none';
+      }
     });
 
-    // Masquer la barre des équipes
-    const teamBar = document.querySelector('.equipe-bar') || document.querySelector('.team-switcher');
-    if (teamBar) teamBar.style.display = 'none';
-
-    // Activer l'Espace Direction
-    const dirTab = document.getElementById('tab-admin-direction');
-    if (dirTab) {
-      dirTab.style.display = 'flex';
-      dirTab.classList.add('active');
-    }
+    // Activer uniquement l'Espace Direction
     const dirPage = document.getElementById('page-admin-direction');
     if (dirPage) {
-      document.querySelectorAll('.tab-page').forEach(p => p.style.display = 'none');
+      dirPage.classList.add('active');
       dirPage.style.display = 'block';
     }
 
-    // Modifier le bandeau utilisateur
-    const userRoleEl = document.getElementById('user-role-badge') || document.getElementById('current-user-display');
-    if (userRoleEl) userRoleEl.textContent = '🏛️ DIRECTION & REGISTRE (Accès Dédié)';
+    // Masquer le sélecteur d'équipes en haut
+    const eqBar = document.querySelector('.equipe-bar') || document.querySelector('.team-bar');
+    if (eqBar) eqBar.style.display = 'none';
+
+    // Masquer la barre de recherche globale
+    const gsBar = document.querySelector('.global-search-bar');
+    if (gsBar) gsBar.style.display = 'none';
+
+    // Rendre les sous-onglets
+    if (typeof renderAdminEntreesSorties === 'function') renderAdminEntreesSorties();
+    if (typeof renderAdminNcConsolidation === 'function') renderAdminNcConsolidation();
+    if (typeof renderAdminSinistres === 'function') renderAdminSinistres();
+    if (typeof renderAdminBalanceComptable === 'function') renderAdminBalanceComptable();
+    if (typeof renderAdminValidations === 'function') renderAdminValidations();
+  } else {
+    document.body.classList.remove('direction-isolated-view');
   }
 }
+window.applyDirectionOnlyIsolation = applyDirectionOnlyIsolation;
 
 function applyTeamLockUI(eq) {
   applyDirectionOnlyIsolation();
