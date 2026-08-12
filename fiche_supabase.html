@@ -3483,9 +3483,10 @@ mark.hl { background: rgba(56,189,248,.25); color: var(--acc); border-radius: 3p
           <option value="Retard">Retard</option>
           <option value="Panne en route">Panne en route</option>
           <option value="Changement client">Changement client</option>
+          <option value="Changement destination chez le client">Changement destination chez le client</option>
+          <option value="Delta">Delta</option>
           <option value="Embouteillage / Route coupée">Embouteillage / Route coupée</option>
           <option value="Erreur planning">Erreur planning</option>
-          <option value="Autre">Autre</option>
         </select>
         <select id="hist-filtre-equipe" onchange="renderHistoriqueAnomalies()" style="background:rgba(255,255,255,.06);border:1px solid rgba(129,140,248,.3);border-radius:7px;padding:5px 10px;color:var(--txt);font-size:11px;outline:none">
           <option value="">Toutes équipes</option>
@@ -3524,9 +3525,10 @@ mark.hl { background: rgba(56,189,248,.25); color: var(--acc); border-radius: 3p
         <option value="Retard">Retard</option>
         <option value="Panne en route">Panne en route</option>
         <option value="Changement client">Changement client</option>
+        <option value="Changement destination chez le client">Changement destination chez le client</option>
+        <option value="Delta">Delta</option>
         <option value="Embouteillage / Route coupée">Embouteillage / Route coupée</option>
         <option value="Erreur planning">Erreur planning</option>
-        <option value="Autre">Autre</option>
       </select>
     </div>
     
@@ -10494,9 +10496,10 @@ function renderPointageList(anomalies, violations) {
                         '<option value="Retard">⏱ Retard</option>' +
                         '<option value="Panne en route">🔧 Panne en route</option>' +
                         '<option value="Changement client">📦 Changement client</option>' +
+                        '<option value="Changement destination chez le client">🔄 Changement destination chez le client</option>' +
+                        '<option value="Delta">📐 Delta</option>' +
                         '<option value="Embouteillage / Route coupée">🚧 Embouteillage / Route coupée</option>' +
                         '<option value="Erreur planning">📋 Erreur planning</option>' +
-                        '<option value="Autre">✏️ Autre</option>' +
                       '</select>' +
                       '<button data-pkey="' + key + '" data-immat="' + r.v + '" onclick="pointerAnomalieItem(this.dataset.pkey, this.dataset.immat)" style="background:#f59e0b;color:#000;border:none;padding:7px 16px;border-radius:7px;font-weight:800;cursor:pointer;font-size:11px;white-space:nowrap">✅ Vu</button>' +
                     '</div>' +
@@ -10990,12 +10993,15 @@ function renderHistoriqueAnomalies() {
   const motifColors = {
     'Orientation': '#38bdf8',
     'Chargement à son compte': '#f87171',
+    'Chargement à son compte autorisé': '#34d399',
+    'En attente de chargement/déchargement': '#a78bfa',
     'Retard': '#fbbf24',
     'Panne en route': '#fb923c',
-    'Changement client': '#a78bfa',
+    'Changement client': '#c084fc',
+    'Changement destination chez le client': '#06b6d4',
+    'Delta': '#ec4899',
     'Embouteillage / Route coupée': '#6ee7b7',
-    'Erreur planning': '#f472b6',
-    'Autre': '#94a3b8'
+    'Erreur planning': '#f472b6'
   };
 
   // KPIs
@@ -16439,47 +16445,48 @@ function renderAdminEntreesSorties() {
     }
   });
 
-  // 3. Lire en LECTURE SEULE les données Numiplan sans JAMAIS les modifier
+  // 3. Consolider en temps réel tous les camions et chauffeurs depuis toutes les équipes Numiplan
   const EQUIPES = ['A', 'B', 'C', 'D', 'E', 'F'];
   const numiplanActiveDrivers = {};
+  const numiplanDriverTrucks = {}; // chauffeur normalisé -> Set de camions
 
   EQUIPES.forEach(eq => {
     try {
       const db = (eq === window.CURRENT_EQUIPE && typeof window.DB !== 'undefined') ? window.DB : window['DB_' + eq];
       if (db) {
-        if (Array.isArray(db.dispo)) {
-          db.dispo.forEach(r => {
-            if (r && r.chauffeur && !['AC/DC', '—', '-', 'DISPONIBLE'].includes(r.chauffeur.trim().toUpperCase())) {
-              const chKey = normalizeDriverName(r.chauffeur);
-              numiplanActiveDrivers[chKey] = {
-                rawName: r.chauffeur.trim(),
-                team: eq,
-                v: r.v || '',
-                rm: r.rm || '',
-                etat: r.etat || 'En mission'
-              };
-            }
-          });
-        }
-        if (Array.isArray(db.equip)) {
-          db.equip.forEach(r => {
-            if (r && r.chauffeur && !['AC/DC', '—', '-', 'DISPONIBLE'].includes(r.chauffeur.trim().toUpperCase())) {
-              const chKey = normalizeDriverName(r.chauffeur);
-              if (!numiplanActiveDrivers[chKey]) {
-                numiplanActiveDrivers[chKey] = {
-                  rawName: r.chauffeur.trim(),
-                  team: eq,
-                  v: r.v || '',
-                  rm: r.rm || '',
-                  etat: 'OK'
-                };
-              } else {
-                if (!numiplanActiveDrivers[chKey].rm && r.rm) numiplanActiveDrivers[chKey].rm = r.rm;
-                if (!numiplanActiveDrivers[chKey].v && r.v) numiplanActiveDrivers[chKey].v = r.v;
+        ['dispo', 'equip', 'activite'].forEach(tableKey => {
+          if (Array.isArray(db[tableKey])) {
+            db[tableKey].forEach(row => {
+              const rawCh = row.chauffeur || row.sharik;
+              const rawV = row.v || row.tr || row.immat;
+              if (rawCh && !['AC/DC', '—', '-', 'DISPONIBLE', 'MANQUE CHAUFFEUR'].includes(rawCh.trim().toUpperCase())) {
+                const chKey = normalizeDriverName(rawCh);
+                // Retirer les suffixes de numéros (ex: KERBOUB 1 -> KERBOUB)
+                const baseChKey = chKey.replace(/\s+\d+$/, '').trim();
+
+                if (!numiplanDriverTrucks[baseChKey]) {
+                  numiplanDriverTrucks[baseChKey] = new Set();
+                }
+                if (rawV && rawV !== '—' && rawV !== '-') {
+                  numiplanDriverTrucks[baseChKey].add(rawV.trim());
+                }
+
+                if (!numiplanActiveDrivers[baseChKey]) {
+                  numiplanActiveDrivers[baseChKey] = {
+                    rawName: rawCh.replace(/\s+\d+$/, '').trim(),
+                    team: eq,
+                    v: rawV || '',
+                    rm: row.rm || '',
+                    etat: row.etat || 'En mission'
+                  };
+                } else {
+                  if (!numiplanActiveDrivers[baseChKey].rm && row.rm) numiplanActiveDrivers[baseChKey].rm = row.rm;
+                  if (!numiplanActiveDrivers[baseChKey].v && rawV) numiplanActiveDrivers[baseChKey].v = rawV;
+                }
               }
-            }
-          });
-        }
+            });
+          }
+        });
       }
     } catch(e) {}
   });
@@ -16531,10 +16538,51 @@ function renderAdminEntreesSorties() {
       }
     }
     
-    // Résolution de remorque garantie à 100% via le Master Parc
-    if (!r.remorque && r.tracteur) {
-      const firstTr = r.tracteur.split(' · ')[0].trim();
-      if (MASTER_TRUCK_PARC[firstTr]) r.remorque = MASTER_TRUCK_PARC[firstTr];
+    // 4.1 Agrégation dynamique de tous les tracteurs de ce chauffeur (Registre + Numiplan)
+    const driverTrucksSet = new Set();
+    
+    // Tracteurs du registre
+    if (Array.isArray(r.tracteurs)) {
+      r.tracteurs.forEach(t => { if (t && t !== '—') driverTrucksSet.add(t.trim()); });
+    } else if (r.tracteur) {
+      r.tracteur.split(' · ').forEach(t => { if (t && t !== '—') driverTrucksSet.add(t.trim()); });
+    }
+
+    // Tracteurs trouvés dans Numiplan
+    const baseNameKey = normalizeDriverName(r.sharik).replace(/\s+\d+$/, '').trim();
+    for (const [nKey, nTrucks] of Object.entries(numiplanDriverTrucks)) {
+      if (areNamesMatching(baseNameKey, nKey)) {
+        nTrucks.forEach(t => driverTrucksSet.add(t));
+      }
+    }
+
+    // Mise à jour de la liste consolidée des tracteurs
+    if (driverTrucksSet.size > 0) {
+      r.tracteurs = Array.from(driverTrucksSet);
+      r.tracteur = r.tracteurs.join(' · ');
+    }
+
+    // Détection d'extension automatique : >= 2 camions OU flag is_extension
+    if (r.tracteurs && r.tracteurs.length > 1) {
+      r.is_extension = true;
+      r.nb_camions = r.tracteurs.length;
+    }
+
+    // Résolution de remorque garantie à 100% via le Master Parc pour chaque tracteur
+    const remorquesSet = new Set();
+    if (r.tracteurs && r.tracteurs.length > 0) {
+      r.tracteurs.forEach(t => {
+        if (MASTER_TRUCK_PARC[t]) remorquesSet.add(MASTER_TRUCK_PARC[t]);
+      });
+    }
+    if (r.remorques && Array.isArray(r.remorques)) {
+      r.remorques.forEach(rm => remorquesSet.add(rm));
+    } else if (r.remorque) {
+      r.remorque.split(' · ').forEach(rm => remorquesSet.add(rm));
+    }
+    if (remorquesSet.size > 0) {
+      r.remorques = Array.from(remorquesSet);
+      r.remorque = r.remorques.join(' · ');
     }
     if (!r.remorque && r.sharik) {
       for (const [dName, dInfo] of Object.entries(MASTER_DRIVER_PARC)) {
@@ -16563,7 +16611,7 @@ function renderAdminEntreesSorties() {
 
   const totalActifs = rawList.filter(r => r.statut === 'ACTIF').length;
   const totalInactifs = rawList.filter(r => r.statut === 'INACTIF').length;
-  const totalExtensions = rawList.filter(r => r.is_extension || (r.tracteurs && r.tracteurs.length > 1)).length;
+  const totalExtensions = rawList.filter(r => r.is_extension || (r.tracteurs && r.tracteurs.length > 1) || (r.tracteur && r.tracteur.includes(' · '))).length;
 
   const statTotalEl = document.getElementById('admin-es-stat-total');
   const statEntreesEl = document.getElementById('admin-es-stat-entrees');
