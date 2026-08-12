@@ -1308,7 +1308,13 @@ tr.dragging {
   box-shadow: 0 0 15px rgba(52, 211, 153, 0.4);
 }
 
-/* ─── ISOLATION TOTALE ESPACE DIRECTION & REGISTRE ─── */
+/* ─── ISOLATION TOTALE ESPACE DIRECTION & REGISTRE (SCROLL 100% FLUIDE) ─── */
+body.direction-isolated-view,
+html.direction-isolated-view {
+  overflow-y: auto !important;
+  height: 100% !important;
+}
+
 body.direction-isolated-view .global-search-bar,
 body.direction-isolated-view #global-results-panel,
 body.direction-isolated-view .equipe-bar,
@@ -1321,19 +1327,38 @@ body.direction-isolated-view .tab-btn:not(#tab-admin-direction) {
 
 body.direction-isolated-view .app-layout {
   display: block !important;
-  grid-template-columns: 1fr !important;
   width: 100% !important;
+  height: calc(100vh - 65px) !important;
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
   padding: 0 !important;
+  box-sizing: border-box !important;
 }
 
 body.direction-isolated-view .page-area {
+  display: block !important;
   width: 100% !important;
   max-width: 100% !important;
-  padding: 20px 24px !important;
+  height: auto !important;
+  min-height: 100% !important;
+  overflow: visible !important;
+  padding: 16px 24px 80px 24px !important;
+  box-sizing: border-box !important;
 }
 
 body.direction-isolated-view #page-admin-direction {
   display: block !important;
+  height: auto !important;
+  overflow: visible !important;
+}
+
+body.direction-isolated-view .table-wrap {
+  max-height: calc(100vh - 270px) !important;
+  overflow-y: auto !important;
+  overflow-x: auto !important;
+  border-radius: 12px !important;
+  border: 1px solid var(--border) !important;
+  margin-bottom: 24px !important;
 }
 
 </style>
@@ -2464,7 +2489,7 @@ mark.hl { background: rgba(56,189,248,.25); color: var(--acc); border-radius: 3p
             📥 Demandes de Créations &amp; Suppressions REX Numiplan (En attente d'approbation Direction)
           </h3>
           <div style="font-size:12px;color:#94a3b8;margin-top:4px">
-            Toute modification opérationnelle initiée par un REX remonte ici et requiert la validation du mot de passe <b>DIREX</b> pour être officialisée dans le registre.
+            Toute modification opérationnelle initiée par un REX remonte ici et requiert la validation du <b>code secret Direction</b> pour être officialisée dans le registre.
           </div>
         </div>
         <button class="btn" onclick="renderAdminValidations()" style="background:rgba(56,189,248,0.15);border:1px solid #38bdf8;color:#38bdf8;font-size:12px;font-weight:700">🔄 Actualiser</button>
@@ -16123,8 +16148,8 @@ function renderAdminValidations() {
     const actionsHtml = isPending
       ? `
         <div style="display:flex;gap:6px;justify-content:center">
-          <button onclick="deciderDemandeValidation('${item.id}', true)" style="background:#22c55e;color:#000;border:none;border-radius:6px;padding:4px 10px;font-size:11px;font-weight:800;cursor:pointer">✅ Valider (DIREX)</button>
-          <button onclick="deciderDemandeValidation('${item.id}', false)" style="background:rgba(239,68,68,0.2);border:1px solid #ef4444;color:#ef4444;border-radius:6px;padding:4px 10px;font-size:11px;font-weight:800;cursor:pointer">❌ Rejeter (DIREX)</button>
+          <button onclick="deciderDemandeValidation('${item.id}', true)" style="background:#22c55e;color:#000;border:none;border-radius:6px;padding:4px 10px;font-size:11px;font-weight:800;cursor:pointer">✅ Approuver</button>
+          <button onclick="deciderDemandeValidation('${item.id}', false)" style="background:rgba(239,68,68,0.2);border:1px solid #ef4444;color:#ef4444;border-radius:6px;padding:4px 10px;font-size:11px;font-weight:800;cursor:pointer">❌ Rejeter</button>
         </div>
       `
       : `<span style="font-size:11px;color:#94a3b8">Traité par Direction</span>`;
@@ -16490,7 +16515,7 @@ function renderAdminEntreesSorties() {
       incoherenceBadge = `
         <div style="font-size:11px;font-weight:700;color:#38bdf8;margin-top:4px;background:rgba(56,189,248,0.12);border:1px solid rgba(56,189,248,0.4);padding:4px 8px;border-radius:6px;text-align:left;display:flex;align-items:center;justify-content:space-between;gap:6px">
           <span>💡 Ressemblance : <b>${r._suggestion.name}</b> (${r._suggestion.v || 'Sans camion'}, Éq. ${r._suggestion.team})</span>
-          <button onclick="validerLiaisonSuggestion('${editKey}', '${safeSugName}', '${safeSugV}', '${safeSugRm}')" style="background:#38bdf8;color:#000;border:none;border-radius:4px;font-size:10px;font-weight:900;padding:3px 8px;cursor:pointer;white-space:nowrap">🔗 Valider (DIREX)</button>
+          <button onclick="validerLiaisonSuggestion('${editKey}', '${safeSugName}', '${safeSugV}', '${safeSugRm}')" style="background:#38bdf8;color:#000;border:none;border-radius:4px;font-size:10px;font-weight:900;padding:3px 8px;cursor:pointer;white-space:nowrap">🔗 Valider</button>
         </div>
       `;
     } else if (r._incoherence) {
