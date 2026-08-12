@@ -1339,6 +1339,7 @@ tr.dragging {
           outline:none;box-sizing:border-box;">
         <option value="">Sélectionnez votre identifiant...</option>
         <option value="ADMIN">ADMIN (Superviseur Admin)</option>
+        <option value="REGISTRE">🏛️ REGISTRE (Espace Direction)</option>
       </select>
     </div>
     <div style="margin-bottom:16px;text-align:left;">
@@ -14409,6 +14410,11 @@ function populateLoginUserDropdown() {
   adminOpt.value = 'ADMIN';
   adminOpt.textContent = 'ADMIN (Superviseur Admin)';
   dropdown.appendChild(adminOpt);
+
+  const regOpt = document.createElement('option');
+  regOpt.value = 'REGISTRE';
+  regOpt.textContent = '🏛️ REGISTRE (Espace Direction)';
+  dropdown.appendChild(regOpt);
   
   const teams = ['A', 'B', 'C', 'D', 'E', 'F'];
   teams.forEach(eq => {
