@@ -15054,7 +15054,7 @@ async function checkPoiAlerts() {
     if (!activeVisitsList || activeVisitsList.length === 0) return;
 
     // 2. Récupérer la liste complète des POI avec leurs coordonnées et rayon
-    const pois = await poiSupabaseFetch("np_pois?select=name,is_blacklist,point_latitude,point_longitude,point_radius");
+    const pois = await poiSupabaseFetch("np_pois?select=name,is_blacklist,lat,lng,radius");
     const poiMap = {};
     if (pois) {
       pois.forEach(p => {
@@ -15096,9 +15096,9 @@ async function checkPoiAlerts() {
       if (poiDef && truckDispo && truckDispo.geoloc && truckDispo.geoloc !== 'OFF' && truckDispo.lat !== null && truckDispo.lng !== null) {
         const tLat = parseFloat(truckDispo.lat);
         const tLng = parseFloat(truckDispo.lng);
-        const pLat = parseFloat(poiDef.point_latitude);
-        const pLng = parseFloat(poiDef.point_longitude);
-        const pRadius = parseFloat(poiDef.point_radius || 300);
+        const pLat = parseFloat(poiDef.point_latitude || poiDef.lat);
+        const pLng = parseFloat(poiDef.point_longitude || poiDef.lng);
+        const pRadius = parseFloat(poiDef.point_radius || poiDef.radius || 300);
         
         if (!isNaN(tLat) && !isNaN(tLng) && !isNaN(pLat) && !isNaN(pLng)) {
           const dist = getGpsDistanceLocal(tLat, tLng, pLat, pLng);
