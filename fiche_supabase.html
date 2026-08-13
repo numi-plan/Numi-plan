@@ -16612,7 +16612,22 @@ function renderAdminEntreesSorties() {
             db[tableKey].forEach(row => {
               const rawCh = row.chauffeur || row.sharik;
               const rawV = row.v || row.tr || row.immat;
-              const rawDebut = row.debut || (row.created_at ? row.created_at.split('T')[0] : '') || row.date_entree || row.date_in || row.date || '';
+              let realEntreeDate = '';
+              if (rawCh && db.tracabilite && Array.isArray(db.tracabilite)) {
+                const normName = normalizeDriverName(rawCh).replace(/\s+\d+$/, '').trim();
+                const traces = db.tracabilite.filter(t => 
+                  t && t.target && 
+                  (t.type === 'Entre Chauffeur' || t.type === 'Entrée Chauffeur') && 
+                  normalizeDriverName(t.target).replace(/\s+\d+$/, '').trim() === normName
+                );
+                if (traces.length > 0) {
+                  traces.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+                  if (traces[0].date) {
+                    realEntreeDate = traces[0].date.split(' ')[0];
+                  }
+                }
+              }
+              const rawDebut = realEntreeDate || row.debut || (row.created_at ? row.created_at.split('T')[0] : '') || row.date_entree || row.date_in || row.date || '';
               if (rawCh && !['AC/DC', '—', '-', 'DISPONIBLE', 'MANQUE CHAUFFEUR'].includes(rawCh.trim().toUpperCase())) {
                 const chKey = normalizeDriverName(rawCh);
                 const baseChKey = chKey.replace(/\s+\d+$/, '').trim();
