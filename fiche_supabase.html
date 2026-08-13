@@ -14794,6 +14794,32 @@ async function renderPoiPage() {
     let dispos = null;
     try {
       dispos = await poiSupabaseFetch(`np_dispo?select=v,geoloc,geoloc_date,etat,chauffeur,lat,lng&team=eq.${activeTeam}`);
+      
+      // Fusionner les données GPS en direct dans l'objet DB.dispo local en mémoire
+      if (dispos && dispos.length > 0 && typeof DB !== 'undefined' && DB && DB.dispo) {
+        let modified = false;
+        DB.dispo.forEach(r => {
+          const matchingLive = dispos.find(d => d.v.trim().toUpperCase() === r.v.trim().toUpperCase());
+          if (matchingLive) {
+            const newGeoloc = matchingLive.geoloc || 'OFF';
+            const newGeolocDate = matchingLive.geoloc_date || null;
+            const newLat = matchingLive.lat !== undefined ? matchingLive.lat : null;
+            const newLng = matchingLive.lng !== undefined ? matchingLive.lng : null;
+            
+            if (r.geoloc !== newGeoloc || r.geolocDate !== newGeolocDate || r.lat !== newLat || r.lng !== newLng) {
+              r.geoloc = newGeoloc;
+              r.geolocDate = newGeolocDate;
+              r.lat = newLat;
+              r.lng = newLng;
+              modified = true;
+            }
+          }
+        });
+        if (modified && typeof renderDispo === 'function') {
+          renderDispo();
+        }
+      }
+
       if (dispos && sessionStorage.getItem('numiplan_gps_alert_shown') !== 'yes') {
         const todayStr = new Date().toISOString().split('T')[0];
         const todayTime = new Date(todayStr).getTime();
@@ -15066,6 +15092,31 @@ async function checkPoiAlerts() {
     let liveDispos = [];
     try {
       liveDispos = await poiSupabaseFetch(`np_dispo?select=v,geoloc,geoloc_date,lat,lng`);
+      // Fusionner les données GPS en direct dans l'objet DB.dispo local en mémoire
+      if (liveDispos && liveDispos.length > 0 && typeof DB !== 'undefined' && DB && DB.dispo) {
+        let modified = false;
+        DB.dispo.forEach(r => {
+          const matchingLive = liveDispos.find(d => d.v.trim().toUpperCase() === r.v.trim().toUpperCase());
+          if (matchingLive) {
+            const newGeoloc = matchingLive.geoloc || 'OFF';
+            const newGeolocDate = matchingLive.geoloc_date || null;
+            const newLat = matchingLive.lat !== undefined ? matchingLive.lat : null;
+            const newLng = matchingLive.lng !== undefined ? matchingLive.lng : null;
+            
+            if (r.geoloc !== newGeoloc || r.geolocDate !== newGeolocDate || r.lat !== newLat || r.lng !== newLng) {
+              r.geoloc = newGeoloc;
+              r.geolocDate = newGeolocDate;
+              r.lat = newLat;
+              r.lng = newLng;
+              modified = true;
+            }
+          }
+        });
+        if (modified) {
+          console.log("[GPS Sync Loop] Positions synchronisées et grille mise à jour.");
+          if (typeof renderDispo === 'function') renderDispo();
+        }
+      }
     } catch(err) {
       console.warn("Erreur chargement live positions np_dispo:", err);
     }
