@@ -16445,12 +16445,26 @@ let _ADMIN_SHARIK_ENTREES_SORTIES = (Array.isArray(storedSharik) && storedSharik
 
 function normalizeDriverName(str) {
   if (!str) return '';
-  return str.toString()
-    .trim()
-    .toUpperCase()
-    .replace(/[0-9]/g, '')
-    .replace(/\s+/g, ' ')
-    .trim();
+  let normalized = str.toString()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toUpperCase();
+  normalized = normalized.replace(/[^A-Z]/g, ' ');
+  const words = normalized.split(/\s+/).filter(w => w.length > 0);
+  const normalizedWords = words.map(w => {
+    let collapsed = w.replace(/([A-Z])\1+/g, '$1');
+    if (['MOHAMED', 'MOHAMMED', 'MOHAMAD', 'MOHAND', 'MHD', 'MD', 'MOHAMD'].includes(collapsed) || ['MOHAMED', 'MOHAMMED', 'MOHAMAD', 'MOHAND', 'MHD', 'MD', 'MOHAMD'].includes(w)) {
+      return 'MD';
+    }
+    if (['CHRIF', 'CHERIF'].includes(collapsed) || ['CHRIF', 'CHERIF'].includes(w)) {
+      return 'CHERIF';
+    }
+    if (['NOUREDINE', 'NOURREDINE'].includes(collapsed) || ['NOUREDINE', 'NOURREDINE'].includes(w)) {
+      return 'NOUREDINE';
+    }
+    return collapsed;
+  });
+  return normalizedWords.join(' ');
 }
 
 function areNamesMatching(nameA, nameB) {
