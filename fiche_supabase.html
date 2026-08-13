@@ -14847,7 +14847,42 @@ async function renderPoiPage() {
       });
     }
     
-    const liveActiveVisits = activeVisits ? activeVisits.filter(v => activeGpsTrucks.has(v.v.trim().toUpperCase())) : [];
+    // Helper de distance Haversine
+    const getGpsDistanceLocal = (lat1, lon1, lat2, lon2) => {
+      const R = 6371000;
+      const dLat = (lat2 - lat1) * Math.PI / 180;
+      const dLon = (lon2 - lon1) * Math.PI / 180;
+      const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+                Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+                Math.sin(dLon/2) * Math.sin(dLon/2);
+      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+      return R * c;
+    };
+
+    // Auto-clôture des visites de camions qui ont quitté les lieux physiquement (Self-Healing)
+    if (activeVisits && pois) {
+      activeVisits.forEach(v => {
+        const poiDef = pois.find(p => p.name === v.poi_name || p.point_designation === v.poi_name);
+        const truckDispo = dispos ? dispos.find(d => d.v.trim().toUpperCase() === v.v.trim().toUpperCase()) : null;
+        if (poiDef && truckDispo && truckDispo.geoloc && truckDispo.geoloc !== 'OFF') {
+          const [tLat, tLng] = truckDispo.geoloc.split(',').map(parseFloat);
+          const pLat = parseFloat(poiDef.point_latitude || poiDef.lat);
+          const pLng = parseFloat(poiDef.point_longitude || poiDef.lng);
+          const pRadius = parseFloat(poiDef.point_radius || poiDef.buffer || 300);
+          
+          if (!isNaN(tLat) && !isNaN(tLng) && !isNaN(pLat) && !isNaN(pLng)) {
+            const dist = getGpsDistanceLocal(tLat, tLng, pLat, pLng);
+            if (dist > pRadius + 1500) {
+              console.log(`[Self-Healing UI] Camion ${v.v} éloigné de ${Math.round(dist)}m de ${v.poi_name}. Fermeture.`);
+              poiSupabaseFetch(`np_poi_visits?id=eq.${v.id}`, "PATCH", { left_at: new Date().toISOString() });
+              v.left_at = new Date().toISOString(); // Marquer comme clôturé localement
+            }
+          }
+        }
+      });
+    }
+
+    const liveActiveVisits = activeVisits ? activeVisits.filter(v => !v.left_at && activeGpsTrucks.has(v.v.trim().toUpperCase())) : [];
     const totalLiveActive = liveActiveVisits.length;
 
     if (totalLiveActive === 0) {
@@ -15008,14 +15043,62 @@ async function checkPoiAlerts() {
     const activeVisitsList = await poiSupabaseFetch(`np_poi_visits?left_at=is.null`);
     if (!activeVisitsList || activeVisitsList.length === 0) return;
 
-    // 2. Récupérer la liste des POI blacklistés
-    const pois = await poiSupabaseFetch("np_pois?select=name,is_blacklist");
+    // 2. Récupérer la liste complète des POI avec leurs coordonnées et rayon
+    const pois = await poiSupabaseFetch("np_pois?select=name,is_blacklist,point_latitude,point_longitude,point_radius");
+    const poiMap = {};
+    if (pois) {
+      pois.forEach(p => {
+        poiMap[p.name] = p;
+      });
+    }
     const blacklistPois = new Set(pois ? pois.filter(p => p.is_blacklist).map(p => p.name) : []);
+
+    // Charger les positions GPS en temps réel depuis np_dispo
+    let liveDispos = [];
+    try {
+      liveDispos = await poiSupabaseFetch(`np_dispo?select=v,geoloc,geoloc_date`);
+    } catch(err) {
+      console.warn("Erreur chargement live positions np_dispo:", err);
+    }
+
+    // Helper de distance Haversine
+    const getGpsDistanceLocal = (lat1, lon1, lat2, lon2) => {
+      const R = 6371000; // Rayon de la Terre en mètres
+      const dLat = (lat2 - lat1) * Math.PI / 180;
+      const dLon = (lon2 - lon1) * Math.PI / 180;
+      const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+                Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+                Math.sin(dLon/2) * Math.sin(dLon/2);
+      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+      return R * c;
+    };
 
     let clientAlertedSet = new Set(JSON.parse(sessionStorage.getItem('client_alerted_blacklist_ids') || '[]'));
 
     // 3. Traiter chaque visite active
     for (const v of activeVisitsList) {
+      // ⚠️ MÉCANISME AUTO-CORRECTEUR (Self-Healing) :
+      // Si le camion a physiquement quitté la zone du client POI (distance > rayon + 1500m de marge),
+      // nous clôturons immédiatement la visite obsolète dans la base de données.
+      const poiDef = poiMap[v.poi_name];
+      const truckDispo = liveDispos ? liveDispos.find(d => d.v.trim().toUpperCase() === v.v.trim().toUpperCase()) : null;
+      
+      if (poiDef && truckDispo && truckDispo.geoloc && truckDispo.geoloc !== 'OFF') {
+        const [tLat, tLng] = truckDispo.geoloc.split(',').map(parseFloat);
+        const pLat = parseFloat(poiDef.point_latitude);
+        const pLng = parseFloat(poiDef.point_longitude);
+        const pRadius = parseFloat(poiDef.point_radius || 300);
+        
+        if (!isNaN(tLat) && !isNaN(tLng) && !isNaN(pLat) && !isNaN(pLng)) {
+          const dist = getGpsDistanceLocal(tLat, tLng, pLat, pLng);
+          if (dist > pRadius + 1500) {
+            console.log(`[Self-Healing POI] Camion ${v.v} éloigné de ${Math.round(dist)}m du client ${v.poi_name}. Clôture auto.`);
+            poiSupabaseFetch(`np_poi_visits?id=eq.${v.id}`, "PATCH", { left_at: new Date().toISOString() });
+            continue; // Ignorer cette alerte obsolète
+          }
+        }
+      }
+
       const isBlacklisted = blacklistPois.has(v.poi_name);
 
       if (isBlacklisted) {
@@ -16520,7 +16603,7 @@ function renderAdminEntreesSorties() {
             db[tableKey].forEach(row => {
               const rawCh = row.chauffeur || row.sharik;
               const rawV = row.v || row.tr || row.immat;
-              const rawDebut = row.debut || row.date_entree || row.date_in || row.date || '';
+              const rawDebut = row.debut || (row.created_at ? row.created_at.split('T')[0] : '') || row.date_entree || row.date_in || row.date || '';
               if (rawCh && !['AC/DC', '—', '-', 'DISPONIBLE', 'MANQUE CHAUFFEUR'].includes(rawCh.trim().toUpperCase())) {
                 const chKey = normalizeDriverName(rawCh);
                 const baseChKey = chKey.replace(/\s+\d+$/, '').trim();
@@ -16859,8 +16942,8 @@ function renderAdminEntreesSorties() {
         </td>
         <td>${trHtml}</td>
         <td>${rmHtml}</td>
-        <td style="font-family:monospace;font-size:11px;color:#22c55e">${r.date_in || '—'}</td>
-        <td style="font-family:monospace;font-size:11px;color:${r.date_out ? '#ef4444' : '#aaa'}">${r.date_out || '—'}</td>
+        <td style="font-family:monospace;font-size:11px;color:#22c55e">${r.date_in ? fmtDate(r.date_in) : '—'}</td>
+        <td style="font-family:monospace;font-size:11px;color:${r.date_out ? '#ef4444' : '#aaa'}">${r.date_out ? fmtDate(r.date_out) : '—'}</td>
         <td style="font-size:11px"><span style="background:rgba(255,255,255,0.06);padding:2px 6px;border-radius:4px">${r.contrat || 'CDD'}</span> ${r.regime ? '· ' + r.regime : ''}</td>
         <td style="font-size:12px">${motifHtml}</td>
         <td style="text-align:center">
