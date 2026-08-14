@@ -9037,9 +9037,23 @@ function renderOdo() {
   const anomalyVehicles = new Set();
   DB.odo.forEach(r => {
     const vs = (r.vals||[]);
-    for (let i=1;i<vs.length;i++) {
-      const prev = vs.slice(0,i).reverse().find(p=>p&&p>1000);
-      if (prev && vs[i] && vs[i]>1000 && vs[i]<prev) { anomalyVehicles.add(r.v); break; }
+    for (let i = 1; i < vs.length; i++) {
+      const vVal = parseFloat(vs[i]);
+      if (isNaN(vVal) || vVal <= 1000) continue;
+      
+      let prevVal = null;
+      for (let j = i - 1; j >= 0; j--) {
+        const pVal = parseFloat(vs[j]);
+        if (!isNaN(pVal) && pVal > 1000) {
+          prevVal = pVal;
+          break;
+        }
+      }
+      
+      if (prevVal !== null && vVal < prevVal) {
+        anomalyVehicles.add(r.v);
+        break;
+      }
     }
   });
   let data = DB.odo.filter(r => {
@@ -9065,7 +9079,7 @@ function renderOdo() {
   let totalFact = 0;
   let totalOdo = 0;
   data.forEach(r => {
-    const rangeVals = filteredWeeks.map(w => r.vals[weeks.indexOf(w)]).filter(v => v && v > 1000);
+    const rangeVals = filteredWeeks.map(w => parseFloat(r.vals[weeks.indexOf(w)])).filter(v => !isNaN(v) && v > 1000);
     let deltaVal = 0;
     if (rangeVals.length >= 2) {
       const d = rangeVals[rangeVals.length - 1] - rangeVals[0];
@@ -9113,20 +9127,31 @@ function renderOdo() {
     const cells = filteredWeeks.map(w => {
       const origIdx = weeks.indexOf(w);
       const v = r.vals ? r.vals[origIdx] : null;
-      if (v===null||v===undefined) return `<td class="no-data">—</td>`;
-      if (v===0) return `<td class="mono" style="color:var(--txt3)">0</td>`;
-      const prev = (r.vals||[]).slice(0,origIdx).reverse().find(p=>p&&p>1000);
-      const anom = prev && v < prev;
-      return `<td class="mono ${anom?'km-anomaly':''}">${v.toLocaleString('fr-FR')}</td>`;
+      const vNum = parseFloat(v);
+      if (isNaN(vNum) || v === null || v === undefined) return `<td class="no-data">—</td>`;
+      if (vNum === 0) return `<td class="mono" style="color:var(--txt3)">0</td>`;
+      
+      let prevVal = null;
+      if (r.vals) {
+        for (let j = origIdx - 1; j >= 0; j--) {
+          const pVal = parseFloat(r.vals[j]);
+          if (!isNaN(pVal) && pVal > 1000) {
+            prevVal = pVal;
+            break;
+          }
+        }
+      }
+      const anom = prevVal !== null && vNum < prevVal;
+      return `<td class="mono ${anom?'km-anomaly':''}">${Math.round(vNum).toLocaleString('fr-FR')}</td>`;
     }).join('');
     
-    const rangeVals = filteredWeeks.map(w => r.vals[weeks.indexOf(w)]).filter(v => v && v > 1000);
+    const rangeVals = filteredWeeks.map(w => parseFloat(r.vals[weeks.indexOf(w)])).filter(v => !isNaN(v) && v > 1000);
     let deltaVal = null;
     let delta = '—';
     if (rangeVals.length >= 2) {
       const d = rangeVals[rangeVals.length - 1] - rangeVals[0];
       deltaVal = d;
-      delta = `<span style="color:${d>0?'var(--grn)':'var(--red)'}">${d>0?'+':''}${d.toLocaleString('fr-FR')}</span>`;
+      delta = `<span style="color:${d>0?'var(--grn)':'var(--red)'}">${d>0?'+':''}${Math.round(d).toLocaleString('fr-FR')}</span>`;
     }
     
     let kmFacture = null;
