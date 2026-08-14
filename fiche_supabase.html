@@ -15092,28 +15092,38 @@ async function checkPoiAlerts() {
     let liveDispos = [];
     try {
       liveDispos = await poiSupabaseFetch(`np_dispo?select=v,geoloc,geoloc_date,lat,lng`);
-      // Fusionner les données GPS en direct dans l'objet DB.dispo local en mémoire
-      if (liveDispos && liveDispos.length > 0 && typeof DB !== 'undefined' && DB && DB.dispo) {
-        let modified = false;
-        DB.dispo.forEach(r => {
-          const matchingLive = liveDispos.find(d => d.v.trim().toUpperCase() === r.v.trim().toUpperCase());
-          if (matchingLive) {
-            const newGeoloc = matchingLive.geoloc || 'OFF';
-            const newGeolocDate = matchingLive.geoloc_date || null;
-            const newLat = matchingLive.lat !== undefined ? matchingLive.lat : null;
-            const newLng = matchingLive.lng !== undefined ? matchingLive.lng : null;
-            
-            if (r.geoloc !== newGeoloc || r.geolocDate !== newGeolocDate || r.lat !== newLat || r.lng !== newLng) {
-              r.geoloc = newGeoloc;
-              r.geolocDate = newGeolocDate;
-              r.lat = newLat;
-              r.lng = newLng;
-              modified = true;
-            }
+      // Fusionner les données GPS en direct dans toutes les équipes locales en mémoire (window.DB_A à DB_F)
+      if (liveDispos && liveDispos.length > 0) {
+        const teams = ['A', 'B', 'C', 'D', 'E', 'F'];
+        let activeModified = false;
+        
+        teams.forEach(eq => {
+          const db = (eq === window.CURRENT_EQUIPE && typeof window.DB !== 'undefined') ? window.DB : window['DB_' + eq];
+          if (db && db.dispo) {
+            db.dispo.forEach(r => {
+              const matchingLive = liveDispos.find(d => d.v.trim().toUpperCase() === r.v.trim().toUpperCase());
+              if (matchingLive) {
+                const newGeoloc = matchingLive.geoloc || 'OFF';
+                const newGeolocDate = matchingLive.geoloc_date || null;
+                const newLat = matchingLive.lat !== undefined ? matchingLive.lat : null;
+                const newLng = matchingLive.lng !== undefined ? matchingLive.lng : null;
+                
+                if (r.geoloc !== newGeoloc || r.geolocDate !== newGeolocDate || r.lat !== newLat || r.lng !== newLng) {
+                  r.geoloc = newGeoloc;
+                  r.geolocDate = newGeolocDate;
+                  r.lat = newLat;
+                  r.lng = newLng;
+                  if (eq === window.CURRENT_EQUIPE) {
+                    activeModified = true;
+                  }
+                }
+              }
+            });
           }
         });
-        if (modified) {
-          console.log("[GPS Sync Loop] Positions synchronisées et grille mise à jour.");
+        
+        if (activeModified) {
+          console.log("[GPS Sync Loop] Positions synchronisées et grille active mise à jour.");
           if (typeof renderDispo === 'function') renderDispo();
         }
       }
