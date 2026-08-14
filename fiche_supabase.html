@@ -14863,7 +14863,7 @@ async function renderPoiPage() {
         if (d.geoloc_date) {
           const gpsTime = new Date(d.geoloc_date).getTime();
           const diffDays = Math.round((todayTime - gpsTime) / (1000 * 60 * 60 * 24));
-          if (d.geoloc !== 'OFF' && diffDays <= 2) {
+          if (diffDays <= 2) {
             activeGpsTrucks.add(d.v.trim().toUpperCase());
           }
         }
@@ -14939,7 +14939,7 @@ async function renderPoiPage() {
           }
         }
         
-        const alertClass = isBlacklisted ? 'style="color:#ef4444;font-weight:900;animation:pulse-red 1s infinite"' : (v.duration_hours >= 2.0 ? 'style="color:#ef4444;font-weight:700"' : 'style="color:#f59e0b;font-weight:600"');
+        const alertClass = isBlacklisted ? 'class="poi-wait-time-td" style="color:#ef4444;font-weight:900;animation:pulse-red 1s infinite"' : (v.duration_hours >= 2.0 ? 'class="poi-wait-time-td" style="color:#ef4444;font-weight:700"' : 'class="poi-wait-time-td" style="color:#f59e0b;font-weight:600"');
         const alertIcon = isBlacklisted ? "🚨 BLACKLIST 🚨" : (v.duration_hours >= 2.0 ? "🔴" : "🟠");
         const rowBg = isBlacklisted ? 'style="background:rgba(239,68,68,0.12); border-left: 4px solid #ef4444"' : '';
         
@@ -14950,7 +14950,7 @@ async function renderPoiPage() {
             <td style="font-weight:600;color:${isBlacklisted ? '#ef4444' : 'var(--txt1)'}">${v.poi_name}</td>
             <td>${new Date(v.arrived_at).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}</td>
             <td>${new Date(v.last_seen_at).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}</td>
-            <td ${alertClass}>${alertIcon} ${waitStr}</td>
+            <td ${alertClass} data-arrived="${v.arrived_at}" data-alert-type="${isBlacklisted ? 'blacklist' : (v.duration_hours >= 2.0 ? 'red' : 'orange')}">${alertIcon} ${waitStr}</td>
           </tr>
         `;
       });
@@ -15081,6 +15081,24 @@ async function checkPoiAlerts() {
     let liveDispos = [];
     try {
       liveDispos = await poiSupabaseFetch(`np_dispo?select=v,geoloc,geoloc_date,lat,lng`);
+      
+      // Initialisation de window.ACTIVE_GPS_TRUCKS pour le compteur d'alertes
+      if (liveDispos && liveDispos.length > 0) {
+        const activeGps = new Set();
+        const todayStr = new Date().toISOString().split('T')[0];
+        const todayTime = new Date(todayStr).getTime();
+        liveDispos.forEach(d => {
+          if (d.geoloc_date) {
+            const gpsTime = new Date(d.geoloc_date).getTime();
+            const diffDays = Math.round((todayTime - gpsTime) / (1000 * 60 * 60 * 24));
+            if (diffDays <= 2) {
+              activeGps.add(d.v.trim().toUpperCase());
+            }
+          }
+        });
+        window.ACTIVE_GPS_TRUCKS = activeGps;
+      }
+
       // Fusionner les données GPS en direct dans toutes les équipes locales en mémoire (window.DB_A à DB_F)
       if (liveDispos && liveDispos.length > 0) {
         const teams = ['A', 'B', 'C', 'D', 'E', 'F'];
@@ -15249,6 +15267,51 @@ window.addEventListener('DOMContentLoaded', () => {
   window.poiAlertsInterval = setInterval(checkPoiAlerts, 15000); // 15s (Filet de sécurité ultra-réactif)
   setTimeout(checkPoiAlerts, 3000);   // 3s
   
+  // Horloge en temps réel pour l'encours du temps d'attente
+  if (window.poiWaitTimeInterval) clearInterval(window.poiWaitTimeInterval);
+  window.poiWaitTimeInterval = setInterval(() => {
+    document.querySelectorAll('.poi-wait-time-td').forEach(el => {
+      const arrivedStr = el.getAttribute('data-arrived');
+      if (!arrivedStr) return;
+      const arrivedTime = new Date(arrivedStr).getTime();
+      if (isNaN(arrivedTime)) return;
+      
+      const elapsedMs = Date.now() - arrivedTime;
+      if (elapsedMs < 0) return;
+      
+      const totalSecs = Math.floor(elapsedMs / 1000);
+      const hours = Math.floor(totalSecs / 3600);
+      const mins = Math.floor((totalSecs % 3600) / 60);
+      const secs = totalSecs % 60;
+      
+      const waitStr = `${hours}h ${mins}m ${secs}s`;
+      
+      const alertType = el.getAttribute('data-alert-type');
+      const isBlacklisted = alertType === 'blacklist';
+      const durationHours = totalSecs / 3600.0;
+      
+      let alertIcon = "🟠";
+      if (isBlacklisted) {
+        alertIcon = "🚨 BLACKLIST 🚨";
+        el.style.color = "#ef4444";
+        el.style.fontWeight = "900";
+        el.style.animation = "pulse-red 1s infinite";
+      } else if (durationHours >= 2.0) {
+        alertIcon = "🔴";
+        el.style.color = "#ef4444";
+        el.style.fontWeight = "700";
+        el.style.animation = "none";
+      } else {
+        alertIcon = "🟠";
+        el.style.color = "#f59e0b";
+        el.style.fontWeight = "600";
+        el.style.animation = "none";
+      }
+      
+      el.innerHTML = `${alertIcon} ${waitStr}`;
+    });
+  }, 1000);
+
   // Alertes pannes à charge
   window.loadedPanneInterval = setInterval(checkLoadedBreakdowns, 60000); // 1 min
   setTimeout(checkLoadedBreakdowns, 8000); // 8s
