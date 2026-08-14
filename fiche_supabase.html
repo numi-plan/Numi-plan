@@ -3011,6 +3011,8 @@ mark.hl { background: rgba(56,189,248,.25); color: var(--acc); border-radius: 3p
       <option value="Panne sur route">Panne sur route</option>
       <option value="Changement de destination">Changement de destination</option>
       <option value="Changement de référence commande">Changement de référence commande</option>
+      <option value="Retrait segment">Retrait segment</option>
+      <option value="Manque programme">Manque programme</option>
           </select>
     <input type="date" class="filter-input" id="inc-date-from" onchange="renderIncidentsLivraisonPage()">
     <input type="date" class="filter-input" id="inc-date-to" onchange="renderIncidentsLivraisonPage()">
@@ -3060,6 +3062,8 @@ mark.hl { background: rgba(56,189,248,.25); color: var(--acc); border-radius: 3p
           <option value="Changement de destination">Changement de destination</option>
           <option value="Changement de référence commande">Changement de référence commande</option>
           <option value="Manque produit">Manque produit</option>
+          <option value="Retrait segment">Retrait segment</option>
+          <option value="Manque programme">Manque programme</option>
                   </select>
       </div>
       <div style="display:grid; grid-template-columns:1fr; gap:12px">
@@ -10078,6 +10082,30 @@ function toggleIncidentFields() {
       lblRef.innerText = 'Référence Commande';
     }
   }
+
+  // 3. Observations : griser si "Immobilisation chez le client" ou "Changement de destination"
+  const elObs = document.getElementById('f-inc-liv-obs');
+  if (elObs) {
+    if (type === 'Immobilisation chez le client' || type === 'Changement de destination') {
+      elObs.disabled = true;
+      if (type === 'Immobilisation chez le client') {
+        elObs.value = 'Immobilisation chez le client en cours';
+      } else {
+        elObs.value = 'Changement de destination';
+      }
+      elObs.style.background = 'rgba(255,255,255,0.02)';
+      elObs.style.cursor = 'not-allowed';
+      elObs.style.opacity = '0.5';
+    } else {
+      elObs.disabled = false;
+      if (elObs.value === 'Immobilisation chez le client en cours' || elObs.value === 'Changement de destination') {
+        elObs.value = '';
+      }
+      elObs.style.background = '';
+      elObs.style.cursor = '';
+      elObs.style.opacity = '';
+    }
+  }
 }
 window.toggleIncidentFields = toggleIncidentFields;
 // ══════════════════════════════════════════════════════════════════════════════
@@ -10155,6 +10183,10 @@ function saveIncidentLivraison() {
     showToast('⚠️ Le nom du client est requis', true);
     return;
   }
+  if (!refCommande || refCommande === '—') {
+    showToast('⚠️ La référence commande / N° BL est requise', true);
+    return;
+  }
   if (!debut) {
     showToast('⚠️ La date/heure est requise', true);
     return;
@@ -10171,10 +10203,6 @@ function saveIncidentLivraison() {
       showToast('⚠️ La destination réelle complète (Chargement et Livraison) est obligatoire', true);
       return;
     }
-    if (!refCommande || refCommande === '—') {
-      showToast('⚠️ La référence commande est obligatoire', true);
-      return;
-    }
     if (!obs || obs === '—') {
       showToast('⚠️ Les observations/description sont obligatoires', true);
       return;
@@ -10186,12 +10214,15 @@ function saveIncidentLivraison() {
       showToast('⚠️ La référence commande initiale est obligatoire', true);
       return;
     }
-    if (!refCommande || refCommande === '—') {
-      showToast('⚠️ La nouvelle référence commande est obligatoire', true);
-      return;
-    }
     if (!obs || obs === '—') {
       showToast('⚠️ Les observations/description sont obligatoires', true);
+      return;
+    }
+  }
+
+  if (type === 'Retrait segment') {
+    if (!obs || obs.trim() === '' || obs === '—') {
+      showToast('⚠️ Les observations/description (motif du retrait) sont obligatoires', true);
       return;
     }
   }
@@ -17763,6 +17794,7 @@ window.renderAdminBalanceComptable = renderAdminBalanceComptable;
   <option value="DJANET">
   <option value="EL MGHAIER">
   <option value="EL MENIAA">
+  <option value="DELTA">
 </datalist>
 <!-- Modal Tableau de bord Conformite -->
 <div class="modal-overlay" id="modal-compliance-dashboard" style="z-index:10000">
