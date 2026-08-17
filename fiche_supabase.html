@@ -2074,6 +2074,20 @@ function applyTeamLockUI(eq) {
 .gr-empty { text-align: center; padding: 40px 20px; color: var(--txt3); font-size: 13px; }
 .gr-empty-icon { font-size: 32px; margin-bottom: 8px; }
 mark.hl { background: rgba(56,189,248,.25); color: var(--acc); border-radius: 3px; padding: 0 2px; font-style: normal; }
+
+/* Consultation odomètre Espace Direction */
+#page-odo.in-admin-direction .btn-add,
+#page-odo.in-admin-direction .btn-numiflow,
+#page-odo.in-admin-direction .btn-analytics {
+  display: none !important;
+}
+#page-odo.in-admin-direction [onclick*="declKm"] {
+  pointer-events: none !important;
+  cursor: default !important;
+}
+#page-odo.in-admin-direction [onclick*="declKm"] span {
+  color: var(--txt2) !important;
+}
 </style>
 
 <div class="global-search-bar">
@@ -2621,19 +2635,8 @@ mark.hl { background: rgba(56,189,248,.25); color: var(--acc); border-radius: 3p
     </div>
   </div>
 
-  <!-- SOUS-PAGE 6 : SUIVI ODOMÈTRES -->
-  <div id="admin-subpage-odo" class="admin-subpage" style="display:none; padding:20px; background:var(--bg2); border-radius:12px; border:1px solid var(--border)">
-    <div style="text-align:center; padding:40px 20px">
-      <div style="font-size:48px; margin-bottom:16px">🛣️</div>
-      <h3 style="color:#fff; font-size:18px; margin-bottom:8px">Exportation des relevés d'Odomètres</h3>
-      <p style="color:var(--txt2); font-size:13px; max-width:450px; margin:0 auto 24px auto">
-        Sélectionnez une période personnalisée pour exporter l'ensemble des relevés kilométriques des véhicules de toutes les équipes.
-      </p>
-      <button class="btn" onclick="openModal('modal-odo-export')" style="background:linear-gradient(135deg,#38bdf8,#0ea5e9); color:#000; font-weight:800; padding:12px 24px; border-radius:8px; border:none; cursor:pointer; font-size:14px; box-shadow:0 4px 12px rgba(14,165,233,0.25)">
-        📥 Exporter les relevés d'Odomètres
-      </button>
-    </div>
-  </div>
+  <!-- SOUS-PAGE 6 : SUIVI ODOMÈTRES (Placeholder, dynamically populated) -->
+  <div id="admin-subpage-odo" class="admin-subpage" style="display:none"></div>
 </div>
 
 <div id="page-dispo" class="page active">
@@ -6776,6 +6779,14 @@ function today() {
 }
 
 function switchTab(name, btn) {
+  // Repositionner l'odomètre dans la page-area principale s'il était dans l'espace direction
+  const odoPage = document.getElementById('page-odo');
+  const mainPageArea = document.querySelector('.page-area');
+  if (odoPage && mainPageArea && odoPage.parentElement !== mainPageArea) {
+    mainPageArea.appendChild(odoPage);
+    odoPage.classList.remove('in-admin-direction');
+    odoPage.style.display = '';
+  }
 
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
   document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
@@ -16558,6 +16569,17 @@ function switchAdminSubTab(subTabId) {
   if (subTabId === 'sinistres') renderAdminSinistres();
   if (subTabId === 'balance') renderAdminBalanceTable();
   if (subTabId === 'validations') renderAdminValidations();
+  if (subTabId === 'odo') {
+    const odoPage = document.getElementById('page-odo');
+    const odoContainer = document.getElementById('admin-subpage-odo');
+    if (odoPage && odoContainer) {
+      odoContainer.appendChild(odoPage);
+      odoPage.classList.add('active');
+      odoPage.classList.add('in-admin-direction');
+      odoPage.style.display = 'block';
+    }
+    renderOdo();
+  }
 }
 window.switchAdminSubTab = switchAdminSubTab;
 
@@ -17670,20 +17692,61 @@ function handleAdminBalanceExcelUpload(input) {
         return;
       }
 
-      // Identifier les index des colonnes
-      const headers = rawRows[0].map(h => (h || '').toString().toLowerCase().trim());
+      // 1. Trouver la première ligne de données (où la première colonne est un code SAP à 6 ou 7 chiffres)
+      let dataRowIdx = -1;
+      for (let idx = 0; idx < rawRows.length; idx++) {
+        const row = rawRows[idx];
+        if (row && row[0]) {
+          const valStr = row[0].toString().trim();
+          if (/^\d{6,7}$/.test(valStr)) {
+            if (row[1] && row[1].toString().trim().length > 2) {
+              dataRowIdx = idx;
+              break;
+            }
+          }
+        }
+      }
+
+      let headers = [];
+      let startRowIdx = 1;
+
+      if (dataRowIdx !== -1) {
+        // Résoudre les en-têtes en remontant pour chaque colonne
+        for (let colIdx = 0; colIdx < rawRows[dataRowIdx].length; colIdx++) {
+          let headerVal = '';
+          for (let rIdx = dataRowIdx - 1; rIdx >= 0; rIdx--) {
+            if (rawRows[rIdx] && rawRows[rIdx][colIdx] !== undefined && rawRows[rIdx][colIdx] !== null && rawRows[rIdx][colIdx] !== '') {
+              headerVal = rawRows[rIdx][colIdx].toString().trim();
+              break;
+            }
+          }
+          headers.push(headerVal.toLowerCase());
+        }
+        startRowIdx = dataRowIdx;
+      } else {
+        headers = rawRows[0].map(h => (h || '').toString().toLowerCase().trim());
+      }
+
       let colChauf = headers.findIndex(h => h.includes('chauffeur') || h.includes('nom') || h.includes('sharik') || h.includes('libelle') || h.includes('compte'));
-      let colDebit = headers.findIndex(h => h.includes('debit') || h.includes('débit'));
-      let colCredit = headers.findIndex(h => h.includes('credit') || h.includes('crédit'));
+      let colDebit = headers.findIndex(h => h.includes('debit') || h.includes('débit') || h.includes('total'));
+      let colCredit = headers.findIndex(h => h.includes('credit') || h.includes('crédit') || h.includes('dette'));
       let colSolde = headers.findIndex(h => h.includes('solde') || h.includes('balance') || h.includes('net'));
       let colDate = headers.findIndex(h => h.includes('date') || h.includes('periode') || h.includes('situation'));
 
-      if (colChauf === -1) colChauf = 0; // Défaut première colonne
+      if (colChauf === -1) colChauf = 0;
 
       const parsedRecords = [];
-      for (let i = 1; i < rawRows.length; i++) {
+      for (let i = startRowIdx; i < rawRows.length; i++) {
         const row = rawRows[i];
         if (!row || !row[colChauf]) continue;
+
+        // Filtrer par code SAP si on a trouvé la ligne d'en-tête dynamique
+        if (dataRowIdx !== -1 && row[0]) {
+          const codeStr = row[0].toString().trim();
+          if (!/^\d{6,7}$/.test(codeStr)) {
+            continue; // Ignorer les pieds de page ou autres résumés
+          }
+        }
 
         const chauffeur = (row[colChauf] || '').toString().trim().toUpperCase();
         if (!chauffeur || chauffeur.includes('TOTAL') || chauffeur.includes('SOUS-TOTAL')) continue;
