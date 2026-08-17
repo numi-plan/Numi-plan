@@ -2622,7 +2622,18 @@ mark.hl { background: rgba(56,189,248,.25); color: var(--acc); border-radius: 3p
   </div>
 
   <!-- SOUS-PAGE 6 : SUIVI ODOMÈTRES -->
-  <div id="admin-subpage-odo" class="admin-subpage" style="display:none"></div>
+  <div id="admin-subpage-odo" class="admin-subpage" style="display:none; padding:20px; background:var(--bg2); border-radius:12px; border:1px solid var(--border)">
+    <div style="text-align:center; padding:40px 20px">
+      <div style="font-size:48px; margin-bottom:16px">🛣️</div>
+      <h3 style="color:#fff; font-size:18px; margin-bottom:8px">Exportation des relevés d'Odomètres</h3>
+      <p style="color:var(--txt2); font-size:13px; max-width:450px; margin:0 auto 24px auto">
+        Sélectionnez une période personnalisée pour exporter l'ensemble des relevés kilométriques des véhicules de toutes les équipes.
+      </p>
+      <button class="btn" onclick="openModal('modal-odo-export')" style="background:linear-gradient(135deg,#38bdf8,#0ea5e9); color:#000; font-weight:800; padding:12px 24px; border-radius:8px; border:none; cursor:pointer; font-size:14px; box-shadow:0 4px 12px rgba(14,165,233,0.25)">
+        📥 Exporter les relevés d'Odomètres
+      </button>
+    </div>
+  </div>
 </div>
 
 <div id="page-dispo" class="page active">
@@ -6765,13 +6776,6 @@ function today() {
 }
 
 function switchTab(name, btn) {
-  // Repositionner l'odomètre dans la page-area principale s'il était dans l'espace direction
-  const odoPage = document.getElementById('page-odo');
-  const mainPageArea = document.querySelector('.page-area');
-  if (odoPage && mainPageArea && odoPage.parentElement !== mainPageArea) {
-    mainPageArea.appendChild(odoPage);
-    odoPage.style.display = '';
-  }
 
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
   document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
@@ -16554,16 +16558,6 @@ function switchAdminSubTab(subTabId) {
   if (subTabId === 'sinistres') renderAdminSinistres();
   if (subTabId === 'balance') renderAdminBalanceTable();
   if (subTabId === 'validations') renderAdminValidations();
-  if (subTabId === 'odo') {
-    const odoPage = document.getElementById('page-odo');
-    const odoContainer = document.getElementById('admin-subpage-odo');
-    if (odoPage && odoContainer) {
-      odoContainer.appendChild(odoPage);
-      odoPage.classList.add('active');
-      odoPage.style.display = 'block';
-    }
-    renderOdo();
-  }
 }
 window.switchAdminSubTab = switchAdminSubTab;
 
