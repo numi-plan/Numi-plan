@@ -2779,7 +2779,7 @@ mark.hl { background: rgba(56,189,248,.25); color: var(--acc); border-radius: 3p
     <div class="sec-title">État du parc véhicules</div>
     <div class="table-wrap">
       <table>
-        <thead><tr><th>Véhicule</th><th>État</th><th>Chauffeur</th><th>Horaire</th><th>Lieu Jour</th><th>Lieu J+1</th><th>Barre</th><th>Câble</th><th>Affecté</th><th>KM</th><th style="color:#ef4444">⚡ Excès</th><th>Observation</th><th style="color:#22c55e">🚛 Bejaia</th><th class="col-assurance" style="color:var(--grn)">🛡 Ass. TR</th><th class="col-assurance" style="color:var(--acc)">🛡 Ass. RM</th><th>Actions</th></tr></thead>
+        <thead><tr><th>Véhicule</th><th>État</th><th>Chauffeur</th><th>Horaire</th><th>Lieu Jour</th><th>Lieu J+1</th><th>Barre</th><th>Câble</th><th>Affecté</th><th>KM</th><th style="color:#ef4444;white-space:nowrap">⚡ Excès de vitesse</th><th>Observation</th><th style="color:#22c55e">🚛 Bejaia</th><th style="color:#38bdf8">🚛 Brandt</th><th class="col-assurance" style="color:var(--grn)">🛡 Ass. TR</th><th class="col-assurance" style="color:var(--acc)">🛡 Ass. RM</th><th>Actions</th></tr></thead>
         <tbody id="dispo-body"></tbody>
       </table>
     </div>
@@ -3071,7 +3071,7 @@ mark.hl { background: rgba(56,189,248,.25); color: var(--acc); border-radius: 3p
       <span style="font-size:20px">📊</span>
       <div>
         <div style="font-size:15px;font-weight:800;color:#fff;letter-spacing:0.5px">MODULE D'ANALYSES &amp; STATISTIQUES</div>
-        <div style="font-size:11px;color:#94a3b8">Performance globale, orientations vers Béjaïa et historique des excès de vitesse</div>
+        <div style="font-size:11px;color:#94a3b8">Performance globale, orientations vers Béjaïa et Brandt, et historique des excès de vitesse</div>
       </div>
     </div>
   </div>
@@ -3079,6 +3079,7 @@ mark.hl { background: rgba(56,189,248,.25); color: var(--acc); border-radius: 3p
   <div style="display:flex;gap:8px;margin-bottom:20px;border-bottom:1px solid var(--border);padding-bottom:10px;overflow-x:auto">
     <button class="btn analytics-subtab-btn active" id="btn-subtab-performance" onclick="switchAnalyticsSubTab('performance')" style="background:#38bdf8;color:#000;font-weight:800;border-radius:8px;padding:8px 16px;cursor:pointer;border:none;">📊 Performance Globale</button>
     <button class="btn analytics-subtab-btn" id="btn-subtab-orientation" onclick="switchAnalyticsSubTab('orientation')" style="background:rgba(255,255,255,0.05);color:var(--txt);font-weight:700;border-radius:8px;padding:8px 16px;cursor:pointer;border:none;">🚛 Orientation Béjaïa</button>
+    <button class="btn analytics-subtab-btn" id="btn-subtab-brandt" onclick="switchAnalyticsSubTab('brandt')" style="background:rgba(255,255,255,0.05);color:var(--txt);font-weight:700;border-radius:8px;padding:8px 16px;cursor:pointer;border:none;">📦 Orientation Brandt</button>
     <button class="btn analytics-subtab-btn" id="btn-subtab-speed-excess" onclick="switchAnalyticsSubTab('speed-excess')" style="background:rgba(255,255,255,0.05);color:var(--txt);font-weight:700;border-radius:8px;padding:8px 16px;cursor:pointer;border:none;">⚡ Excès de vitesse</button>
   </div>
 
@@ -3107,7 +3108,8 @@ mark.hl { background: rgba(56,189,248,.25); color: var(--acc); border-radius: 3p
               <th style="text-align:center;color:#f87171">Sinistre / Accident</th>
               <th style="text-align:right;padding-right:15px">Gasoil</th>
               <th style="text-align:right;padding-right:15px">Distance (Odo)</th>
-              <th style="text-align:right;padding-right:15px;color:#22c55e">Orientation (km)</th>
+              <th style="text-align:right;padding-right:15px;color:#22c55e">Bejaia (km)</th>
+              <th style="text-align:right;padding-right:15px;color:#38bdf8">Brandt (km)</th>
               <th style="text-align:right;padding-right:15px;color:#ef4444">Excès vitesse</th>
             </tr>
           </thead>
@@ -3153,7 +3155,43 @@ mark.hl { background: rgba(56,189,248,.25); color: var(--acc); border-radius: 3p
     </div>
   </div>
 
-  <!-- Sous-page 3 : Excès de vitesse -->
+  <!-- Sous-page 3 : Orientation Brandt -->
+  <div id="analytics-subpage-brandt" class="analytics-subpage" style="display:none;">
+    <div style="display:flex;justify-content:flex-end;margin-bottom:15px;">
+      <button onclick="exportOrientationBrandtExcel()" class="btn" style="background:#38bdf8;color:#000;font-weight:800;padding:9px 18px;border-radius:8px;display:flex;align-items:center;gap:6px;border:none;cursor:pointer;">📥 Exporter Excel</button>
+    </div>
+    <div class="stats-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px;">
+      <div class="stat-card" style="border-left-color:#38bdf8;background:rgba(56,189,248,0.04);">
+        <div class="stat-num" id="orient-brandt-stat-km" style="color:#38bdf8;">0 KM</div>
+        <div class="stat-lbl">KILOMÉTRAGE TOTAL ORIENTÉ (BRANDT)</div>
+      </div>
+      <div class="stat-card" style="border-left-color:#fbbf24;background:rgba(251,191,36,0.04);">
+        <div class="stat-num" id="orient-brandt-stat-count" style="color:#fbbf24;">0</div>
+        <div class="stat-lbl">NOMBRE TOTAL D'ORIENTATIONS ACTIVES (BRANDT)</div>
+      </div>
+    </div>
+    <div style="padding-top:10px">
+      <div class="sec-title">Journal des Mouvements d'Orientation Brandt</div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Date / Heure</th>
+              <th>Véhicule (Camion)</th>
+              <th>Chauffeur</th>
+              <th>Point de Départ (Wilaya)</th>
+              <th>Distance (KM)</th>
+              <th>Statut</th>
+              <th>Opérateur / Rôle</th>
+            </tr>
+          </thead>
+          <tbody id="orient-brandt-history-body"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- Sous-page 4 : Excès de vitesse -->
   <div id="analytics-subpage-speed-excess" class="analytics-subpage" style="display:none;">
     <div style="display:flex;justify-content:flex-end;margin-bottom:15px;">
       <button onclick="exportSpeedExcessExcel()" class="btn" style="background:#ef4444;color:#fff;font-weight:800;padding:9px 18px;border-radius:8px;display:flex;align-items:center;gap:6px;border:none;cursor:pointer;">📥 Exporter Excel</button>
@@ -6343,6 +6381,95 @@ window.imprimerListeBLManquants = imprimerListeBLManquants;
   </div>
 </div>
 
+<!-- Modal Orientation Brandt (Sélection Wilaya) -->
+<div class="modal-overlay" id="modal-orientation-brandt" style="z-index:999999; backdrop-filter:blur(6px)">
+  <div class="modal" style="width:480px; max-width:92vw; background:var(--bg2, #18223f); border:1.5px solid #38bdf8; border-radius:16px; padding:24px; box-shadow:0 25px 50px -12px rgba(0,0,0,0.8); text-align:left">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px; border-bottom:1px solid var(--border); padding-bottom:10px">
+      <h3 style="margin:0; font-size:15px; color:#38bdf8; display:flex; align-items:center; gap:8px">
+        🚛 Nouvelle Orientation Brandt (Sétif)
+      </h3>
+      <button class="del-btn" onclick="closeModal('modal-orientation-brandt')" style="background:none; border:none; color:#aaa; font-size:22px; cursor:pointer">✕</button>
+    </div>
+    
+    <input type="hidden" id="orient-brandt-modal-v">
+    <input type="hidden" id="orient-brandt-modal-chauffeur">
+
+    <p style="font-size:12px; color:#cbd5e1; margin-bottom:16px; line-height:1.5">
+      Sélectionnez le point de départ pour calculer automatiquement la distance jusqu'à l'usine Brandt (Sétif) :
+    </p>
+
+    <div style="margin-bottom:20px">
+      <label style="font-size:11px; font-weight:700; color:var(--txt2); display:block; margin-bottom:6px">Point de Départ (Wilaya)</label>
+      <select id="orient-brandt-modal-wilaya" style="width:100%; background:var(--bg3, #0f172a); border:1.5px solid var(--border, #334155); border-radius:8px; padding:10px 14px; color:#fff; font-size:14px; outline:none; font-weight:700;">
+        <option value="">— Sélectionner la Wilaya —</option>
+        <option value="01">01 - Adrar</option>
+        <option value="02">02 - Chlef</option>
+        <option value="03">03 - Laghouat</option>
+        <option value="04">04 - Oum El Bouaghi</option>
+        <option value="05">05 - Batna</option>
+        <option value="06">06 - Béjaïa</option>
+        <option value="07">07 - Biskra</option>
+        <option value="08">08 - Béchar</option>
+        <option value="09">09 - Blida</option>
+        <option value="10">10 - Bouira</option>
+        <option value="11">11 - Tamanrasset</option>
+        <option value="12">12 - Tébessa</option>
+        <option value="13">13 - Tlemcen</option>
+        <option value="14">14 - Tiaret</option>
+        <option value="15">15 - Tizi Ouzou</option>
+        <option value="16">16 - Alger</option>
+        <option value="17">17 - Djelfa</option>
+        <option value="18">18 - Jijel</option>
+        <option value="19">19 - Sétif</option>
+        <option value="20">20 - Saïda</option>
+        <option value="21">21 - Skikda</option>
+        <option value="22">22 - Sidi Bel Abbès</option>
+        <option value="23">23 - Annaba</option>
+        <option value="24">24 - Guelma</option>
+        <option value="25">25 - Constantine</option>
+        <option value="26">26 - Médéa</option>
+        <option value="27">27 - Mostaganem</option>
+        <option value="28">28 - M'Sila</option>
+        <option value="29">29 - Mascara</option>
+        <option value="30">30 - Ouargla</option>
+        <option value="31">31 - Oran</option>
+        <option value="32">32 - El Bayadh</option>
+        <option value="33">33 - Illizi</option>
+        <option value="34">34 - Bordj Bou Arréridj</option>
+        <option value="35">35 - Boumerdès</option>
+        <option value="36">36 - El Tarf</option>
+        <option value="37">37 - Tindouf</option>
+        <option value="38">38 - Tissemsilt</option>
+        <option value="39">39 - El Oued</option>
+        <option value="40">40 - Khenchela</option>
+        <option value="41">41 - Souk Ahras</option>
+        <option value="42">42 - Tipaza</option>
+        <option value="43">43 - Mila</option>
+        <option value="44">44 - Aïn Defla</option>
+        <option value="45">45 - Naâma</option>
+        <option value="46">46 - Aïn Témouchent</option>
+        <option value="47">47 - Ghardaïa</option>
+        <option value="48">48 - Relizane</option>
+        <option value="49">49 - El M'Ghair</option>
+        <option value="50">50 - El Meniaa</option>
+        <option value="51">51 - Ouled Djellal</option>
+        <option value="52">52 - Bordj Baji Mokhtar</option>
+        <option value="53">53 - Béni Abbès</option>
+        <option value="54">54 - Timimoun</option>
+        <option value="55">55 - Touggourt</option>
+        <option value="56">56 - Djanet</option>
+        <option value="57">57 - In Salah</option>
+        <option value="58">58 - In Guezzam</option>
+      </select>
+    </div>
+
+    <div style="display:flex; justify-content:flex-end; gap:10px">
+      <button class="btn btn-reset" onclick="closeModal('modal-orientation-brandt')" style="padding:8px 16px">Annuler</button>
+      <button class="btn" onclick="validerOrientationBrandt()" style="background:#38bdf8; color:#000; font-weight:800; padding:8px 20px">💾 Confirmer l'orientation</button>
+    </div>
+  </div>
+</div>
+
 <script>
 
 function enregistrerOTNonRealise() {
@@ -7112,6 +7239,7 @@ function updateDataLists() {
 // ═══════════════════════════════════════════════════════════════
 function renderDispo() {
   if (typeof rebuildOrientationBejaiaState === 'function') rebuildOrientationBejaiaState();
+  if (typeof rebuildOrientationBrandtState === 'function') rebuildOrientationBrandtState();
   if (typeof rebuildSpeedExcessState === 'function') rebuildSpeedExcessState();
   const q = document.getElementById('dispo-search').value;
   const etatF = document.getElementById('dispo-etat').value;
@@ -7420,6 +7548,7 @@ function renderDispo() {
       <td>${buildSpeedExcessCell(r.v, r.chauffeur)}</td>
       <td style="max-width:150px;font-size:11px"><span class="cell-edit" contenteditable="true" data-field="obs" data-idx="${realIdx}" onblur="saveInline(this)" onkeydown="if(event.key==='Enter'){event.preventDefault();this.blur()}" style="color:var(--txt2);font-style:${r.obs?'normal':'italic'}">${r.obs||'—'}</span></td>
       <td>${buildOrientationBejaiaCell(r.v, r.chauffeur)}</td>
+      <td>${buildOrientationBrandtCell(r.v, r.chauffeur)}</td>
       <td class="col-assurance">${buildAssuranceCell(r, realIdx, 'dispo', 'tr')}</td>
       <td class="col-assurance">${buildAssuranceCell(r, realIdx, 'dispo', 'rm')}</td>
       <td style="white-space:nowrap">
@@ -14019,6 +14148,212 @@ setTimeout(() => {
 // FLASH INFO MANAGEMENT (ADMIN & TEAMS)
 // ════════════════════════════════════════════════════════════════════════════
 
+function renderAnalytics() {
+  const q = document.getElementById('an-search')?.value.trim().toLowerCase() || '';
+  const dateFromStr = document.getElementById('an-date-from')?.value || '';
+  const dateToStr = document.getElementById('an-date-to')?.value || '';
+
+  const vehiclesMap = {};
+  
+  (DB.dispo || []).forEach(r => {
+    if (r.v) {
+      vehiclesMap[r.v.toUpperCase()] = {
+        v: r.v.toUpperCase(),
+        chauffeur: r.chauffeur || '—',
+        pannesCount: 0,
+        ncCount: 0,
+        incCount: 0,
+        sinistreCount: 0,
+        gasoilLiters: 0,
+        odoDelta: 0,
+        kmFacture: 0,
+        bejaiaKm: 0,
+        brandtKm: 0,
+        speedExcessCount: 0
+      };
+    }
+  });
+
+  (DB.pannes || []).forEach(p => {
+    if (!p.immat) return;
+    const vKey = p.immat.trim().toUpperCase();
+    if (dateFromStr && p.date && p.date < dateFromStr) return;
+    if (dateToStr && p.date && p.date > dateToStr) return;
+    if (!vehiclesMap[vKey]) {
+      vehiclesMap[vKey] = { v: vKey, chauffeur: '—', pannesCount: 0, ncCount: 0, incCount: 0, sinistreCount: 0, gasoilLiters: 0, odoDelta: 0, kmFacture: 0, bejaiaKm: 0, brandtKm: 0, speedExcessCount: 0 };
+    }
+    vehiclesMap[vKey].pannesCount++;
+  });
+
+  (DB.nc || []).forEach(n => {
+    const chName = (n.sharik || '').trim().toUpperCase();
+    if (!chName) return;
+    if (dateFromStr && n.date && n.date < dateFromStr) return;
+    if (dateToStr && n.date && n.date > dateToStr) return;
+    
+    const foundV = Object.values(vehiclesMap).find(x => x.chauffeur.trim().toUpperCase() === chName);
+    if (foundV) {
+      foundV.ncCount++;
+    }
+  });
+
+  (DB.incidentsLivraison || []).forEach(inc => {
+    if (!inc.v) return;
+    const vKey = inc.v.trim().toUpperCase();
+    const debutDate = inc.debut ? inc.debut.slice(0, 10) : '';
+    if (dateFromStr && debutDate < dateFromStr) return;
+    if (dateToStr && debutDate > dateToStr) return;
+    
+    if (!vehiclesMap[vKey]) {
+      vehiclesMap[vKey] = { v: vKey, chauffeur: inc.chauffeur || '—', pannesCount: 0, ncCount: 0, incCount: 0, sinistreCount: 0, gasoilLiters: 0, odoDelta: 0, kmFacture: 0, bejaiaKm: 0, brandtKm: 0, speedExcessCount: 0 };
+    }
+    vehiclesMap[vKey].incCount++;
+    if (inc.type === 'Sinistre / Avarie') {
+      vehiclesMap[vKey].sinistreCount++;
+    }
+  });
+
+  (DB.gasoil || []).forEach(g => {
+    if (!g.vehicule) return;
+    const vKey = g.vehicule.trim().toUpperCase();
+    if (dateFromStr && g.date && g.date < dateFromStr) return;
+    if (dateToStr && g.date && g.date > dateToStr) return;
+    
+    if (!vehiclesMap[vKey]) {
+      vehiclesMap[vKey] = { v: vKey, chauffeur: g.chauffeur || '—', pannesCount: 0, ncCount: 0, incCount: 0, sinistreCount: 0, gasoilLiters: 0, odoDelta: 0, kmFacture: 0, bejaiaKm: 0, brandtKm: 0, speedExcessCount: 0 };
+    }
+    const qty = parseFloat(g.litres) || 0;
+    vehiclesMap[vKey].gasoilLiters += qty;
+  });
+
+  const odoWeeks = DB.odo_weeks || [];
+  const filteredWeekIndices = [];
+  odoWeeks.forEach((w, idx) => {
+    if (!w) return;
+    if (dateFromStr && w < dateFromStr) return;
+    if (dateToStr && w > dateToStr) return;
+    filteredWeekIndices.push(idx);
+  });
+
+  (DB.odo || []).forEach(r => {
+    if (!r.v) return;
+    const vKey = r.v.trim().toUpperCase();
+    if (!vehiclesMap[vKey]) {
+      vehiclesMap[vKey] = { v: vKey, chauffeur: r.chauffeur || '—', pannesCount: 0, ncCount: 0, incCount: 0, sinistreCount: 0, gasoilLiters: 0, odoDelta: 0, kmFacture: 0, bejaiaKm: 0, brandtKm: 0, speedExcessCount: 0 };
+    }
+
+    const rangeVals = filteredWeekIndices.map(idx => r.vals ? r.vals[idx] : null).filter(val => val && val > 1000);
+    let delta = 0;
+    if (rangeVals.length >= 2) {
+      delta = rangeVals[rangeVals.length - 1] - rangeVals[0];
+    }
+    vehiclesMap[vKey].odoDelta = delta;
+
+    let fact = 0;
+    let hasExplicit = false;
+    filteredWeekIndices.forEach(idx => {
+      if (r.kmFactures && r.kmFactures[idx] !== undefined && r.kmFactures[idx] !== null) {
+        fact += r.kmFactures[idx];
+        hasExplicit = true;
+      }
+    });
+    if (!hasExplicit) {
+      const lastW = odoWeeks[odoWeeks.length - 1];
+      if (dateFromStr && lastW >= dateFromStr && (!dateToStr || lastW <= dateToStr)) {
+        fact = (r.kmFacture !== undefined && r.kmFacture !== null) ? r.kmFacture : 0;
+      }
+    }
+    vehiclesMap[vKey].kmFacture = fact;
+  });
+
+  // Collect and scan all tracabilite logs across all teams
+  let allTracLogs = [];
+  const teams = ['A', 'B', 'C', 'D', 'E', 'F'];
+  teams.forEach(eq => {
+    const db = (eq === CURRENT_EQUIPE && typeof DB !== 'undefined') ? DB : window['DB_' + eq];
+    if (db && db.tracabilite) {
+      db.tracabilite.forEach(log => {
+        allTracLogs.push(log);
+      });
+    }
+  });
+  if (typeof DB !== 'undefined' && DB.tracabilite) {
+    DB.tracabilite.forEach(log => {
+      if (!allTracLogs.includes(log)) allTracLogs.push(log);
+    });
+  }
+
+  allTracLogs.forEach(log => {
+    if (!log.target) return;
+    const vKey = log.target.trim().toUpperCase();
+    const logDate = (log.date || '').slice(0, 10);
+    if (dateFromStr && logDate < dateFromStr) return;
+    if (dateToStr && logDate > dateToStr) return;
+
+    if (!vehiclesMap[vKey]) {
+      vehiclesMap[vKey] = { v: vKey, chauffeur: '—', pannesCount: 0, ncCount: 0, incCount: 0, sinistreCount: 0, gasoilLiters: 0, odoDelta: 0, kmFacture: 0, bejaiaKm: 0, brandtKm: 0, speedExcessCount: 0 };
+    }
+
+    if (log.type === 'Orientation Béjaïa') {
+      try {
+        const details = JSON.parse(log.motif || log.detail || '{}');
+        if (details.action === 'OUI') {
+          vehiclesMap[vKey].bejaiaKm += (details.km || 0);
+        }
+      } catch (e) {}
+    } else if (log.type === 'Orientation Brandt') {
+      try {
+        const details = JSON.parse(log.motif || log.detail || '{}');
+        if (details.action === 'OUI') {
+          vehiclesMap[vKey].brandtKm += (details.km || 0);
+        }
+      } catch (e) {}
+    } else if (log.type === 'Excès de vitesse') {
+      try {
+        const details = JSON.parse(log.motif || log.detail || '{}');
+        if (details.action === 'OUI') {
+          vehiclesMap[vKey].speedExcessCount++;
+        }
+      } catch (e) {}
+    }
+  });
+
+  const list = Object.values(vehiclesMap).filter(item => {
+    const v = item.v.toLowerCase();
+    const ch = item.chauffeur.toLowerCase();
+    return !q || v.includes(q) || ch.includes(q);
+  });
+
+  list.sort((a, b) => (b.pannesCount + b.ncCount + b.incCount + b.speedExcessCount) - (a.pannesCount + a.ncCount + a.incCount + a.speedExcessCount));
+
+  const body = document.getElementById('an-table-body');
+  if (!body) return;
+
+  if (list.length === 0) {
+    body.innerHTML = '<tr><td colspan="11" style="text-align:center;color:var(--txt3)">Aucun résultat trouvé</td></tr>';
+    return;
+  }
+
+  body.innerHTML = list.map(item => {
+    return `
+      <tr>
+        <td class="mono" style="color:var(--acc);cursor:pointer;font-weight:600" onclick="document.getElementById('an-search').value='${item.v}';onAnalyticsFilterChange();">${item.v}</td>
+        <td style="font-weight:600">${item.chauffeur}</td>
+        <td class="mono" style="text-align:center;color:${item.pannesCount > 0 ? 'var(--red)' : 'var(--txt3)'}">${item.pannesCount > 0 ? `<b>${item.pannesCount}</b>` : '0'}</td>
+        <td class="mono" style="text-align:center;color:${item.ncCount > 0 ? 'var(--org)' : 'var(--txt3)'}">${item.ncCount > 0 ? `<b>${item.ncCount}</b>` : '0'}</td>
+        <td class="mono" style="text-align:center;color:${item.incCount > 0 ? 'var(--yel)' : 'var(--txt3)'}">${item.incCount > 0 ? `<b>${item.incCount}</b>` : '0'}</td>
+        <td class="mono" style="text-align:center;color:${item.sinistreCount > 0 ? '#f87171' : 'var(--txt3)'};font-weight:${item.sinistreCount > 0 ? '700' : 'normal'}">${item.sinistreCount > 0 ? `<b>${item.sinistreCount}</b>` : '0'}</td>
+        <td class="mono" style="text-align:right;padding-right:15px;color:var(--txt2)">${item.gasoilLiters > 0 ? `${item.gasoilLiters.toLocaleString('fr-FR')} L` : '—'}</td>
+        <td class="mono" style="text-align:right;padding-right:15px;color:var(--txt2)">${item.odoDelta > 0 ? `${item.odoDelta.toLocaleString('fr-FR')} km` : '—'}</td>
+        <td class="mono" style="text-align:right;padding-right:15px;color:var(--grn);font-weight:600">${item.bejaiaKm > 0 ? `${item.bejaiaKm.toLocaleString('fr-FR')} km` : '—'}</td>
+        <td class="mono" style="text-align:right;padding-right:15px;color:#38bdf8;font-weight:600">${item.brandtKm > 0 ? `${item.brandtKm.toLocaleString('fr-FR')} km` : '—'}</td>
+        <td class="mono" style="text-align:right;padding-right:15px;color:${item.speedExcessCount > 0 ? 'var(--red)' : 'var(--txt3)'};font-weight:600">${item.speedExcessCount > 0 ? `${item.speedExcessCount}` : '0'}</td>
+      </tr>
+    `;
+  }).join('');
+}
+window.renderAnalytics = renderAnalytics;
+
 function publierFlashInfo() {
   const title = document.getElementById('flash-title').value.trim();
   const content = document.getElementById('flash-content').value.trim();
@@ -14337,203 +14672,6 @@ function toggleGeoloc(idx) {
   showToast(`🛰️ Géoloc ${r.v} → ${newVal === 'ON' ? '🟢 ON' : '🔴 OFF'}`);
 }
 window.toggleGeoloc = toggleGeoloc;
-
-function renderAnalytics() {
-  const q = document.getElementById('an-search')?.value.trim().toLowerCase() || '';
-  const dateFromStr = document.getElementById('an-date-from')?.value || '';
-  const dateToStr = document.getElementById('an-date-to')?.value || '';
-
-  const vehiclesMap = {};
-  
-  (DB.dispo || []).forEach(r => {
-    if (r.v) {
-      vehiclesMap[r.v.toUpperCase()] = {
-        v: r.v.toUpperCase(),
-        chauffeur: r.chauffeur || '—',
-        pannesCount: 0,
-        ncCount: 0,
-        incCount: 0,
-        sinistreCount: 0,
-        gasoilLiters: 0,
-        odoDelta: 0,
-        kmFacture: 0,
-        bejaiaKm: 0,
-        speedExcessCount: 0
-      };
-    }
-  });
-
-  (DB.pannes || []).forEach(p => {
-    if (!p.immat) return;
-    const vKey = p.immat.trim().toUpperCase();
-    if (dateFromStr && p.date && p.date < dateFromStr) return;
-    if (dateToStr && p.date && p.date > dateToStr) return;
-    if (!vehiclesMap[vKey]) {
-      vehiclesMap[vKey] = { v: vKey, chauffeur: '—', pannesCount: 0, ncCount: 0, incCount: 0, sinistreCount: 0, gasoilLiters: 0, odoDelta: 0, kmFacture: 0, bejaiaKm: 0, speedExcessCount: 0 };
-    }
-    vehiclesMap[vKey].pannesCount++;
-  });
-
-  (DB.nc || []).forEach(n => {
-    const chName = (n.sharik || '').trim().toUpperCase();
-    if (!chName) return;
-    if (dateFromStr && n.date && n.date < dateFromStr) return;
-    if (dateToStr && n.date && n.date > dateToStr) return;
-    
-    const foundV = Object.values(vehiclesMap).find(x => x.chauffeur.trim().toUpperCase() === chName);
-    if (foundV) {
-      foundV.ncCount++;
-    }
-  });
-
-  (DB.incidentsLivraison || []).forEach(inc => {
-    if (!inc.v) return;
-    const vKey = inc.v.trim().toUpperCase();
-    const debutDate = inc.debut ? inc.debut.slice(0, 10) : '';
-    if (dateFromStr && debutDate < dateFromStr) return;
-    if (dateToStr && debutDate > dateToStr) return;
-    
-    if (!vehiclesMap[vKey]) {
-      vehiclesMap[vKey] = { v: vKey, chauffeur: inc.chauffeur || '—', pannesCount: 0, ncCount: 0, incCount: 0, sinistreCount: 0, gasoilLiters: 0, odoDelta: 0, kmFacture: 0, bejaiaKm: 0, speedExcessCount: 0 };
-    }
-    vehiclesMap[vKey].incCount++;
-    if (inc.type === 'Sinistre / Avarie') {
-      vehiclesMap[vKey].sinistreCount++;
-    }
-  });
-
-  (DB.gasoil || []).forEach(g => {
-    if (!g.vehicule) return;
-    const vKey = g.vehicule.trim().toUpperCase();
-    if (dateFromStr && g.date && g.date < dateFromStr) return;
-    if (dateToStr && g.date && g.date > dateToStr) return;
-    
-    if (!vehiclesMap[vKey]) {
-      vehiclesMap[vKey] = { v: vKey, chauffeur: g.chauffeur || '—', pannesCount: 0, ncCount: 0, incCount: 0, sinistreCount: 0, gasoilLiters: 0, odoDelta: 0, kmFacture: 0, bejaiaKm: 0, speedExcessCount: 0 };
-    }
-    const qty = parseFloat(g.litres) || 0;
-    vehiclesMap[vKey].gasoilLiters += qty;
-  });
-
-  const odoWeeks = DB.odo_weeks || [];
-  const filteredWeekIndices = [];
-  odoWeeks.forEach((w, idx) => {
-    if (!w) return;
-    if (dateFromStr && w < dateFromStr) return;
-    if (dateToStr && w > dateToStr) return;
-    filteredWeekIndices.push(idx);
-  });
-
-  (DB.odo || []).forEach(r => {
-    if (!r.v) return;
-    const vKey = r.v.trim().toUpperCase();
-    if (!vehiclesMap[vKey]) {
-      vehiclesMap[vKey] = { v: vKey, chauffeur: r.chauffeur || '—', pannesCount: 0, ncCount: 0, incCount: 0, sinistreCount: 0, gasoilLiters: 0, odoDelta: 0, kmFacture: 0, bejaiaKm: 0, speedExcessCount: 0 };
-    }
-
-    const rangeVals = filteredWeekIndices.map(idx => r.vals ? r.vals[idx] : null).filter(val => val && val > 1000);
-    let delta = 0;
-    if (rangeVals.length >= 2) {
-      delta = rangeVals[rangeVals.length - 1] - rangeVals[0];
-    }
-    vehiclesMap[vKey].odoDelta = delta;
-
-    let fact = 0;
-    let hasExplicit = false;
-    filteredWeekIndices.forEach(idx => {
-      if (r.kmFactures && r.kmFactures[idx] !== undefined && r.kmFactures[idx] !== null) {
-        fact += r.kmFactures[idx];
-        hasExplicit = true;
-      }
-    });
-    if (!hasExplicit) {
-      const lastW = odoWeeks[odoWeeks.length - 1];
-      if (dateFromStr && lastW >= dateFromStr && (!dateToStr || lastW <= dateToStr)) {
-        fact = (r.kmFacture !== undefined && r.kmFacture !== null) ? r.kmFacture : 0;
-      }
-    }
-    vehiclesMap[vKey].kmFacture = fact;
-  });
-
-  // Collect and scan all tracabilite logs across all teams
-  let allTracLogs = [];
-  const teams = ['A', 'B', 'C', 'D', 'E', 'F'];
-  teams.forEach(eq => {
-    const db = (eq === CURRENT_EQUIPE && typeof DB !== 'undefined') ? DB : window['DB_' + eq];
-    if (db && db.tracabilite) {
-      db.tracabilite.forEach(log => {
-        allTracLogs.push(log);
-      });
-    }
-  });
-  if (typeof DB !== 'undefined' && DB.tracabilite) {
-    DB.tracabilite.forEach(log => {
-      if (!allTracLogs.includes(log)) allTracLogs.push(log);
-    });
-  }
-
-  allTracLogs.forEach(log => {
-    if (!log.target) return;
-    const vKey = log.target.trim().toUpperCase();
-    const logDate = (log.date || '').slice(0, 10);
-    if (dateFromStr && logDate < dateFromStr) return;
-    if (dateToStr && logDate > dateToStr) return;
-
-    if (!vehiclesMap[vKey]) {
-      vehiclesMap[vKey] = { v: vKey, chauffeur: '—', pannesCount: 0, ncCount: 0, incCount: 0, sinistreCount: 0, gasoilLiters: 0, odoDelta: 0, kmFacture: 0, bejaiaKm: 0, speedExcessCount: 0 };
-    }
-
-    if (log.type === 'Orientation Béjaïa') {
-      try {
-        const details = JSON.parse(log.motif || log.detail || '{}');
-        if (details.action === 'OUI') {
-          vehiclesMap[vKey].bejaiaKm += (details.km || 0);
-        }
-      } catch (e) {}
-    } else if (log.type === 'Excès de vitesse') {
-      try {
-        const details = JSON.parse(log.motif || log.detail || '{}');
-        if (details.action === 'OUI') {
-          vehiclesMap[vKey].speedExcessCount++;
-        }
-      } catch (e) {}
-    }
-  });
-
-  const list = Object.values(vehiclesMap).filter(item => {
-    const v = item.v.toLowerCase();
-    const ch = item.chauffeur.toLowerCase();
-    return !q || v.includes(q) || ch.includes(q);
-  });
-
-  list.sort((a, b) => (b.pannesCount + b.ncCount + b.incCount + b.speedExcessCount) - (a.pannesCount + a.ncCount + a.incCount + a.speedExcessCount));
-
-  const body = document.getElementById('an-table-body');
-  if (!body) return;
-
-  if (list.length === 0) {
-    body.innerHTML = '<tr><td colspan="10" style="text-align:center;color:var(--txt3)">Aucun résultat trouvé</td></tr>';
-    return;
-  }
-
-  body.innerHTML = list.map(item => {
-    return `
-      <tr>
-        <td class="mono" style="color:var(--acc);cursor:pointer;font-weight:600" onclick="document.getElementById('an-search').value='${item.v}';onAnalyticsFilterChange();">${item.v}</td>
-        <td style="font-weight:600">${item.chauffeur}</td>
-        <td class="mono" style="text-align:center;color:${item.pannesCount > 0 ? 'var(--red)' : 'var(--txt3)'}">${item.pannesCount > 0 ? `<b>${item.pannesCount}</b>` : '0'}</td>
-        <td class="mono" style="text-align:center;color:${item.ncCount > 0 ? 'var(--org)' : 'var(--txt3)'}">${item.ncCount > 0 ? `<b>${item.ncCount}</b>` : '0'}</td>
-        <td class="mono" style="text-align:center;color:${item.incCount > 0 ? 'var(--yel)' : 'var(--txt3)'}">${item.incCount > 0 ? `<b>${item.incCount}</b>` : '0'}</td>
-        <td class="mono" style="text-align:center;color:${item.sinistreCount > 0 ? '#f87171' : 'var(--txt3)'};font-weight:${item.sinistreCount > 0 ? '700' : 'normal'}">${item.sinistreCount > 0 ? `<b>${item.sinistreCount}</b>` : '0'}</td>
-        <td class="mono" style="text-align:right;padding-right:15px;color:var(--txt2)">${item.gasoilLiters > 0 ? `${item.gasoilLiters.toLocaleString('fr-FR')} L` : '—'}</td>
-        <td class="mono" style="text-align:right;padding-right:15px;color:var(--txt2)">${item.odoDelta > 0 ? `${item.odoDelta.toLocaleString('fr-FR')} km` : '—'}</td>
-        <td class="mono" style="text-align:right;padding-right:15px;color:var(--grn);font-weight:600">${item.bejaiaKm > 0 ? `${item.bejaiaKm.toLocaleString('fr-FR')} km` : '—'}</td>
-        <td class="mono" style="text-align:right;padding-right:15px;color:${item.speedExcessCount > 0 ? 'var(--red)' : 'var(--txt3)'};font-weight:600">${item.speedExcessCount > 0 ? `${item.speedExcessCount}` : '0'}</td>
-      </tr>
-    `;
-  }).join('');
-}
-window.renderAnalytics = renderAnalytics;
 
 window.toggleGeoloc = toggleGeoloc;
 
@@ -18791,6 +18929,394 @@ function exportSpeedExcessExcel() {
 }
 window.exportSpeedExcessExcel = exportSpeedExcessExcel;
 
+// ─── ORIENTATION BRANDT LOGIQUE ─────────────────────────────────────────────
+window.WILAYA_BRANDT_DISTANCES = {
+  "01": { name: "Adrar", km: 1200 },
+  "02": { name: "Chlef", km: 500 },
+  "03": { name: "Laghouat", km: 450 },
+  "04": { name: "Oum El Bouaghi", km: 180 },
+  "05": { name: "Batna", km: 130 },
+  "06": { name: "Béjaïa", km: 110 },
+  "07": { name: "Biskra", km: 220 },
+  "08": { name: "Béchar", km: 1000 },
+  "09": { name: "Blida", km: 340 },
+  "10": { name: "Bouira", km: 180 },
+  "11": { name: "Tamanrasset", km: 1700 },
+  "12": { name: "Tébessa", km: 260 },
+  "13": { name: "Tlemcen", km: 830 },
+  "14": { name: "Tiaret", km: 500 },
+  "15": { name: "Tizi Ouzou", km: 220 },
+  "16": { name: "Alger", km: 300 },
+  "17": { name: "Djelfa", km: 340 },
+  "18": { name: "Jijel", km: 130 },
+  "19": { name: "Sétif", km: 10 },
+  "20": { name: "Saïda", km: 620 },
+  "21": { name: "Skikda", km: 200 },
+  "22": { name: "Sidi Bel Abbès", km: 750 },
+  "23": { name: "Annaba", km: 270 },
+  "24": { name: "Guelma", km: 200 },
+  "25": { name: "Constantine", km: 130 },
+  "26": { name: "Médéa", km: 380 },
+  "27": { name: "Mostaganem", km: 630 },
+  "28": { name: "M'Sila", km: 120 },
+  "29": { name: "Mascara", km: 650 },
+  "30": { name: "Ouargla", km: 650 },
+  "31": { name: "Oran", km: 700 },
+  "32": { name: "El Bayadh", km: 650 },
+  "33": { name: "Illizi", km: 1300 },
+  "34": { name: "Bordj Bou Arréridj", km: 65 },
+  "35": { name: "Boumerdès", km: 280 },
+  "36": { name: "El Tarf", km: 300 },
+  "37": { name: "Tindouf", km: 1700 },
+  "38": { name: "Tissemsilt", km: 450 },
+  "39": { name: "El Oued", km: 450 },
+  "40": { name: "Khenchela", km: 200 },
+  "41": { name: "Souk Ahras", km: 270 },
+  "42": { name: "Tipaza", km: 370 },
+  "43": { name: "Mila", km: 100 },
+  "44": { name: "Aïn Defla", km: 440 },
+  "45": { name: "Naâma", km: 750 },
+  "46": { name: "Aïn Témouchent", km: 780 },
+  "47": { name: "Ghardaïa", km: 600 },
+  "48": { name: "Relizane", km: 600 },
+  "49": { name: "El M'Ghair", km: 480 },
+  "50": { name: "El Meniaa", km: 850 },
+  "51": { name: "Ouled Djellal", km: 280 },
+  "52": { name: "Bordj Baji Mokhtar", km: 2000 },
+  "53": { name: "Béni Abbès", km: 1200 },
+  "54": { name: "Timimoun", km: 1000 },
+  "55": { name: "Touggourt", km: 550 },
+  "56": { name: "Djanet", km: 1700 },
+  "57": { name: "In Salah", km: 1100 },
+  "58": { name: "In Guezzam", km: 2100 }
+};
+
+function rebuildOrientationBrandtState() {
+  window._ORIENTATION_BRANDT_STATE = {};
+  const todayStr = today();
+  const teams = ['A', 'B', 'C', 'D', 'E', 'F'];
+  let allLogs = [];
+  
+  teams.forEach(eq => {
+    const db = (eq === CURRENT_EQUIPE && typeof DB !== 'undefined') ? DB : window['DB_' + eq];
+    if (db && db.tracabilite) {
+      db.tracabilite.forEach(log => {
+        if (log.type === 'Orientation Brandt') {
+          allLogs.push(log);
+        }
+      });
+    }
+  });
+  
+  if (typeof DB !== 'undefined' && DB.tracabilite) {
+    DB.tracabilite.forEach(log => {
+      if (log.type === 'Orientation Brandt' && !allLogs.includes(log)) {
+        allLogs.push(log);
+      }
+    });
+  }
+  
+  allLogs.sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
+  
+  allLogs.forEach(log => {
+    const logDate = (log.date || '').slice(0, 10);
+    if (logDate === todayStr) {
+      try {
+        const details = JSON.parse(log.motif || log.detail || '{}');
+        window._ORIENTATION_BRANDT_STATE[log.target] = {
+          action: details.action || 'OUI',
+          point_depart: details.wilaya || '',
+          distance_km: details.km || 0,
+          chauffeur: details.chauffeur || '',
+          user: log.operator || log.user_login || 'Admin',
+          timestamp: log.timestamp,
+          date: log.date
+        };
+      } catch (e) {
+        window._ORIENTATION_BRANDT_STATE[log.target] = {
+          action: 'OUI',
+          point_depart: log.motif || '',
+          distance_km: 0,
+          chauffeur: '',
+          user: log.operator || 'Admin',
+          timestamp: log.timestamp,
+          date: log.date
+        };
+      }
+    }
+  });
+}
+window.rebuildOrientationBrandtState = rebuildOrientationBrandtState;
+
+function buildOrientationBrandtCell(vehicle, chauffeur) {
+  if (!window._ORIENTATION_BRANDT_STATE) window._ORIENTATION_BRANDT_STATE = {};
+  const state = window._ORIENTATION_BRANDT_STATE[vehicle];
+  const isActif = state && state.action === 'OUI';
+  
+  if (isActif) {
+    return `<button onclick="toggleOrientationBrandt('${vehicle}', '${chauffeur.replace(/'/g, "\\'")}')" style="background:#38bdf8;color:#000;border:1px solid #0284c7;border-radius:6px;padding:3px 8px;font-size:10px;font-weight:800;cursor:pointer;transition:all .2s;white-space:nowrap;" title="Orienté Brandt (${state.point_depart} - ${state.distance_km} km) — cliquer pour désactiver">🟢 OUI (${state.point_depart})</button>`;
+  } else {
+    return `<button onclick="toggleOrientationBrandt('${vehicle}', '${chauffeur.replace(/'/g, "\\'")}')" style="background:#ef4444;color:#fff;border:1px solid #dc2626;border-radius:6px;padding:3px 10px;font-size:10px;font-weight:700;cursor:pointer;transition:all .2s;white-space:nowrap;" title="Non orienté Brandt — cliquer pour orienter">🔴 NON</button>`;
+  }
+}
+window.buildOrientationBrandtCell = buildOrientationBrandtCell;
+
+function toggleOrientationBrandt(vehicle, chauffeur) {
+  if (!_checkActionsLibres('toggleOrientationBrandt')) return;
+  if (!window._ORIENTATION_BRANDT_STATE) window._ORIENTATION_BRANDT_STATE = {};
+  const state = window._ORIENTATION_BRANDT_STATE[vehicle];
+  const isActif = state && state.action === 'OUI';
+  
+  if (isActif) {
+    if (confirm(`Désactiver l'orientation vers Brandt pour le camion ${vehicle} ?`)) {
+      saveOrientationBrandtLog(vehicle, chauffeur, 'NON', '', 0);
+    }
+  } else {
+    document.getElementById('orient-brandt-modal-v').value = vehicle;
+    document.getElementById('orient-brandt-modal-chauffeur').value = chauffeur;
+    document.getElementById('orient-brandt-modal-wilaya').value = '';
+    openModal('modal-orientation-brandt');
+  }
+}
+window.toggleOrientationBrandt = toggleOrientationBrandt;
+
+function validerOrientationBrandt() {
+  const vehicle = document.getElementById('orient-brandt-modal-v').value;
+  const chauffeur = document.getElementById('orient-brandt-modal-chauffeur').value;
+  const wilayaCode = document.getElementById('orient-brandt-modal-wilaya').value;
+  
+  if (!wilayaCode) {
+    showToast("⚠️ Veuillez sélectionner une Wilaya de départ", true);
+    return;
+  }
+  const wilayaInfo = window.WILAYA_BRANDT_DISTANCES[wilayaCode];
+  if (!wilayaInfo) {
+    showToast("⚠️ Wilaya invalide", true);
+    return;
+  }
+  closeModal('modal-orientation-brandt');
+  saveOrientationBrandtLog(vehicle, chauffeur, 'OUI', wilayaInfo.name, wilayaInfo.km);
+}
+window.validerOrientationBrandt = validerOrientationBrandt;
+
+function saveOrientationBrandtLog(vehicle, chauffeur, action, pointDepart, distanceKm) {
+  const now = new Date();
+  const dateStr = now.getFullYear() + '-' + 
+    String(now.getMonth()+1).padStart(2,'0') + '-' + 
+    String(now.getDate()).padStart(2,'0') + ' ' + 
+    String(now.getHours()).padStart(2,'0') + ':' + 
+    String(now.getMinutes()).padStart(2,'0') + ':' + 
+    String(now.getSeconds()).padStart(2,'0');
+    
+  const operator = typeof getOperatorRole === 'function' ? getOperatorRole() : 'Chef de Section';
+  const details = {
+    action: action,
+    wilaya: pointDepart,
+    km: distanceKm,
+    chauffeur: chauffeur
+  };
+  
+  if (!DB.tracabilite) DB.tracabilite = [];
+  
+  const logEntry = {
+    timestamp: Date.now(),
+    date: dateStr,
+    type: 'Orientation Brandt',
+    targetType: 'TRACTEUR',
+    target: vehicle,
+    operator: operator,
+    motif: JSON.stringify(details)
+  };
+  
+  DB.tracabilite.push(logEntry);
+  saveDB();
+  rebuildOrientationBrandtState();
+  renderDispo();
+  
+  showToast(action === 'OUI' 
+    ? `✅ Camion ${vehicle} orienté vers Brandt depuis ${pointDepart} (${distanceKm} km)`
+    : `❌ Orientation Brandt désactivée pour le camion ${vehicle}`
+  );
+}
+window.saveOrientationBrandtLog = saveOrientationBrandtLog;
+
+function renderOrientationBrandtPage() {
+  const dateFromStr = document.getElementById('an-date-from')?.value || '';
+  const dateToStr = document.getElementById('an-date-to')?.value || '';
+  const q = document.getElementById('an-search')?.value.trim().toLowerCase() || '';
+  
+  rebuildOrientationBrandtState();
+  
+  let allLogs = [];
+  const teams = ['A', 'B', 'C', 'D', 'E', 'F'];
+  
+  teams.forEach(eq => {
+    const db = (eq === CURRENT_EQUIPE && typeof DB !== 'undefined') ? DB : window['DB_' + eq];
+    if (db && db.tracabilite) {
+      db.tracabilite.forEach(log => {
+        if (log.type === 'Orientation Brandt') {
+          allLogs.push(Object.assign({ team: eq }, log));
+        }
+      });
+    }
+  });
+  
+  if (typeof DB !== 'undefined' && DB.tracabilite) {
+    DB.tracabilite.forEach(log => {
+      if (log.type === 'Orientation Brandt' && !allLogs.some(l => l.timestamp === log.timestamp && l.target === log.target)) {
+        allLogs.push(Object.assign({ team: CURRENT_EQUIPE }, log));
+      }
+    });
+  }
+  
+  allLogs.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+  
+  let filteredLogs = allLogs.filter(log => {
+    const logDate = (log.date || '').slice(0, 10);
+    if (dateFromStr && logDate < dateFromStr) return false;
+    if (dateToStr && logDate > dateToStr) return false;
+    
+    let details = {};
+    try {
+      details = JSON.parse(log.motif || log.detail || '{}');
+    } catch(e) {}
+    
+    const targetVal = (log.target || '').toLowerCase();
+    const chauffeurVal = (details.chauffeur || '').toLowerCase();
+    const wilayaVal = (details.wilaya || '').toLowerCase();
+    
+    if (q) {
+      if (!targetVal.includes(q) && 
+          !chauffeurVal.includes(q) && 
+          !wilayaVal.includes(q)) {
+        return false;
+      }
+    }
+    return true;
+  });
+  
+  let totalKm = 0;
+  let totalCount = 0;
+  
+  filteredLogs.forEach(log => {
+    let details = {};
+    try {
+      details = JSON.parse(log.motif || log.detail || '{}');
+    } catch(e) {}
+    
+    const action = details.action || 'OUI';
+    if (action === 'OUI') {
+      totalKm += (details.km || 0);
+      totalCount++;
+    }
+  });
+  
+  const statKmEl = document.getElementById('orient-brandt-stat-km');
+  const statCountEl = document.getElementById('orient-brandt-stat-count');
+  
+  if (statKmEl) statKmEl.textContent = totalKm.toLocaleString('fr-FR') + ' KM';
+  if (statCountEl) statCountEl.textContent = totalCount.toLocaleString('fr-FR');
+  
+  const tbody = document.getElementById('orient-brandt-history-body');
+  if (!tbody) return;
+  
+  if (filteredLogs.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="7" style="text-align:center;padding:24px;color:#94a3b8">Aucun enregistrement d'orientation Brandt trouvé sur cette période.</td></tr>`;
+    return;
+  }
+  
+  tbody.innerHTML = filteredLogs.map(log => {
+    let details = {};
+    try {
+      details = JSON.parse(log.motif || log.detail || '{}');
+    } catch(e) {}
+    
+    const action = details.action || 'OUI';
+    const statusBadge = action === 'OUI'
+      ? '<span style="background:rgba(56,189,248,0.15);color:#38bdf8;border:1px solid rgba(56,189,248,0.4);border-radius:6px;padding:2px 8px;font-size:11px;font-weight:800">🟢 OUI</span>'
+      : '<span style="background:rgba(239,68,68,0.15);color:#ef4444;border:1px solid rgba(239,68,68,0.4);border-radius:6px;padding:2px 8px;font-size:11px;font-weight:800">🔴 NON</span>';
+      
+    const distStr = action === 'OUI' ? `${details.km || 0} km` : '—';
+    const startStr = action === 'OUI' ? (details.wilaya || '—') : '—';
+    const chauffeurStr = details.chauffeur || '—';
+    
+    return `
+      <tr style="border-bottom:1px solid rgba(255,255,255,0.05)">
+        <td style="font-family:monospace;font-size:11px;color:#94a3b8">${log.date || '—'}</td>
+        <td style="font-weight:800;color:var(--acc);font-family:monospace">${log.target || '—'}</td>
+        <td style="font-weight:600;color:#fff">${chauffeurStr}</td>
+        <td>${startStr}</td>
+        <td style="font-family:monospace;color:var(--yel);font-weight:600">${distStr}</td>
+        <td style="text-align:center">${statusBadge}</td>
+        <td style="font-size:11px;color:#cbd5e1">${log.operator || log.user_login || 'Admin'} <span style="color:#64748b;font-size:9px;">(Éq. ${log.team || '—'})</span></td>
+      </tr>
+    `;
+  }).join('');
+}
+window.renderOrientationBrandtPage = renderOrientationBrandtPage;
+
+function exportOrientationBrandtExcel() {
+  if (typeof XLSX === 'undefined') {
+    showToast('⚠️ SheetJS non chargé', true);
+    return;
+  }
+  
+  rebuildOrientationBrandtState();
+  
+  let allLogs = [];
+  const teams = ['A', 'B', 'C', 'D', 'E', 'F'];
+  
+  teams.forEach(eq => {
+    const db = (eq === CURRENT_EQUIPE && typeof DB !== 'undefined') ? DB : window['DB_' + eq];
+    if (db && db.tracabilite) {
+      db.tracabilite.forEach(log => {
+        if (log.type === 'Orientation Brandt') {
+          allLogs.push(Object.assign({ team: eq }, log));
+        }
+      });
+    }
+  });
+  
+  if (typeof DB !== 'undefined' && DB.tracabilite) {
+    DB.tracabilite.forEach(log => {
+      if (log.type === 'Orientation Brandt' && !allLogs.some(l => l.timestamp === log.timestamp && l.target === log.target)) {
+        allLogs.push(Object.assign({ team: CURRENT_EQUIPE }, log));
+      }
+    });
+  }
+  
+  allLogs.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+  
+  const data = [['Date & Heure', 'Véhicule', 'Chauffeur', 'Point de Départ', 'Distance (KM)', 'Orientation Active', 'Opérateur', 'Équipe']];
+  
+  allLogs.forEach(log => {
+    let details = {};
+    try {
+      details = JSON.parse(log.motif || log.detail || '{}');
+    } catch(e) {}
+    
+    const action = details.action || 'OUI';
+    
+    data.push([
+      log.date || '',
+      log.target || '',
+      details.chauffeur || '',
+      action === 'OUI' ? (details.wilaya || '') : '',
+      action === 'OUI' ? (details.km || 0) : 0,
+      action === 'OUI' ? 'OUI' : 'NON',
+      log.operator || log.user_login || 'Admin',
+      log.team || ''
+    ]);
+  });
+  
+  const ws = XLSX.utils.aoa_to_sheet(data);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, "Orientations_Brandt");
+  XLSX.writeFile(wb, "Numiplan_Orientations_Brandt_" + today() + ".xlsx");
+  showToast("📥 Historique des orientations Brandt exporté avec succès !");
+}
+window.exportOrientationBrandtExcel = exportOrientationBrandtExcel;
+
 // ─── SOUS-ONGLETS ANALYSES LOGIQUE ──────────────────────────────────────────
 function switchAnalyticsSubTab(tabName) {
   document.querySelectorAll('.analytics-subpage').forEach(el => el.style.display = 'none');
@@ -18814,6 +19340,7 @@ function switchAnalyticsSubTab(tabName) {
   
   if (tabName === 'performance') renderAnalytics();
   else if (tabName === 'orientation') renderOrientationBejaiaPage();
+  else if (tabName === 'brandt') renderOrientationBrandtPage();
   else if (tabName === 'speed-excess') renderSpeedExcessPage();
 }
 window.switchAnalyticsSubTab = switchAnalyticsSubTab;
@@ -18824,6 +19351,7 @@ function onAnalyticsFilterChange() {
   
   if (tabName === 'performance') renderAnalytics();
   else if (tabName === 'orientation') renderOrientationBejaiaPage();
+  else if (tabName === 'brandt') renderOrientationBrandtPage();
   else if (tabName === 'speed-excess') renderSpeedExcessPage();
 }
 window.onAnalyticsFilterChange = onAnalyticsFilterChange;
