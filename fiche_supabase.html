@@ -523,6 +523,12 @@
         data.forEach(row => {
           const eq = row.team;
           const payload = row.payload;
+          if (eq === 'SHARIK_EDITS') {
+            window._ADMIN_SHARIK_CUSTOM_EDITS = payload || {};
+            localStorage.setItem('numiplan_admin_sharik_custom_edits', JSON.stringify(window._ADMIN_SHARIK_CUSTOM_EDITS));
+            if (typeof renderAdminEntreesSorties === 'function') renderAdminEntreesSorties();
+            return;
+          }
           _fbLoaded[eq] = true;
           const currentEq = getCurrentEquipe();
           if (eq === currentEq) {
@@ -561,15 +567,21 @@
               if (payload.new && payload.new.team) {
                 const eq = payload.new.team;
                 const data = payload.new.payload;
-                _fbLoaded[eq] = true;
-                const currentEq = getCurrentEquipe();
-                if (eq === currentEq) {
-                  _fbReady = true;
+                if (eq === 'SHARIK_EDITS') {
+                  window._ADMIN_SHARIK_CUSTOM_EDITS = data || {};
+                  localStorage.setItem('numiplan_admin_sharik_custom_edits', JSON.stringify(window._ADMIN_SHARIK_CUSTOM_EDITS));
+                  if (typeof renderAdminEntreesSorties === 'function') renderAdminEntreesSorties();
+                } else {
+                  _fbLoaded[eq] = true;
+                  const currentEq = getCurrentEquipe();
+                  if (eq === currentEq) {
+                    _fbReady = true;
+                  }
+                  applyEquipeData(eq, data);
+                  populateLoginUserDropdown();
+                  if (typeof alignOdoWeeksGlobal === 'function') alignOdoWeeksGlobal();
+                  if (typeof updateHeaderRAC === 'function') updateHeaderRAC();
                 }
-                applyEquipeData(eq, data);
-                populateLoginUserDropdown();
-                if (typeof alignOdoWeeksGlobal === 'function') alignOdoWeeksGlobal();
-                if (typeof updateHeaderRAC === 'function') updateHeaderRAC();
               }
             }
           )
@@ -17174,6 +17186,7 @@ async function deciderDemandeValidation(reqId, approve) {
       _ADMIN_SHARIK_CUSTOM_EDITS[editKey].date_out = new Date().toISOString().slice(0, 10);
       _ADMIN_SHARIK_CUSTOM_EDITS[editKey].motif_out = req.motif || 'Sortie validée par Direction';
       localStorage.setItem('numiplan_admin_sharik_custom_edits', JSON.stringify(_ADMIN_SHARIK_CUSTOM_EDITS));
+      pushSharikEditsToCloud();
     }
   }
 
@@ -17338,6 +17351,26 @@ function findBestNumiplanSuggestion(registryName, numiplanDrivers) {
   } catch(e) {}
 
 let _ADMIN_SHARIK_CUSTOM_EDITS = JSON.parse(localStorage.getItem('numiplan_admin_sharik_custom_edits') || '{}');
+
+function pushSharikEditsToCloud() {
+  if (window.supabase) {
+    window.supabase.from('numiplan_teams')
+      .upsert({
+        team: 'SHARIK_EDITS',
+        payload: _ADMIN_SHARIK_CUSTOM_EDITS,
+        updated_at: new Date().toISOString()
+      }).then(({error}) => {
+        if (error) console.error("Error upserting SHARIK_EDITS to Supabase:", error);
+      });
+  }
+}
+
+// Proactive migration: push to Supabase on startup if edits exist locally
+if (Object.keys(_ADMIN_SHARIK_CUSTOM_EDITS).length > 0) {
+  setTimeout(() => {
+    pushSharikEditsToCloud();
+  }, 3000);
+}
 
 
 window._REGISTRE_ACTIVE_CARD_FILTER = 'ALL';
@@ -17660,9 +17693,9 @@ function renderAdminEntreesSorties() {
     } catch(e) {}
   });
 
-  // Chauffeurs physiques actifs = Exactement tous les chauffeurs uniques sur Numiplan
-  const totalActifs = (globalUniqueAllDrivers.size > 0) ? globalUniqueAllDrivers.size : rawList.filter(r => r.statut === 'ACTIF').length;
-  const totalExtensions = (globalUniqueExtDrivers.size > 0) ? globalUniqueExtDrivers.size : rawList.filter(r => r.statut === 'ACTIF' && r.is_extension).length;
+  // Chauffeurs physiques actifs = Exactement tous les chauffeurs actifs au registre
+  const totalActifs = rawList.filter(r => r.statut === 'ACTIF').length;
+  const totalExtensions = rawList.filter(r => r.statut === 'ACTIF' && r.is_extension).length;
   const totalCamionsParc = (globalTotalCamions > 0) ? globalTotalCamions : 181;
   const totalInactifs = rawList.filter(r => r.statut === 'INACTIF').length;
 
@@ -17845,6 +17878,7 @@ async function validerLiaisonSuggestion(editKey, targetName, targetV, targetRm) 
   _ADMIN_SHARIK_CUSTOM_EDITS[editKey].statut = 'ACTIF';
 
   localStorage.setItem('numiplan_admin_sharik_custom_edits', JSON.stringify(_ADMIN_SHARIK_CUSTOM_EDITS));
+  pushSharikEditsToCloud();
 
   renderAdminEntreesSorties();
   showToast(`✅ Liaison avec « ${targetName} » (TR: ${targetV || '—'} / RM: ${targetRm || '—'}) validée par la Direction`);
@@ -17910,6 +17944,7 @@ function saveAdminSharikEdit() {
 
   _ADMIN_SHARIK_CUSTOM_EDITS[editKey] = updatedObj;
   localStorage.setItem('numiplan_admin_sharik_custom_edits', JSON.stringify(_ADMIN_SHARIK_CUSTOM_EDITS));
+  pushSharikEditsToCloud();
 
   const modal = document.getElementById('modal-admin-edit-sharik');
   if (modal) {
