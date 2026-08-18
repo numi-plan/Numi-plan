@@ -3104,9 +3104,9 @@ mark.hl { background: rgba(56,189,248,.25); color: var(--acc); border-radius: 3p
               <th style="text-align:center">Pannes</th>
               <th style="text-align:center">Non-conformités</th>
               <th style="text-align:center">Incidents</th>
+              <th style="text-align:center;color:#f87171">Sinistre / Accident</th>
               <th style="text-align:right;padding-right:15px">Gasoil</th>
               <th style="text-align:right;padding-right:15px">Distance (Odo)</th>
-              <th style="text-align:right;padding-right:15px">RAC</th>
               <th style="text-align:right;padding-right:15px;color:#22c55e">Orientation (km)</th>
               <th style="text-align:right;padding-right:15px;color:#ef4444">Excès vitesse</th>
             </tr>
@@ -14517,29 +14517,16 @@ function renderAnalytics() {
   }
 
   body.innerHTML = list.map(item => {
-    const rac = item.odoDelta > 0 ? (item.kmFacture / item.odoDelta) * 100 : 0;
-    const racStr = item.odoDelta > 0 && item.kmFacture > 0 ? `${rac.toFixed(1)}%` : '—';
-    
-    let racBadgeStyle = 'color:var(--txt3)';
-    if (rac > 0) {
-      if (rac < 40) racBadgeStyle = 'color:var(--red);font-weight:700';
-      else if (rac < 50) racBadgeStyle = 'color:var(--org);font-weight:700';
-      else racBadgeStyle = 'color:var(--grn);font-weight:700';
-    }
-
     return `
       <tr>
         <td class="mono" style="color:var(--acc);cursor:pointer;font-weight:600" onclick="document.getElementById('an-search').value='${item.v}';onAnalyticsFilterChange();">${item.v}</td>
         <td style="font-weight:600">${item.chauffeur}</td>
         <td class="mono" style="text-align:center;color:${item.pannesCount > 0 ? 'var(--red)' : 'var(--txt3)'}">${item.pannesCount > 0 ? `<b>${item.pannesCount}</b>` : '0'}</td>
         <td class="mono" style="text-align:center;color:${item.ncCount > 0 ? 'var(--org)' : 'var(--txt3)'}">${item.ncCount > 0 ? `<b>${item.ncCount}</b>` : '0'}</td>
-        <td class="mono" style="text-align:center;color:${item.incCount > 0 ? 'var(--yel)' : 'var(--txt3)'}">
-          ${item.incCount > 0 ? `<b>${item.incCount}</b>` : '0'}
-          ${item.sinistreCount > 0 ? `<span style="font-size:9px;color:var(--red);background:rgba(239,68,68,0.15);padding:1px 4px;border-radius:3px;margin-left:4px" title="Sinistre / Avarie">⚠️ ${item.sinistreCount}</span>` : ''}
-        </td>
+        <td class="mono" style="text-align:center;color:${item.incCount > 0 ? 'var(--yel)' : 'var(--txt3)'}">${item.incCount > 0 ? `<b>${item.incCount}</b>` : '0'}</td>
+        <td class="mono" style="text-align:center;color:${item.sinistreCount > 0 ? '#f87171' : 'var(--txt3)'};font-weight:${item.sinistreCount > 0 ? '700' : 'normal'}">${item.sinistreCount > 0 ? `<b>${item.sinistreCount}</b>` : '0'}</td>
         <td class="mono" style="text-align:right;padding-right:15px;color:var(--txt2)">${item.gasoilLiters > 0 ? `${item.gasoilLiters.toLocaleString('fr-FR')} L` : '—'}</td>
         <td class="mono" style="text-align:right;padding-right:15px;color:var(--txt2)">${item.odoDelta > 0 ? `${item.odoDelta.toLocaleString('fr-FR')} km` : '—'}</td>
-        <td class="mono" style="text-align:right;padding-right:15px;${racBadgeStyle}">${racStr}</td>
         <td class="mono" style="text-align:right;padding-right:15px;color:var(--grn);font-weight:600">${item.bejaiaKm > 0 ? `${item.bejaiaKm.toLocaleString('fr-FR')} km` : '—'}</td>
         <td class="mono" style="text-align:right;padding-right:15px;color:${item.speedExcessCount > 0 ? 'var(--red)' : 'var(--txt3)'};font-weight:600">${item.speedExcessCount > 0 ? `${item.speedExcessCount}` : '0'}</td>
       </tr>
