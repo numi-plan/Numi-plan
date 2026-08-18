@@ -17366,7 +17366,12 @@ function ouvrirModalEditionSharik(idx) {
   document.getElementById('edit-sharik-tracteur').value = r.tracteur || '';
   document.getElementById('edit-sharik-remorque').value = r.remorque || '';
   document.getElementById('edit-sharik-date-in').value = (r.date_in || '').slice(0, 10);
-  document.getElementById('edit-sharik-date-contrat-fin').value = (r.date_contrat_fin || '').slice(0, 10);
+  
+  const elContratFin = document.getElementById('edit-sharik-date-contrat-fin');
+  if (elContratFin) {
+    elContratFin.value = (r.date_contrat_fin || '').slice(0, 10);
+  }
+  
   document.getElementById('edit-sharik-date-out').value = (r.date_out || '').slice(0, 10);
   document.getElementById('edit-sharik-contrat').value = r.contrat || 'CDD';
   document.getElementById('edit-sharik-regime').value = r.regime || 'IFU';
@@ -17385,13 +17390,16 @@ function saveAdminSharikEdit() {
   const editKey = document.getElementById('edit-sharik-index').value;
   if (!editKey) return;
 
+  const elContratFin = document.getElementById('edit-sharik-date-contrat-fin');
+  const dateContratFinVal = elContratFin ? elContratFin.value : '';
+
   const updatedObj = {
     code: document.getElementById('edit-sharik-code').value.trim(),
     sharik: document.getElementById('edit-sharik-name').value.trim(),
     tracteur: document.getElementById('edit-sharik-tracteur').value.trim(),
     remorque: document.getElementById('edit-sharik-remorque').value.trim(),
     date_in: document.getElementById('edit-sharik-date-in').value,
-    date_contrat_fin: document.getElementById('edit-sharik-date-contrat-fin').value,
+    date_contrat_fin: dateContratFinVal,
     date_out: document.getElementById('edit-sharik-date-out').value,
     contrat: document.getElementById('edit-sharik-contrat').value,
     regime: document.getElementById('edit-sharik-regime').value.trim(),
