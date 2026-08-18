@@ -2369,6 +2369,7 @@ mark.hl { background: rgba(56,189,248,.25); color: var(--acc); border-radius: 3p
   <button class="tab-btn" onclick="switchTab('tracabilite',this)">📜 Traçabilité <span class="tab-count" id="cnt-tracabilite" style="display:none;">—</span></button>
   <button class="tab-btn" id="tab-flashinfo" onclick="switchTab('flashinfo',this)">📢 Flash Info</button>
   <button class="tab-btn" id="tab-poi" onclick="switchTab('poi',this)">🛰️ Suivi POI <span class="tab-count red" id="cnt-poi-alerts" style="display:none;background:#ef4444">—</span></button>
+  <button class="tab-btn" id="tab-orientation-bejaia" onclick="switchTab('orientation-bejaia',this)" style="color:#22c55e;border-color:rgba(34,197,94,.3)">🚛 Orientation Béjaïa</button>
   <button class="tab-btn" onclick="ouvrirHistoriqueAnomalies()" style="color:#fbbf24;border-color:rgba(251,191,36,.3)">📊 Historique Anomalies</button>
   <button class="tab-btn" id="tab-admin-direction" onclick="ouvrirEspaceAdminDirection(this)" style="color:#38bdf8;border-color:rgba(56,189,248,.3);margin-top:6px;background:rgba(56,189,248,0.06);font-weight:800">🏛️ Espace Direction 🔒</button>
 </div>
@@ -2780,7 +2781,7 @@ mark.hl { background: rgba(56,189,248,.25); color: var(--acc); border-radius: 3p
     <div class="sec-title">État du parc véhicules</div>
     <div class="table-wrap">
       <table>
-        <thead><tr><th>Véhicule</th><th>État</th><th>Chauffeur</th><th>Horaire</th><th>Lieu Jour</th><th>Lieu J+1</th><th>Barre</th><th>Câble</th><th>Affecté</th><th>KM</th><th>RAC (S-1)</th><th>Observation</th><th class="col-assurance" style="color:var(--grn)">🛡 Ass. TR</th><th class="col-assurance" style="color:var(--acc)">🛡 Ass. RM</th><th>Actions</th></tr></thead>
+        <thead><tr><th>Véhicule</th><th>État</th><th>Chauffeur</th><th>Horaire</th><th>Lieu Jour</th><th>Lieu J+1</th><th>Barre</th><th>Câble</th><th>Affecté</th><th>KM</th><th>RAC (S-1)</th><th>Observation</th><th style="color:#22c55e">🚛 Bejaia</th><th class="col-assurance" style="color:var(--grn)">🛡 Ass. TR</th><th class="col-assurance" style="color:var(--acc)">🛡 Ass. RM</th><th>Actions</th></tr></thead>
         <tbody id="dispo-body"></tbody>
       </table>
     </div>
@@ -3282,6 +3283,70 @@ mark.hl { background: rgba(56,189,248,.25); color: var(--acc); border-radius: 3p
           </tr>
         </thead>
         <tbody id="tracabilite-body"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════ ORIENTATION BÉJAÏA (DÉDIÉ) ══════════════ -->
+<div id="page-orientation-bejaia" class="page" style="display:none;">
+  <div class="filter-bar" style="background:linear-gradient(90deg, rgba(34,197,94,0.1) 0%, rgba(15,23,42,0.9) 100%);border-bottom:2px solid #22c55e;padding:12px 16px;border-radius:12px;margin-bottom:20px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px">
+    <div style="display:flex;align-items:center;gap:10px">
+      <span style="font-size:20px">🚛</span>
+      <div>
+        <div style="font-size:15px;font-weight:800;color:#fff;letter-spacing:0.5px">SUIVI DES ORIENTATIONS BÉJAÏA</div>
+        <div style="font-size:11px;color:#94a3b8">Historique, kilométrage généré et statistiques des orientations vers Béjaïa</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="filter-bar" style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-bottom:20px;">
+    <div style="display:flex;flex-direction:column;gap:4px;">
+      <label style="font-size:11px;color:var(--txt2);font-weight:700;">Date Début</label>
+      <input type="date" id="orient-filter-start" class="filter-input" onchange="renderOrientationBejaiaPage()" style="background:var(--bg3);color:var(--txt);border:1px solid var(--border);border-radius:8px;padding:8px 12px;">
+    </div>
+    <div style="display:flex;flex-direction:column;gap:4px;">
+      <label style="font-size:11px;color:var(--txt2);font-weight:700;">Date Fin</label>
+      <input type="date" id="orient-filter-end" class="filter-input" onchange="renderOrientationBejaiaPage()" style="background:var(--bg3);color:var(--txt);border:1px solid var(--border);border-radius:8px;padding:8px 12px;">
+    </div>
+    <div style="display:flex;flex-direction:column;gap:4px;flex-grow:1;">
+      <label style="font-size:11px;color:var(--txt2);font-weight:700;">Recherche Camion / Chauffeur</label>
+      <input type="text" id="orient-filter-search" class="filter-input" placeholder="Saisir immatriculation ou nom..." oninput="renderOrientationBejaiaPage()" style="background:var(--bg3);color:var(--txt);border:1px solid var(--border);border-radius:8px;padding:8px 12px;width:100%;">
+    </div>
+    <div style="display:flex;flex-direction:column;gap:4px;justify-content:flex-end;align-self:flex-end;">
+      <button onclick="exportOrientationBejaiaExcel()" class="btn" style="background:#22c55e;color:#000;font-weight:800;padding:9px 18px;border-radius:8px;display:flex;align-items:center;gap:6px;border:none;cursor:pointer;">📥 Exporter Excel</button>
+    </div>
+  </div>
+
+  <div class="stats-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px;">
+    <div class="stat-card" style="border-left-color:#22c55e;background:rgba(34,197,94,0.04);">
+      <div class="stat-num" id="orient-stat-km" style="color:#22c55e;">0 KM</div>
+      <div class="stat-lbl">KILOMÉTRAGE TOTAL ORIENTÉ</div>
+    </div>
+    <div class="stat-card" style="border-left-color:#38bdf8;background:rgba(56,189,248,0.04);">
+      <div class="stat-num" id="orient-stat-count" style="color:#38bdf8;">0</div>
+      <div class="stat-lbl">NOMBRE TOTAL D'ORIENTATIONS ACTIVES</div>
+    </div>
+  </div>
+
+  <div style="padding-top:10px">
+    <div class="sec-title">Journal des Mouvements d'Orientation</div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Date / Heure</th>
+            <th>Véhicule (Camion)</th>
+            <th>Chauffeur</th>
+            <th>Point de Départ (Wilaya)</th>
+            <th>Distance (KM)</th>
+            <th>Statut</th>
+            <th>Opérateur / Rôle</th>
+          </tr>
+        </thead>
+        <tbody id="orient-history-body">
+          <tr><td colspan="7" style="text-align:center;padding:20px;color:#94a3b8">Aucun enregistrement d'orientation trouvé.</td></tr>
+        </tbody>
       </table>
     </div>
   </div>
@@ -4261,6 +4326,68 @@ mark.hl { background: rgba(56,189,248,.25); color: var(--acc); border-radius: 3p
 <div class="toast" id="toast"></div>
 
 <script>
+  const WILAYA_BEJAIA_DISTANCES = {
+    "01": { name: "Adrar", km: 1400 },
+    "02": { name: "Chlef", km: 380 },
+    "03": { name: "Laghouat", km: 520 },
+    "04": { name: "Oum El Bouaghi", km: 240 },
+    "05": { name: "Batna", km: 210 },
+    "06": { name: "Béjaïa", km: 0 },
+    "07": { name: "Biskra", km: 320 },
+    "08": { name: "Béchar", km: 1150 },
+    "09": { name: "Blida", km: 290 },
+    "10": { name: "Bouira", km: 110 },
+    "11": { name: "Tamanrasset", km: 2000 },
+    "12": { name: "Tébessa", km: 380 },
+    "13": { name: "Tlemcen", km: 740 },
+    "14": { name: "Tiaret", km: 460 },
+    "15": { name: "Tizi Ouzou", km: 130 },
+    "16": { name: "Alger", km: 250 },
+    "17": { name: "Djelfa", km: 420 },
+    "18": { name: "Jijel", km: 90 },
+    "19": { name: "Sétif", km: 110 },
+    "20": { name: "Saïda", km: 580 },
+    "21": { name: "Skikda", km: 220 },
+    "22": { name: "Sidi Bel Abbès", km: 660 },
+    "23": { name: "Annaba", km: 310 },
+    "24": { name: "Guelma", km: 290 },
+    "25": { name: "Constantine", km: 220 },
+    "26": { name: "Médéa", km: 320 },
+    "27": { name: "Mostaganem", km: 530 },
+    "28": { name: "M'Sila", km: 170 },
+    "29": { name: "Mascara", km: 590 },
+    "30": { name: "Ouargla", km: 680 },
+    "31": { name: "Oran", km: 610 },
+    "32": { name: "El Bayadh", km: 720 },
+    "33": { name: "Illizi", km: 1600 },
+    "34": { name: "Bordj Bou Arréridj", km: 120 },
+    "35": { name: "Boumerdès", km: 210 },
+    "36": { name: "El Tarf", km: 360 },
+    "37": { name: "Tindouf", km: 1950 },
+    "38": { name: "Tissemsilt", km: 420 },
+    "39": { name: "El Oued", km: 580 },
+    "40": { name: "Khenchela", km: 290 },
+    "41": { name: "Souk Ahras", km: 360 },
+    "42": { name: "Tipaza", km: 310 },
+    "43": { name: "Mila", km: 180 },
+    "44": { name: "Aïn Defla", km: 390 },
+    "45": { name: "Naâma", km: 850 },
+    "46": { name: "Aïn Témouchent", km: 680 },
+    "47": { name: "Ghardaïa", km: 700 },
+    "48": { name: "Relizane", km: 480 },
+    "49": { name: "El M'Ghair", km: 490 },
+    "50": { name: "El Meniaa", km: 970 },
+    "51": { name: "Ouled Djellal", km: 380 },
+    "52": { name: "Bordj Baji Mokhtar", km: 2200 },
+    "53": { name: "Béni Abbès", km: 1350 },
+    "54": { name: "Timimoun", km: 1200 },
+    "55": { name: "Touggourt", km: 580 },
+    "56": { name: "Djanet", km: 2100 },
+    "57": { name: "In Salah", km: 1150 },
+    "58": { name: "In Guezzam", km: 2400 }
+  };
+  window.WILAYA_BEJAIA_DISTANCES = WILAYA_BEJAIA_DISTANCES;
+
   // ─── MODE CLAIR / SOMBRE (PERSISTANT) ───────────────────────────────────────
   window.toggleTheme = function() {
     const isLight = document.body.classList.toggle('light-theme');
@@ -6097,6 +6224,95 @@ window.imprimerListeBLManquants = imprimerListeBLManquants;
   </div>
 </div>
 
+<!-- Modal Orientation Béjaïa (Sélection Wilaya) -->
+<div class="modal-overlay" id="modal-orientation-bejaia" style="z-index:999999; backdrop-filter:blur(6px)">
+  <div class="modal" style="width:480px; max-width:92vw; background:var(--bg2, #18223f); border:1.5px solid #22c55e; border-radius:16px; padding:24px; box-shadow:0 25px 50px -12px rgba(0,0,0,0.8); text-align:left">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px; border-bottom:1px solid var(--border); padding-bottom:10px">
+      <h3 style="margin:0; font-size:15px; color:#22c55e; display:flex; align-items:center; gap:8px">
+        🚛 Nouvelle Orientation Béjaïa
+      </h3>
+      <button class="del-btn" onclick="closeModal('modal-orientation-bejaia')" style="background:none; border:none; color:#aaa; font-size:22px; cursor:pointer">✕</button>
+    </div>
+    
+    <input type="hidden" id="orient-modal-v">
+    <input type="hidden" id="orient-modal-chauffeur">
+
+    <p style="font-size:12px; color:#cbd5e1; margin-bottom:16px; line-height:1.5">
+      Sélectionnez le point de départ pour calculer automatiquement la distance jusqu'à la base de Béjaïa :
+    </p>
+
+    <div style="margin-bottom:20px">
+      <label style="font-size:11px; font-weight:700; color:var(--txt2); display:block; margin-bottom:6px">Point de Départ (Wilaya)</label>
+      <select id="orient-modal-wilaya" style="width:100%; background:var(--bg3, #0f172a); border:1.5px solid var(--border, #334155); border-radius:8px; padding:10px 14px; color:#fff; font-size:14px; outline:none; font-weight:700;">
+        <option value="">— Sélectionner la Wilaya —</option>
+        <option value="01">01 - Adrar</option>
+        <option value="02">02 - Chlef</option>
+        <option value="03">03 - Laghouat</option>
+        <option value="04">04 - Oum El Bouaghi</option>
+        <option value="05">05 - Batna</option>
+        <option value="06">06 - Béjaïa</option>
+        <option value="07">07 - Biskra</option>
+        <option value="08">08 - Béchar</option>
+        <option value="09">09 - Blida</option>
+        <option value="10">10 - Bouira</option>
+        <option value="11">11 - Tamanrasset</option>
+        <option value="12">12 - Tébessa</option>
+        <option value="13">13 - Tlemcen</option>
+        <option value="14">14 - Tiaret</option>
+        <option value="15">15 - Tizi Ouzou</option>
+        <option value="16">16 - Alger</option>
+        <option value="17">17 - Djelfa</option>
+        <option value="18">18 - Jijel</option>
+        <option value="19">19 - Sétif</option>
+        <option value="20">20 - Saïda</option>
+        <option value="21">21 - Skikda</option>
+        <option value="22">22 - Sidi Bel Abbès</option>
+        <option value="23">23 - Annaba</option>
+        <option value="24">24 - Guelma</option>
+        <option value="25">25 - Constantine</option>
+        <option value="26">26 - Médéa</option>
+        <option value="27">27 - Mostaganem</option>
+        <option value="28">28 - M'Sila</option>
+        <option value="29">29 - Mascara</option>
+        <option value="30">30 - Ouargla</option>
+        <option value="31">31 - Oran</option>
+        <option value="32">32 - El Bayadh</option>
+        <option value="33">33 - Illizi</option>
+        <option value="34">34 - Bordj Bou Arréridj</option>
+        <option value="35">35 - Boumerdès</option>
+        <option value="36">36 - El Tarf</option>
+        <option value="37">37 - Tindouf</option>
+        <option value="38">38 - Tissemsilt</option>
+        <option value="39">39 - El Oued</option>
+        <option value="40">40 - Khenchela</option>
+        <option value="41">41 - Souk Ahras</option>
+        <option value="42">42 - Tipaza</option>
+        <option value="43">43 - Mila</option>
+        <option value="44">44 - Aïn Defla</option>
+        <option value="45">45 - Naâma</option>
+        <option value="46">46 - Aïn Témouchent</option>
+        <option value="47">47 - Ghardaïa</option>
+        <option value="48">48 - Relizane</option>
+        <option value="49">49 - El M'Ghair</option>
+        <option value="50">50 - El Meniaa</option>
+        <option value="51">51 - Ouled Djellal</option>
+        <option value="52">52 - Bordj Baji Mokhtar</option>
+        <option value="53">53 - Béni Abbès</option>
+        <option value="54">54 - Timimoun</option>
+        <option value="55">55 - Touggourt</option>
+        <option value="56">56 - Djanet</option>
+        <option value="57">57 - In Salah</option>
+        <option value="58">58 - In Guezzam</option>
+      </select>
+    </div>
+
+    <div style="display:flex; justify-content:flex-end; gap:10px">
+      <button class="btn btn-reset" onclick="closeModal('modal-orientation-bejaia')" style="padding:8px 16px">Annuler</button>
+      <button class="btn" onclick="validerOrientationBejaia()" style="background:#22c55e; color:#000; font-weight:800; padding:8px 20px">💾 Confirmer l'orientation</button>
+    </div>
+  </div>
+</div>
+
 <script>
 
 function enregistrerOTNonRealise() {
@@ -6764,7 +6980,11 @@ function openModal(id, editIdx=-1) {
 }
 
 function closeModal(id) {
-  document.getElementById(id).classList.remove('open');
+  const el = document.getElementById(id);
+  if (el) {
+    el.classList.remove('open');
+    el.style.display = 'none';
+  }
   document.querySelectorAll(`#${id} input:not([type=hidden]), #${id} select, #${id} textarea`).forEach(el=>{
     if (el.type==='date') el.value=today();
     else if(el.tagName==='SELECT') el.selectedIndex=0;
@@ -6773,7 +6993,7 @@ function closeModal(id) {
 }
 
 document.querySelectorAll('.modal-overlay').forEach(m => {
-  m.addEventListener('click', e => { if (e.target === m) m.classList.remove('open'); });
+  m.addEventListener('click', e => { if (e.target === m) { m.classList.remove('open'); m.style.display = 'none'; } });
 });
 
 function today() {
@@ -6822,7 +7042,8 @@ function switchTab(name, btn) {
   
   if (name === 'incidents-livraison') renderIncidentsLivraisonPage();
   if (name === 'poi') renderPoiPage();
-checkBascule();
+  if (name === 'orientation-bejaia') renderOrientationBejaiaPage();
+  checkBascule();
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -6861,6 +7082,7 @@ function updateDataLists() {
 // RENDER: DISPO
 // ═══════════════════════════════════════════════════════════════
 function renderDispo() {
+  if (typeof rebuildOrientationBejaiaState === 'function') rebuildOrientationBejaiaState();
   const q = document.getElementById('dispo-search').value;
   const etatF = document.getElementById('dispo-etat').value;
   const regionF = document.getElementById('dispo-region') ? document.getElementById('dispo-region').value : '';
@@ -7061,7 +7283,7 @@ function renderDispo() {
   if (cbShowIns) cbShowIns.checked = showInsurance;
   const shouldHide = lock && !showInsurance;
   if (!data.length) { 
-    body.innerHTML = `<tr><td colspan="${shouldHide ? 14 : 16}"><div class="empty-state"><div class="icon">🔍</div>Aucun résultat</div></td></tr>`; 
+    body.innerHTML = `<tr><td colspan="${shouldHide ? 15 : 17}"><div class="empty-state"><div class="icon">🔍</div>Aucun résultat</div></td></tr>`; 
     document.querySelectorAll('.col-assurance').forEach(el => {
       el.style.display = 'none';
     });
@@ -7167,6 +7389,7 @@ function renderDispo() {
       </td>
       <td style="text-align:center;white-space:nowrap">${getSingleVehicleRACStr(r.v)}</td>
       <td style="max-width:150px;font-size:11px"><span class="cell-edit" contenteditable="true" data-field="obs" data-idx="${realIdx}" onblur="saveInline(this)" onkeydown="if(event.key==='Enter'){event.preventDefault();this.blur()}" style="color:var(--txt2);font-style:${r.obs?'normal':'italic'}">${r.obs||'—'}</span></td>
+      <td>${buildOrientationBejaiaCell(r.v, r.chauffeur)}</td>
       <td class="col-assurance">${buildAssuranceCell(r, realIdx, 'dispo', 'tr')}</td>
       <td class="col-assurance">${buildAssuranceCell(r, realIdx, 'dispo', 'rm')}</td>
       <td style="white-space:nowrap">
@@ -17879,6 +18102,346 @@ function renderAdminBalanceComptable() {
   }).join('');
 }
 window.renderAdminBalanceComptable = renderAdminBalanceComptable;
+
+// ─── ORIENTATION BÉJAÏA LOGIQUE ──────────────────────────────────────────────
+function rebuildOrientationBejaiaState() {
+  window._ORIENTATION_BEJAIA_STATE = {};
+  const todayStr = today();
+  const teams = ['A', 'B', 'C', 'D', 'E', 'F'];
+  let allLogs = [];
+  
+  teams.forEach(eq => {
+    const db = (eq === CURRENT_EQUIPE && typeof DB !== 'undefined') ? DB : window['DB_' + eq];
+    if (db && db.tracabilite) {
+      db.tracabilite.forEach(log => {
+        if (log.type === 'Orientation Béjaïa') {
+          allLogs.push(log);
+        }
+      });
+    }
+  });
+  
+  if (typeof DB !== 'undefined' && DB.tracabilite) {
+    DB.tracabilite.forEach(log => {
+      if (log.type === 'Orientation Béjaïa' && !allLogs.includes(log)) {
+        allLogs.push(log);
+      }
+    });
+  }
+  
+  allLogs.sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
+  
+  allLogs.forEach(log => {
+    const logDate = (log.date || '').slice(0, 10);
+    if (logDate === todayStr) {
+      try {
+        const details = JSON.parse(log.motif || log.detail || '{}');
+        window._ORIENTATION_BEJAIA_STATE[log.target] = {
+          action: details.action || 'OUI',
+          point_depart: details.wilaya || '',
+          distance_km: details.km || 0,
+          chauffeur: details.chauffeur || '',
+          user: log.operator || log.user_login || 'Admin',
+          timestamp: log.timestamp,
+          date: log.date
+        };
+      } catch (e) {
+        window._ORIENTATION_BEJAIA_STATE[log.target] = {
+          action: 'OUI',
+          point_depart: log.motif || '',
+          distance_km: 0,
+          chauffeur: '',
+          user: log.operator || 'Admin',
+          timestamp: log.timestamp,
+          date: log.date
+        };
+      }
+    }
+  });
+}
+window.rebuildOrientationBejaiaState = rebuildOrientationBejaiaState;
+
+function buildOrientationBejaiaCell(vehicle, chauffeur) {
+  if (!window._ORIENTATION_BEJAIA_STATE) window._ORIENTATION_BEJAIA_STATE = {};
+  const state = window._ORIENTATION_BEJAIA_STATE[vehicle];
+  const isActif = state && state.action === 'OUI';
+  
+  if (isActif) {
+    return `<button onclick="toggleOrientationBejaia('${vehicle}', '${chauffeur.replace(/'/g, "\\'")}')" style="background:#22c55e;color:#000;border:1px solid #16a34a;border-radius:6px;padding:3px 8px;font-size:10px;font-weight:800;cursor:pointer;transition:all .2s;white-space:nowrap;" title="Orienté Béjaïa (${state.point_depart} - ${state.distance_km} km) — cliquer pour désactiver">🟢 OUI (${state.point_depart})</button>`;
+  } else {
+    return `<button onclick="toggleOrientationBejaia('${vehicle}', '${chauffeur.replace(/'/g, "\\'")}')" style="background:#ef4444;color:#fff;border:1px solid #dc2626;border-radius:6px;padding:3px 10px;font-size:10px;font-weight:700;cursor:pointer;transition:all .2s;white-space:nowrap;" title="Non orienté Béjaïa — cliquer pour orienter">🔴 NON</button>`;
+  }
+}
+window.buildOrientationBejaiaCell = buildOrientationBejaiaCell;
+
+function toggleOrientationBejaia(vehicle, chauffeur) {
+  if (!_checkActionsLibres('toggleOrientationBejaia')) return;
+  if (!window._ORIENTATION_BEJAIA_STATE) window._ORIENTATION_BEJAIA_STATE = {};
+  const state = window._ORIENTATION_BEJAIA_STATE[vehicle];
+  const isActif = state && state.action === 'OUI';
+  
+  if (isActif) {
+    if (confirm(`Désactiver l'orientation vers Béjaïa pour le camion ${vehicle} ?`)) {
+      saveOrientationLog(vehicle, chauffeur, 'NON', '', 0);
+    }
+  } else {
+    document.getElementById('orient-modal-v').value = vehicle;
+    document.getElementById('orient-modal-chauffeur').value = chauffeur;
+    document.getElementById('orient-modal-wilaya').value = '';
+    openModal('modal-orientation-bejaia');
+  }
+}
+window.toggleOrientationBejaia = toggleOrientationBejaia;
+
+function validerOrientationBejaia() {
+  const vehicle = document.getElementById('orient-modal-v').value;
+  const chauffeur = document.getElementById('orient-modal-chauffeur').value;
+  const wilayaCode = document.getElementById('orient-modal-wilaya').value;
+  
+  if (!wilayaCode) {
+    showToast("⚠️ Veuillez sélectionner une Wilaya de départ", true);
+    return;
+  }
+  const wilayaInfo = window.WILAYA_BEJAIA_DISTANCES[wilayaCode];
+  if (!wilayaInfo) {
+    showToast("⚠️ Wilaya invalide", true);
+    return;
+  }
+  closeModal('modal-orientation-bejaia');
+  saveOrientationLog(vehicle, chauffeur, 'OUI', wilayaInfo.name, wilayaInfo.km);
+}
+window.validerOrientationBejaia = validerOrientationBejaia;
+
+function saveOrientationLog(vehicle, chauffeur, action, pointDepart, distanceKm) {
+  const now = new Date();
+  const dateStr = now.getFullYear() + '-' + 
+    String(now.getMonth()+1).padStart(2,'0') + '-' + 
+    String(now.getDate()).padStart(2,'0') + ' ' + 
+    String(now.getHours()).padStart(2,'0') + ':' + 
+    String(now.getMinutes()).padStart(2,'0') + ':' + 
+    String(now.getSeconds()).padStart(2,'0');
+    
+  const operator = typeof getOperatorRole === 'function' ? getOperatorRole() : 'Chef de Section';
+  const details = {
+    action: action,
+    wilaya: pointDepart,
+    km: distanceKm,
+    chauffeur: chauffeur
+  };
+  
+  if (!DB.tracabilite) DB.tracabilite = [];
+  
+  const logEntry = {
+    timestamp: Date.now(),
+    date: dateStr,
+    type: 'Orientation Béjaïa',
+    targetType: 'TRACTEUR',
+    target: vehicle,
+    operator: operator,
+    motif: JSON.stringify(details)
+  };
+  
+  DB.tracabilite.push(logEntry);
+  saveDB();
+  rebuildOrientationBejaiaState();
+  renderDispo();
+  
+  showToast(action === 'OUI' 
+    ? `✅ Camion ${vehicle} orienté vers Béjaïa depuis ${pointDepart} (${distanceKm} km)`
+    : `❌ Orientation Béjaïa désactivée pour le camion ${vehicle}`
+  );
+}
+window.saveOrientationLog = saveOrientationLog;
+
+function renderOrientationBejaiaPage() {
+  const startInput = document.getElementById('orient-filter-start');
+  const endInput = document.getElementById('orient-filter-end');
+  const todayVal = today();
+  
+  if (startInput && !startInput.value) {
+    const d = new Date();
+    const firstDay = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-01';
+    startInput.value = firstDay;
+  }
+  if (endInput && !endInput.value) {
+    endInput.value = todayVal;
+  }
+  
+  const startDate = startInput ? startInput.value : '';
+  const endDate = endInput ? endInput.value : '';
+  const searchQuery = document.getElementById('orient-filter-search') ? document.getElementById('orient-filter-search').value.trim().toLowerCase() : '';
+  
+  rebuildOrientationBejaiaState();
+  
+  let allLogs = [];
+  const teams = ['A', 'B', 'C', 'D', 'E', 'F'];
+  
+  teams.forEach(eq => {
+    const db = (eq === CURRENT_EQUIPE && typeof DB !== 'undefined') ? DB : window['DB_' + eq];
+    if (db && db.tracabilite) {
+      db.tracabilite.forEach(log => {
+        if (log.type === 'Orientation Béjaïa') {
+          allLogs.push(Object.assign({ team: eq }, log));
+        }
+      });
+    }
+  });
+  
+  if (typeof DB !== 'undefined' && DB.tracabilite) {
+    DB.tracabilite.forEach(log => {
+      if (log.type === 'Orientation Béjaïa' && !allLogs.some(l => l.timestamp === log.timestamp && l.target === log.target)) {
+        allLogs.push(Object.assign({ team: CURRENT_EQUIPE }, log));
+      }
+    });
+  }
+  
+  allLogs.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+  
+  let filteredLogs = allLogs.filter(log => {
+    const logDate = (log.date || '').slice(0, 10);
+    if (startDate && logDate < startDate) return false;
+    if (endDate && logDate > endDate) return false;
+    
+    let details = {};
+    try {
+      details = JSON.parse(log.motif || log.detail || '{}');
+    } catch(e) {}
+    
+    const targetVal = (log.target || '').toLowerCase();
+    const chauffeurVal = (details.chauffeur || '').toLowerCase();
+    const wilayaVal = (details.wilaya || '').toLowerCase();
+    
+    if (searchQuery) {
+      if (!targetVal.includes(searchQuery) && 
+          !chauffeurVal.includes(searchQuery) && 
+          !wilayaVal.includes(searchQuery)) {
+        return false;
+      }
+    }
+    return true;
+  });
+  
+  let totalKm = 0;
+  let totalCount = 0;
+  
+  filteredLogs.forEach(log => {
+    let details = {};
+    try {
+      details = JSON.parse(log.motif || log.detail || '{}');
+    } catch(e) {}
+    
+    const action = details.action || 'OUI';
+    if (action === 'OUI') {
+      totalKm += (details.km || 0);
+      totalCount++;
+    }
+  });
+  
+  const statKmEl = document.getElementById('orient-stat-km');
+  const statCountEl = document.getElementById('orient-stat-count');
+  
+  if (statKmEl) statKmEl.textContent = totalKm.toLocaleString('fr-FR') + ' KM';
+  if (statCountEl) statCountEl.textContent = totalCount.toLocaleString('fr-FR');
+  
+  const tbody = document.getElementById('orient-history-body');
+  if (!tbody) return;
+  
+  if (filteredLogs.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="7" style="text-align:center;padding:24px;color:#94a3b8">Aucun enregistrement d'orientation trouvé sur cette période.</td></tr>`;
+    return;
+  }
+  
+  tbody.innerHTML = filteredLogs.map(log => {
+    let details = {};
+    try {
+      details = JSON.parse(log.motif || log.detail || '{}');
+    } catch(e) {}
+    
+    const action = details.action || 'OUI';
+    const statusBadge = action === 'OUI'
+      ? '<span style="background:rgba(34,197,94,0.15);color:#22c55e;border:1px solid rgba(34,197,94,0.4);border-radius:6px;padding:2px 8px;font-size:11px;font-weight:800">🟢 OUI</span>'
+      : '<span style="background:rgba(239,68,68,0.15);color:#ef4444;border:1px solid rgba(239,68,68,0.4);border-radius:6px;padding:2px 8px;font-size:11px;font-weight:800">🔴 NON</span>';
+      
+    const distStr = action === 'OUI' ? `${details.km || 0} km` : '—';
+    const startStr = action === 'OUI' ? (details.wilaya || '—') : '—';
+    const chauffeurStr = details.chauffeur || '—';
+    
+    return `
+      <tr style="border-bottom:1px solid rgba(255,255,255,0.05)">
+        <td style="font-family:monospace;font-size:11px;color:#94a3b8">${log.date || '—'}</td>
+        <td style="font-weight:800;color:var(--acc);font-family:monospace">${log.target || '—'}</td>
+        <td style="font-weight:600;color:#fff">${chauffeurStr}</td>
+        <td>${startStr}</td>
+        <td style="font-family:monospace;color:var(--yel);font-weight:600">${distStr}</td>
+        <td style="text-align:center">${statusBadge}</td>
+        <td style="font-size:11px;color:#cbd5e1">${log.operator || log.user_login || 'Admin'} <span style="color:#64748b;font-size:9px;">(Éq. ${log.team || '—'})</span></td>
+      </tr>
+    `;
+  }).join('');
+}
+window.renderOrientationBejaiaPage = renderOrientationBejaiaPage;
+
+function exportOrientationBejaiaExcel() {
+  if (typeof XLSX === 'undefined') {
+    showToast('⚠️ SheetJS non chargé', true);
+    return;
+  }
+  
+  rebuildOrientationBejaiaState();
+  
+  let allLogs = [];
+  const teams = ['A', 'B', 'C', 'D', 'E', 'F'];
+  
+  teams.forEach(eq => {
+    const db = (eq === CURRENT_EQUIPE && typeof DB !== 'undefined') ? DB : window['DB_' + eq];
+    if (db && db.tracabilite) {
+      db.tracabilite.forEach(log => {
+        if (log.type === 'Orientation Béjaïa') {
+          allLogs.push(Object.assign({ team: eq }, log));
+        }
+      });
+    }
+  });
+  
+  if (typeof DB !== 'undefined' && DB.tracabilite) {
+    DB.tracabilite.forEach(log => {
+      if (log.type === 'Orientation Béjaïa' && !allLogs.some(l => l.timestamp === log.timestamp && l.target === log.target)) {
+        allLogs.push(Object.assign({ team: CURRENT_EQUIPE }, log));
+      }
+    });
+  }
+  
+  allLogs.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+  
+  const data = [['Date & Heure', 'Véhicule', 'Chauffeur', 'Point de Départ', 'Distance (KM)', 'Orientation Active', 'Opérateur', 'Équipe']];
+  
+  allLogs.forEach(log => {
+    let details = {};
+    try {
+      details = JSON.parse(log.motif || log.detail || '{}');
+    } catch(e) {}
+    
+    const action = details.action || 'OUI';
+    
+    data.push([
+      log.date || '',
+      log.target || '',
+      details.chauffeur || '',
+      action === 'OUI' ? (details.wilaya || '') : '',
+      action === 'OUI' ? (details.km || 0) : 0,
+      action === 'OUI' ? 'OUI' : 'NON',
+      log.operator || log.user_login || 'Admin',
+      log.team || ''
+    ]);
+  });
+  
+  const ws = XLSX.utils.aoa_to_sheet(data);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, "Orientations_Bejaia");
+  XLSX.writeFile(wb, "Numiplan_Orientations_Bejaia_" + today() + ".xlsx");
+  showToast("📥 Historique des orientations exporté avec succès !");
+}
+window.exportOrientationBejaiaExcel = exportOrientationBejaiaExcel;
 
 </script>
 
