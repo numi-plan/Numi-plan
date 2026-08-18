@@ -17251,16 +17251,17 @@ function areNamesFuzzyMatching(nameA, nameB) {
   const nA = normalizeDriverName(nameA);
   const nB = normalizeDriverName(nameB);
   if (!nA || !nB) return false;
-  if (levenshteinDistance(nA, nB) <= 2) return true;
-  const wordsA = nA.split(' ');
-  const wordsB = nB.split(' ');
-  if (wordsA.length >= 2 && wordsB.length >= 2) {
-    let common = 0;
-    for (let w of wordsA) {
-      if (wordsB.includes(w)) common++;
-    }
-    if (common >= 2) return true;
+
+  // Suffixe numérique de distinction (ex: 1, 2, 3...)
+  const numA = nA.match(/\b\d+\b/);
+  const numB = nB.match(/\b\d+\b/);
+  if (numA || numB) {
+    const valA = numA ? numA[0] : '';
+    const valB = numB ? numB[0] : '';
+    if (valA !== valB) return false;
   }
+
+  if (levenshteinDistance(nA, nB) <= 2) return true;
   return false;
 }
 
@@ -17693,9 +17694,9 @@ function renderAdminEntreesSorties() {
     } catch(e) {}
   });
 
-  // Chauffeurs physiques actifs = Exactement tous les chauffeurs actifs au registre
-  const totalActifs = rawList.filter(r => r.statut === 'ACTIF').length;
-  const totalExtensions = rawList.filter(r => r.statut === 'ACTIF' && r.is_extension).length;
+  // Chauffeurs physiques actifs = Exactement tous les chauffeurs uniques sur Numiplan
+  const totalActifs = (globalUniqueAllDrivers.size > 0) ? globalUniqueAllDrivers.size : rawList.filter(r => r.statut === 'ACTIF').length;
+  const totalExtensions = (globalUniqueExtDrivers.size > 0) ? globalUniqueExtDrivers.size : rawList.filter(r => r.statut === 'ACTIF' && r.is_extension).length;
   const totalCamionsParc = (globalTotalCamions > 0) ? globalTotalCamions : 181;
   const totalInactifs = rawList.filter(r => r.statut === 'INACTIF').length;
 
