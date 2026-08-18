@@ -5977,7 +5977,14 @@ function imprimerListeBLManquants() {
         </div>
         <br><br>
         <button onclick="window.print()" style="padding: 10px 20px; font-size: 14px; background: #38bdf8; border: none; border-radius: 4px; cursor: pointer; font-weight: bold;">Imprimer la fiche</button>
-      
+      </body>
+    </html>
+  `);
+  printWindow.document.close();
+}
+window.imprimerListeBLManquants = imprimerListeBLManquants;
+</script>
+
 <!-- Modal Modification Fiche Registre Administratif -->
 <div class="modal-overlay" id="modal-admin-edit-sharik" style="z-index:99999">
   <div class="modal" style="width:700px; max-width:95vw; background:var(--bg2, #18223f); border:1.5px solid #38bdf8; border-radius:16px; padding:24px; box-shadow:0 25px 50px -12px rgba(0,0,0,0.7); text-align:left">
@@ -6090,12 +6097,7 @@ function imprimerListeBLManquants() {
   </div>
 </div>
 
-</body>
-    </html>
-  `);
-  printWindow.document.close();
-}
-window.imprimerListeBLManquants = imprimerListeBLManquants;
+<script>
 
 function enregistrerOTNonRealise() {
   const numInput = document.getElementById('ot-non-realise-num');
