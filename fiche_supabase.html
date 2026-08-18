@@ -16567,7 +16567,7 @@ function switchAdminSubTab(subTabId) {
   if (subTabId === 'entrees-sorties') renderAdminEntreesSorties();
   if (subTabId === 'nc-global') renderAdminNcConsolidation();
   if (subTabId === 'sinistres') renderAdminSinistres();
-  if (subTabId === 'balance') renderAdminBalanceTable();
+  if (subTabId === 'balance') renderAdminBalanceComptable();
   if (subTabId === 'validations') renderAdminValidations();
   if (subTabId === 'odo') {
     const odoPage = document.getElementById('page-odo');
@@ -17678,107 +17678,119 @@ function handleAdminBalanceExcelUpload(input) {
   const file = input.files[0];
   if (!file) return;
 
-  const reader = new FileReader();
-  reader.onload = function(e) {
-    try {
-      const data = new Uint8Array(e.target.result);
-      const workbook = XLSX.read(data, { type: 'array' });
-      const firstSheetName = workbook.SheetNames[0];
-      const worksheet = workbook.Sheets[firstSheetName];
-      const rawRows = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+  function doLoad() {
+    const reader = new FileReader();
+    reader.onload = function(e) {
+      try {
+        const data = new Uint8Array(e.target.result);
+        const workbook = XLSX.read(data, { type: 'array' });
+        const firstSheetName = workbook.SheetNames[0];
+        const worksheet = workbook.Sheets[firstSheetName];
+        const rawRows = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
 
-      if (!rawRows || rawRows.length < 2) {
-        showToast('⚠️ Fichier Excel vide ou illisible', true);
-        return;
-      }
+        if (!rawRows || rawRows.length < 2) {
+          showToast('⚠️ Fichier Excel vide ou illisible', true);
+          return;
+        }
 
-      // 1. Trouver la première ligne de données (où la première colonne est un code SAP à 6 ou 7 chiffres)
-      let dataRowIdx = -1;
-      for (let idx = 0; idx < rawRows.length; idx++) {
-        const row = rawRows[idx];
-        if (row && row[0]) {
-          const valStr = row[0].toString().trim();
-          if (/^\d{6,7}$/.test(valStr)) {
-            if (row[1] && row[1].toString().trim().length > 2) {
-              dataRowIdx = idx;
-              break;
+        // 1. Trouver la première ligne de données (où la première colonne est un code SAP à 6 ou 7 chiffres)
+        let dataRowIdx = -1;
+        for (let idx = 0; idx < rawRows.length; idx++) {
+          const row = rawRows[idx];
+          if (row && row[0]) {
+            const valStr = row[0].toString().trim();
+            if (/^\d{6,7}$/.test(valStr)) {
+              if (row[1] && row[1].toString().trim().length > 2) {
+                dataRowIdx = idx;
+                break;
+              }
             }
           }
         }
-      }
 
-      let headers = [];
-      let startRowIdx = 1;
+        let headers = [];
+        let startRowIdx = 1;
 
-      if (dataRowIdx !== -1) {
-        // Résoudre les en-têtes en remontant pour chaque colonne
-        for (let colIdx = 0; colIdx < rawRows[dataRowIdx].length; colIdx++) {
-          let headerVal = '';
-          for (let rIdx = dataRowIdx - 1; rIdx >= 0; rIdx--) {
-            if (rawRows[rIdx] && rawRows[rIdx][colIdx] !== undefined && rawRows[rIdx][colIdx] !== null && rawRows[rIdx][colIdx] !== '') {
-              headerVal = rawRows[rIdx][colIdx].toString().trim();
-              break;
+        if (dataRowIdx !== -1) {
+          // Résoudre les en-têtes en remontant pour chaque colonne
+          for (let colIdx = 0; colIdx < rawRows[dataRowIdx].length; colIdx++) {
+            let headerVal = '';
+            for (let rIdx = dataRowIdx - 1; rIdx >= 0; rIdx--) {
+              if (rawRows[rIdx] && rawRows[rIdx][colIdx] !== undefined && rawRows[rIdx][colIdx] !== null && rawRows[rIdx][colIdx] !== '') {
+                headerVal = rawRows[rIdx][colIdx].toString().trim();
+                break;
+              }
+            }
+            headers.push(headerVal.toLowerCase());
+          }
+          startRowIdx = dataRowIdx;
+        } else {
+          headers = rawRows[0].map(h => (h || '').toString().toLowerCase().trim());
+        }
+
+        let colChauf = headers.findIndex(h => h.includes('chauffeur') || h.includes('nom') || h.includes('sharik') || h.includes('libelle') || h.includes('compte'));
+        let colDebit = headers.findIndex(h => h.includes('debit') || h.includes('débit') || h.includes('total'));
+        let colCredit = headers.findIndex(h => h.includes('credit') || h.includes('crédit') || h.includes('dette'));
+        let colSolde = headers.findIndex(h => h.includes('solde') || h.includes('balance') || h.includes('net'));
+        let colDate = headers.findIndex(h => h.includes('date') || h.includes('periode') || h.includes('situation'));
+
+        if (colChauf === -1) colChauf = 0;
+
+        const parsedRecords = [];
+        for (let i = startRowIdx; i < rawRows.length; i++) {
+          const row = rawRows[i];
+          if (!row || !row[colChauf]) continue;
+
+          // Filtrer par code SAP si on a trouvé la ligne d'en-tête dynamique
+          if (dataRowIdx !== -1 && row[0]) {
+            const codeStr = row[0].toString().trim();
+            if (!/^\d{6,7}$/.test(codeStr)) {
+              continue; // Ignorer les pieds de page ou autres résumés
             }
           }
-          headers.push(headerVal.toLowerCase());
-        }
-        startRowIdx = dataRowIdx;
-      } else {
-        headers = rawRows[0].map(h => (h || '').toString().toLowerCase().trim());
-      }
 
-      let colChauf = headers.findIndex(h => h.includes('chauffeur') || h.includes('nom') || h.includes('sharik') || h.includes('libelle') || h.includes('compte'));
-      let colDebit = headers.findIndex(h => h.includes('debit') || h.includes('débit') || h.includes('total'));
-      let colCredit = headers.findIndex(h => h.includes('credit') || h.includes('crédit') || h.includes('dette'));
-      let colSolde = headers.findIndex(h => h.includes('solde') || h.includes('balance') || h.includes('net'));
-      let colDate = headers.findIndex(h => h.includes('date') || h.includes('periode') || h.includes('situation'));
+          const chauffeur = (row[colChauf] || '').toString().trim().toUpperCase();
+          if (!chauffeur || chauffeur.includes('TOTAL') || chauffeur.includes('SOUS-TOTAL')) continue;
 
-      if (colChauf === -1) colChauf = 0;
+          const debit = colDebit !== -1 ? parseFloat(row[colDebit] || 0) : 0;
+          const credit = colCredit !== -1 ? parseFloat(row[colCredit] || 0) : 0;
+          let solde = colSolde !== -1 ? parseFloat(row[colSolde] || 0) : (credit - debit);
+          if (isNaN(solde)) solde = 0;
 
-      const parsedRecords = [];
-      for (let i = startRowIdx; i < rawRows.length; i++) {
-        const row = rawRows[i];
-        if (!row || !row[colChauf]) continue;
+          const dateSituation = colDate !== -1 && row[colDate] ? row[colDate].toString().trim() : today();
 
-        // Filtrer par code SAP si on a trouvé la ligne d'en-tête dynamique
-        if (dataRowIdx !== -1 && row[0]) {
-          const codeStr = row[0].toString().trim();
-          if (!/^\d{6,7}$/.test(codeStr)) {
-            continue; // Ignorer les pieds de page ou autres résumés
-          }
+          parsedRecords.push({
+            chauffeur,
+            debit: isNaN(debit) ? 0 : debit,
+            credit: isNaN(credit) ? 0 : credit,
+            solde: solde,
+            date: dateSituation
+          });
         }
 
-        const chauffeur = (row[colChauf] || '').toString().trim().toUpperCase();
-        if (!chauffeur || chauffeur.includes('TOTAL') || chauffeur.includes('SOUS-TOTAL')) continue;
+        _ADMIN_BALANCE_DATA = parsedRecords;
+        localStorage.setItem('numiplan_admin_balance_data', JSON.stringify(_ADMIN_BALANCE_DATA));
+        localStorage.setItem('numiplan_admin_balance_last_sync', new Date().toLocaleString('fr-FR'));
 
-        const debit = colDebit !== -1 ? parseFloat(row[colDebit] || 0) : 0;
-        const credit = colCredit !== -1 ? parseFloat(row[colCredit] || 0) : 0;
-        let solde = colSolde !== -1 ? parseFloat(row[colSolde] || 0) : (credit - debit);
-        if (isNaN(solde)) solde = 0;
-
-        const dateSituation = colDate !== -1 && row[colDate] ? row[colDate].toString().trim() : today();
-
-        parsedRecords.push({
-          chauffeur,
-          debit: isNaN(debit) ? 0 : debit,
-          credit: isNaN(credit) ? 0 : credit,
-          solde: solde,
-          date: dateSituation
-        });
+        renderAdminBalanceComptable();
+        showToast(`✅ Balance importée avec succès (${parsedRecords.length} chauffeurs)`);
+      } catch(err) {
+        console.error("Erreur import Excel balance:", err);
+        showToast('❌ Erreur lors de la lecture du fichier Excel : ' + err.message, true);
       }
+    };
+    reader.readAsArrayBuffer(file);
+  }
 
-      _ADMIN_BALANCE_DATA = parsedRecords;
-      localStorage.setItem('numiplan_admin_balance_data', JSON.stringify(_ADMIN_BALANCE_DATA));
-      localStorage.setItem('numiplan_admin_balance_last_sync', new Date().toLocaleString('fr-FR'));
-
-      renderAdminBalanceComptable();
-      showToast(`✅ Balance importée avec succès (${parsedRecords.length} chauffeurs)`);
-    } catch(err) {
-      console.error("Erreur import Excel balance:", err);
-      showToast('❌ Erreur lors de la lecture du fichier Excel : ' + err.message, true);
-    }
-  };
-  reader.readAsArrayBuffer(file);
+  if (typeof XLSX === 'undefined') {
+    const s = document.createElement('script');
+    s.src = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
+    s.onload = doLoad;
+    document.head.appendChild(s);
+  } else {
+    doLoad();
+  }
+  input.value = '';
 }
 window.handleAdminBalanceExcelUpload = handleAdminBalanceExcelUpload;
 
