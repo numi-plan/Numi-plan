@@ -2362,14 +2362,12 @@ mark.hl { background: rgba(56,189,248,.25); color: var(--acc); border-radius: 3p
   <button class="tab-btn" onclick="switchTab('bl',this)">📄 Suivi BL</button>
   <button class="tab-btn" id="tab-odo" onclick="switchTab('odo',this)">🛣️ Odomètre <span class="tab-count" id="cnt-odo" style="display:none;">—</span></button>
   <button class="tab-btn" onclick="switchTab('cspc',this)">🔷 CSPC <span class="tab-count" id="cnt-cspc">—</span></button>
-  <button class="tab-btn" onclick="switchTab('vehicule',this)">🔍 Fiche Véhicule</button>
   <button class="tab-btn" onclick="switchTab('analytics',this)">📊 Analyses</button>
   <button class="tab-btn" id="tab-blacklist" onclick="if(typeof switchTab==='function')switchTab('blacklist',this)">🚫 Blacklist <span class="tab-count" id="cnt-blacklist" style="background:#f87171">—</span></button>
   <button class="tab-btn" id="tab-incidents-livraison" onclick="switchTab('incidents-livraison',this)">🚨 Incidents Livraison <span class="tab-count" id="cnt-incidents-livraison" style="background:#ef4444">—</span></button>
   <button class="tab-btn" onclick="switchTab('tracabilite',this)">📜 Traçabilité <span class="tab-count" id="cnt-tracabilite" style="display:none;">—</span></button>
   <button class="tab-btn" id="tab-flashinfo" onclick="switchTab('flashinfo',this)">📢 Flash Info</button>
   <button class="tab-btn" id="tab-poi" onclick="switchTab('poi',this)">🛰️ Suivi POI <span class="tab-count red" id="cnt-poi-alerts" style="display:none;background:#ef4444">—</span></button>
-  <button class="tab-btn" id="tab-orientation-bejaia" onclick="switchTab('orientation-bejaia',this)" style="color:#22c55e;border-color:rgba(34,197,94,.3)">🚛 Orientation Béjaïa</button>
   <button class="tab-btn" onclick="ouvrirHistoriqueAnomalies()" style="color:#fbbf24;border-color:rgba(251,191,36,.3)">📊 Historique Anomalies</button>
   <button class="tab-btn" id="tab-admin-direction" onclick="ouvrirEspaceAdminDirection(this)" style="color:#38bdf8;border-color:rgba(56,189,248,.3);margin-top:6px;background:rgba(56,189,248,0.06);font-weight:800">🏛️ Espace Direction 🔒</button>
 </div>
@@ -2781,7 +2779,7 @@ mark.hl { background: rgba(56,189,248,.25); color: var(--acc); border-radius: 3p
     <div class="sec-title">État du parc véhicules</div>
     <div class="table-wrap">
       <table>
-        <thead><tr><th>Véhicule</th><th>État</th><th>Chauffeur</th><th>Horaire</th><th>Lieu Jour</th><th>Lieu J+1</th><th>Barre</th><th>Câble</th><th>Affecté</th><th>KM</th><th>RAC (S-1)</th><th>Observation</th><th style="color:#22c55e">🚛 Bejaia</th><th class="col-assurance" style="color:var(--grn)">🛡 Ass. TR</th><th class="col-assurance" style="color:var(--acc)">🛡 Ass. RM</th><th>Actions</th></tr></thead>
+        <thead><tr><th>Véhicule</th><th>État</th><th>Chauffeur</th><th>Horaire</th><th>Lieu Jour</th><th>Lieu J+1</th><th>Barre</th><th>Câble</th><th>Affecté</th><th>KM</th><th style="color:#ef4444">⚡ Excès</th><th>Observation</th><th style="color:#22c55e">🚛 Bejaia</th><th class="col-assurance" style="color:var(--grn)">🛡 Ass. TR</th><th class="col-assurance" style="color:var(--acc)">🛡 Ass. RM</th><th>Actions</th></tr></thead>
         <tbody id="dispo-body"></tbody>
       </table>
     </div>
@@ -3067,31 +3065,125 @@ mark.hl { background: rgba(56,189,248,.25); color: var(--acc); border-radius: 3p
 
 <!-- ══════════════ ANALYSES ══════════════ -->
 <div id="page-analytics" class="page">
-  <div class="filter-bar">
-    <label>Filtre</label>
-    <input type="text" class="filter-input" id="an-search" placeholder="Chauffeur / Véhicule…" oninput="renderAnalytics()">
-    <input type="date" class="filter-input" id="an-date-from" onchange="renderAnalytics()">
-    <input type="date" class="filter-input" id="an-date-to" onchange="renderAnalytics()">
-    <button class="btn btn-reset" onclick="document.getElementById('an-search').value='';document.getElementById('an-date-from').value='';document.getElementById('an-date-to').value='';renderAnalytics()">↺ Reset</button>
+  <!-- Navigation des Sous-onglets Analyses -->
+  <div class="filter-bar" style="background:linear-gradient(90deg, rgba(56,189,248,0.12) 0%, rgba(15,23,42,0.9) 100%);border-bottom:2px solid #38bdf8;padding:12px 16px;border-radius:12px;margin-bottom:20px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px">
+    <div style="display:flex;align-items:center;gap:10px">
+      <span style="font-size:20px">📊</span>
+      <div>
+        <div style="font-size:15px;font-weight:800;color:#fff;letter-spacing:0.5px">MODULE D'ANALYSES &amp; STATISTIQUES</div>
+        <div style="font-size:11px;color:#94a3b8">Performance globale, orientations vers Béjaïa et historique des excès de vitesse</div>
+      </div>
+    </div>
   </div>
-  <div style="padding-top:20px">
-    <div class="sec-title">Performance Globale Camion & Chauffeur</div>
-    <div class="table-wrap">
-      <table>
-        <thead>
-          <tr>
-            <th>Véhicule</th>
-            <th>Chauffeur</th>
-            <th style="text-align:center">Pannes</th>
-            <th style="text-align:center">Non-conformités</th>
-            <th style="text-align:center">Incidents</th>
-            <th style="text-align:right;padding-right:15px">Gasoil</th>
-            <th style="text-align:right;padding-right:15px">Distance (Odo)</th>
-            <th style="text-align:right;padding-right:15px">RAC</th>
-          </tr>
-        </thead>
-        <tbody id="an-table-body"></tbody>
-      </table>
+
+  <div style="display:flex;gap:8px;margin-bottom:20px;border-bottom:1px solid var(--border);padding-bottom:10px;overflow-x:auto">
+    <button class="btn analytics-subtab-btn active" id="btn-subtab-performance" onclick="switchAnalyticsSubTab('performance')" style="background:#38bdf8;color:#000;font-weight:800;border-radius:8px;padding:8px 16px;cursor:pointer;border:none;">📊 Performance Globale</button>
+    <button class="btn analytics-subtab-btn" id="btn-subtab-orientation" onclick="switchAnalyticsSubTab('orientation')" style="background:rgba(255,255,255,0.05);color:var(--txt);font-weight:700;border-radius:8px;padding:8px 16px;cursor:pointer;border:none;">🚛 Orientation Béjaïa</button>
+    <button class="btn analytics-subtab-btn" id="btn-subtab-speed-excess" onclick="switchAnalyticsSubTab('speed-excess')" style="background:rgba(255,255,255,0.05);color:var(--txt);font-weight:700;border-radius:8px;padding:8px 16px;cursor:pointer;border:none;">⚡ Excès de vitesse</button>
+  </div>
+
+  <!-- Filtres communs -->
+  <div class="filter-bar" style="margin-bottom:20px;">
+    <label>Filtre</label>
+    <input type="text" class="filter-input" id="an-search" placeholder="Chauffeur / Véhicule…" oninput="onAnalyticsFilterChange()">
+    <input type="date" class="filter-input" id="an-date-from" onchange="onAnalyticsFilterChange()">
+    <input type="date" class="filter-input" id="an-date-to" onchange="onAnalyticsFilterChange()">
+    <button class="btn btn-reset" onclick="resetAnalyticsFilters()">↺ Reset</button>
+  </div>
+
+  <!-- Sous-page 1 : Performance Globale -->
+  <div id="analytics-subpage-performance" class="analytics-subpage">
+    <div style="padding-top:10px">
+      <div class="sec-title">Performance Globale Camion &amp; Chauffeur</div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Véhicule</th>
+              <th>Chauffeur</th>
+              <th style="text-align:center">Pannes</th>
+              <th style="text-align:center">Non-conformités</th>
+              <th style="text-align:center">Incidents</th>
+              <th style="text-align:right;padding-right:15px">Gasoil</th>
+              <th style="text-align:right;padding-right:15px">Distance (Odo)</th>
+              <th style="text-align:right;padding-right:15px">RAC</th>
+              <th style="text-align:right;padding-right:15px;color:#22c55e">Orientation (km)</th>
+              <th style="text-align:right;padding-right:15px;color:#ef4444">Excès vitesse</th>
+            </tr>
+          </thead>
+          <tbody id="an-table-body"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- Sous-page 2 : Orientation Béjaïa -->
+  <div id="analytics-subpage-orientation" class="analytics-subpage" style="display:none;">
+    <div style="display:flex;justify-content:flex-end;margin-bottom:15px;">
+      <button onclick="exportOrientationBejaiaExcel()" class="btn" style="background:#22c55e;color:#000;font-weight:800;padding:9px 18px;border-radius:8px;display:flex;align-items:center;gap:6px;border:none;cursor:pointer;">📥 Exporter Excel</button>
+    </div>
+    <div class="stats-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px;">
+      <div class="stat-card" style="border-left-color:#22c55e;background:rgba(34,197,94,0.04);">
+        <div class="stat-num" id="orient-stat-km" style="color:#22c55e;">0 KM</div>
+        <div class="stat-lbl">KILOMÉTRAGE TOTAL ORIENTÉ</div>
+      </div>
+      <div class="stat-card" style="border-left-color:#38bdf8;background:rgba(56,189,248,0.04);">
+        <div class="stat-num" id="orient-stat-count" style="color:#38bdf8;">0</div>
+        <div class="stat-lbl">NOMBRE TOTAL D'ORIENTATIONS ACTIVES</div>
+      </div>
+    </div>
+    <div style="padding-top:10px">
+      <div class="sec-title">Journal des Mouvements d'Orientation</div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Date / Heure</th>
+              <th>Véhicule (Camion)</th>
+              <th>Chauffeur</th>
+              <th>Point de Départ (Wilaya)</th>
+              <th>Distance (KM)</th>
+              <th>Statut</th>
+              <th>Opérateur / Rôle</th>
+            </tr>
+          </thead>
+          <tbody id="orient-history-body"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- Sous-page 3 : Excès de vitesse -->
+  <div id="analytics-subpage-speed-excess" class="analytics-subpage" style="display:none;">
+    <div style="display:flex;justify-content:flex-end;margin-bottom:15px;">
+      <button onclick="exportSpeedExcessExcel()" class="btn" style="background:#ef4444;color:#fff;font-weight:800;padding:9px 18px;border-radius:8px;display:flex;align-items:center;gap:6px;border:none;cursor:pointer;">📥 Exporter Excel</button>
+    </div>
+    <div class="stats-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px;">
+      <div class="stat-card" style="border-left-color:#ef4444;background:rgba(239,68,68,0.04);">
+        <div class="stat-num" id="speed-stat-total" style="color:#ef4444;">0</div>
+        <div class="stat-lbl">TOTAL EXCÈS DE VITESSE SIGNALÉS</div>
+      </div>
+      <div class="stat-card" style="border-left-color:#fbbf24;background:rgba(251,191,36,0.04);">
+        <div class="stat-num" id="speed-stat-camions" style="color:#fbbf24;">0</div>
+        <div class="stat-lbl">NOMBRE DE CAMIONS CONCERNÉS</div>
+      </div>
+    </div>
+    <div style="padding-top:10px">
+      <div class="sec-title">Journal des Signalements d'Excès de Vitesse</div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Date / Heure</th>
+              <th>Véhicule (Camion)</th>
+              <th>Chauffeur</th>
+              <th>Statut</th>
+              <th>Opérateur / Rôle</th>
+            </tr>
+          </thead>
+          <tbody id="speed-history-body"></tbody>
+        </table>
+      </div>
     </div>
   </div>
 </div>
@@ -3288,69 +3380,7 @@ mark.hl { background: rgba(56,189,248,.25); color: var(--acc); border-radius: 3p
   </div>
 </div>
 
-<!-- ══════════════ ORIENTATION BÉJAÏA (DÉDIÉ) ══════════════ -->
-<div id="page-orientation-bejaia" class="page" style="display:none;">
-  <div class="filter-bar" style="background:linear-gradient(90deg, rgba(34,197,94,0.1) 0%, rgba(15,23,42,0.9) 100%);border-bottom:2px solid #22c55e;padding:12px 16px;border-radius:12px;margin-bottom:20px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px">
-    <div style="display:flex;align-items:center;gap:10px">
-      <span style="font-size:20px">🚛</span>
-      <div>
-        <div style="font-size:15px;font-weight:800;color:#fff;letter-spacing:0.5px">SUIVI DES ORIENTATIONS BÉJAÏA</div>
-        <div style="font-size:11px;color:#94a3b8">Historique, kilométrage généré et statistiques des orientations vers Béjaïa</div>
-      </div>
-    </div>
-  </div>
 
-  <div class="filter-bar" style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-bottom:20px;">
-    <div style="display:flex;flex-direction:column;gap:4px;">
-      <label style="font-size:11px;color:var(--txt2);font-weight:700;">Date Début</label>
-      <input type="date" id="orient-filter-start" class="filter-input" onchange="renderOrientationBejaiaPage()" style="background:var(--bg3);color:var(--txt);border:1px solid var(--border);border-radius:8px;padding:8px 12px;">
-    </div>
-    <div style="display:flex;flex-direction:column;gap:4px;">
-      <label style="font-size:11px;color:var(--txt2);font-weight:700;">Date Fin</label>
-      <input type="date" id="orient-filter-end" class="filter-input" onchange="renderOrientationBejaiaPage()" style="background:var(--bg3);color:var(--txt);border:1px solid var(--border);border-radius:8px;padding:8px 12px;">
-    </div>
-    <div style="display:flex;flex-direction:column;gap:4px;flex-grow:1;">
-      <label style="font-size:11px;color:var(--txt2);font-weight:700;">Recherche Camion / Chauffeur</label>
-      <input type="text" id="orient-filter-search" class="filter-input" placeholder="Saisir immatriculation ou nom..." oninput="renderOrientationBejaiaPage()" style="background:var(--bg3);color:var(--txt);border:1px solid var(--border);border-radius:8px;padding:8px 12px;width:100%;">
-    </div>
-    <div style="display:flex;flex-direction:column;gap:4px;justify-content:flex-end;align-self:flex-end;">
-      <button onclick="exportOrientationBejaiaExcel()" class="btn" style="background:#22c55e;color:#000;font-weight:800;padding:9px 18px;border-radius:8px;display:flex;align-items:center;gap:6px;border:none;cursor:pointer;">📥 Exporter Excel</button>
-    </div>
-  </div>
-
-  <div class="stats-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px;">
-    <div class="stat-card" style="border-left-color:#22c55e;background:rgba(34,197,94,0.04);">
-      <div class="stat-num" id="orient-stat-km" style="color:#22c55e;">0 KM</div>
-      <div class="stat-lbl">KILOMÉTRAGE TOTAL ORIENTÉ</div>
-    </div>
-    <div class="stat-card" style="border-left-color:#38bdf8;background:rgba(56,189,248,0.04);">
-      <div class="stat-num" id="orient-stat-count" style="color:#38bdf8;">0</div>
-      <div class="stat-lbl">NOMBRE TOTAL D'ORIENTATIONS ACTIVES</div>
-    </div>
-  </div>
-
-  <div style="padding-top:10px">
-    <div class="sec-title">Journal des Mouvements d'Orientation</div>
-    <div class="table-wrap">
-      <table>
-        <thead>
-          <tr>
-            <th>Date / Heure</th>
-            <th>Véhicule (Camion)</th>
-            <th>Chauffeur</th>
-            <th>Point de Départ (Wilaya)</th>
-            <th>Distance (KM)</th>
-            <th>Statut</th>
-            <th>Opérateur / Rôle</th>
-          </tr>
-        </thead>
-        <tbody id="orient-history-body">
-          <tr><td colspan="7" style="text-align:center;padding:20px;color:#94a3b8">Aucun enregistrement d'orientation trouvé.</td></tr>
-        </tbody>
-      </table>
-    </div>
-  </div>
-</div>
 
 <!-- ══════════════ FLASH INFO (ADMIN ONLY) ══════════════ -->
 <div id="page-flashinfo" class="page">
@@ -7021,7 +7051,7 @@ function switchTab(name, btn) {
   else document.querySelector(`[onclick*="switchTab('${name}"]`)?.classList.add('active');
   if (name==='odo') renderOdo();
   if (name==='cspc') renderCSPC();
-  if (name==='analytics') renderAnalytics();
+  if (name==='analytics') switchAnalyticsSubTab('performance');
   if (name==='archives') {
     if (!window._archivesLoaded) {
       window._archivesLoaded = true;
@@ -7042,7 +7072,6 @@ function switchTab(name, btn) {
   
   if (name === 'incidents-livraison') renderIncidentsLivraisonPage();
   if (name === 'poi') renderPoiPage();
-  if (name === 'orientation-bejaia') renderOrientationBejaiaPage();
   checkBascule();
 }
 
@@ -7083,6 +7112,7 @@ function updateDataLists() {
 // ═══════════════════════════════════════════════════════════════
 function renderDispo() {
   if (typeof rebuildOrientationBejaiaState === 'function') rebuildOrientationBejaiaState();
+  if (typeof rebuildSpeedExcessState === 'function') rebuildSpeedExcessState();
   const q = document.getElementById('dispo-search').value;
   const etatF = document.getElementById('dispo-etat').value;
   const regionF = document.getElementById('dispo-region') ? document.getElementById('dispo-region').value : '';
@@ -7387,7 +7417,7 @@ function renderDispo() {
       <td style="font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--yel);white-space:nowrap">
         <span style="cursor:pointer" onclick="declKm(${realIdx})" title="Saisir relevé KM">${r.km ? r.km.toLocaleString()+' km' : '<span style=\'color:var(--txt3)\'>＋KM</span>'}</span>
       </td>
-      <td style="text-align:center;white-space:nowrap">${getSingleVehicleRACStr(r.v)}</td>
+      <td>${buildSpeedExcessCell(r.v, r.chauffeur)}</td>
       <td style="max-width:150px;font-size:11px"><span class="cell-edit" contenteditable="true" data-field="obs" data-idx="${realIdx}" onblur="saveInline(this)" onkeydown="if(event.key==='Enter'){event.preventDefault();this.blur()}" style="color:var(--txt2);font-style:${r.obs?'normal':'italic'}">${r.obs||'—'}</span></td>
       <td>${buildOrientationBejaiaCell(r.v, r.chauffeur)}</td>
       <td class="col-assurance">${buildAssuranceCell(r, realIdx, 'dispo', 'tr')}</td>
@@ -14326,7 +14356,9 @@ function renderAnalytics() {
         sinistreCount: 0,
         gasoilLiters: 0,
         odoDelta: 0,
-        kmFacture: 0
+        kmFacture: 0,
+        bejaiaKm: 0,
+        speedExcessCount: 0
       };
     }
   });
@@ -14337,7 +14369,7 @@ function renderAnalytics() {
     if (dateFromStr && p.date && p.date < dateFromStr) return;
     if (dateToStr && p.date && p.date > dateToStr) return;
     if (!vehiclesMap[vKey]) {
-      vehiclesMap[vKey] = { v: vKey, chauffeur: '—', pannesCount: 0, ncCount: 0, incCount: 0, sinistreCount: 0, gasoilLiters: 0, odoDelta: 0, kmFacture: 0 };
+      vehiclesMap[vKey] = { v: vKey, chauffeur: '—', pannesCount: 0, ncCount: 0, incCount: 0, sinistreCount: 0, gasoilLiters: 0, odoDelta: 0, kmFacture: 0, bejaiaKm: 0, speedExcessCount: 0 };
     }
     vehiclesMap[vKey].pannesCount++;
   });
@@ -14362,7 +14394,7 @@ function renderAnalytics() {
     if (dateToStr && debutDate > dateToStr) return;
     
     if (!vehiclesMap[vKey]) {
-      vehiclesMap[vKey] = { v: vKey, chauffeur: inc.chauffeur || '—', pannesCount: 0, ncCount: 0, incCount: 0, sinistreCount: 0, gasoilLiters: 0, odoDelta: 0, kmFacture: 0 };
+      vehiclesMap[vKey] = { v: vKey, chauffeur: inc.chauffeur || '—', pannesCount: 0, ncCount: 0, incCount: 0, sinistreCount: 0, gasoilLiters: 0, odoDelta: 0, kmFacture: 0, bejaiaKm: 0, speedExcessCount: 0 };
     }
     vehiclesMap[vKey].incCount++;
     if (inc.type === 'Sinistre / Avarie') {
@@ -14377,7 +14409,7 @@ function renderAnalytics() {
     if (dateToStr && g.date && g.date > dateToStr) return;
     
     if (!vehiclesMap[vKey]) {
-      vehiclesMap[vKey] = { v: vKey, chauffeur: g.chauffeur || '—', pannesCount: 0, ncCount: 0, incCount: 0, sinistreCount: 0, gasoilLiters: 0, odoDelta: 0, kmFacture: 0 };
+      vehiclesMap[vKey] = { v: vKey, chauffeur: g.chauffeur || '—', pannesCount: 0, ncCount: 0, incCount: 0, sinistreCount: 0, gasoilLiters: 0, odoDelta: 0, kmFacture: 0, bejaiaKm: 0, speedExcessCount: 0 };
     }
     const qty = parseFloat(g.litres) || 0;
     vehiclesMap[vKey].gasoilLiters += qty;
@@ -14396,7 +14428,7 @@ function renderAnalytics() {
     if (!r.v) return;
     const vKey = r.v.trim().toUpperCase();
     if (!vehiclesMap[vKey]) {
-      vehiclesMap[vKey] = { v: vKey, chauffeur: r.chauffeur || '—', pannesCount: 0, ncCount: 0, incCount: 0, sinistreCount: 0, gasoilLiters: 0, odoDelta: 0, kmFacture: 0 };
+      vehiclesMap[vKey] = { v: vKey, chauffeur: r.chauffeur || '—', pannesCount: 0, ncCount: 0, incCount: 0, sinistreCount: 0, gasoilLiters: 0, odoDelta: 0, kmFacture: 0, bejaiaKm: 0, speedExcessCount: 0 };
     }
 
     const rangeVals = filteredWeekIndices.map(idx => r.vals ? r.vals[idx] : null).filter(val => val && val > 1000);
@@ -14423,19 +14455,64 @@ function renderAnalytics() {
     vehiclesMap[vKey].kmFacture = fact;
   });
 
+  // Collect and scan all tracabilite logs across all teams
+  let allTracLogs = [];
+  const teams = ['A', 'B', 'C', 'D', 'E', 'F'];
+  teams.forEach(eq => {
+    const db = (eq === CURRENT_EQUIPE && typeof DB !== 'undefined') ? DB : window['DB_' + eq];
+    if (db && db.tracabilite) {
+      db.tracabilite.forEach(log => {
+        allTracLogs.push(log);
+      });
+    }
+  });
+  if (typeof DB !== 'undefined' && DB.tracabilite) {
+    DB.tracabilite.forEach(log => {
+      if (!allTracLogs.includes(log)) allTracLogs.push(log);
+    });
+  }
+
+  allTracLogs.forEach(log => {
+    if (!log.target) return;
+    const vKey = log.target.trim().toUpperCase();
+    const logDate = (log.date || '').slice(0, 10);
+    if (dateFromStr && logDate < dateFromStr) return;
+    if (dateToStr && logDate > dateToStr) return;
+
+    if (!vehiclesMap[vKey]) {
+      vehiclesMap[vKey] = { v: vKey, chauffeur: '—', pannesCount: 0, ncCount: 0, incCount: 0, sinistreCount: 0, gasoilLiters: 0, odoDelta: 0, kmFacture: 0, bejaiaKm: 0, speedExcessCount: 0 };
+    }
+
+    if (log.type === 'Orientation Béjaïa') {
+      try {
+        const details = JSON.parse(log.motif || log.detail || '{}');
+        if (details.action === 'OUI') {
+          vehiclesMap[vKey].bejaiaKm += (details.km || 0);
+        }
+      } catch (e) {}
+    } else if (log.type === 'Excès de vitesse') {
+      try {
+        const details = JSON.parse(log.motif || log.detail || '{}');
+        if (details.action === 'OUI') {
+          vehiclesMap[vKey].speedExcessCount++;
+        }
+      } catch (e) {}
+    }
+  });
+
   const list = Object.values(vehiclesMap).filter(item => {
     const v = item.v.toLowerCase();
     const ch = item.chauffeur.toLowerCase();
     return !q || v.includes(q) || ch.includes(q);
   });
 
-  list.sort((a, b) => (b.pannesCount + b.ncCount + b.incCount) - (a.pannesCount + a.ncCount + a.incCount));
+  list.sort((a, b) => (b.pannesCount + b.ncCount + b.incCount + b.speedExcessCount) - (a.pannesCount + a.ncCount + a.incCount + a.speedExcessCount));
 
   const body = document.getElementById('an-table-body');
   if (!body) return;
 
   if (list.length === 0) {
-    body.innerHTML = '<tr><td colspan="8" style="text-align:center;color:var(--txt3)">Aucun résultat trouvé</td></tr>';
+    body.innerHTML = '<tr><td colspan="10" style="text-align:center;color:var(--txt3)">Aucun résultat trouvé</td></tr>';
     return;
   }
 
@@ -14452,7 +14529,7 @@ function renderAnalytics() {
 
     return `
       <tr>
-        <td class="mono" style="color:var(--acc);cursor:pointer;font-weight:600" onclick="switchTab('vehicule');setTimeout(()=>showVehicleProfile('${item.v}'),150)">${item.v}</td>
+        <td class="mono" style="color:var(--acc);cursor:pointer;font-weight:600" onclick="document.getElementById('an-search').value='${item.v}';onAnalyticsFilterChange();">${item.v}</td>
         <td style="font-weight:600">${item.chauffeur}</td>
         <td class="mono" style="text-align:center;color:${item.pannesCount > 0 ? 'var(--red)' : 'var(--txt3)'}">${item.pannesCount > 0 ? `<b>${item.pannesCount}</b>` : '0'}</td>
         <td class="mono" style="text-align:center;color:${item.ncCount > 0 ? 'var(--org)' : 'var(--txt3)'}">${item.ncCount > 0 ? `<b>${item.ncCount}</b>` : '0'}</td>
@@ -14463,6 +14540,8 @@ function renderAnalytics() {
         <td class="mono" style="text-align:right;padding-right:15px;color:var(--txt2)">${item.gasoilLiters > 0 ? `${item.gasoilLiters.toLocaleString('fr-FR')} L` : '—'}</td>
         <td class="mono" style="text-align:right;padding-right:15px;color:var(--txt2)">${item.odoDelta > 0 ? `${item.odoDelta.toLocaleString('fr-FR')} km` : '—'}</td>
         <td class="mono" style="text-align:right;padding-right:15px;${racBadgeStyle}">${racStr}</td>
+        <td class="mono" style="text-align:right;padding-right:15px;color:var(--grn);font-weight:600">${item.bejaiaKm > 0 ? `${item.bejaiaKm.toLocaleString('fr-FR')} km` : '—'}</td>
+        <td class="mono" style="text-align:right;padding-right:15px;color:${item.speedExcessCount > 0 ? 'var(--red)' : 'var(--txt3)'};font-weight:600">${item.speedExcessCount > 0 ? `${item.speedExcessCount}` : '0'}</td>
       </tr>
     `;
   }).join('');
@@ -18254,22 +18333,9 @@ function saveOrientationLog(vehicle, chauffeur, action, pointDepart, distanceKm)
 window.saveOrientationLog = saveOrientationLog;
 
 function renderOrientationBejaiaPage() {
-  const startInput = document.getElementById('orient-filter-start');
-  const endInput = document.getElementById('orient-filter-end');
-  const todayVal = today();
-  
-  if (startInput && !startInput.value) {
-    const d = new Date();
-    const firstDay = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-01';
-    startInput.value = firstDay;
-  }
-  if (endInput && !endInput.value) {
-    endInput.value = todayVal;
-  }
-  
-  const startDate = startInput ? startInput.value : '';
-  const endDate = endInput ? endInput.value : '';
-  const searchQuery = document.getElementById('orient-filter-search') ? document.getElementById('orient-filter-search').value.trim().toLowerCase() : '';
+  const dateFromStr = document.getElementById('an-date-from')?.value || '';
+  const dateToStr = document.getElementById('an-date-to')?.value || '';
+  const q = document.getElementById('an-search')?.value.trim().toLowerCase() || '';
   
   rebuildOrientationBejaiaState();
   
@@ -18299,8 +18365,8 @@ function renderOrientationBejaiaPage() {
   
   let filteredLogs = allLogs.filter(log => {
     const logDate = (log.date || '').slice(0, 10);
-    if (startDate && logDate < startDate) return false;
-    if (endDate && logDate > endDate) return false;
+    if (dateFromStr && logDate < dateFromStr) return false;
+    if (dateToStr && logDate > dateToStr) return false;
     
     let details = {};
     try {
@@ -18311,10 +18377,10 @@ function renderOrientationBejaiaPage() {
     const chauffeurVal = (details.chauffeur || '').toLowerCase();
     const wilayaVal = (details.wilaya || '').toLowerCase();
     
-    if (searchQuery) {
-      if (!targetVal.includes(searchQuery) && 
-          !chauffeurVal.includes(searchQuery) && 
-          !wilayaVal.includes(searchQuery)) {
+    if (q) {
+      if (!targetVal.includes(q) && 
+          !chauffeurVal.includes(q) && 
+          !wilayaVal.includes(q)) {
         return false;
       }
     }
@@ -18442,6 +18508,349 @@ function exportOrientationBejaiaExcel() {
   showToast("📥 Historique des orientations exporté avec succès !");
 }
 window.exportOrientationBejaiaExcel = exportOrientationBejaiaExcel;
+
+// ─── EXCÈS DE VITESSE LOGIQUE ───────────────────────────────────────────────
+function rebuildSpeedExcessState() {
+  window._SPEED_EXCESS_STATE = {};
+  window._SPEED_EXCESS_TOTAL_COUNTS = {};
+  
+  const todayStr = today();
+  const teams = ['A', 'B', 'C', 'D', 'E', 'F'];
+  let allLogs = [];
+  
+  teams.forEach(eq => {
+    const db = (eq === CURRENT_EQUIPE && typeof DB !== 'undefined') ? DB : window['DB_' + eq];
+    if (db && db.tracabilite) {
+      db.tracabilite.forEach(log => {
+        if (log.type === 'Excès de vitesse') {
+          allLogs.push(log);
+        }
+      });
+    }
+  });
+  
+  if (typeof DB !== 'undefined' && DB.tracabilite) {
+    DB.tracabilite.forEach(log => {
+      if (log.type === 'Excès de vitesse' && !allLogs.includes(log)) {
+        allLogs.push(log);
+      }
+    });
+  }
+  
+  allLogs.sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
+  
+  allLogs.forEach(log => {
+    if (!log.target) return;
+    const vKey = log.target.trim().toUpperCase();
+    let details = {};
+    try {
+      details = JSON.parse(log.motif || log.detail || '{}');
+    } catch(e) {}
+    
+    const action = details.action || 'OUI';
+    
+    if (action === 'OUI') {
+      window._SPEED_EXCESS_TOTAL_COUNTS[vKey] = (window._SPEED_EXCESS_TOTAL_COUNTS[vKey] || 0) + 1;
+    }
+    
+    const logDate = (log.date || '').slice(0, 10);
+    if (logDate === todayStr) {
+      window._SPEED_EXCESS_STATE[vKey] = {
+        action: action,
+        chauffeur: details.chauffeur || '',
+        user: log.operator || log.user_login || 'Admin',
+        timestamp: log.timestamp,
+        date: log.date
+      };
+    }
+  });
+}
+window.rebuildSpeedExcessState = rebuildSpeedExcessState;
+
+function buildSpeedExcessCell(vehicle, chauffeur) {
+  if (!window._SPEED_EXCESS_STATE) window._SPEED_EXCESS_STATE = {};
+  if (!window._SPEED_EXCESS_TOTAL_COUNTS) window._SPEED_EXCESS_TOTAL_COUNTS = {};
+  
+  const state = window._SPEED_EXCESS_STATE[vehicle];
+  const total = window._SPEED_EXCESS_TOTAL_COUNTS[vehicle] || 0;
+  const isActif = state && state.action === 'OUI';
+  
+  if (isActif) {
+    return `<button onclick="toggleSpeedExcess('${vehicle}', '${chauffeur.replace(/'/g, "\\'")}')" style="background:#22c55e;color:#000;border:1.5px solid #16a34a;border-radius:6px;padding:3px 8px;font-size:10px;font-weight:800;cursor:pointer;transition:all .2s;white-space:nowrap;" title="Excès de vitesse signalé aujourd'hui — cliquer pour annuler">🟢 OUI (${total})</button>`;
+  } else {
+    return `<button onclick="toggleSpeedExcess('${vehicle}', '${chauffeur.replace(/'/g, "\\'")}')" style="background:#ef4444;color:#fff;border:1.5px solid #dc2626;border-radius:6px;padding:3px 10px;font-size:10px;font-weight:700;cursor:pointer;transition:all .2s;white-space:nowrap;" title="Aucun excès de vitesse signalé aujourd'hui — cliquer pour signaler">🔴 NON (${total})</button>`;
+  }
+}
+window.buildSpeedExcessCell = buildSpeedExcessCell;
+
+function toggleSpeedExcess(vehicle, chauffeur) {
+  if (!_checkActionsLibres('toggleSpeedExcess')) return;
+  if (!window._SPEED_EXCESS_STATE) window._SPEED_EXCESS_STATE = {};
+  
+  const state = window._SPEED_EXCESS_STATE[vehicle];
+  const isActif = state && state.action === 'OUI';
+  
+  if (isActif) {
+    if (confirm(`Annuler le signalement d'excès de vitesse pour le camion ${vehicle} aujourd'hui ?`)) {
+      saveSpeedExcessLog(vehicle, chauffeur, 'NON');
+    }
+  } else {
+    if (confirm(`Signaler un excès de vitesse pour le camion ${vehicle} aujourd'hui ?`)) {
+      saveSpeedExcessLog(vehicle, chauffeur, 'OUI');
+    }
+  }
+}
+window.toggleSpeedExcess = toggleSpeedExcess;
+
+function saveSpeedExcessLog(vehicle, chauffeur, action) {
+  const now = new Date();
+  const dateStr = now.getFullYear() + '-' + 
+    String(now.getMonth()+1).padStart(2,'0') + '-' + 
+    String(now.getDate()).padStart(2,'0') + ' ' + 
+    String(now.getHours()).padStart(2,'0') + ':' + 
+    String(now.getMinutes()).padStart(2,'0') + ':' + 
+    String(now.getSeconds()).padStart(2,'0');
+    
+  const operator = typeof getOperatorRole === 'function' ? getOperatorRole() : 'Chef de Section';
+  const details = {
+    action: action,
+    chauffeur: chauffeur
+  };
+  
+  if (!DB.tracabilite) DB.tracabilite = [];
+  
+  const logEntry = {
+    timestamp: Date.now(),
+    date: dateStr,
+    type: 'Excès de vitesse',
+    targetType: 'TRACTEUR',
+    target: vehicle,
+    operator: operator,
+    motif: JSON.stringify(details)
+  };
+  
+  DB.tracabilite.push(logEntry);
+  saveDB();
+  rebuildSpeedExcessState();
+  renderDispo();
+  
+  showToast(action === 'OUI' 
+    ? `⚠️ Excès de vitesse signalé pour le camion ${vehicle}`
+    : `✅ Excès de vitesse annulé pour le camion ${vehicle}`
+  );
+}
+window.saveSpeedExcessLog = saveSpeedExcessLog;
+
+function renderSpeedExcessPage() {
+  const dateFromStr = document.getElementById('an-date-from')?.value || '';
+  const dateToStr = document.getElementById('an-date-to')?.value || '';
+  const q = document.getElementById('an-search')?.value.trim().toLowerCase() || '';
+  
+  rebuildSpeedExcessState();
+  
+  let allLogs = [];
+  const teams = ['A', 'B', 'C', 'D', 'E', 'F'];
+  teams.forEach(eq => {
+    const db = (eq === CURRENT_EQUIPE && typeof DB !== 'undefined') ? DB : window['DB_' + eq];
+    if (db && db.tracabilite) {
+      db.tracabilite.forEach(log => {
+        if (log.type === 'Excès de vitesse') {
+          allLogs.push(Object.assign({ team: eq }, log));
+        }
+      });
+    }
+  });
+  
+  if (typeof DB !== 'undefined' && DB.tracabilite) {
+    DB.tracabilite.forEach(log => {
+      if (log.type === 'Excès de vitesse' && !allLogs.some(l => l.timestamp === log.timestamp && l.target === log.target)) {
+        allLogs.push(Object.assign({ team: CURRENT_EQUIPE }, log));
+      }
+    });
+  }
+  
+  allLogs.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+  
+  let filteredLogs = allLogs.filter(log => {
+    const logDate = (log.date || '').slice(0, 10);
+    if (dateFromStr && logDate < dateFromStr) return false;
+    if (dateToStr && logDate > dateToStr) return false;
+    
+    let details = {};
+    try {
+      details = JSON.parse(log.motif || log.detail || '{}');
+    } catch(e) {}
+    
+    const targetVal = (log.target || '').toLowerCase();
+    const chauffeurVal = (details.chauffeur || '').toLowerCase();
+    
+    if (q) {
+      if (!targetVal.includes(q) && !chauffeurVal.includes(q)) return false;
+    }
+    return true;
+  });
+  
+  let totalCount = 0;
+  const uniqueVehicles = new Set();
+  
+  filteredLogs.forEach(log => {
+    let details = {};
+    try {
+      details = JSON.parse(log.motif || log.detail || '{}');
+    } catch(e) {}
+    
+    if (details.action === 'OUI') {
+      totalCount++;
+      if (log.target) uniqueVehicles.add(log.target.trim().toUpperCase());
+    }
+  });
+  
+  const statTotal = document.getElementById('speed-stat-total');
+  const statCamions = document.getElementById('speed-stat-camions');
+  
+  if (statTotal) statTotal.textContent = totalCount;
+  if (statCamions) statCamions.textContent = uniqueVehicles.size;
+  
+  const tbody = document.getElementById('speed-history-body');
+  if (!tbody) return;
+  
+  if (filteredLogs.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="5" style="text-align:center;padding:24px;color:#94a3b8">Aucun excès de vitesse trouvé sur cette période.</td></tr>`;
+    return;
+  }
+  
+  tbody.innerHTML = filteredLogs.map(log => {
+    let details = {};
+    try {
+      details = JSON.parse(log.motif || log.detail || '{}');
+    } catch(e) {}
+    
+    const action = details.action || 'OUI';
+    const statusBadge = action === 'OUI'
+      ? '<span style="background:rgba(239,68,68,0.15);color:#ef4444;border:1px solid rgba(239,68,68,0.4);border-radius:6px;padding:2px 8px;font-size:11px;font-weight:800">🔴 SIGNALÉ</span>'
+      : '<span style="background:rgba(34,197,94,0.15);color:#22c55e;border:1px solid rgba(34,197,94,0.4);border-radius:6px;padding:2px 8px;font-size:11px;font-weight:800">🟢 ANNULÉ</span>';
+       
+    const chauffeurStr = details.chauffeur || '—';
+    
+    return `
+      <tr style="border-bottom:1px solid rgba(255,255,255,0.05)">
+        <td style="font-family:monospace;font-size:11px;color:#94a3b8">${log.date || '—'}</td>
+        <td style="font-weight:800;color:var(--acc);font-family:monospace">${log.target || '—'}</td>
+        <td style="font-weight:600;color:#fff">${chauffeurStr}</td>
+        <td style="text-align:center">${statusBadge}</td>
+        <td style="font-size:11px;color:#cbd5e1">${log.operator || log.user_login || 'Admin'} <span style="color:#64748b;font-size:9px;">(Éq. ${log.team || '—'})</span></td>
+      </tr>
+    `;
+  }).join('');
+}
+window.renderSpeedExcessPage = renderSpeedExcessPage;
+
+function exportSpeedExcessExcel() {
+  if (typeof XLSX === 'undefined') {
+    showToast('⚠️ SheetJS non chargé', true);
+    return;
+  }
+  
+  rebuildSpeedExcessState();
+  
+  let allLogs = [];
+  const teams = ['A', 'B', 'C', 'D', 'E', 'F'];
+  teams.forEach(eq => {
+    const db = (eq === CURRENT_EQUIPE && typeof DB !== 'undefined') ? DB : window['DB_' + eq];
+    if (db && db.tracabilite) {
+      db.tracabilite.forEach(log => {
+        if (log.type === 'Excès de vitesse') {
+          allLogs.push(Object.assign({ team: eq }, log));
+        }
+      });
+    }
+  });
+  
+  if (typeof DB !== 'undefined' && DB.tracabilite) {
+    DB.tracabilite.forEach(log => {
+      if (log.type === 'Excès de vitesse' && !allLogs.some(l => l.timestamp === log.timestamp && l.target === log.target)) {
+        allLogs.push(Object.assign({ team: CURRENT_EQUIPE }, log));
+      }
+    });
+  }
+  
+  allLogs.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+  
+  const data = [['Date & Heure', 'Véhicule', 'Chauffeur', 'Statut', 'Opérateur', 'Équipe']];
+  
+  allLogs.forEach(log => {
+    let details = {};
+    try {
+      details = JSON.parse(log.motif || log.detail || '{}');
+    } catch(e) {}
+    
+    const action = details.action || 'OUI';
+    
+    data.push([
+      log.date || '',
+      log.target || '',
+      details.chauffeur || '',
+      action === 'OUI' ? 'SIGNALÉ' : 'ANNULÉ',
+      log.operator || log.user_login || 'Admin',
+      log.team || ''
+    ]);
+  });
+  
+  const ws = XLSX.utils.aoa_to_sheet(data);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, "Exces_Vitesse");
+  XLSX.writeFile(wb, "Numiplan_Exces_Vitesse_" + today() + ".xlsx");
+  showToast("📥 Historique des excès de vitesse exporté avec succès !");
+}
+window.exportSpeedExcessExcel = exportSpeedExcessExcel;
+
+// ─── SOUS-ONGLETS ANALYSES LOGIQUE ──────────────────────────────────────────
+function switchAnalyticsSubTab(tabName) {
+  document.querySelectorAll('.analytics-subpage').forEach(el => el.style.display = 'none');
+  document.querySelectorAll('.analytics-subtab-btn').forEach(btn => {
+    btn.classList.remove('active');
+    btn.style.background = 'rgba(255,255,255,0.05)';
+    btn.style.color = 'var(--txt)';
+    btn.style.fontWeight = '700';
+  });
+  
+  const targetPage = document.getElementById('analytics-subpage-' + tabName);
+  if (targetPage) targetPage.style.display = 'block';
+  
+  const targetBtn = document.getElementById('btn-subtab-' + tabName);
+  if (targetBtn) {
+    targetBtn.classList.add('active');
+    targetBtn.style.background = '#38bdf8';
+    targetBtn.style.color = '#000';
+    targetBtn.style.fontWeight = '800';
+  }
+  
+  if (tabName === 'performance') renderAnalytics();
+  else if (tabName === 'orientation') renderOrientationBejaiaPage();
+  else if (tabName === 'speed-excess') renderSpeedExcessPage();
+}
+window.switchAnalyticsSubTab = switchAnalyticsSubTab;
+
+function onAnalyticsFilterChange() {
+  const activeBtn = document.querySelector('.analytics-subtab-btn.active');
+  const tabName = activeBtn ? activeBtn.id.replace('btn-subtab-', '') : 'performance';
+  
+  if (tabName === 'performance') renderAnalytics();
+  else if (tabName === 'orientation') renderOrientationBejaiaPage();
+  else if (tabName === 'speed-excess') renderSpeedExcessPage();
+}
+window.onAnalyticsFilterChange = onAnalyticsFilterChange;
+
+function resetAnalyticsFilters() {
+  const search = document.getElementById('an-search');
+  const from = document.getElementById('an-date-from');
+  const to = document.getElementById('an-date-to');
+  if (search) search.value = '';
+  if (from) from.value = '';
+  if (to) to.value = '';
+  onAnalyticsFilterChange();
+}
+window.resetAnalyticsFilters = resetAnalyticsFilters;
 
 </script>
 
