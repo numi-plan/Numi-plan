@@ -8194,6 +8194,8 @@ function saveNC() {
   if (!_checkActionsLibres('saveNC')) return;
   const sharik = document.getElementById('f-nc-sharik').value.trim();
   if (!sharik) { showToast('⚠️ Chauffeur requis', true); return; }
+  const v = document.getElementById('f-nc-v').value.trim().toUpperCase();
+  if (!v) { showToast('⚠️ Véhicule (Immatriculation) requis', true); return; }
   const maxN = DB.nc.reduce((m,r)=>Math.max(m,r.n||0),0);
   const type = document.getElementById('f-nc-type').value;
   const detail = document.getElementById('f-nc-detail').value.trim();
@@ -8202,7 +8204,7 @@ function saveNC() {
   const obj = {
     n: maxN+1,
     sharik: sharik.toUpperCase(),
-    v: document.getElementById('f-nc-v').value.trim().toUpperCase(),
+    v: v,
     fausse: type==='fausse'?detail:'',
     chgt: type==='chgt'?detail:'',
     autorise: type==='autorise'?detail:'',
