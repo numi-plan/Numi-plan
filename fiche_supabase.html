@@ -5,6 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Numi-Plan · Suivi Chauffeur</title>
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600;700&family=IBM+Plex+Sans:wght@300;400;600;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+
 
 <!-- ═══════════════════════════════════════════════════════════════
      FIREBASE — SYNC TEMPS RÉEL (1 document : numiplan/data → A/B/C/D)
@@ -2437,7 +2439,7 @@ mark.hl { background: rgba(56,189,248,.25); color: var(--acc); border-radius: 3p
       <div style="margin-left:auto;display:flex;gap:8px">
         <input type="file" id="admin-es-excel-file" accept=".xlsx, .xls" style="display:none" onchange="importerExcelEntreesSorties(this)">
         <button class="btn" onclick="document.getElementById('admin-es-excel-file').click()" style="background:rgba(255,255,255,0.08);border:1px solid var(--border);color:var(--txt);font-weight:700">📁 Importer / Maj Excel</button>
-        <button class="btn" onclick="exporterExcelEntreesSorties()" style="background:linear-gradient(135deg,#10b981,#059669);color:#fff;font-weight:700">📥 Exporter Registre</button>
+        <button class="btn" onclick="exporterExcelRegistreSharik()" style="background:linear-gradient(135deg,#10b981,#059669);color:#fff;font-weight:700">📥 Exporter Registre</button>
       </div>
     </div>
 
@@ -2623,7 +2625,10 @@ mark.hl { background: rgba(56,189,248,.25); color: var(--acc); border-radius: 3p
             Toute modification opérationnelle initiée par un REX remonte ici et requiert la validation du <b>code secret Direction</b> pour être officialisée dans le registre.
           </div>
         </div>
-        <button class="btn" onclick="renderAdminValidations()" style="background:rgba(56,189,248,0.15);border:1px solid #38bdf8;color:#38bdf8;font-size:12px;font-weight:700">🔄 Actualiser</button>
+        <div style="display:flex;gap:8px">
+          <button class="btn" onclick="renderAdminValidations()" style="background:rgba(56,189,248,0.15);border:1px solid #38bdf8;color:#38bdf8;font-size:12px;font-weight:700">🔄 Actualiser</button>
+          <button class="btn" onclick="exporterExcelLogsMouvements()" style="background:linear-gradient(135deg,#10b981,#059669);color:#fff;font-size:12px;font-weight:700">📥 Exporter Historique</button>
+        </div>
       </div>
 
       <div class="table-wrap">
@@ -17954,7 +17959,7 @@ function saveAdminSharikEdit() {
 }
 window.saveAdminSharikEdit = saveAdminSharikEdit;
 
-function exporterExcelEntreesSorties() {
+function exporterExcelRegistreSharik() {
   if (typeof XLSX === 'undefined') {
     showToast('⚠️ SheetJS non chargé', true);
     return;
@@ -17985,9 +17990,9 @@ function exporterExcelEntreesSorties() {
   XLSX.writeFile(wb, "Numiplan_Registre_Sharik_" + today() + ".xlsx");
   showToast("📥 Registre des Chauffeurs Sharik exporté avec succès !");
 }
-window.exporterExcelEntreesSorties = exporterExcelEntreesSorties;
+window.exporterExcelRegistreSharik = exporterExcelRegistreSharik;
 
-function exporterExcelEntreesSorties() {
+function exporterExcelLogsMouvements() {
   if (typeof XLSX === 'undefined') {
     showToast('⚠️ SheetJS non chargé', true);
     return;
@@ -18020,7 +18025,7 @@ function exporterExcelEntreesSorties() {
   XLSX.writeFile(wb, "Numiplan_Registre_Entrees_Sorties_" + today() + ".xlsx");
   showToast("📥 Registre Entrées/Sorties exporté avec succès !");
 }
-window.exporterExcelEntreesSorties = exporterExcelEntreesSorties;
+window.exporterExcelLogsMouvements = exporterExcelLogsMouvements;
 
 // 2. NON-CONFORMITÉS CONSOLIDÉES
 
