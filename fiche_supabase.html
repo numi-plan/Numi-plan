@@ -17252,6 +17252,20 @@ function getCanonicalDriverName(name) {
   return n;
 }
 
+function isResemblanceRejected(regName, numiName) {
+  const edits = window._ADMIN_SHARIK_CUSTOM_EDITS || (typeof _ADMIN_SHARIK_CUSTOM_EDITS !== 'undefined' ? _ADMIN_SHARIK_CUSTOM_EDITS : null);
+  if (!edits || !Array.isArray(edits.rejected_resemblances)) {
+    return false;
+  }
+  const rN = regName.trim().toUpperCase();
+  const nN = numiName.trim().toUpperCase();
+  return edits.rejected_resemblances.some(x => {
+    const xReg = (x.reg || '').trim().toUpperCase();
+    const xNumi = (x.numi || '').trim().toUpperCase();
+    return (xReg === rN && xNumi === nN) || (xReg === nN && xNumi === rN);
+  });
+}
+
 function areNamesMatching(nameA, nameB) {
   const nA = normalizeDriverName(nameA);
   const nB = normalizeDriverName(nameB);
@@ -17313,6 +17327,9 @@ function findBestNumiplanSuggestion(registryName, numiplanDrivers) {
   const regWords = normReg.split(' ').filter(w => w.length > 2);
 
   for (const [nKey, nVal] of Object.entries(numiplanDrivers)) {
+    if (isResemblanceRejected(registryName, nKey)) {
+      continue;
+    }
     const numiParts = nKey.split(' ').sort().join(' ');
     const numiWords = nKey.split(' ').filter(w => w.length > 2);
 
@@ -17423,6 +17440,15 @@ function renderAdminEntreesSorties() {
 
   // 1. Base des 185 chauffeurs Sharik (Strictement préservée)
   let rawList = JSON.parse(JSON.stringify(INITIAL_ADMIN_SHARIK_DATA));
+
+  // Ajouter les nouveaux chauffeurs créés par la Direction
+  if (_ADMIN_SHARIK_CUSTOM_EDITS && Array.isArray(_ADMIN_SHARIK_CUSTOM_EDITS.new_drivers)) {
+    _ADMIN_SHARIK_CUSTOM_EDITS.new_drivers.forEach(newD => {
+      if (!rawList.some(r => r.sharik.trim().toUpperCase() === newD.sharik.trim().toUpperCase())) {
+        rawList.push(JSON.parse(JSON.stringify(newD)));
+      }
+    });
+  }
 
   // 2. Appliquer les modifications manuelles de l'administrateur
   rawList.forEach((r, idx) => {
@@ -17794,9 +17820,12 @@ function renderAdminEntreesSorties() {
       const safeSugRm = (r._suggestion.rm || '').replace(/'/g, "\'");
 
       incoherenceBadge = `
-        <div style="font-size:11px;font-weight:700;color:#38bdf8;margin-top:4px;background:rgba(56,189,248,0.12);border:1px solid rgba(56,189,248,0.4);padding:4px 8px;border-radius:6px;text-align:left;display:flex;align-items:center;justify-content:space-between;gap:6px">
+        <div style="font-size:11px;font-weight:700;color:#38bdf8;margin-top:4px;background:rgba(56,189,248,0.12);border:1px solid rgba(56,189,248,0.4);padding:6px 10px;border-radius:6px;text-align:left;display:flex;flex-direction:column;gap:6px">
           <span>💡 Ressemblance : <b>${r._suggestion.name}</b> (${r._suggestion.v || 'Sans camion'}, Éq. ${r._suggestion.team})</span>
-          <button onclick="validerLiaisonSuggestion('${editKey}', '${safeSugName}', '${safeSugV}', '${safeSugRm}')" style="background:#38bdf8;color:#000;border:none;border-radius:4px;font-size:10px;font-weight:900;padding:3px 8px;cursor:pointer;white-space:nowrap">🔗 Valider</button>
+          <div style="display:flex;gap:6px;align-self:flex-end">
+            <button onclick="validerLiaisonSuggestion('${editKey}', '${safeSugName}', '${safeSugV}', '${safeSugRm}')" style="background:#10b981;color:#fff;border:none;border-radius:4px;font-size:10px;font-weight:900;padding:4px 10px;cursor:pointer;white-space:nowrap">✓ Oui, Lier</button>
+            <button onclick="refuserLiaisonSuggestion('${r.sharik.replace(/'/g, "\\'")}', '${safeSugName}', '${safeSugV}', '${safeSugRm}')" style="background:#ef4444;color:#fff;border:none;border-radius:4px;font-size:10px;font-weight:900;padding:4px 10px;cursor:pointer;white-space:nowrap">❌ Non, Créer Chauffeur</button>
+          </div>
         </div>
       `;
     } else if (r._incoherence) {
@@ -17898,6 +17927,88 @@ async function validerLiaisonSuggestion(editKey, targetName, targetV, targetRm) 
   showToast(`✅ Liaison avec « ${targetName} » (TR: ${targetV || '—'} / RM: ${targetRm || '—'}) validée par la Direction`);
 }
 window.validerLiaisonSuggestion = validerLiaisonSuggestion;
+
+async function refuserLiaisonSuggestion(registryName, numiplanName, targetV, targetRm) {
+  const pwd = await demanderMotDePasseMasque("🔒 Refus Correspondance & Création Chauffeur", `Veuillez saisir votre mot de passe Direction pour rejeter la ressemblance et créer le chauffeur « ${numiplanName} » :`);
+  if (pwd === null) return; // Annulation
+  
+  const cleanPwd = (pwd || '').trim();
+  if (cleanPwd.toUpperCase() !== 'DIREX' && cleanPwd !== 'Numilog@26' && cleanPwd !== 'RexSharik@2026') {
+    showToast("⛔ Mot de passe incorrect !", true);
+    return;
+  }
+
+  // 1. Enregistrer le refus dans rejected_resemblances
+  if (!_ADMIN_SHARIK_CUSTOM_EDITS.rejected_resemblances) {
+    _ADMIN_SHARIK_CUSTOM_EDITS.rejected_resemblances = [];
+  }
+  _ADMIN_SHARIK_CUSTOM_EDITS.rejected_resemblances.push({
+    reg: registryName,
+    numi: numiplanName
+  });
+
+  // 2. Créer le nouveau chauffeur dans new_drivers
+  if (!_ADMIN_SHARIK_CUSTOM_EDITS.new_drivers) {
+    _ADMIN_SHARIK_CUSTOM_EDITS.new_drivers = [];
+  }
+
+  // Chercher la remorque si manquante
+  const EQUIPES = ['A', 'B', 'C', 'D', 'E', 'F'];
+  let finalRm = targetRm;
+  if (!finalRm) {
+    EQUIPES.forEach(eq => {
+      try {
+        const db = (eq === window.CURRENT_EQUIPE && typeof window.DB !== 'undefined') ? window.DB : window['DB_' + eq];
+        if (db) {
+          if (Array.isArray(db.equip)) {
+            const eqItem = db.equip.find(x => x && (x.v === targetV || (x.chauffeur && areNamesMatching(x.chauffeur, numiplanName))));
+            if (eqItem && eqItem.rm && !finalRm) finalRm = eqItem.rm;
+          }
+          if (Array.isArray(db.nc) && !finalRm) {
+            const ncItem = db.nc.find(x => x && (x.immat === targetV || x.tr === targetV || (x.sharik && areNamesMatching(x.sharik, numiplanName))));
+            if (ncItem && ncItem.rm) finalRm = ncItem.rm;
+          }
+          if (Array.isArray(db.dispo) && !finalRm) {
+            const dItem = db.dispo.find(x => x && (x.v === targetV || (x.chauffeur && areNamesMatching(x.chauffeur, numiplanName))));
+            if (dItem && dItem.rm) finalRm = dItem.rm;
+          }
+        }
+      } catch(e) {}
+    });
+  }
+  if (!finalRm && targetV && MASTER_TRUCK_PARC[targetV]) {
+    finalRm = MASTER_TRUCK_PARC[targetV];
+  }
+
+  const newCh = {
+    code: '', // Nouveau code vide (géré manuellement plus tard si besoin)
+    sharik: numiplanName.trim().toUpperCase(),
+    date_in: new Date().toISOString().slice(0, 10),
+    date_reinteg: '',
+    contrat: 'CDD',
+    flotte: '1',
+    regime: 'IFU',
+    date_out: '',
+    motif_out: '',
+    statut: 'ACTIF',
+    tracteur: targetV || '',
+    remorque: finalRm || '',
+    tracteurs: targetV ? [targetV] : [],
+    remorques: finalRm ? [finalRm] : [],
+    is_extension: false,
+    nb_camions: 1,
+    date_contrat_fin: ''
+  };
+
+  _ADMIN_SHARIK_CUSTOM_EDITS.new_drivers.push(newCh);
+
+  localStorage.setItem('numiplan_admin_sharik_custom_edits', JSON.stringify(_ADMIN_SHARIK_CUSTOM_EDITS));
+  pushSharikEditsToCloud();
+
+  renderAdminEntreesSorties();
+  showToast(`✅ Correspondance rejetée. Le nouveau chauffeur « ${numiplanName} » a été ajouté au registre.`);
+}
+window.refuserLiaisonSuggestion = refuserLiaisonSuggestion;
 
 function ouvrirModalEditionSharik(idx) {
   const rawList = JSON.parse(JSON.stringify(INITIAL_ADMIN_SHARIK_DATA));
