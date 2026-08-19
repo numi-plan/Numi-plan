@@ -7364,8 +7364,9 @@ function renderDispo() {
     if (DB && DB.dispo) {
       DB.dispo.forEach(row => {
         const ch = (row.chauffeur || '').trim().toUpperCase();
-        if (ch && ch !== '—' && ch !== '' && !ch.includes('MANQUE CHAUFFEUR')) {
-          tempCounts[ch] = (tempCounts[ch] || 0) + 1;
+        if (ch && ch !== '—' && ch !== '' && !ch.includes('MANQUE CHAUFFEUR') && !ch.includes('AC/DC') && !ch.includes('DISPONIBLE') && !ch.includes('EN PANNE') && !ch.includes('INDISPONIBLE')) {
+          const canonical = getCanonicalDriverName(ch);
+          tempCounts[canonical] = (tempCounts[canonical] || 0) + 1;
         }
       });
       for (const [ch, count] of Object.entries(tempCounts)) {
