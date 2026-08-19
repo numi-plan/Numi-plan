@@ -7417,8 +7417,9 @@ function renderDispo() {
     if (db && db.dispo) {
       db.dispo.forEach(row => {
         const ch = (row.chauffeur || '').trim().toUpperCase();
-        if (ch && ch !== '—' && ch !== '' && !ch.includes('MANQUE CHAUFFEUR')) {
-          driverCounts[ch] = (driverCounts[ch] || 0) + 1;
+        if (ch && ch !== '—' && ch !== '' && !ch.includes('MANQUE CHAUFFEUR') && !ch.includes('AC/DC') && !ch.includes('DISPONIBLE') && !ch.includes('EN PANNE') && !ch.includes('INDISPONIBLE')) {
+          const canonical = getCanonicalDriverName(ch);
+          driverCounts[canonical] = (driverCounts[canonical] || 0) + 1;
         }
       });
     }
@@ -7428,8 +7429,8 @@ function renderDispo() {
   const uniqueDrivers = new Set();
   data.forEach(r => {
     const ch = (r.chauffeur || '').trim().toUpperCase();
-    if (ch && ch !== '—' && ch !== '' && !ch.includes('MANQUE CHAUFFEUR')) {
-      uniqueDrivers.add(ch);
+    if (ch && ch !== '—' && ch !== '' && !ch.includes('MANQUE CHAUFFEUR') && !ch.includes('AC/DC') && !ch.includes('DISPONIBLE') && !ch.includes('EN PANNE') && !ch.includes('INDISPONIBLE')) {
+      uniqueDrivers.add(getCanonicalDriverName(ch));
     }
   });
 
@@ -7437,9 +7438,10 @@ function renderDispo() {
   const uniqueExtChauffeurs = new Set();
   data.forEach(r => {
     const ch = (r.chauffeur || '').trim().toUpperCase();
-    if (ch && ch !== '—' && ch !== '' && !ch.includes('MANQUE CHAUFFEUR')) {
-      if (driverCounts[ch] >= 2) {
-        uniqueExtChauffeurs.add(ch);
+    if (ch && ch !== '—' && ch !== '' && !ch.includes('MANQUE CHAUFFEUR') && !ch.includes('AC/DC') && !ch.includes('DISPONIBLE') && !ch.includes('EN PANNE') && !ch.includes('INDISPONIBLE')) {
+      const canonical = getCanonicalDriverName(ch);
+      if (driverCounts[canonical] >= 2) {
+        uniqueExtChauffeurs.add(canonical);
       }
     }
   });
@@ -7497,7 +7499,8 @@ function renderDispo() {
     }
 
     const chKey = (r.chauffeur || '').trim().toUpperCase();
-    const isExtension = chKey && chKey !== '—' && !chKey.includes('MANQUE CHAUFFEUR') && (driverCounts[chKey] >= 2);
+    const canonicalChKey = getCanonicalDriverName(chKey);
+    const isExtension = canonicalChKey && canonicalChKey !== '—' && !canonicalChKey.includes('MANQUE CHAUFFEUR') && !canonicalChKey.includes('AC/DC') && !canonicalChKey.includes('DISPONIBLE') && !canonicalChKey.includes('EN PANNE') && !canonicalChKey.includes('INDISPONIBLE') && (driverCounts[canonicalChKey] >= 2);
     const extPill = isExtension ? '<span class="badge badge-pur" style="font-size: 9px; padding: 1px 5px; vertical-align: middle; margin-left: 4px;">extension</span>' : '';
 
     // Styles de ligne et du badge chauffeur (Percutant & Premium)
@@ -12378,8 +12381,9 @@ function ouvrirListeExtensions() {
     if (db && db.dispo) {
       db.dispo.forEach(row => {
         const ch = (row.chauffeur || '').trim().toUpperCase();
-        if (ch && ch !== '—' && ch !== '' && !ch.includes('MANQUE CHAUFFEUR')) {
-          driverCounts[ch] = (driverCounts[ch] || 0) + 1;
+        if (ch && ch !== '—' && ch !== '' && !ch.includes('MANQUE CHAUFFEUR') && !ch.includes('AC/DC') && !ch.includes('DISPONIBLE') && !ch.includes('EN PANNE') && !ch.includes('INDISPONIBLE')) {
+          const canonical = getCanonicalDriverName(ch);
+          driverCounts[canonical] = (driverCounts[canonical] || 0) + 1;
         }
       });
     }
@@ -12391,8 +12395,8 @@ function ouvrirListeExtensions() {
   if (currentEqDb && currentEqDb.dispo) {
     currentEqDb.dispo.forEach(row => {
       const ch = (row.chauffeur || '').trim().toUpperCase();
-      if (ch && ch !== '—' && ch !== '' && !ch.includes('MANQUE CHAUFFEUR')) {
-        currentEqDrivers.add(ch);
+      if (ch && ch !== '—' && ch !== '' && !ch.includes('MANQUE CHAUFFEUR') && !ch.includes('AC/DC') && !ch.includes('DISPONIBLE') && !ch.includes('EN PANNE') && !ch.includes('INDISPONIBLE')) {
+        currentEqDrivers.add(getCanonicalDriverName(ch));
       }
     });
   }
@@ -17240,6 +17244,13 @@ function normalizeDriverName(str) {
   return normalizedWords.join(' ');
 }
 
+function getCanonicalDriverName(name) {
+  if (!name) return "";
+  let n = normalizeDriverName(name);
+  n = n.replace(/\s+\d+$/, '').trim();
+  return n;
+}
+
 function areNamesMatching(nameA, nameB) {
   const nA = normalizeDriverName(nameA);
   const nB = normalizeDriverName(nameB);
@@ -17695,9 +17706,9 @@ function renderAdminEntreesSorties() {
     } catch(e) {}
   });
 
-  // Chauffeurs physiques actifs = Exactement tous les chauffeurs actifs au registre
-  const totalActifs = rawList.filter(r => r.statut === 'ACTIF').length;
-  const totalExtensions = rawList.filter(r => r.statut === 'ACTIF' && r.is_extension).length;
+  // Chauffeurs physiques actifs = Exactement tous les chauffeurs uniques sur Numiplan (planning de disponibilité)
+  const totalActifs = (globalUniqueAllDrivers.size > 0) ? globalUniqueAllDrivers.size : rawList.filter(r => r.statut === 'ACTIF').length;
+  const totalExtensions = (globalUniqueExtDrivers.size > 0) ? globalUniqueExtDrivers.size : rawList.filter(r => r.statut === 'ACTIF' && r.is_extension).length;
   const totalCamionsParc = (globalTotalCamions > 0) ? globalTotalCamions : 181;
   const totalInactifs = rawList.filter(r => r.statut === 'INACTIF').length;
 
