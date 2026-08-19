@@ -17248,19 +17248,15 @@ function areNamesMatching(nameA, nameB) {
 
 function areNamesFuzzyMatching(nameA, nameB) {
   if (areNamesMatching(nameA, nameB)) return true;
-  const nA = normalizeDriverName(nameA);
-  const nB = normalizeDriverName(nameB);
+  let nA = normalizeDriverName(nameA);
+  let nB = normalizeDriverName(nameB);
   if (!nA || !nB) return false;
 
-  // Suffixe numérique de distinction (ex: 1, 2, 3...)
-  const numA = nA.match(/\b\d+\b/);
-  const numB = nB.match(/\b\d+\b/);
-  if (numA || numB) {
-    const valA = numA ? numA[0] : '';
-    const valB = numB ? numB[0] : '';
-    if (valA !== valB) return false;
-  }
+  // Supprimer les suffixes numériques à la fin du nom (ex: "SAID LARBI 2" -> "SAID LARBI")
+  nA = nA.replace(/\s+\d+$/, '').trim();
+  nB = nB.replace(/\s+\d+$/, '').trim();
 
+  if (nA === nB) return true;
   if (levenshteinDistance(nA, nB) <= 2) return true;
   return false;
 }
@@ -17694,9 +17690,9 @@ function renderAdminEntreesSorties() {
     } catch(e) {}
   });
 
-  // Chauffeurs physiques actifs = Exactement tous les chauffeurs uniques sur Numiplan
-  const totalActifs = (globalUniqueAllDrivers.size > 0) ? globalUniqueAllDrivers.size : rawList.filter(r => r.statut === 'ACTIF').length;
-  const totalExtensions = (globalUniqueExtDrivers.size > 0) ? globalUniqueExtDrivers.size : rawList.filter(r => r.statut === 'ACTIF' && r.is_extension).length;
+  // Chauffeurs physiques actifs = Exactement tous les chauffeurs actifs au registre
+  const totalActifs = rawList.filter(r => r.statut === 'ACTIF').length;
+  const totalExtensions = rawList.filter(r => r.statut === 'ACTIF' && r.is_extension).length;
   const totalCamionsParc = (globalTotalCamions > 0) ? globalTotalCamions : 181;
   const totalInactifs = rawList.filter(r => r.statut === 'INACTIF').length;
 
