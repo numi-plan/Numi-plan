@@ -17964,7 +17964,7 @@ function exporterExcelRegistreSharik() {
     showToast('⚠️ SheetJS non chargé', true);
     return;
   }
-  const data = [['Code Tier', 'Désignation SHARIK', 'Date Démarrage', 'Date Fin / Échéance Contrat', 'DATE Réintég', 'Type de contrat', 'Flotte', 'Régime Comptable', 'Date de Sortie (Résiliation)', 'Motif de résiliation', 'Statut']];
+  const data = [['Code Tier', 'Désignation SHARIK', 'Tracteur (Immat)', 'Remorque', 'Date Démarrage', 'Date Fin / Échéance Contrat', 'DATE Réintég', 'Type de contrat', 'Flotte', 'Régime Comptable', 'Date de Sortie (Résiliation)', 'Motif de résiliation', 'Statut']];
   
   _ADMIN_SHARIK_ENTREES_SORTIES.forEach(r => {
     // Si actif, pas de date de sortie
@@ -17972,6 +17972,8 @@ function exporterExcelRegistreSharik() {
     data.push([
       r.code || '',
       r.sharik || '',
+      r.tracteur || '',
+      r.remorque || '',
       r.date_in || '',
       r.date_contrat_fin || '',
       r.date_reinteg || '',
