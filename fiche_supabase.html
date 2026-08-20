@@ -11563,6 +11563,11 @@ function renderHistoriqueAnomalies() {
 
 
 function isGpsSyncToday() {
+  // L'accès direction_only (registre) ne doit pas être bloqué par le GPS
+  if (sessionStorage.getItem('numiplan_user_role') === 'direction_only') {
+    return true;
+  }
+
   if (window._gpsForceUnlocked) return true;
   
   const d = new Date();
@@ -11782,6 +11787,18 @@ function checkPointageRequired() {
   // 1. Si pas connecté, ne rien faire (le login screen est actif)
   if (sessionStorage.getItem('numiplan_auth') !== 'ok') {
     _setActionsBloqueesPointage(false);
+    return false;
+  }
+
+  // 1.5. Si l'utilisateur est de la direction administrative (direction_only), aucun blocage ni popup !
+  if (sessionStorage.getItem('numiplan_user_role') === 'direction_only') {
+    _setActionsBloqueesPointage(false);
+    const gpsModal = document.getElementById('modal-pointage-gps-required');
+    if (gpsModal) gpsModal.style.setProperty('display', 'none', 'important');
+    const modal = document.getElementById('modal-pointage-anomalies');
+    if (modal) modal.style.setProperty('display', 'none', 'important');
+    const kpiModal = document.getElementById('modal-pointage-kpi-atelier');
+    if (kpiModal) kpiModal.style.setProperty('display', 'none', 'important');
     return false;
   }
 
@@ -17401,7 +17418,7 @@ function pushSharikEditsToCloud() {
 }
 
 // Proactive migration: push to Supabase on startup if edits exist locally
-if (Object.keys(_ADMIN_SHARIK_CUSTOM_EDITS).length > 0) {
+if (_ADMIN_SHARIK_CUSTOM_EDITS && Object.keys(_ADMIN_SHARIK_CUSTOM_EDITS).length > 0) {
   setTimeout(() => {
     pushSharikEditsToCloud();
   }, 3000);
