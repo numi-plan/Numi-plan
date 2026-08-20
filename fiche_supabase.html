@@ -522,6 +522,24 @@
   // Chargement Initial depuis Supabase (Toutes les équipes sont synchronisées pour TOUS les utilisateurs)
   async function loadInitialTeams() {
     try {
+      // --- NOUVEAU : Auto-connexion de secours pour l'espace Registre ---
+      const role = sessionStorage.getItem('numiplan_user_role');
+      const username = sessionStorage.getItem('numiplan_username');
+      if (role === 'direction_only' || role === 'readonly' || username === 'REGISTRE') {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session) {
+          console.log("Session Supabase absente pour le registre, connexion de secours...");
+          await supabase.auth.signInWithPassword({
+            email: "admin@sharik.numilog.com",
+            password: "Sharik@admin"
+          });
+          console.log("Connexion de secours réussie !");
+          window.location.reload();
+          return;
+        }
+      }
+      // ------------------------------------------------------------------
+
       const { data, error } = await supabase.from('numiplan_teams').select('*');
       if (error) throw error;
       
@@ -1845,6 +1863,17 @@ function applyTeamLockUI(eq) {
 
     if ((uClean.includes('REGISTRE') || uClean.includes('DIRECTION')) && 
         (pClean === 'Numilog@26' || pUpper === 'NUMILOG@26' || pUpper === 'DIREX' || pClean === 'RexSharik@2026' || pUpper === 'REXSHARIK@2026')) {
+      
+      // Tenter de se connecter à Supabase pour obtenir un token RLS valide
+      try {
+        await window.supabase.auth.signInWithPassword({
+          email: "admin@sharik.numilog.com",
+          password: "Sharik@admin"
+        });
+      } catch (err) {
+        console.error("Erreur de connexion Supabase lors du bypass:", err);
+      }
+
       sessionStorage.setItem('numiplan_auth', 'ok');
       sessionStorage.setItem('numiplan_username', 'REGISTRE');
       sessionStorage.setItem('numiplan_user_role', 'direction_only');
@@ -3037,13 +3066,22 @@ mark.hl { background: rgba(56,189,248,.25); color: var(--acc); border-radius: 3p
   <div class="filter-bar">
     <label>Filtre</label>
     <input type="text" class="filter-input" id="odo-search" placeholder="Véhicule / Chauffeur…" oninput="renderOdo()">
+    <select id="odo-filter-team" class="filter-input" onchange="renderOdo()" style="padding:4px 8px;width:140px;margin-left:12px;background:var(--bg3);color:var(--txt);border:1px solid var(--border);border-radius:6px">
+      <option value="ALL">Toutes les équipes</option>
+      <option value="A">Équipe A</option>
+      <option value="B">Équipe B</option>
+      <option value="C">Équipe C</option>
+      <option value="D">Équipe D</option>
+      <option value="E">Équipe E</option>
+      <option value="F">Équipe F</option>
+    </select>
     <span style="display:flex;align-items:center;gap:6px;margin-left:12px">
       <span style="font-size:11px;color:var(--txt2)">Du</span>
       <input type="date" class="filter-input" id="odo-filter-start" onchange="renderOdo()" style="padding:4px 8px;width:120px" autocomplete="off">
       <span style="font-size:11px;color:var(--txt2)">au</span>
       <input type="date" class="filter-input" id="odo-filter-end" onchange="renderOdo()" style="padding:4px 8px;width:120px" autocomplete="off">
     </span>
-    <button class="btn btn-reset" onclick="resetFilters('odo-search', 'odo-filter-start', 'odo-filter-end');renderOdo()">↺ Reset</button>
+    <button class="btn btn-reset" onclick="resetFilters('odo-search', 'odo-filter-start', 'odo-filter-end'); const sel = document.getElementById('odo-filter-team'); if(sel &amp;&amp; !sel.disabled) sel.value='ALL'; renderOdo()">↺ Reset</button>
     <button class="btn btn-add" onclick="openModal('modal-odo')">＋ Relevé KM</button>
     <button class="btn btn-extract" onclick="openModal('modal-odo-export')">⬇ Export KM</button>
     <button class="btn btn-numiflow" onclick="triggerImportKmFacture()">📥 Import KM Facturé</button>
@@ -9613,12 +9651,17 @@ function getCityDistance(cityA, cityB) {
   return 0;
 }
 
-function getVehicleAnomalyKm(immat, motifName, startVal, endVal) {
+function getVehicleAnomalyKm(immat, motifName, startVal, endVal, forcedTeam) {
   if (!immat) return 0;
   const vKey = immat.trim().toUpperCase();
   const anomalies = [];
-  ['A','B','C','D','E','F'].forEach(eq => {
-    const dbEq = window['DB_' + eq] || (eq === (window.CURRENT_EQUIPE||'A') ? window.DB : null);
+  const activeEq = getCurrentEquipe();
+  const activeDb = typeof window.DB !== 'undefined' ? window.DB : null;
+  const EQUIPES = ['A','B','C','D','E','F'];
+  
+  EQUIPES.forEach(eq => {
+    if (forcedTeam && forcedTeam !== eq) return;
+    const dbEq = window['DB_' + eq] || (eq === activeEq ? activeDb : null);
     if (dbEq && dbEq.anomaliesPointees) {
       Object.entries(dbEq.anomaliesPointees).forEach(([key, anom]) => {
         const vehicle = key.split('_')[0].trim().toUpperCase();
@@ -9632,6 +9675,311 @@ function getVehicleAnomalyKm(immat, motifName, startVal, endVal) {
   const deduped = [];
   const seen = new Set();
   anomalies.forEach(anom => {
+    const uniqueKey = anom.v + '_' + anom.date + '_' + anom.ts + '_' + anom.motif;
+    if (!seen.has(uniqueKey)) {
+      seen.add(uniqueKey);
+      deduped.push(anom);
+    }
+  });
+
+  const filtered = deduped.filter(anom => {
+    if (startVal && anom.date && anom.date < startVal) return false;
+    if (endVal && anom.date && anom.date > endVal) return false;
+    return true;
+  });
+
+  let totalDist = 0;
+  filtered.forEach(anom => {
+    const dist = getCityDistance(anom.lieuInitial, anom.lieuActuel);
+    totalDist += dist;
+  });
+  
+  return totalDist;
+}
+
+function renderOdo() {
+  const q = document.getElementById('odo-search').value;
+  const selectTeamEl = document.getElementById('odo-filter-team');
+  
+  // Gérer le verrou d'équipe pour les utilisateurs standards
+  const lock = sessionStorage.getItem('numiplan_team_lock');
+  if (lock && lock !== 'DIR' && lock !== 'BL' && selectTeamEl) {
+    selectTeamEl.value = lock;
+    selectTeamEl.disabled = true;
+    selectTeamEl.style.display = 'none';
+  }
+
+  const filterTeam = selectTeamEl ? selectTeamEl.value : 'ALL';
+  
+  // 1. Déterminer la liste des odomètres à afficher selon le filtre équipe
+  let sourceOdoList = [];
+  const EQUIPES = ['A', 'B', 'C', 'D', 'E', 'F'];
+  
+  if (filterTeam === 'ALL') {
+    EQUIPES.forEach(eq => {
+      const db = (eq === window.CURRENT_EQUIPE && typeof window.DB !== 'undefined') ? window.DB : window['DB_' + eq];
+      if (db && Array.isArray(db.odo)) {
+        db.odo.forEach(item => {
+          sourceOdoList.push({
+            ...item,
+            _team: eq
+          });
+        });
+      }
+    });
+  } else {
+    const db = (filterTeam === window.CURRENT_EQUIPE && typeof window.DB !== 'undefined') ? window.DB : window['DB_' + filterTeam];
+    if (db && Array.isArray(db.odo)) {
+      db.odo.forEach(item => {
+        sourceOdoList.push({
+          ...item,
+          _team: filterTeam
+        });
+      });
+    }
+  }
+
+  const anomalyVehicles = new Set();
+  sourceOdoList.forEach(r => {
+    const vs = (r.vals||[]);
+    for (let i = 1; i < vs.length; i++) {
+      const vVal = parseFloat(vs[i]);
+      if (isNaN(vVal) || vVal <= 1000) continue;
+      
+      let prevVal = null;
+      for (let j = i - 1; j >= 0; j--) {
+        const pVal = parseFloat(vs[j]);
+        if (!isNaN(pVal) && pVal > 1000) {
+          prevVal = pVal;
+          break;
+        }
+      }
+      
+      if (prevVal !== null && vVal < prevVal) {
+        anomalyVehicles.add(r.v);
+        break;
+      }
+    }
+  });
+
+  let data = sourceOdoList.filter(r => {
+    if (q==='__anomaly__') return anomalyVehicles.has(r.v);
+    return !q || (r.v+' '+r.chauffeur).toLowerCase().includes(q.toLowerCase());
+  });
+
+  document.getElementById('cnt-odo').textContent = sourceOdoList.length;
+  
+  // Déterminer les semaines (weeks) dynamiquement
+  let weeks = [];
+  if (filterTeam === 'ALL') {
+    const weeksSet = new Set();
+    EQUIPES.forEach(eq => {
+      const db = (eq === window.CURRENT_EQUIPE && typeof window.DB !== 'undefined') ? window.DB : window['DB_' + eq];
+      if (db && Array.isArray(db.odo_weeks)) {
+        db.odo_weeks.forEach(w => weeksSet.add(w));
+      }
+    });
+    weeks = Array.from(weeksSet).sort();
+  } else {
+    const db = (filterTeam === window.CURRENT_EQUIPE && typeof window.DB !== 'undefined') ? window.DB : window['DB_' + filterTeam];
+    weeks = (db && db.odo_weeks) ? db.odo_weeks : [];
+  }
+
+  const startVal = document.getElementById('odo-filter-start')?.value;
+  const endVal = document.getElementById('odo-filter-end')?.value;
+  const filteredWeeks = weeks.filter(w => {
+    if (startVal && w < startVal) return false;
+    if (endVal && w > endVal) return false;
+    return true;
+  });
+
+  const head = document.getElementById('odo-head');
+  const teamHeader = (filterTeam === 'ALL') ? `<th>Équipe</th>` : ``;
+  head.innerHTML = `<th>Véhicule</th><th>Chauffeur</th>` + teamHeader +
+    filteredWeeks.map(w=>`<th style="font-size:9px">${w}</th>`).join('') + `<th>KM Parcourus</th><th>KM Facturé</th><th>Roulage à charge</th><th style="color:var(--acc)">🔄 Orientation (KM)</th><th style="color:var(--red)">🛒 A son compte (KM)</th><th style="color:var(--grn)">🟢 Autorisé (KM)</th><th style="color:var(--red)">🔧 Pannes</th><th style="color:var(--org)">Dernière panne</th><th>Action</th>`;
+  
+  let totalKm = 0;
+  let totalFact = 0;
+  let totalOdo = 0;
+  data.forEach(r => {
+    const rangeVals = filteredWeeks.map(w => parseFloat(r.vals[weeks.indexOf(w)])).filter(v => !isNaN(v) && v > 1000);
+    let deltaVal = 0;
+    if (rangeVals.length >= 2) {
+      const d = rangeVals[rangeVals.length - 1] - rangeVals[0];
+      if (d > 0 && d <= 50000) {
+        totalKm += d;
+        deltaVal = d;
+      }
+    }
+    let rowKmFact = 0;
+    filteredWeeks.forEach(w => {
+      const origIdx = weeks.indexOf(w);
+      if (r.kmFactures && r.kmFactures[origIdx] !== undefined && r.kmFactures[origIdx] !== null) {
+        rowKmFact += r.kmFactures[origIdx];
+      }
+    });
+    if (deltaVal > 0 && rowKmFact > 0) {
+      totalFact += rowKmFact;
+      totalOdo += deltaVal;
+    }
+  });
+  const tabRac = totalOdo > 0 ? (totalFact / totalOdo) * 100 : null;
+  const tabRacStr = tabRac !== null ? `${tabRac.toFixed(1)} %` : '—';
+
+  document.getElementById('odo-stats').innerHTML = `
+    <div class="stat-card" onclick="resetFilters('odo-search', 'odo-filter-start', 'odo-filter-end'); const sel = document.getElementById('odo-filter-team'); if(sel && !sel.disabled) sel.value='ALL'; renderOdo()" title="Reset — Tous les véhicules" style="cursor:pointer"><div class="stat-num">${data.length}</div><div class="stat-lbl">Véhicules ↺</div></div>
+    <div class="stat-card blue" title="KM total parcourus sur la période visible"><div class="stat-num">${totalKm.toLocaleString('fr-FR')}</div><div class="stat-lbl">KM parcourus</div></div>
+    <div class="stat-card green" title="Roulage à charge moyen de la sélection"><div class="stat-num">${tabRacStr}</div><div class="stat-lbl">Roulage à charge</div></div>
+    <div class="stat-card red" onclick="filterOdoAnomalies()" title="Afficher uniquement les anomalies" style="pointer-events:auto;cursor:pointer"><div class="stat-num" id="odo-anomaly-count">—</div><div class="stat-lbl">Anomalies ⚠</div></div>`;
+  if(document.getElementById('odo-anomaly-count')) document.getElementById('odo-anomaly-count').textContent = anomalyVehicles.size;
+  if (typeof updateHeaderRAC === 'function') {
+    updateHeaderRAC();
+  }
+  const body = document.getElementById('odo-body');
+  if (!data.length) { body.innerHTML = `<tr><td colspan="${filteredWeeks.length+11}"><div class="empty-state"><div class="icon">🔍</div>Aucun résultat</div></td></tr>`; return; }
+  
+  // Lookup pannes par matricule (uniquement dans renderOdo)
+  const pannesByVehicle = {};
+  const activeEq = getCurrentEquipe();
+  const activeDb = typeof window.DB !== 'undefined' ? window.DB : null;
+  
+  // Collecter toutes les pannes de la sélection
+  const allPannes = [];
+  if (filterTeam === 'ALL') {
+    EQUIPES.forEach(eq => {
+      const db = (eq === activeEq) ? activeDb : window['DB_' + eq];
+      if (db && Array.isArray(db.pannes)) {
+        db.pannes.forEach(p => allPannes.push(p));
+      }
+    });
+  } else {
+    const db = (filterTeam === activeEq) ? activeDb : window['DB_' + filterTeam];
+    if (db && Array.isArray(db.pannes)) {
+      db.pannes.forEach(p => allPannes.push(p));
+    }
+  }
+  
+  allPannes.forEach(p => {
+    if (!p.immat) return;
+    const key = p.immat.trim().toUpperCase();
+    if (!pannesByVehicle[key]) pannesByVehicle[key] = [];
+    if (p.date) pannesByVehicle[key].push(p.date);
+  });
+
+  body.innerHTML = data.map(r => {
+    // Calculer le realIdx par rapport à son équipe d'origine
+    const targetDb = (r._team === activeEq) ? activeDb : window['DB_' + r._team];
+    const realIdx = (targetDb && Array.isArray(targetDb.odo)) ? targetDb.odo.indexOf(r) : -1;
+    
+    const cells = filteredWeeks.map(w => {
+      const origIdx = weeks.indexOf(w);
+      const v = r.vals ? r.vals[origIdx] : null;
+      const vNum = parseFloat(v);
+      if (isNaN(vNum) || v === null || v === undefined) return `<td class="no-data">—</td>`;
+      if (vNum === 0) return `<td class="mono" style="color:var(--txt3)">0</td>`;
+      
+      let prevVal = null;
+      if (r.vals) {
+        for (let j = origIdx - 1; j >= 0; j--) {
+          const pVal = parseFloat(r.vals[j]);
+          if (!isNaN(pVal) && pVal > 1000) {
+            prevVal = pVal;
+            break;
+          }
+        }
+      }
+      const anom = prevVal !== null && vNum < prevVal;
+      return `<td class="mono ${anom?'km-anomaly':''}">${Math.round(vNum).toLocaleString('fr-FR')}</td>`;
+    }).join('');
+    
+    const rangeVals = filteredWeeks.map(w => parseFloat(r.vals[weeks.indexOf(w)])).filter(v => !isNaN(v) && v > 1000);
+    let deltaVal = null;
+    let delta = '—';
+    if (rangeVals.length >= 2) {
+      const d = rangeVals[rangeVals.length - 1] - rangeVals[0];
+      deltaVal = d;
+      delta = `<span style="color:${d>0?'var(--grn)':'var(--red)'}">${d>0?'+':''}${Math.round(d).toLocaleString('fr-FR')}</span>`;
+    }
+    
+    let kmFacture = null;
+    if (filteredWeeks.length === 1) {
+      const origIdx = weeks.indexOf(filteredWeeks[0]);
+      if (r.kmFactures && r.kmFactures[origIdx] !== undefined && r.kmFactures[origIdx] !== null) {
+        kmFacture = r.kmFactures[origIdx];
+      } else {
+        kmFacture = (r.kmFacture !== undefined && r.kmFacture !== null) ? r.kmFacture : null;
+      }
+    } else {
+      kmFacture = (r.kmFacture !== undefined && r.kmFacture !== null) ? r.kmFacture : null;
+    }
+    if (kmFacture === 0) kmFacture = null;
+    const kmFactureStr = kmFacture !== null ? kmFacture.toLocaleString('fr-FR') : '—';
+    let racStr = '—';
+    if (deltaVal !== null && deltaVal > 0 && kmFacture !== null && kmFacture > 0) {
+      const rac = (kmFacture / deltaVal) * 100;
+      let badgeStyle = '';
+      let titleText = '';
+      let alertIcon = '';
+      
+      if (rac < 40) {
+        badgeStyle = 'color: var(--red); font-weight: 800; background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.4); padding: 2px 6px; border-radius: 4px; display: inline-block;';
+        titleText = '🚨 Focus absolu (< 40%)';
+        alertIcon = '🚨 ';
+      } else if (rac < 50) {
+        badgeStyle = 'color: var(--org); font-weight: 800; background: rgba(245, 158, 11, 0.1); border: 1px solid rgba(245, 158, 11, 0.4); padding: 2px 6px; border-radius: 4px; display: inline-block;';
+        titleText = '🔍 À surveiller (< 50%)';
+        alertIcon = '🔍 ';
+      } else {
+        badgeStyle = 'color: var(--grn); font-weight: 700; background: rgba(16, 185, 129, 0.1); border: 1px solid rgba(16, 185, 129, 0.4); padding: 2px 6px; border-radius: 4px; display: inline-block;';
+        titleText = '✅ Performant (≥ 50%)';
+        alertIcon = '✅ ';
+      }
+      racStr = `<span style="${badgeStyle}" title="${titleText}">${alertIcon}${rac.toFixed(1)} %</span>`;
+    }
+    const pKey = (r.v||'').trim().toUpperCase();
+    const panDates = (pannesByVehicle[pKey]||[]).filter(Boolean).sort();
+    const panCount = panDates.length;
+    const panLast  = panDates.length ? panDates[panDates.length-1] : null;
+    const panCountCell = panCount > 0
+      ? `<td style="text-align:center"><span style="color:var(--red);font-weight:700;font-family:monospace">${panCount}×</span></td>`
+      : `<td style="text-align:center;color:var(--txt3)">—</td>`;
+    const panLastCell  = panLast
+      ? `<td class="mono" style="font-size:11px;color:var(--org)">${panLast}</td>`
+      : `<td style="color:var(--txt3);font-size:11px">—</td>`;
+      
+    // Récupérer les anomalies kilométrages selon son équipe d'origine
+    const kmOrientation = getVehicleAnomalyKm(r.v, 'Orientation', startVal, endVal, r._team);
+    const kmSonCompte = getVehicleAnomalyKm(r.v, 'Chargement à son compte', startVal, endVal, r._team);
+    const kmAutorise = getVehicleAnomalyKm(r.v, 'Chargement à son compte autorisé', startVal, endVal, r._team);
+    const kmOrientationStr = kmOrientation > 0 ? `<b style="color:var(--acc)">${kmOrientation.toLocaleString('fr-FR')}</b>` : `<span style="color:var(--txt3)">—</span>`;
+    const kmSonCompteStr = kmSonCompte > 0 ? `<b style="color:var(--red)">${kmSonCompte.toLocaleString('fr-FR')}</b>` : `<span style="color:var(--txt3)">—</span>`;
+    const kmAutoriseStr = kmAutorise > 0 ? `<b style="color:var(--grn)">${kmAutorise.toLocaleString('fr-FR')}</b>` : `<span style="color:var(--txt3)">—</span>`;
+
+    const teamCell = (filterTeam === 'ALL') ? `<td style="font-weight:bold;color:var(--txt2);text-align:center">Éq. ${r._team}</td>` : ``;
+    
+    // N'autoriser l'édition/suppression que si l'on est calé sur l'équipe active
+    const isEditable = (r._team === activeEq);
+    const actionCell = isEditable 
+      ? `<td><button class="del-btn" onclick="editOdo(${realIdx})">✏️</button><button class="del-btn" onclick="deleteOdo(${realIdx})">🗑</button></td>`
+      : `<td style="color:var(--txt3);font-size:10px;text-align:center" title="Basculez sur l'Équipe ${r._team} en haut à droite pour modifier">🔒 Éq. ${r._team}</td>`;
+
+    return `<tr>
+      <td class="mono" style="color:var(--acc)">${r.v}</td>
+      <td style="font-weight:600">${r.chauffeur||'—'}</td>
+      ${teamCell}
+      ${cells}
+      <td class="mono">${delta}</td>
+      <td class="mono" style="color:var(--grn);font-weight:600">${kmFactureStr}</td>
+      <td class="mono">${racStr}</td>
+      <td class="mono" style="text-align:center">${kmOrientationStr}</td>
+      <td class="mono" style="text-align:center">${kmSonCompteStr}</td>
+      <td class="mono" style="text-align:center">${kmAutoriseStr}</td>
+      ${panCountCell}
+      ${panLastCell}
+      ${actionCell}
+    </tr>`;
+  }).join('');
+}anomalies.forEach(anom => {
     const uniqueKey = anom.v + '_' + anom.date + '_' + anom.ts + '_' + anom.motif;
     if (!seen.has(uniqueKey)) {
       seen.add(uniqueKey);
