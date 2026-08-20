@@ -1466,7 +1466,9 @@ body.direction-isolated-view .table-wrap {
   // Application immédiate de l'isolation Direction dès l'exécution du script
   (function() {
     try {
-      if (sessionStorage.getItem('numiplan_user_role') === 'direction_only') {
+      const role = sessionStorage.getItem('numiplan_user_role');
+      const username = sessionStorage.getItem('numiplan_username');
+      if (role === 'direction_only' || role === 'readonly' || username === 'REGISTRE') {
         document.documentElement.classList.add('direction-isolated-view');
         window.addEventListener('DOMContentLoaded', () => {
           document.body.classList.add('direction-isolated-view');
@@ -1620,7 +1622,8 @@ body.direction-isolated-view .table-wrap {
   // Fonction globale pour verrouiller l'interface en lecture seule
   function applyDirectionOnlyIsolation() {
   const role = sessionStorage.getItem('numiplan_user_role');
-  if (role === 'direction_only') {
+  const username = sessionStorage.getItem('numiplan_username');
+  if (role === 'direction_only' || role === 'readonly' || username === 'REGISTRE') {
     document.body.classList.add('direction-isolated-view');
     
     // Masquer toutes les autres pages
@@ -1794,7 +1797,8 @@ function applyTeamLockUI(eq) {
     
     // Si connecté avec le profil isolé DIRECTION, ouvrir immédiatement l'Espace Direction
     const userRole = sessionStorage.getItem('numiplan_user_role');
-    if (userRole === 'direction_only') {
+    const username = sessionStorage.getItem('numiplan_username');
+    if (userRole === 'direction_only' || userRole === 'readonly' || username === 'REGISTRE') {
       setTimeout(() => {
         applyDirectionOnlyIsolation();
         if (typeof window.ouvrirEspaceAdminDirection === 'function') {
@@ -8507,8 +8511,14 @@ Une déclaration de gasoil a été enregistrée sur SHARIK.
 Ce message a été généré automatiquement par SHARIK.`
     );
     const mailtoLink = `mailto:${emailDest}?subject=${subject}&body=${body}`;
-    // Ouvrir le client mail
-    window.location.href = mailtoLink;
+    // Ouvrir le client mail sans perturber l'état de la page
+    const mailIframe = document.createElement('iframe');
+    mailIframe.style.display = 'none';
+    mailIframe.src = mailtoLink;
+    document.body.appendChild(mailIframe);
+    setTimeout(() => {
+      if (mailIframe.parentNode) document.body.removeChild(mailIframe);
+    }, 2000);
     showToast('📧 Client mail ouvert pour notification');
   }
 }
@@ -10870,7 +10880,14 @@ Ce message a été généré automatiquement par SHARIK.`
   );
   
   const mailtoLink = `mailto:${emailDest}?subject=${subject}&body=${body}`;
-  window.location.href = mailtoLink;
+  // Ouvrir le client mail sans perturber l'état de la page
+  const mailIframe = document.createElement('iframe');
+  mailIframe.style.display = 'none';
+  mailIframe.src = mailtoLink;
+  document.body.appendChild(mailIframe);
+  setTimeout(() => {
+    if (mailIframe.parentNode) document.body.removeChild(mailIframe);
+  }, 2000);
   showToast('📧 Client mail ouvert pour notification');
 }
 
@@ -11655,7 +11672,9 @@ function renderHistoriqueAnomalies() {
 
 function isGpsSyncToday() {
   // L'accès direction_only (registre) ne doit pas être bloqué par le GPS
-  if (sessionStorage.getItem('numiplan_user_role') === 'direction_only') {
+  const role = sessionStorage.getItem('numiplan_user_role');
+  const username = sessionStorage.getItem('numiplan_username');
+  if (role === 'direction_only' || role === 'readonly' || username === 'REGISTRE') {
     return true;
   }
 
@@ -11881,8 +11900,10 @@ function checkPointageRequired() {
     return false;
   }
 
-  // 1.5. Si l'utilisateur est de la direction administrative (direction_only), aucun blocage ni popup !
-  if (sessionStorage.getItem('numiplan_user_role') === 'direction_only') {
+  // 1.5. Si l'utilisateur est de la direction administrative (direction_only / readonly / REGISTRE), aucun blocage ni popup !
+  const role = sessionStorage.getItem('numiplan_user_role');
+  const username = sessionStorage.getItem('numiplan_username');
+  if (role === 'direction_only' || role === 'readonly' || username === 'REGISTRE') {
     _setActionsBloqueesPointage(false);
     const gpsModal = document.getElementById('modal-pointage-gps-required');
     if (gpsModal) gpsModal.style.setProperty('display', 'none', 'important');
@@ -17104,7 +17125,8 @@ let _DIRECTION_UNLOCKED_SESSION = false;
 async function ouvrirEspaceAdminDirection(btn) {
   // Si déjà connecté avec le profil isolé direction_only, accès automatique
   const role = sessionStorage.getItem('numiplan_user_role');
-  if (role === 'direction_only') {
+  const username = sessionStorage.getItem('numiplan_username');
+  if (role === 'direction_only' || role === 'readonly' || username === 'REGISTRE') {
     _DIRECTION_UNLOCKED_SESSION = true;
   }
 
