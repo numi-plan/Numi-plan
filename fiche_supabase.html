@@ -9054,7 +9054,7 @@ function checkAssuranceAlerts() {
         <div style="background:#0a0e1a;border-radius:10px;padding:14px;margin-bottom:20px;font-family:monospace;font-size:12px;line-height:1.8;color:#e2e8f0">
           ${alerts.map(({r,t,diff,fin}) => {
             const lbl = t.toUpperCase();
-            const urgence = diff === 0 ? '<span style="color:#f87171;font-weight:700">AUJOURD\\'HUI</span>' : `<span style="color:#fb923c">dans ${diff}j</span>`;
+            const urgence = diff === 0 ? '<span style="color:#f87171;font-weight:700">AUJOURD\'HUI</span>' : `<span style="color:#fb923c">dans ${diff}j</span>`;
             return `🚛 <b style="color:#38bdf8">${r.v||r.tr||'?'}</b> [${lbl}] – ${r.sharik||r.chauffeur||'—'} → ${urgence} <span style="color:#475569">(${fin})</span>`;
           }).join('<br>')}
         </div>
