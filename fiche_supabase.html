@@ -7251,7 +7251,7 @@ function switchTab(name, btn) {
   document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
   document.getElementById('page-'+name).classList.add('active');
   if (btn) btn.classList.add('active');
-  else document.querySelector(`[onclick*="switchTab('${name}"]`)?.classList.add('active');
+  else document.querySelector(`[onclick*="switchTab('${name}')"]`)?.classList.add('active');
   if (name==='odo') renderOdo();
   if (name==='cspc') renderCSPC();
   if (name==='analytics') switchAnalyticsSubTab('performance');
@@ -8271,7 +8271,7 @@ function goToNC() {
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
   document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
   document.getElementById('page-nc').classList.add('active');
-  document.querySelector("[onclick*=\"switchTab('nc'\"]").classList.add('active');
+  document.querySelector("[onclick*=\"switchTab('nc')\"]").classList.add('active');
   filterNC('');
 }
 function renderNC() {
@@ -8990,7 +8990,170 @@ function buildAssuranceCell(r, idx, src, type) {
   const fin = new Date(r[finKey]);
   const diff = Math.round((fin - today) / 86400000);
   let badge, status;
-  if (diff < 0)       { badge = 'badge-pan  const prevA = (idx>=0 && DB.activite[idx]) ? DB.activite[idx] : {};
+  if (diff < 0)       { badge = 'badge-panne';  status = '🔴 Expiré'; }
+  else if (diff <= 3) { badge = 'badge-org';    status = `⚠️ ${diff}j`; }
+  else                { badge = 'badge-dispo';  status = '🟢 Valide'; }
+  const dlBtn = r[fileKey]
+    ? `<button class="del-btn" title="Télécharger ass. ${label}" onclick="downloadAssurance(${idx},'${s}','${t}')" style="margin-left:4px;font-size:13px">📥</button>`
+    : `<button class="del-btn" title="Aucune copie – cliquez ✏️ pour ajouter" onclick="${editFn}" style="margin-left:4px;font-size:12px;opacity:.45">📎</button>`;
+
+  return `<span class="badge ${badge}" style="font-size:10px">${status}</span>
+    <div style="display:flex;align-items:center;gap:4px;margin-top:3px">
+      <span style="font-size:9px;color:var(--txt3)">${r[finKey]}</span>
+      ${dlBtn}
+    </div>`;
+}
+
+function downloadAssurance(idx, src, type) {
+  const db  = (src === 'dispo') ? DB.dispo : DB.activite;
+  const r   = db[idx];
+  if (!r) { showToast('⚠️ Véhicule introuvable', true); return; }
+  const t   = type || 'tr';
+  const fileKey = t === 'rm' ? 'assuranceRmFile' : 'assuranceTrFile';
+  const nameKey = t === 'rm' ? 'assuranceRmFileName' : 'assuranceTrFileName';
+  if (!r[fileKey]) { showToast('⚠️ Aucune copie disponible', true); return; }
+  const a = document.createElement('a');
+  a.href = r[fileKey];
+  a.download = r[nameKey] || ('assurance_' + (t.toUpperCase()) + '_' + (r.v||r.tr||'vehicule'));
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  showToast('🟢 Téléchargement ' + t.toUpperCase() + ' lancé');
+}
+
+
+function checkAssuranceAlerts() {
+  const today = new Date(); today.setHours(0,0,0,0);
+  const allRecords = [...(DB.activite||[]), ...(DB.dispo||[])];
+  const alertItems = [];
+  allRecords.forEach(r => {
+    ['tr','rm'].forEach(t => {
+      const finKey = t === 'rm' ? 'assuranceRmFin' : 'assuranceTrFin';
+      if (!r[finKey]) return;
+      const fin = new Date(r[finKey]);
+      const diff = Math.round((fin - today) / 86400000);
+      if (diff >= 0 && diff <= 3) alertItems.push({ r, t, diff, fin: r[finKey] });
+    });
+  });
+  const alerts = alertItems;
+  if (!alerts.length) return;
+  const lines = alerts.map(({r,t,diff,fin}) => {
+    const lbl = t.toUpperCase();
+    return `  ⚠️ ${r.v||r.tr||'?'} [${lbl}] (${r.sharik||r.chauffeur||'—'}) → expire ${diff === 0 ? "AUJOURD'HUI" : "dans " + diff + " jour(s)"} (${fin})`;
+  }).join('\\n');
+  const msg = `⚠️🔔 RAPPEL ASSURANCE\\n\\n${lines}\\n\\nMerci de renouveler ces assurances au plus vite.`;
+  setTimeout(() => {
+    if (window.__assuranceAlertShown) return;
+    window.__assuranceAlertShown = true;
+    // popup stylé
+    const overlay = document.createElement('div');
+    overlay.id = 'assurance-alert-overlay';
+    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:9000;display:flex;align-items:center;justify-content:center';
+    overlay.innerHTML = `
+      <div style="background:#1a2236;border:1.5px solid #fb923c;border-radius:16px;padding:28px;max-width:480px;width:95vw;box-shadow:0 20px 60px rgba(0,0,0,.8)">
+        <div style="font-size:22px;margin-bottom:8px">⚠️🔔 Rappel assurance</div>
+        <div style="font-size:13px;color:#94a3b8;margin-bottom:16px">Les véhicules suivants ont une assurance expirant dans <b style="color:#fb923c">3 jours ou moins</b> :</div>
+        <div style="background:#0a0e1a;border-radius:10px;padding:14px;margin-bottom:20px;font-family:monospace;font-size:12px;line-height:1.8;color:#e2e8f0">
+          ${alerts.map(({r,t,diff,fin}) => {
+            const lbl = t.toUpperCase();
+            const urgence = diff === 0 ? '<span style="color:#f87171;font-weight:700">AUJOURD\\'HUI</span>' : `<span style="color:#fb923c">dans ${diff}j</span>`;
+            return `🚛 <b style="color:#38bdf8">${r.v||r.tr||'?'}</b> [${lbl}] – ${r.sharik||r.chauffeur||'—'} → ${urgence} <span style="color:#475569">(${fin})</span>`;
+          }).join('<br>')}
+        </div>
+        <div style="display:flex;justify-content:flex-end;gap:10px">
+          <button onclick="document.getElementById('assurance-alert-overlay').remove()" style="background:rgba(251,146,60,.15);border:1px solid rgba(251,146,60,.4);border-radius:8px;padding:8px 18px;color:#fb923c;font-weight:700;cursor:pointer;font-family:inherit">Compris 👍</button>
+        </div>
+      </div>`;
+    document.body.appendChild(overlay);
+  }, 1200);
+}
+
+function renderActivite() {
+  const searchEl = document.getElementById('act-search');
+  if (!searchEl) return;
+  const q = searchEl.value;
+  const siteF = document.getElementById('act-site').value;
+  const etatF = document.getElementById('act-etat').value;
+  let data = DB.activite.filter(r => {
+    if (!matchQ(r,q)) return false;
+    if (siteF && r.site !== siteF) return false;
+    if (etatF && !r.actif.toLowerCase().includes(etatF.toLowerCase())) return false;
+    return true;
+  });
+  const actifs = data.filter(r=>r.actif==='actif').length;
+  const extensions = data.filter(r=>r.ext).length;
+  document.getElementById('act-stats').innerHTML = `
+    <div class="stat-card green" onclick="document.getElementById('act-etat').value='actif';document.getElementById('act-search').value='';renderActivite()" title="Filtrer les actifs" style="cursor:pointer"><div class="stat-num">${actifs}</div><div class="stat-lbl">Actifs</div></div>
+    <div class="stat-card pur" onclick="document.getElementById('act-search').value='EXTENSION';document.getElementById('act-etat').value='';renderActivite()" title="Filtrer les extensions" style="cursor:pointer"><div class="stat-num">${extensions}</div><div class="stat-lbl">Extensions</div></div>
+    <div class="stat-card" onclick="resetFilters('act-search','act-site','act-etat');renderActivite()" title="Afficher tout" style="cursor:pointer"><div class="stat-num">${data.length}</div><div class="stat-lbl">Total 📋</div></div>`;
+  document.getElementById('cnt-act').textContent = DB.activite.length;
+  const body = document.getElementById('act-body');
+  if (!data.length) { body.innerHTML = `<tr><td colspan="13"><div class="empty-state"><div class="icon">📄</div>Aucun résultat</div></td></tr>`; return; }
+  body.innerHTML = data.map(r => {
+    const realIdx = DB.activite.indexOf(r);
+    const extBadge = r.ext ? `<span class="badge badge-pur">${r.ext}</span>` : '—';
+    const actifBadge = r.actif === 'actif' ? `<span class="badge badge-dispo">🟢 Actif</span>` : r.actif ? `<span style="font-size:11px;color:var(--txt2)">${r.actif}</span>` : '—';
+    return `<tr>
+      <td style="font-weight:600">${r.sharik||'—'}</td>
+      <td class="mono" style="color:var(--acc)">${r.tr||'—'}</td>
+      <td class="mono">${r.rm||'—'}</td>
+      <td class="mono" style="color:var(--grn)">${r.debut||'—'}</td>
+      <td class="mono" style="color:var(--org)">${r.fin||'—'}</td>
+      <td>${extBadge}</td>
+      <td style="color:var(--acc);font-size:12px">${r.site||'—'}</td>
+      <td style="font-size:11px">${r.etatTR||'—'}</td>
+      <td>${actifBadge}</td>
+      <td style="font-size:11px;color:var(--txt2)">${r.obs||'—'}</td>
+      <td>${buildAssuranceCell(r, realIdx, 'activite', 'tr')}</td>
+      <td>${buildAssuranceCell(r, realIdx, 'activite', 'rm')}</td>
+      <td><button class="del-btn" onclick="editActivite(${realIdx})">✏️</button><button class="del-btn" onclick="deleteActivite(${realIdx})">🗑</button></td>
+    </tr>`;
+  }).join('');
+}
+
+function editActivite(idx) {
+  const r = DB.activite[idx];
+  document.getElementById('f-act-sharik').value = r.sharik||'';
+  document.getElementById('f-act-tr').value = r.tr||'';
+  document.getElementById('f-act-rm').value = r.rm||'';
+  document.getElementById('f-act-debut').value = r.debut||'';
+  document.getElementById('f-act-fin').value = r.fin||'';
+  document.getElementById('f-act-ext').value = r.ext||'';
+  document.getElementById('f-act-site').value = r.site||'';
+  document.getElementById('f-act-etatTR').value = r.etatTR||'opérationnel';
+  document.getElementById('f-act-actif').value = r.actif||'';
+  document.getElementById('f-act-obs').value = r.obs||'';
+  document.getElementById('f-act-assurance-tr-fin').value = r.assuranceTrFin||'';
+  document.getElementById('f-act-assurance-rm-fin').value = r.assuranceRmFin||'';
+  const fntr = document.getElementById('f-act-assurance-tr-fname');
+  if(fntr) fntr.textContent = r.assuranceTrFileName ? ('📎 '+r.assuranceTrFileName) : '';
+  const fnrm = document.getElementById('f-act-assurance-rm-fname');
+  if(fnrm) fnrm.textContent = r.assuranceRmFileName ? ('📎 '+r.assuranceRmFileName) : '';
+  openModal('modal-activite', idx);
+}
+
+function deleteActivite(idx) {
+  if (!_checkActionsLibres('deleteActivite')) return;
+  if (!confirm('Supprimer ?')) return;
+  DB.activite.splice(idx,1); saveDB(); renderActivite(); showToast('🟢 Supprimé');
+}
+
+function saveActivite() {
+  if (!_checkActionsLibres('saveActivite')) return;
+  const tr = document.getElementById('f-act-tr').value.trim();
+  const obj = {
+    sharik: document.getElementById('f-act-sharik').value.trim().toUpperCase(),
+    tr, rm: document.getElementById('f-act-rm').value.trim(),
+    debut: document.getElementById('f-act-debut').value,
+    fin: document.getElementById('f-act-fin').value,
+    ext: document.getElementById('f-act-ext').value,
+    site: document.getElementById('f-act-site').value,
+    etatTR: document.getElementById('f-act-etatTR').value,
+    actif: document.getElementById('f-act-actif').value,
+    obs: document.getElementById('f-act-obs').value.trim(),
+    assuranceTrFin: document.getElementById('f-act-assurance-tr-fin').value,
+    assuranceRmFin: document.getElementById('f-act-assurance-rm-fin').value,
+  };
+  const idx = parseInt(document.getElementById('activite-edit-idx').value);
+  const prevA = (idx>=0 && DB.activite[idx]) ? DB.activite[idx] : {};
   const readFileA = (input, cb) => {
     if (input && input.files && input.files[0]) {
       const f = input.files[0]; const rd = new FileReader();
@@ -9810,16 +9973,6 @@ function renderOdo() {
       ${actionCell}
     </tr>`;
   }).join('');
-}  ${panCountCell}
-      ${panLastCell}
-      ${actionCell}
-    </tr>`;
-  }).join('');
-}Actuel);
-    totalDist += dist;
-  });
-  
-  return totalDist;
 }
 
 function renderOdo() {
