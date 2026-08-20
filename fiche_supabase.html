@@ -23,6 +23,7 @@
   window.supabase = supabase; // Exposer globalement pour l'authentification et RLS
   window._gpsSyncIdenetToday = false;
   window._gpsSyncDataFirstToday = false;
+  window._ADMIN_SHARIK_CUSTOM_EDITS = JSON.parse(localStorage.getItem('numiplan_admin_sharik_custom_edits') || '{}');
 
   let _fbReady      = false;
   let _fbLoaded     = {};
@@ -526,7 +527,8 @@
           const eq = row.team;
           const payload = row.payload;
           if (eq === 'SHARIK_EDITS') {
-            window._ADMIN_SHARIK_CUSTOM_EDITS = payload || {};
+            Object.keys(window._ADMIN_SHARIK_CUSTOM_EDITS).forEach(k => delete window._ADMIN_SHARIK_CUSTOM_EDITS[k]);
+            Object.assign(window._ADMIN_SHARIK_CUSTOM_EDITS, payload || {});
             localStorage.setItem('numiplan_admin_sharik_custom_edits', JSON.stringify(window._ADMIN_SHARIK_CUSTOM_EDITS));
             if (typeof renderAdminEntreesSorties === 'function') renderAdminEntreesSorties();
             return;
@@ -570,7 +572,8 @@
                 const eq = payload.new.team;
                 const data = payload.new.payload;
                 if (eq === 'SHARIK_EDITS') {
-                  window._ADMIN_SHARIK_CUSTOM_EDITS = data || {};
+                  Object.keys(window._ADMIN_SHARIK_CUSTOM_EDITS).forEach(k => delete window._ADMIN_SHARIK_CUSTOM_EDITS[k]);
+                  Object.assign(window._ADMIN_SHARIK_CUSTOM_EDITS, data || {});
                   localStorage.setItem('numiplan_admin_sharik_custom_edits', JSON.stringify(window._ADMIN_SHARIK_CUSTOM_EDITS));
                   if (typeof renderAdminEntreesSorties === 'function') renderAdminEntreesSorties();
                 } else {
@@ -17257,11 +17260,11 @@ function isResemblanceRejected(regName, numiName) {
   if (!edits || !Array.isArray(edits.rejected_resemblances)) {
     return false;
   }
-  const rN = regName.trim().toUpperCase();
-  const nN = numiName.trim().toUpperCase();
+  const rN = normalizeDriverName(regName);
+  const nN = normalizeDriverName(numiName);
   return edits.rejected_resemblances.some(x => {
-    const xReg = (x.reg || '').trim().toUpperCase();
-    const xNumi = (x.numi || '').trim().toUpperCase();
+    const xReg = normalizeDriverName(x.reg);
+    const xNumi = normalizeDriverName(x.numi);
     return (xReg === rN && xNumi === nN) || (xReg === nN && xNumi === rN);
   });
 }
@@ -17278,6 +17281,7 @@ function areNamesMatching(nameA, nameB) {
 }
 
 function areNamesFuzzyMatching(nameA, nameB) {
+  if (isResemblanceRejected(nameA, nameB)) return false;
   if (areNamesMatching(nameA, nameB)) return true;
   let nA = normalizeDriverName(nameA);
   let nB = normalizeDriverName(nameB);
@@ -17381,7 +17385,7 @@ function findBestNumiplanSuggestion(registryName, numiplanDrivers) {
     }
   } catch(e) {}
 
-let _ADMIN_SHARIK_CUSTOM_EDITS = JSON.parse(localStorage.getItem('numiplan_admin_sharik_custom_edits') || '{}');
+let _ADMIN_SHARIK_CUSTOM_EDITS = window._ADMIN_SHARIK_CUSTOM_EDITS;
 
 function pushSharikEditsToCloud() {
   if (window.supabase) {
@@ -17523,7 +17527,7 @@ function renderAdminEntreesSorties() {
 
   // 3.1 Consolidation stricte : 1 entrée unique par chauffeur physique (sans doublon)
   for (const [nKey, nVal] of Object.entries(numiplanActiveDrivers)) {
-    const existing = rawList.find(r => areNamesFuzzyMatching(r.sharik, nKey));
+    const existing = rawList.find(r => areNamesFuzzyMatching(r.sharik, nVal.rawName));
     if (!existing) {
       rawList.push({
         code: '',
@@ -17555,7 +17559,14 @@ function renderAdminEntreesSorties() {
   const dedupedList = [];
   rawList.forEach(r => {
     const sKey = normalizeDriverName(r.sharik).replace(/\s+\d+$/, '').trim();
-    if (!seenSharikKeys.has(sKey)) {
+    let hasConflictWithKept = false;
+    if (seenSharikKeys.has(sKey)) {
+      const matchingKept = dedupedList.find(x => normalizeDriverName(x.sharik).replace(/\s+\d+$/, '').trim() === sKey);
+      if (matchingKept && isResemblanceRejected(r.sharik, matchingKept.sharik)) {
+        hasConflictWithKept = true;
+      }
+    }
+    if (!seenSharikKeys.has(sKey) || hasConflictWithKept) {
       seenSharikKeys.add(sKey);
       dedupedList.push(r);
     }
@@ -17570,7 +17581,7 @@ function renderAdminEntreesSorties() {
     // Trouver si le chauffeur tourne sur Numiplan (Match direct)
     let numiMatch = null;
     for (const [nKey, nVal] of Object.entries(numiplanActiveDrivers)) {
-      if (areNamesFuzzyMatching(r.sharik, nKey)) {
+      if (areNamesFuzzyMatching(r.sharik, nVal.rawName)) {
         numiMatch = nVal;
         break;
       }
