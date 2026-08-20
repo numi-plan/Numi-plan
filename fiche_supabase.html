@@ -416,7 +416,7 @@
       const dd = document.getElementById('username-input');
       if (dd && dd.options.length <= 1) {
         console.warn('[Fallback] Supabase timeout — affichage du dropdown avec ADMIN uniquement');
-        populateLoginUserDropdown();
+        if (typeof window.populateLoginUserDropdown === 'function') window.populateLoginUserDropdown();
       }
     }, 3000);
     
@@ -441,13 +441,13 @@
             window['DB_' + eq].users.push(row.login);
           }
         });
-        populateLoginUserDropdown();
+        if (typeof window.populateLoginUserDropdown === 'function') window.populateLoginUserDropdown();
       }
     } catch (e) {
       clearTimeout(fallbackTimer);
       console.error("Error loading dropdown users:", e);
       // En cas d'erreur Supabase, afficher quand même ADMIN pour permettre la connexion
-      populateLoginUserDropdown();
+      if (typeof window.populateLoginUserDropdown === 'function') window.populateLoginUserDropdown();
     }
   }
 
@@ -561,7 +561,7 @@
           }
           applyEquipeData(eq, payload);
         });
-        populateLoginUserDropdown();
+        if (typeof window.populateLoginUserDropdown === 'function') window.populateLoginUserDropdown();
         loadGlobalDispoForExtensions();
         if (typeof alignOdoWeeksGlobal === 'function') alignOdoWeeksGlobal();
         if (typeof updateHeaderRAC === 'function') updateHeaderRAC();
@@ -604,7 +604,7 @@
                     _fbReady = true;
                   }
                   applyEquipeData(eq, data);
-                  populateLoginUserDropdown();
+                  if (typeof window.populateLoginUserDropdown === 'function') window.populateLoginUserDropdown();
                   if (typeof alignOdoWeeksGlobal === 'function') alignOdoWeeksGlobal();
                   if (typeof updateHeaderRAC === 'function') updateHeaderRAC();
                 }
