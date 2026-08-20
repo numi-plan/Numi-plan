@@ -3897,6 +3897,9 @@ mark.hl { background: rgba(56,189,248,.25); color: var(--acc); border-radius: 3p
       <div class="form-group"><label>Type</label>
         <select id="f-dispo-type"><option>TRACTEUR</option><option>REMORQUE</option><option>CELLULE</option></select></div>
       <div class="form-group"><label>Chauffeur</label><input id="f-dispo-chauffeur" list="dl-chauffeurs" placeholder="NOM PRÉNOM"></div>
+      <!-- Nouveaux champs pour la création (masqués lors de l'édition) -->
+      <div class="form-group" id="group-dispo-remorque" style="display:none"><label>Immatriculation Remorque</label><input id="f-dispo-remorque" placeholder="000525-814-16"></div>
+      <div class="form-group" id="group-dispo-date-in" style="display:none"><label>Date d'entrée / Démarrage</label><input id="f-dispo-date-in" type="date"></div>
       <div class="form-group"><label>Horaire (ex: 06:30)</label><input id="f-dispo-hor" placeholder="06:30" type="time"></div>
       <div class="form-group"><label>Équipement</label>
         <select id="f-dispo-equip"><option>OK</option><option>NON</option><option value=""></option></select></div>
@@ -4421,28 +4424,28 @@ mark.hl { background: rgba(56,189,248,.25); color: var(--acc); border-radius: 3p
     "01": { name: "Adrar", km: 1400 },
     "02": { name: "Chlef", km: 380 },
     "03": { name: "Laghouat", km: 520 },
-    "04": { name: "Oum El Bouaghi", km: 240 },
-    "05": { name: "Batna", km: 210 },
+    "04": { name: "Oum El Bouaghi", km: 452 },
+    "05": { name: "Batna", km: 295 },
     "06": { name: "Béjaïa", km: 0 },
-    "07": { name: "Biskra", km: 320 },
+    "07": { name: "Biskra", km: 364 },
     "08": { name: "Béchar", km: 1150 },
     "09": { name: "Blida", km: 290 },
     "10": { name: "Bouira", km: 110 },
     "11": { name: "Tamanrasset", km: 2000 },
-    "12": { name: "Tébessa", km: 380 },
+    "12": { name: "Tébessa", km: 551 },
     "13": { name: "Tlemcen", km: 740 },
     "14": { name: "Tiaret", km: 460 },
     "15": { name: "Tizi Ouzou", km: 130 },
     "16": { name: "Alger", km: 250 },
     "17": { name: "Djelfa", km: 420 },
     "18": { name: "Jijel", km: 90 },
-    "19": { name: "Sétif", km: 110 },
+    "19": { name: "Sétif", km: 232 },
     "20": { name: "Saïda", km: 580 },
-    "21": { name: "Skikda", km: 220 },
+    "21": { name: "Skikda", km: 469 },
     "22": { name: "Sidi Bel Abbès", km: 660 },
-    "23": { name: "Annaba", km: 310 },
-    "24": { name: "Guelma", km: 290 },
-    "25": { name: "Constantine", km: 220 },
+    "23": { name: "Annaba", km: 503 },
+    "24": { name: "Guelma", km: 459 },
+    "25": { name: "Constantine", km: 362 },
     "26": { name: "Médéa", km: 320 },
     "27": { name: "Mostaganem", km: 530 },
     "28": { name: "M'Sila", km: 170 },
@@ -4453,14 +4456,14 @@ mark.hl { background: rgba(56,189,248,.25); color: var(--acc); border-radius: 3p
     "33": { name: "Illizi", km: 1600 },
     "34": { name: "Bordj Bou Arréridj", km: 120 },
     "35": { name: "Boumerdès", km: 210 },
-    "36": { name: "El Tarf", km: 360 },
+    "36": { name: "El Tarf", km: 563 },
     "37": { name: "Tindouf", km: 1950 },
     "38": { name: "Tissemsilt", km: 420 },
     "39": { name: "El Oued", km: 580 },
-    "40": { name: "Khenchela", km: 290 },
-    "41": { name: "Souk Ahras", km: 360 },
+    "40": { name: "Khenchela", km: 450 },
+    "41": { name: "Souk Ahras", km: 462 },
     "42": { name: "Tipaza", km: 310 },
-    "43": { name: "Mila", km: 180 },
+    "43": { name: "Mila", km: 322 },
     "44": { name: "Aïn Defla", km: 390 },
     "45": { name: "Naâma", km: 850 },
     "46": { name: "Aïn Témouchent", km: 680 },
@@ -6282,6 +6285,7 @@ window.imprimerListeBLManquants = imprimerListeBLManquants;
       <div style="font-size:11px; color:#94a3b8">ℹ️ Numiplan reste intact. Cette modification s'applique uniquement à ce registre administratif.</div>
       <div style="display:flex; gap:8px">
         <button class="btn btn-reset" onclick="closeModal('modal-admin-edit-sharik')">Annuler</button>
+        <button class="btn" id="edit-sharik-delete-btn" onclick="deleteAdminSharikLine()" style="background:#ef4444; color:#fff; font-weight:800; padding:8px 18px; display:none">🗑 Supprimer</button>
         <button class="btn" onclick="saveAdminSharikEdit()" style="background:#38bdf8; color:#000; font-weight:800; padding:8px 18px">💾 Enregistrer la ligne</button>
       </div>
     </div>
@@ -7132,6 +7136,13 @@ function openModal(id, editIdx=-1) {
     const hi = document.querySelector(`#${id} input[type=hidden]`);
     if (hi) hi.value = editIdx;
   }
+  if (id === 'modal-dispo') {
+    const isCreation = (editIdx === -1);
+    const gr = document.getElementById('group-dispo-remorque');
+    const gd = document.getElementById('group-dispo-date-in');
+    if (gr) gr.style.display = isCreation ? 'block' : 'none';
+    if (gd) gd.style.display = isCreation ? 'block' : 'none';
+  }
   if (id === 'modal-odo' && editIdx === -1) buildOdoWeekInputs();
   if (id === 'modal-odo-export') initOdoExportModal();
   if (id === 'modal-panne') {
@@ -7718,6 +7729,43 @@ function saveDispo() {
     return;
   }
 
+  // Vérifier si le chauffeur existe déjà (match exact ou fuzzy) dans le registre pour éviter les doublons
+  if (idx < 0 && window._ADMIN_SHARIK_ENTREES_SORTIES) {
+    const normName = (name) => {
+      if (typeof normalizeDriverName === 'function') return normalizeDriverName(name);
+      if (typeof window.normalizeDriverName === 'function') return window.normalizeDriverName(name);
+      return (name || '').trim().toUpperCase();
+    };
+    const inputNorm = normName(ch);
+    const existing = window._ADMIN_SHARIK_ENTREES_SORTIES.find(r => {
+      return r.statut === 'ACTIF' && (normName(r.sharik) === inputNorm || areNamesFuzzyMatching(r.sharik, ch));
+    });
+    if (existing) {
+      showToast(`⚠️ Le chauffeur « ${existing.sharik} » existe déjà dans le registre (saisie proche : « ${ch} »). Veuillez utiliser l'orthographe exacte existante.`, true);
+      document.getElementById('f-dispo-chauffeur').focus();
+      return;
+    }
+  }
+
+  // --- NOUVEAU : Validation Remorque et Date d'entrée obligatoires à la création ---
+  const rmVal = document.getElementById('f-dispo-remorque') ? document.getElementById('f-dispo-remorque').value.trim().toUpperCase() : '';
+  const dateInVal = document.getElementById('f-dispo-date-in') ? document.getElementById('f-dispo-date-in').value : '';
+
+  if (idx < 0) {
+    if (!rmVal || rmVal === '—' || rmVal === '?') {
+      showToast('⚠️ Immatriculation de la remorque obligatoire pour la création', true);
+      const el = document.getElementById('f-dispo-remorque');
+      if (el) el.focus();
+      return;
+    }
+    if (!dateInVal) {
+      showToast('⚠️ Date d\'entrée / démarrage obligatoire pour la création', true);
+      const el = document.getElementById('f-dispo-date-in');
+      if (el) el.focus();
+      return;
+    }
+  }
+
   const hor_str = document.getElementById('f-dispo-hor').value;
   let hor = 0;
   if (hor_str) { const [h,m] = hor_str.split(':').map(Number); hor = (h*60+m)/1440; }
@@ -7806,6 +7854,46 @@ function saveDispo() {
         if (obj.chauffeur && obj.chauffeur !== '—') {
           logMouvement('Entrée Chauffeur', 'Chauffeur', obj.chauffeur, 'Affectation initiale');
         }
+
+        // --- NOUVEAU : En parallèle, ajouter le chauffeur au registre de l'espace direction ---
+        if (!window._ADMIN_SHARIK_CUSTOM_EDITS) {
+          window._ADMIN_SHARIK_CUSTOM_EDITS = {};
+        }
+        if (!Array.isArray(window._ADMIN_SHARIK_CUSTOM_EDITS.new_drivers)) {
+          window._ADMIN_SHARIK_CUSTOM_EDITS.new_drivers = [];
+        }
+        
+        const norm = (name) => {
+          if (typeof normalizeDriverName === 'function') return normalizeDriverName(name);
+          if (typeof window.normalizeDriverName === 'function') return window.normalizeDriverName(name);
+          return (name || '').trim().toUpperCase();
+        };
+        const exists = window._ADMIN_SHARIK_CUSTOM_EDITS.new_drivers.some(d => {
+          return norm(d.sharik) === norm(obj.chauffeur);
+        });
+        if (!exists) {
+          window._ADMIN_SHARIK_CUSTOM_EDITS.new_drivers.push({
+            code: "NEW_" + Date.now() + "_" + Math.floor(Math.random()*1000),
+            sharik: obj.chauffeur,
+            date_in: dateInVal,
+            date_contrat_fin: '',
+            date_out: '',
+            motif_out: '',
+            statut: 'ACTIF',
+            tracteur: obj.v,
+            remorque: rmVal,
+            regime: 'IFU',
+            contrat: 'CDD'
+          });
+          localStorage.setItem('numiplan_admin_sharik_custom_edits', JSON.stringify(window._ADMIN_SHARIK_CUSTOM_EDITS));
+          pushSharikEditsToCloud();
+          
+          if (typeof renderAdminEntreesSorties === 'function') {
+            renderAdminEntreesSorties();
+          }
+        }
+        // ----------------------------------------------------------------------------------
+
         DB.dispo.push(obj);
       }
       
@@ -18042,9 +18130,14 @@ async function refuserLiaisonSuggestion(registryName, numiplanName, targetV, tar
 window.refuserLiaisonSuggestion = refuserLiaisonSuggestion;
 
 function ouvrirModalEditionSharik(idx) {
-  const rawList = JSON.parse(JSON.stringify(INITIAL_ADMIN_SHARIK_DATA));
-  const r = rawList[idx];
+  const r = _ADMIN_SHARIK_ENTREES_SORTIES[idx];
   if (!r) return;
+
+  const btnDelete = document.getElementById('edit-sharik-delete-btn');
+  if (btnDelete) {
+    const isCustom = r.code && r.code.startsWith('NEW_');
+    btnDelete.style.display = isCustom ? 'inline-block' : 'none';
+  }
 
   const editKey = r.code || r.sharik || String(idx);
   if (_ADMIN_SHARIK_CUSTOM_EDITS[editKey]) {
@@ -18076,6 +18169,28 @@ function ouvrirModalEditionSharik(idx) {
   }
 }
 window.ouvrirModalEditionSharik = ouvrirModalEditionSharik;
+
+function deleteAdminSharikLine() {
+  const editKey = document.getElementById('edit-sharik-index').value;
+  if (!editKey) return;
+  
+  if (confirm("Voulez-vous vraiment supprimer définitivement ce chauffeur du registre ?")) {
+    if (window._ADMIN_SHARIK_CUSTOM_EDITS && Array.isArray(window._ADMIN_SHARIK_CUSTOM_EDITS.new_drivers)) {
+      window._ADMIN_SHARIK_CUSTOM_EDITS.new_drivers = window._ADMIN_SHARIK_CUSTOM_EDITS.new_drivers.filter(d => d.code !== editKey && d.sharik !== editKey);
+    }
+    if (window._ADMIN_SHARIK_CUSTOM_EDITS && window._ADMIN_SHARIK_CUSTOM_EDITS[editKey]) {
+      delete window._ADMIN_SHARIK_CUSTOM_EDITS[editKey];
+    }
+    
+    localStorage.setItem('numiplan_admin_sharik_custom_edits', JSON.stringify(window._ADMIN_SHARIK_CUSTOM_EDITS));
+    pushSharikEditsToCloud();
+    
+    closeModal('modal-admin-edit-sharik');
+    renderAdminEntreesSorties();
+    showToast("🗑 Chauffeur supprimé du registre");
+  }
+}
+window.deleteAdminSharikLine = deleteAdminSharikLine;
 
 function saveAdminSharikEdit() {
   const editKey = document.getElementById('edit-sharik-index').value;
@@ -19201,7 +19316,7 @@ window.WILAYA_BRANDT_DISTANCES = {
   "03": { name: "Laghouat", km: 450 },
   "04": { name: "Oum El Bouaghi", km: 180 },
   "05": { name: "Batna", km: 130 },
-  "06": { name: "Béjaïa", km: 110 },
+  "06": { name: "Béjaïa", km: 232 },
   "07": { name: "Biskra", km: 220 },
   "08": { name: "Béchar", km: 1000 },
   "09": { name: "Blida", km: 340 },
