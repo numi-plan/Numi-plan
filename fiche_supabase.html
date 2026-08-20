@@ -6,6 +6,9 @@
 <title>Numi-Plan · Suivi Chauffeur</title>
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600;700&family=IBM+Plex+Sans:wght@300;400;600;700&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script>
+  window._ADMIN_SHARIK_CUSTOM_EDITS = JSON.parse(localStorage.getItem('numiplan_admin_sharik_custom_edits') || '{}');
+</script>
 
 
 <!-- ═══════════════════════════════════════════════════════════════
@@ -23,7 +26,7 @@
   window.supabase = supabase; // Exposer globalement pour l'authentification et RLS
   window._gpsSyncIdenetToday = false;
   window._gpsSyncDataFirstToday = false;
-  window._ADMIN_SHARIK_CUSTOM_EDITS = JSON.parse(localStorage.getItem('numiplan_admin_sharik_custom_edits') || '{}');
+  window._ADMIN_SHARIK_CUSTOM_EDITS = window._ADMIN_SHARIK_CUSTOM_EDITS || JSON.parse(localStorage.getItem('numiplan_admin_sharik_custom_edits') || '{}');
 
   let _fbReady      = false;
   let _fbLoaded     = {};
