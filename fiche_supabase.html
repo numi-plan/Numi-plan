@@ -17657,7 +17657,9 @@ function renderAdminEntreesSorties() {
         _autoFromNumiplan: true
       });
     } else {
-      existing.statut = 'ACTIF';
+      if (existing.statut !== 'INACTIF') {
+        existing.statut = 'ACTIF';
+      }
       if (!existing.date_in && nVal.debut) existing.date_in = nVal.debut;
     }
   }
@@ -18135,8 +18137,12 @@ function ouvrirModalEditionSharik(idx) {
 
   const btnDelete = document.getElementById('edit-sharik-delete-btn');
   if (btnDelete) {
-    const isCustom = r.code && r.code.startsWith('NEW_');
-    btnDelete.style.display = isCustom ? 'inline-block' : 'none';
+    // Si c'est un chauffeur personnalisé (non présent dans la liste d'origine INITIAL_ADMIN_SHARIK_DATA)
+    const isOriginal = INITIAL_ADMIN_SHARIK_DATA.some(d => {
+      return (d.code && r.code && d.code === r.code) || 
+             (normalizeDriverName(d.sharik) === normalizeDriverName(r.sharik));
+    });
+    btnDelete.style.display = !isOriginal ? 'inline-block' : 'none';
   }
 
   const editKey = r.code || r.sharik || String(idx);
@@ -18172,22 +18178,55 @@ window.ouvrirModalEditionSharik = ouvrirModalEditionSharik;
 
 function deleteAdminSharikLine() {
   const editKey = document.getElementById('edit-sharik-index').value;
+  const driverName = document.getElementById('edit-sharik-name').value.trim().toUpperCase();
   if (!editKey) return;
   
-  if (confirm("Voulez-vous vraiment supprimer définitivement ce chauffeur du registre ?")) {
+  if (confirm("Voulez-vous vraiment supprimer définitivement ce chauffeur (et ses planifications associées) ?")) {
+    // 1. Supprimer des new_drivers personnalisés de la direction
     if (window._ADMIN_SHARIK_CUSTOM_EDITS && Array.isArray(window._ADMIN_SHARIK_CUSTOM_EDITS.new_drivers)) {
       window._ADMIN_SHARIK_CUSTOM_EDITS.new_drivers = window._ADMIN_SHARIK_CUSTOM_EDITS.new_drivers.filter(d => d.code !== editKey && d.sharik !== editKey);
     }
+    // 2. Supprimer des éditions personnalisées
     if (window._ADMIN_SHARIK_CUSTOM_EDITS && window._ADMIN_SHARIK_CUSTOM_EDITS[editKey]) {
       delete window._ADMIN_SHARIK_CUSTOM_EDITS[editKey];
     }
     
     localStorage.setItem('numiplan_admin_sharik_custom_edits', JSON.stringify(window._ADMIN_SHARIK_CUSTOM_EDITS));
     pushSharikEditsToCloud();
+
+    // 3. Supprimer également des plannings actifs de toutes les équipes (pour éviter qu'il réapparaisse en boucle)
+    const norm = (name) => {
+      if (typeof normalizeDriverName === 'function') return normalizeDriverName(name);
+      if (typeof window.normalizeDriverName === 'function') return window.normalizeDriverName(name);
+      return (name || '').trim().toUpperCase();
+    };
+    const targetNorm = norm(driverName);
+    
+    ['A', 'B', 'C', 'D', 'E', 'F'].forEach(eq => {
+      const db = (eq === window.CURRENT_EQUIPE && typeof window.DB !== 'undefined') ? window.DB : window['DB_' + eq];
+      if (db && Array.isArray(db.dispo)) {
+        const prevLength = db.dispo.length;
+        db.dispo = db.dispo.filter(d => norm(d.chauffeur) !== targetNorm);
+        if (db.dispo.length !== prevLength) {
+          if (eq === window.CURRENT_EQUIPE) {
+            saveDB();
+            renderDispo();
+          }
+          if (window.supabase) {
+            window.supabase.from('numiplan_teams')
+              .upsert({
+                team: eq,
+                payload: db,
+                updated_at: new Date().toISOString()
+              }).catch(e => console.error("Error updating team post-delete:", e));
+          }
+        }
+      }
+    });
     
     closeModal('modal-admin-edit-sharik');
     renderAdminEntreesSorties();
-    showToast("🗑 Chauffeur supprimé du registre");
+    showToast("🗑 Chauffeur et plannings supprimés avec succès");
   }
 }
 window.deleteAdminSharikLine = deleteAdminSharikLine;
