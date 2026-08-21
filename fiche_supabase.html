@@ -8,6 +8,13 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script>
   window._ADMIN_SHARIK_CUSTOM_EDITS = JSON.parse(localStorage.getItem('numiplan_admin_sharik_custom_edits') || '{}');
+
+  // getCurrentEquipe définie ici (script classique) pour être disponible
+  // AVANT le chargement du module ES6 (qui est différé par défaut)
+  function getCurrentEquipe() {
+    return (typeof window.CURRENT_EQUIPE !== 'undefined') ? window.CURRENT_EQUIPE : 'A';
+  }
+  window.getCurrentEquipe = getCurrentEquipe;
 </script>
 
 
