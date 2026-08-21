@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="fr">
 <head>
 <meta charset="UTF-8">
@@ -36,6 +36,7 @@
   function getCurrentEquipe() {
     return (typeof window.CURRENT_EQUIPE !== 'undefined') ? window.CURRENT_EQUIPE : 'A';
   }
+  window.getCurrentEquipe = getCurrentEquipe;
 
   function cloneEquipePayload(src) {
     return JSON.parse(JSON.stringify(src));
