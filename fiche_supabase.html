@@ -556,6 +556,12 @@
           const eq = row.team;
           const payload = row.payload;
           if (eq === 'SHARIK_EDITS') {
+            // Ignorer si une sauvegarde locale vient d'être faite (< 5 secondes)
+            const timeSinceLocalSave = Date.now() - (window._lastSharikLocalSaveTs || 0);
+            if (timeSinceLocalSave < 5000) {
+              console.log('[SHARIK_EDITS] Chargement initial ignoré (sauvegarde locale récente:', timeSinceLocalSave, 'ms)');
+              return;
+            }
             Object.keys(window._ADMIN_SHARIK_CUSTOM_EDITS).forEach(k => delete window._ADMIN_SHARIK_CUSTOM_EDITS[k]);
             Object.assign(window._ADMIN_SHARIK_CUSTOM_EDITS, payload || {});
             localStorage.setItem('numiplan_admin_sharik_custom_edits', JSON.stringify(window._ADMIN_SHARIK_CUSTOM_EDITS));
@@ -601,6 +607,13 @@
                 const eq = payload.new.team;
                 const data = payload.new.payload;
                 if (eq === 'SHARIK_EDITS') {
+                  // Ignorer l'écho Supabase si une sauvegarde locale vient d'être faite (< 5 secondes)
+                  // pour éviter la race condition qui réécrase les modifications en cours
+                  const timeSinceLocalSave = Date.now() - (window._lastSharikLocalSaveTs || 0);
+                  if (timeSinceLocalSave < 5000) {
+                    console.log('[SHARIK_EDITS] Écho Supabase ignoré (sauvegarde locale récente:', timeSinceLocalSave, 'ms)');
+                    return;
+                  }
                   Object.keys(window._ADMIN_SHARIK_CUSTOM_EDITS).forEach(k => delete window._ADMIN_SHARIK_CUSTOM_EDITS[k]);
                   Object.assign(window._ADMIN_SHARIK_CUSTOM_EDITS, data || {});
                   localStorage.setItem('numiplan_admin_sharik_custom_edits', JSON.stringify(window._ADMIN_SHARIK_CUSTOM_EDITS));
@@ -7722,6 +7735,94 @@ async function deleteDispo(idx) {
   // If a driver was assigned, log Sortie Chauffeur as well
   if (r.chauffeur && r.chauffeur !== '—') {
     logMouvement('Sortie Chauffeur', 'Chauffeur', r.chauffeur, 'Supprimé avec le camion | ' + finalJustif);
+
+    // ── SYNC AUTO → Espace Direction : passer le chauffeur en INACTIF avec date_out ──
+    const todayISO = new Date().toISOString().split('T')[0];
+    const normFn = (n) => typeof normalizeDriverName === 'function' ? normalizeDriverName(n) : (n||'').trim().toUpperCase();
+    const chNorm = normFn(r.chauffeur);
+
+    if (!window._ADMIN_SHARIK_CUSTOM_EDITS) window._ADMIN_SHARIK_CUSTOM_EDITS = {};
+
+    // Chercher le chauffeur dans le registre (INITIAL_ADMIN_SHARIK_DATA + new_drivers)
+    let foundEditKey = null;
+    let foundRecord = null;
+
+    // 1. Recherche dans INITIAL_ADMIN_SHARIK_DATA
+    if (typeof INITIAL_ADMIN_SHARIK_DATA !== 'undefined') {
+      INITIAL_ADMIN_SHARIK_DATA.forEach((rec, recIdx) => {
+        if (!foundEditKey) {
+          const recNorm = normFn(rec.sharik);
+          const fuzzyOk = typeof areNamesFuzzyMatching === 'function'
+            ? areNamesFuzzyMatching(rec.sharik, r.chauffeur)
+            : recNorm === chNorm;
+          if (fuzzyOk) {
+            foundEditKey = rec.code || rec.sharik || String(recIdx);
+            foundRecord = rec;
+          }
+        }
+      });
+    }
+
+    // 2. Recherche dans new_drivers si pas trouvé
+    if (!foundEditKey && Array.isArray(window._ADMIN_SHARIK_CUSTOM_EDITS.new_drivers)) {
+      window._ADMIN_SHARIK_CUSTOM_EDITS.new_drivers.forEach((nd, ndIdx) => {
+        if (!foundEditKey) {
+          const ndNorm = normFn(nd.sharik);
+          const fuzzyOk = typeof areNamesFuzzyMatching === 'function'
+            ? areNamesFuzzyMatching(nd.sharik, r.chauffeur)
+            : ndNorm === chNorm;
+          if (fuzzyOk) {
+            foundEditKey = nd.code || nd.sharik;
+            foundRecord = nd;
+          }
+        }
+      });
+    }
+
+    if (foundEditKey) {
+      // Mettre à jour l'édition existante ou créer une nouvelle
+      const existingEdit = window._ADMIN_SHARIK_CUSTOM_EDITS[foundEditKey] || {};
+      window._ADMIN_SHARIK_CUSTOM_EDITS[foundEditKey] = {
+        ...foundRecord,
+        ...existingEdit,
+        statut: 'INACTIF',
+        date_out: todayISO,
+        motif_out: finalJustif || 'Sorti de Numiplan'
+      };
+    } else {
+      // Chauffeur non trouvé dans le registre : créer une fiche INACTIF dans new_drivers
+      if (!Array.isArray(window._ADMIN_SHARIK_CUSTOM_EDITS.new_drivers)) {
+        window._ADMIN_SHARIK_CUSTOM_EDITS.new_drivers = [];
+      }
+      // Vérifier que ce driver n'est pas déjà dans new_drivers
+      const alreadyInNew = window._ADMIN_SHARIK_CUSTOM_EDITS.new_drivers.some(d =>
+        typeof areNamesFuzzyMatching === 'function'
+          ? areNamesFuzzyMatching(d.sharik, r.chauffeur)
+          : normFn(d.sharik) === chNorm
+      );
+      if (!alreadyInNew) {
+        window._ADMIN_SHARIK_CUSTOM_EDITS.new_drivers.push({
+          code: 'NEW_' + Date.now() + '_' + Math.floor(Math.random()*1000),
+          sharik: r.chauffeur,
+          tracteur: r.v,
+          remorque: '',
+          date_in: '',
+          date_out: todayISO,
+          date_contrat_fin: '',
+          motif_out: finalJustif || 'Sorti de Numiplan',
+          statut: 'INACTIF',
+          contrat: 'CDD',
+          regime: 'IFU'
+        });
+      }
+    }
+
+    // Sauvegarder et synchroniser
+    window._lastSharikLocalSaveTs = Date.now();
+    localStorage.setItem('numiplan_admin_sharik_custom_edits', JSON.stringify(window._ADMIN_SHARIK_CUSTOM_EDITS));
+    if (typeof pushSharikEditsToCloud === 'function') pushSharikEditsToCloud();
+    if (typeof renderAdminEntreesSorties === 'function') renderAdminEntreesSorties();
+    // ──────────────────────────────────────────────────────────────────────────────────
   }
 
   const deletedTruckImmat = (r.v || '').trim().toUpperCase();
@@ -18620,6 +18721,8 @@ function saveAdminSharikEdit() {
 
   _ADMIN_SHARIK_CUSTOM_EDITS[editKey] = updatedObj;
   localStorage.setItem('numiplan_admin_sharik_custom_edits', JSON.stringify(_ADMIN_SHARIK_CUSTOM_EDITS));
+  // Marquer le timestamp de la dernière sauvegarde locale pour ignorer l'écho Supabase
+  window._lastSharikLocalSaveTs = Date.now();
   pushSharikEditsToCloud();
 
   const modal = document.getElementById('modal-admin-edit-sharik');
