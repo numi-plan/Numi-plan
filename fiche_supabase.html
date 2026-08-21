@@ -8052,15 +8052,21 @@ function saveDispo() {
             contrat: 'CDD'
           });
           localStorage.setItem('numiplan_admin_sharik_custom_edits', JSON.stringify(window._ADMIN_SHARIK_CUSTOM_EDITS));
+
+          // ── Ajouter dans DB.dispo AVANT de recalculer les compteurs ──
+          DB.dispo.push(obj);
+
+          // Anti-echo Supabase : ignorer le retour cloud pendant 5s
+          window._lastSharikLocalSaveTs = Date.now();
           pushSharikEditsToCloud();
-          
+
           if (typeof renderAdminEntreesSorties === 'function') {
             renderAdminEntreesSorties();
           }
+        } else {
+          // Chauffeur déjà dans new_drivers : pousser quand même dans DB.dispo
+          DB.dispo.push(obj);
         }
-        // ----------------------------------------------------------------------------------
-
-        DB.dispo.push(obj);
       }
       
       saveDB(); closeModal('modal-dispo'); renderDispo(); showToast('✅ Disponibilité enregistrée');
