@@ -18065,7 +18065,9 @@ function renderAdminEntreesSorties() {
     try {
       const db = (eq === window.CURRENT_EQUIPE && typeof window.DB !== 'undefined') ? window.DB : window['DB_' + eq];
       if (db) {
-        ['dispo', 'equip', 'activite'].forEach(tableKey => {
+        // RÈGLE : seule la table 'dispo' détermine si un chauffeur est actif sur Numiplan
+        // Les tables 'equip' et 'activite' (pannes, incidents) ne comptent PAS comme présence active
+        ['dispo'].forEach(tableKey => {
           if (Array.isArray(db[tableKey])) {
             db[tableKey].forEach(row => {
               const rawCh = row.chauffeur || row.sharik;
