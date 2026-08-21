@@ -17862,12 +17862,54 @@ function areNamesFuzzyMatching(nameA, nameB) {
   let nB = normalizeDriverName(nameB);
   if (!nA || !nB) return false;
 
-  // Supprimer les suffixes numériques à la fin du nom (ex: "SAID LARBI 2" -> "SAID LARBI")
+  // Supprimer les suffixes numériques à la fin du nom (ex: "SAID LARBI 2" → "SAID LARBI")
   nA = nA.replace(/\s+\d+$/, '').trim();
   nB = nB.replace(/\s+\d+$/, '').trim();
 
   if (nA === nB) return true;
+
+  // ── Test 1 : Levenshtein sur le nom complet (tolérance ≤ 2) ──
   if (levenshteinDistance(nA, nB) <= 2) return true;
+
+  // ── Test 2 : Mots triés (gère l'ordre prénom/nom inversé) ──
+  const wordsA = nA.split(' ').filter(w => w.length > 1).sort();
+  const wordsB = nB.split(' ').filter(w => w.length > 1).sort();
+  const sortedA = wordsA.join(' ');
+  const sortedB = wordsB.join(' ');
+  if (sortedA === sortedB) return true;
+  if (levenshteinDistance(sortedA, sortedB) <= 3) return true;
+
+  // ── Test 3 : Matching mot à mot — chaque mot de A doit avoir un mot proche dans B ──
+  // Cas : "ABDELHILAL IHAMMOUCHEN" vs "IHAMOUCHENE HILAL"
+  // → "ABDELHILAL" proche de "HILAL" ? non. "IHAMMOUCHEN" proche de "IHAMOUCHENE" ? oui (dist=2)
+  // → au moins 1 mot en commun proche + longueur comparable
+  if (wordsA.length >= 1 && wordsB.length >= 1) {
+    let sharedWordMatches = 0;
+    const usedB = new Set();
+    for (const wA of wordsA) {
+      for (let i = 0; i < wordsB.length; i++) {
+        if (usedB.has(i)) continue;
+        const wB = wordsB[i];
+        const maxLen = Math.max(wA.length, wB.length);
+        const threshold = maxLen <= 5 ? 1 : maxLen <= 8 ? 2 : 3;
+        if (levenshteinDistance(wA, wB) <= threshold) {
+          sharedWordMatches++;
+          usedB.add(i);
+          break;
+        }
+        // Test: l'un contient l'autre (ex: "ABDELHILAL" contient "HILAL")
+        if (wA.includes(wB) || wB.includes(wA)) {
+          sharedWordMatches++;
+          usedB.add(i);
+          break;
+        }
+      }
+    }
+    // Si au moins la moitié des mots du nom le plus court matchent → OK
+    const minWords = Math.min(wordsA.length, wordsB.length);
+    if (sharedWordMatches >= Math.ceil(minWords / 2) && sharedWordMatches >= 1) return true;
+  }
+
   return false;
 }
 
