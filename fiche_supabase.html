@@ -551,7 +551,7 @@
             Object.keys(window._ADMIN_SHARIK_CUSTOM_EDITS).forEach(k => delete window._ADMIN_SHARIK_CUSTOM_EDITS[k]);
             Object.assign(window._ADMIN_SHARIK_CUSTOM_EDITS, payload || {});
             localStorage.setItem('numiplan_admin_sharik_custom_edits', JSON.stringify(window._ADMIN_SHARIK_CUSTOM_EDITS));
-            if (typeof renderAdminEntreesSorties === 'function') renderAdminEntreesSorties();
+            try { if (typeof renderAdminEntreesSorties === 'function') renderAdminEntreesSorties(); } catch(e) { console.warn('renderAdminEntreesSorties skipped (not ready yet):', e.message); }
             return;
           }
           _fbLoaded[eq] = true;
@@ -6540,6 +6540,12 @@ window.imprimerListeBLManquants = imprimerListeBLManquants;
 </div>
 
 <script>
+// ══ INITIALISATIONS CRITIQUES (avant tout code susceptible d'échouer) ══
+// Déclarées avec var pour éviter la Temporal Dead Zone si le script s'arrête
+var POI_SUPABASE_URL = "https://mfljrozyxyfkymzlnsmt.supabase.co";
+var POI_SUPABASE_KEY = "sb_publishable_sMb9uHOr4gpyqmZGrkY-YQ_z90TgNAB";
+if (typeof window._DIRECTION_UNLOCKED_SESSION === 'undefined') window._DIRECTION_UNLOCKED_SESSION = false;
+
 
 function enregistrerOTNonRealise() {
   const numInput = document.getElementById('ot-non-realise-num');
@@ -15817,8 +15823,7 @@ window.selectHistoryDate = selectHistoryDate;
 // ══════════════════════════════════════════════════════════════════════════════
 // SUIVI DES POI ET IMMOBILISATIONS (>2H)
 // ══════════════════════════════════════════════════════════════════════════════
-const POI_SUPABASE_URL = "https://mfljrozyxyfkymzlnsmt.supabase.co";
-const POI_SUPABASE_KEY = "sb_publishable_sMb9uHOr4gpyqmZGrkY-YQ_z90TgNAB";
+// POI_SUPABASE_URL et POI_SUPABASE_KEY sont déclarées en haut du script (var) pour éviter la TDZ
 
 async function poiSupabaseFetch(endpoint, method = "GET", body = null) {
   let token = POI_SUPABASE_KEY;
@@ -17441,18 +17446,18 @@ document.addEventListener('keydown', (e) => {
 
 // MODULE : ESPACE DIRECTION & ADMINISTRATIF SÉCURISÉ
 // ══════════════════════════════════════════════════════════════════════════════
-let _DIRECTION_UNLOCKED_SESSION = false;
+if (typeof window._DIRECTION_UNLOCKED_SESSION === 'undefined') window._DIRECTION_UNLOCKED_SESSION = false;
 
 async function ouvrirEspaceAdminDirection(btn) {
   // Si déjà connecté avec le profil isolé direction_only, accès automatique
   const role = sessionStorage.getItem('numiplan_user_role');
   const username = sessionStorage.getItem('numiplan_username');
   if (role === 'direction_only' || role === 'readonly' || username === 'REGISTRE') {
-    _DIRECTION_UNLOCKED_SESSION = true;
+    window._DIRECTION_UNLOCKED_SESSION = true;
   }
 
   // Si pas encore déverrouillé pour cette session, demander le mot de passe masqué
-  if (!_DIRECTION_UNLOCKED_SESSION) {
+  if (!window._DIRECTION_UNLOCKED_SESSION) {
     const pwd = await demanderMotDePasseMasque("🔒 Accès Espace Direction", "Veuillez saisir votre mot de passe d'accès sécurisé :");
     if (pwd === null) return; // Annulé
 
@@ -17461,7 +17466,7 @@ async function ouvrirEspaceAdminDirection(btn) {
       showToast("⛔ Mot de passe Direction incorrect !", true);
       return;
     }
-    _DIRECTION_UNLOCKED_SESSION = true;
+    window._DIRECTION_UNLOCKED_SESSION = true;
     showToast("🔓 Espace Direction déverrouillé avec succès");
   }
 
@@ -17487,7 +17492,7 @@ async function ouvrirEspaceAdminDirection(btn) {
 window.ouvrirEspaceAdminDirection = ouvrirEspaceAdminDirection;
 
 function verrouillerEspaceAdminDirection() {
-  _DIRECTION_UNLOCKED_SESSION = false;
+  window._DIRECTION_UNLOCKED_SESSION = false;
   showToast('🔒 Espace Direction verrouillé');
   const dispoBtn = document.querySelector('.tab-btn');
   if (typeof switchTab === 'function') {
@@ -17495,6 +17500,7 @@ function verrouillerEspaceAdminDirection() {
   }
 }
 window.verrouillerEspaceAdminDirection = verrouillerEspaceAdminDirection;
+
 
 function switchAdminSubTab(subTabId) {
   // Select all subtab buttons and reset active style
