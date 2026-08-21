@@ -9840,7 +9840,8 @@ function renderOdo() {
   
   // Gérer le verrou d'équipe pour les utilisateurs standards
   const lock = sessionStorage.getItem('numiplan_team_lock');
-  if (lock && lock !== 'DIR' && lock !== 'BL' && selectTeamEl) {
+  const isAdminForced = selectTeamEl && selectTeamEl.getAttribute('data-admin-forced') === 'true';
+  if (!isAdminForced && lock && lock !== 'DIR' && lock !== 'BL' && selectTeamEl) {
     selectTeamEl.value = lock;
     selectTeamEl.disabled = true;
     selectTeamEl.style.display = 'none';
@@ -17673,6 +17674,14 @@ function switchAdminSubTab(subTabId) {
       odoPage.classList.add('active');
       odoPage.classList.add('in-admin-direction');
       odoPage.style.display = 'block';
+    }
+    // Dans l'espace Direction : forcer l'affichage de TOUTES les équipes
+    const teamSelOdo = document.getElementById('odo-filter-team');
+    if (teamSelOdo) {
+      teamSelOdo.value = 'ALL';
+      teamSelOdo.disabled = false;
+      teamSelOdo.style.display = '';
+      teamSelOdo.setAttribute('data-admin-forced', 'true');
     }
     renderOdo();
   }
