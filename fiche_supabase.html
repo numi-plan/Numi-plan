@@ -18174,22 +18174,29 @@ function renderAdminEntreesSorties() {
   rawList.forEach((r, idx) => {
     r._idx = idx;
     
-    // Trouver si le chauffeur tourne sur Numiplan (Match direct)
+    // Trouver si le chauffeur tourne sur Numiplan (Match direct ou nom inversé)
     let numiMatch = null;
+    let numiMatchIsInvertedOrder = false; // Match uniquement par tri alphabétique (nom inversé)
     for (const [nKey, nVal] of Object.entries(numiplanActiveDrivers)) {
       if (areNamesFuzzyMatching(r.sharik, nVal.rawName)) {
+        // Vérifier si match DIRECT (même ordre) ou uniquement PAR TRI (ordre inversé)
+        const normReg = normalizeDriverName(r.sharik).replace(/\s+\d+$/, '').trim();
+        const normNumi = normalizeDriverName(nVal.rawName).replace(/\s+\d+$/, '').trim();
+        const isDirectMatch = (normReg === normNumi) || levenshteinDistance(normReg, normNumi) <= 2;
         numiMatch = nVal;
+        numiMatchIsInvertedOrder = !isDirectMatch;
         break;
       }
     }
 
-    r._numiMatch = numiMatch;
+    // Si nom inversé : ne pas traiter comme match direct, forcer suggestion de ressemblance
+    r._numiMatch = (numiMatch && !numiMatchIsInvertedOrder) ? numiMatch : null;
     r._incoherence = false;
     r._incoherenceType = '';
     r._suggestion = null;
 
-    if (numiMatch) {
-      // Chauffeur trouvé et en correspondance avec Numiplan
+    if (numiMatch && !numiMatchIsInvertedOrder) {
+      // Chauffeur trouvé avec correspondance directe Numiplan
       if (r.statut === 'INACTIF') {
         r._incoherence = true;
         r._incoherenceType = `🚨 Marqué Sorti au registre mais tourne sur ${numiMatch.v} (Éq. ${numiMatch.team})`;
@@ -18213,8 +18220,21 @@ function renderAdminEntreesSorties() {
         }
       }
     } else {
-      // Aucun match direct : chercher une ressemblance orthographique
-      const suggestion = findBestNumiplanSuggestion(r.sharik, numiplanActiveDrivers);
+      // Aucun match direct ou nom inversé détecté : afficher suggestion pour confirmation
+      let suggestion = null;
+      if (numiMatchIsInvertedOrder && numiMatch) {
+        // Nom inversé (ex: ABBAS AMAR vs AMAR ABBAS) : proposer comme suggestion
+        suggestion = {
+          name: numiMatch.rawName,
+          team: numiMatch.team,
+          v: numiMatch.v || '',
+          rm: numiMatch.rm || '',
+          dist: 0
+        };
+      } else {
+        // Chercher une ressemblance orthographique classique
+        suggestion = findBestNumiplanSuggestion(r.sharik, numiplanActiveDrivers);
+      }
       if (suggestion) {
         r._suggestion = suggestion;
         r._incoherence = true;
