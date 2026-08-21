@@ -6321,14 +6321,25 @@ window.imprimerListeBLManquants = imprimerListeBLManquants;
     <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:12px; margin-bottom:12px">
       <div>
         <label style="font-size:11px; font-weight:700; color:var(--txt2); display:block; margin-bottom:4px">Type de Contrat</label>
-        <select id="edit-sharik-contrat" style="width:100%; background:var(--bg3); border:1px solid var(--border); border-radius:7px; padding:8px; color:var(--txt)">
+        <select id="edit-sharik-contrat-type" onchange="_syncContratField()" style="width:100%; background:var(--bg3); border:1px solid var(--border); border-radius:7px; padding:8px; color:var(--txt); font-size:12px; margin-bottom:4px">
+          <option value="">-- Sélectionner --</option>
           <option value="CDD">CDD</option>
           <option value="CDI">CDI</option>
+          <option value="Avenant">Avenant</option>
+          <option value="custom">✏️ Saisie libre...</option>
         </select>
+        <input type="text" id="edit-sharik-contrat" placeholder="Ex: CRT/ACT/2025/406 ou CDD" style="width:100%; background:var(--bg3); border:1px solid rgba(56,189,248,0.5); border-radius:7px; padding:8px; color:var(--txt); font-size:11px">
       </div>
       <div>
         <label style="font-size:11px; font-weight:700; color:var(--txt2); display:block; margin-bottom:4px">Régime Comptable</label>
-        <input type="text" id="edit-sharik-regime" placeholder="IFU / Réel" style="width:100%; background:var(--bg3); border:1px solid var(--border); border-radius:7px; padding:8px; color:var(--txt)">
+        <select id="edit-sharik-regime-select" onchange="_syncRegimeField()" style="width:100%; background:var(--bg3); border:1px solid var(--border); border-radius:7px; padding:8px; color:var(--txt); font-size:12px; margin-bottom:4px">
+          <option value="">-- Sélectionner --</option>
+          <option value="IFU">IFU</option>
+          <option value="Réel">Réel</option>
+          <option value="Forfait">Forfait</option>
+          <option value="custom">✏️ Saisie libre...</option>
+        </select>
+        <input type="text" id="edit-sharik-regime" placeholder="IFU / Réel" style="width:100%; background:var(--bg3); border:1px solid rgba(56,189,248,0.5); border-radius:7px; padding:8px; color:var(--txt); font-size:11px">
       </div>
       <div>
         <label style="font-size:11px; font-weight:700; color:var(--txt2); display:block; margin-bottom:4px">Statut Administratif</label>
@@ -6344,12 +6355,14 @@ window.imprimerListeBLManquants = imprimerListeBLManquants;
       <input type="text" id="edit-sharik-motif" placeholder="Ex: Démission, Fin de contrat, VOL, Changement d'affectation..." style="width:100%; background:var(--bg3); border:1px solid var(--border); border-radius:7px; padding:8px; color:var(--txt)">
     </div>
 
-    <div style="display:flex; justify-content:space-between; align-items:center; border-top:1px solid var(--border); padding-top:16px">
-      <div style="font-size:11px; color:#94a3b8">ℹ️ Numiplan reste intact. Cette modification s'applique uniquement à ce registre administratif.</div>
-      <div style="display:flex; gap:8px">
-        <button class="btn btn-reset" onclick="closeModal('modal-admin-edit-sharik')">Annuler</button>
-        <button class="btn" id="edit-sharik-delete-btn" onclick="deleteAdminSharikLine()" style="background:#ef4444; color:#fff; font-weight:800; padding:8px 18px; display:none">🗑 Supprimer</button>
-        <button class="btn" onclick="saveAdminSharikEdit()" style="background:#38bdf8; color:#000; font-weight:800; padding:8px 18px">💾 Enregistrer la ligne</button>
+    <div style="border-top:1px solid var(--border); padding-top:16px">
+      <div style="font-size:11px; color:#94a3b8; margin-bottom:12px">ℹ️ Numiplan reste intact. Cette modification s'applique uniquement à ce registre administratif.</div>
+      <div style="display:flex; justify-content:space-between; align-items:center">
+        <button class="btn" id="edit-sharik-delete-btn" onclick="deleteAdminSharikLine()" style="background:rgba(239,68,68,0.15); border:1px solid rgba(239,68,68,0.5); color:#ef4444; font-weight:800; padding:8px 18px; border-radius:8px; cursor:pointer">🗑 Supprimer ce chauffeur</button>
+        <div style="display:flex; gap:8px">
+          <button class="btn btn-reset" onclick="closeModal('modal-admin-edit-sharik')">Annuler</button>
+          <button class="btn" onclick="saveAdminSharikEdit()" style="background:#38bdf8; color:#000; font-weight:800; padding:8px 18px">💾 Enregistrer la ligne</button>
+        </div>
       </div>
     </div>
   </div>
@@ -18437,9 +18450,12 @@ function renderAdminEntreesSorties() {
         <td>${rmHtml}</td>
         <td style="font-family:monospace;font-size:11px;color:#22c55e">${r.date_in ? fmtDate(r.date_in) : '—'}</td>
         <td style="font-family:monospace;font-size:11px;color:${(!isActif && r.date_out) ? '#ef4444' : '#aaa'}">${(!isActif && r.date_out) ? fmtDate(r.date_out) : '—'}</td>
-        <td style="font-size:11px">
-          <span style="background:rgba(255,255,255,0.06);padding:2px 6px;border-radius:4px">${r.contrat || 'CDD'}</span>
-          ${r.regime ? ' · ' + r.regime : ''}
+        <td style="font-size:11px; cursor:pointer" onclick="ouvrirModalEditionSharik(${r._idx})" title="Cliquer pour modifier le contrat & régime">
+          <div style="display:flex; align-items:center; gap:6px; flex-wrap:wrap">
+            <span style="background:rgba(56,189,248,0.12);border:1px solid rgba(56,189,248,0.3);padding:2px 8px;border-radius:4px;font-weight:700;color:#38bdf8">${r.contrat || 'CDD'}</span>
+            ${r.regime ? `<span style="background:rgba(139,92,246,0.12);border:1px solid rgba(139,92,246,0.3);padding:2px 8px;border-radius:4px;font-weight:700;color:#a78bfa">${r.regime}</span>` : ''}
+            <span style="font-size:10px;color:#64748b;opacity:0.7">✏️</span>
+          </div>
           ${(isActif && r.date_contrat_fin) ? `<div style="font-size:10px;color:#94a3b8;margin-top:4px">📅 Fin : ${fmtDate(r.date_contrat_fin)}</div>` : ''}
         </td>
         <td style="font-size:12px">${motifHtml}</td>
@@ -18610,12 +18626,8 @@ function ouvrirModalEditionSharik(idx) {
 
   const btnDelete = document.getElementById('edit-sharik-delete-btn');
   if (btnDelete) {
-    // Si c'est un chauffeur personnalisé (non présent dans la liste d'origine INITIAL_ADMIN_SHARIK_DATA)
-    const isOriginal = INITIAL_ADMIN_SHARIK_DATA.some(d => {
-      return (d.code && r.code && d.code === r.code) || 
-             (normalizeDriverName(d.sharik) === normalizeDriverName(r.sharik));
-    });
-    btnDelete.style.display = !isOriginal ? 'inline-block' : 'none';
+    // Le bouton Supprimer est toujours visible — protégé par mot de passe Direction
+    btnDelete.style.display = 'inline-block';
   }
 
   const editKey = r.code || r.sharik || String(idx);
@@ -18641,6 +18653,20 @@ function ouvrirModalEditionSharik(idx) {
   document.getElementById('edit-sharik-statut').value = r.statut || 'ACTIF';
   document.getElementById('edit-sharik-motif').value = r.motif_out || '';
 
+  // Synchroniser les selects Type de Contrat et Régime
+  const contratVal = r.contrat || 'CDD';
+  const regimeVal = r.regime || 'IFU';
+  const contratSel = document.getElementById('edit-sharik-contrat-type');
+  const regimeSel = document.getElementById('edit-sharik-regime-select');
+  if (contratSel) {
+    const knownContrats = ['CDD', 'CDI', 'Avenant'];
+    contratSel.value = knownContrats.includes(contratVal) ? contratVal : 'custom';
+  }
+  if (regimeSel) {
+    const knownRegimes = ['IFU', 'Réel', 'Forfait'];
+    regimeSel.value = knownRegimes.includes(regimeVal) ? regimeVal : 'custom';
+  }
+
   const modal = document.getElementById('modal-admin-edit-sharik');
   if (modal) {
     modal.classList.add('open');
@@ -18649,58 +18675,100 @@ function ouvrirModalEditionSharik(idx) {
 }
 window.ouvrirModalEditionSharik = ouvrirModalEditionSharik;
 
-function deleteAdminSharikLine() {
-  const editKey = document.getElementById('edit-sharik-index').value;
-  const driverName = document.getElementById('edit-sharik-name').value.trim().toUpperCase();
-  if (!editKey) return;
-  
-  if (confirm("Voulez-vous vraiment supprimer définitivement ce chauffeur (et ses planifications associées) ?")) {
-    // 1. Supprimer des new_drivers personnalisés de la direction
-    if (window._ADMIN_SHARIK_CUSTOM_EDITS && Array.isArray(window._ADMIN_SHARIK_CUSTOM_EDITS.new_drivers)) {
-      window._ADMIN_SHARIK_CUSTOM_EDITS.new_drivers = window._ADMIN_SHARIK_CUSTOM_EDITS.new_drivers.filter(d => d.code !== editKey && d.sharik !== editKey);
-    }
-    // 2. Supprimer des éditions personnalisées
-    if (window._ADMIN_SHARIK_CUSTOM_EDITS && window._ADMIN_SHARIK_CUSTOM_EDITS[editKey]) {
-      delete window._ADMIN_SHARIK_CUSTOM_EDITS[editKey];
-    }
-    
-    localStorage.setItem('numiplan_admin_sharik_custom_edits', JSON.stringify(window._ADMIN_SHARIK_CUSTOM_EDITS));
-    pushSharikEditsToCloud();
+function _syncContratField() {
+  const sel = document.getElementById('edit-sharik-contrat-type');
+  const inp = document.getElementById('edit-sharik-contrat');
+  if (!sel || !inp) return;
+  if (sel.value && sel.value !== 'custom') {
+    inp.value = sel.value;
+    inp.style.opacity = '0.6';
+  } else {
+    inp.value = '';
+    inp.style.opacity = '1';
+    inp.focus();
+  }
+}
+window._syncContratField = _syncContratField;
 
-    // 3. Supprimer également des plannings actifs de toutes les équipes (pour éviter qu'il réapparaisse en boucle)
-    const norm = (name) => {
-      if (typeof normalizeDriverName === 'function') return normalizeDriverName(name);
-      if (typeof window.normalizeDriverName === 'function') return window.normalizeDriverName(name);
-      return (name || '').trim().toUpperCase();
-    };
-    const targetNorm = norm(driverName);
-    
-    ['A', 'B', 'C', 'D', 'E', 'F'].forEach(eq => {
-      const db = (eq === window.CURRENT_EQUIPE && typeof window.DB !== 'undefined') ? window.DB : window['DB_' + eq];
-      if (db && Array.isArray(db.dispo)) {
-        const prevLength = db.dispo.length;
-        db.dispo = db.dispo.filter(d => norm(d.chauffeur) !== targetNorm);
-        if (db.dispo.length !== prevLength) {
-          if (eq === window.CURRENT_EQUIPE) {
-            saveDB();
-            renderDispo();
-          }
-          if (window.supabase) {
-            window.supabase.from('numiplan_teams')
-              .upsert({
-                team: eq,
-                payload: db,
-                updated_at: new Date().toISOString()
-              }).catch(e => console.error("Error updating team post-delete:", e));
-          }
+function _syncRegimeField() {
+  const sel = document.getElementById('edit-sharik-regime-select');
+  const inp = document.getElementById('edit-sharik-regime');
+  if (!sel || !inp) return;
+  if (sel.value && sel.value !== 'custom') {
+    inp.value = sel.value;
+    inp.style.opacity = '0.6';
+  } else {
+    inp.value = '';
+    inp.style.opacity = '1';
+    inp.focus();
+  }
+}
+window._syncRegimeField = _syncRegimeField;
+
+async function deleteAdminSharikLine() {
+  const editKey = document.getElementById('edit-sharik-index').value;
+  const driverName = document.getElementById('edit-sharik-name').value.trim();
+  if (!editKey) return;
+
+  // Validation par mot de passe sécurisé
+  const pwd = await demanderMotDePasseMasque(
+    '🗑️ Suppression Sécurisée',
+    `Vous allez supprimer définitivement le chauffeur :\n« ${driverName} »\n\nCette action est irréversible. Veuillez saisir votre mot de passe administrateur pour confirmer :`
+  );
+  if (pwd === null) return; // Annulation
+
+  const cleanPwd = (pwd || '').trim();
+  if (cleanPwd.toUpperCase() !== 'DIREX' && cleanPwd !== 'Numilog@26' && cleanPwd !== 'RexSharik@2026') {
+    showToast('⛔ Mot de passe incorrect — Suppression annulée !', true);
+    return;
+  }
+
+  // Mot de passe validé — procéder à la suppression
+  // 1. Supprimer des new_drivers personnalisés de la direction
+  if (window._ADMIN_SHARIK_CUSTOM_EDITS && Array.isArray(window._ADMIN_SHARIK_CUSTOM_EDITS.new_drivers)) {
+    window._ADMIN_SHARIK_CUSTOM_EDITS.new_drivers = window._ADMIN_SHARIK_CUSTOM_EDITS.new_drivers.filter(d => d.code !== editKey && d.sharik !== editKey);
+  }
+  // 2. Supprimer des éditions personnalisées
+  if (window._ADMIN_SHARIK_CUSTOM_EDITS && window._ADMIN_SHARIK_CUSTOM_EDITS[editKey]) {
+    delete window._ADMIN_SHARIK_CUSTOM_EDITS[editKey];
+  }
+
+  localStorage.setItem('numiplan_admin_sharik_custom_edits', JSON.stringify(window._ADMIN_SHARIK_CUSTOM_EDITS));
+  pushSharikEditsToCloud();
+
+  // 3. Supprimer également des plannings actifs de toutes les équipes (pour éviter qu'il réapparaisse en boucle)
+  const norm = (name) => {
+    if (typeof normalizeDriverName === 'function') return normalizeDriverName(name);
+    if (typeof window.normalizeDriverName === 'function') return window.normalizeDriverName(name);
+    return (name || '').trim().toUpperCase();
+  };
+  const targetNorm = norm(driverName);
+
+  ['A', 'B', 'C', 'D', 'E', 'F'].forEach(eq => {
+    const db = (eq === window.CURRENT_EQUIPE && typeof window.DB !== 'undefined') ? window.DB : window['DB_' + eq];
+    if (db && Array.isArray(db.dispo)) {
+      const prevLength = db.dispo.length;
+      db.dispo = db.dispo.filter(d => norm(d.chauffeur) !== targetNorm);
+      if (db.dispo.length !== prevLength) {
+        if (eq === window.CURRENT_EQUIPE) {
+          saveDB();
+          renderDispo();
+        }
+        if (window.supabase) {
+          window.supabase.from('numiplan_teams')
+            .upsert({
+              team: eq,
+              payload: db,
+              updated_at: new Date().toISOString()
+            }).catch(e => console.error('Error updating team post-delete:', e));
         }
       }
-    });
-    
-    closeModal('modal-admin-edit-sharik');
-    renderAdminEntreesSorties();
-    showToast("🗑 Chauffeur et plannings supprimés avec succès");
-  }
+    }
+  });
+
+  closeModal('modal-admin-edit-sharik');
+  renderAdminEntreesSorties();
+  showToast(`🗑️ Chauffeur « ${driverName} » supprimé avec succès`);
 }
 window.deleteAdminSharikLine = deleteAdminSharikLine;
 
