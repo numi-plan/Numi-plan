@@ -17882,17 +17882,22 @@ function areNamesMatching(nameA, nameB) {
 }
 
 function areNamesFuzzyMatching(nameA, nameB) {
-  if (isResemblanceRejected(nameA, nameB)) return false;
   if (areNamesMatching(nameA, nameB)) return true;
   let nA = normalizeDriverName(nameA);
   let nB = normalizeDriverName(nameB);
   if (!nA || !nB) return false;
 
-  // Supprimer les suffixes numériques à la fin du nom (ex: "SAID LARBI 2" -> "SAID LARBI")
   nA = nA.replace(/\s+\d+$/, '').trim();
   nB = nB.replace(/\s+\d+$/, '').trim();
 
   if (nA === nB) return true;
+  
+  if (nA.length > 8 && nB.length > 8) {
+    if (nA.startsWith(nB) || nB.startsWith(nA)) return true;
+  }
+
+  if (isResemblanceRejected(nameA, nameB)) return false;
+
   if (levenshteinDistance(nA, nB) <= 2) return true;
   return false;
 }
