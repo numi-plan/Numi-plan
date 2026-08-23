@@ -5437,22 +5437,24 @@ function handleTeamDrop(event, destEq) {
   const vehObj = srcData.dispo[vehIdx];
   const chauffeurName = (vehObj.chauffeur || '').trim().toUpperCase();
 
-  // Déterminer s'il s'agit d'un chauffeur en extension (présent >= 2 fois globalement)
+  // Déterminer s'il s'agit d'un chauffeur en extension (possède >= 2 camions DIFFÉRENTS globalement)
   let isExtension = false;
-  let occurrenceCount = 0;
   if (chauffeurName && chauffeurName !== '—' && !chauffeurName.includes('MANQUE CHAUFFEUR')) {
     const teams = ['A', 'B', 'C', 'D', 'E', 'F'];
+    const uniqueTrucks = new Set();
     teams.forEach(eq => {
       const db = window['DB_' + eq];
       if (db && db.dispo) {
         db.dispo.forEach(row => {
           if ((row.chauffeur || '').trim().toUpperCase() === chauffeurName) {
-            occurrenceCount++;
+            if (row.v && row.v !== '—' && row.v !== '-') {
+              uniqueTrucks.add(row.v.trim().toUpperCase());
+            }
           }
         });
       }
     });
-    if (occurrenceCount >= 2) {
+    if (uniqueTrucks.size >= 2) {
       isExtension = true;
     }
   }
@@ -5484,7 +5486,18 @@ function handleTeamDrop(event, destEq) {
     });
 
     if (!destData.dispo) destData.dispo = [];
-    destData.dispo = destData.dispo.concat(vehObjsToTransfer);
+    
+    // NOUVEAU: Ne pas créer de doublons lors du transfert
+    vehObjsToTransfer.forEach(veh => {
+      if (!veh || !veh.v) return;
+      const existingIdx = destData.dispo.findIndex(v => v.v === veh.v);
+      if (existingIdx !== -1) {
+         // Si le véhicule existe déjà dans la destination, on le met à jour
+         destData.dispo[existingIdx] = veh;
+      } else {
+         destData.dispo.push(veh);
+      }
+    });
 
     // Helper pour transférer tous les éléments associés d'une liste
     function transfererElementsList(listName, matchFn) {
