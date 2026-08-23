@@ -1015,7 +1015,7 @@
         const item = anomaliesDict[key];
         if (item && typeof item === 'object') {
           anomRows.push({
-            id: key, team: eq,
+            id: key + '_' + eq, team: eq,
             v: safe(item.v || item.immat),
             chauffeur: safe(item.chauffeur),
             date: safe(item.date),
