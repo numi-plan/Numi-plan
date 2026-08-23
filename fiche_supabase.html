@@ -2856,7 +2856,7 @@ mark.hl { background: rgba(56,189,248,.25); color: var(--acc); border-radius: 3p
     <div class="sec-title">État du parc véhicules</div>
     <div class="table-wrap">
       <table>
-        <thead><tr><th>Véhicule</th><th>État</th><th>Chauffeur</th><th>Horaire</th><th>Lieu Jour</th><th>Lieu J+1</th><th>Barre</th><th>Câble</th><th>Affecté</th><th>KM</th><th style="color:#ef4444;white-space:nowrap">⚡ Excès de vitesse</th><th>Observation</th><th style="color:#22c55e">🚛 Bejaia</th><th style="color:#38bdf8">🚛 Brandt</th><th class="col-assurance" style="color:var(--grn)">🛡 Ass. TR</th><th class="col-assurance" style="color:var(--acc)">🛡 Ass. RM</th><th>Actions</th></tr></thead>
+        <thead><tr><th>Véhicule</th><th>État</th><th>Chauffeur</th><th>Horaire</th><th>Lieu Jour</th><th>Lieu J+1</th><th>Barre</th><th>Câble</th><th>Affecté</th><th>KM</th><th style="color:#ef4444;white-space:nowrap">⚡ Excès de vitesse</th><th>Observation</th><th class="col-assurance" style="color:var(--grn)">🛡 Ass. TR</th><th class="col-assurance" style="color:var(--acc)">🛡 Ass. RM</th><th>Actions</th></tr></thead>
         <tbody id="dispo-body"></tbody>
       </table>
     </div>
@@ -7676,8 +7676,6 @@ function renderDispo() {
       </td>
       <td>${buildSpeedExcessCell(r.v, r.chauffeur)}</td>
       <td style="max-width:150px;font-size:11px"><span class="cell-edit" contenteditable="true" data-field="obs" data-idx="${realIdx}" onblur="saveInline(this)" onkeydown="if(event.key==='Enter'){event.preventDefault();this.blur()}" style="color:var(--txt2);font-style:${r.obs?'normal':'italic'}">${r.obs||'—'}</span></td>
-      <td>${buildOrientationBejaiaCell(r.v, r.chauffeur)}</td>
-      <td>${buildOrientationBrandtCell(r.v, r.chauffeur)}</td>
       <td class="col-assurance">${buildAssuranceCell(r, realIdx, 'dispo', 'tr')}</td>
       <td class="col-assurance">${buildAssuranceCell(r, realIdx, 'dispo', 'rm')}</td>
       <td style="white-space:nowrap">
