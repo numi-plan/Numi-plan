@@ -17978,7 +17978,12 @@ function findBestNumiplanSuggestion(registryName, numiplanDrivers) {
     }
 
     const maxAllowedDist = normReg.length > 8 ? 3 : 2;
-    if ((dist <= maxAllowedDist || (wordMatch && dist <= 4)) && dist < minDistance) {
+    let maxWordMatchDist = 4;
+    if (normReg.length > 15) maxWordMatchDist = 6;
+    if (normReg.length > 20) maxWordMatchDist = 8;
+
+    // 5. Tolérance pour les abréviations (ex: MD pour MOHAMED)
+    if ((dist <= maxAllowedDist || (wordMatch && dist <= maxWordMatchDist)) && dist < minDistance) {
       minDistance = dist;
       best = {
         name: nVal.rawName || nKey,
