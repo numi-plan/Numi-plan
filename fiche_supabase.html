@@ -18019,7 +18019,13 @@ function pushSharikEditsToCloud() {
         payload: _ADMIN_SHARIK_CUSTOM_EDITS,
         updated_at: new Date().toISOString()
       }).then(({error}) => {
-        if (error) console.error("Error upserting SHARIK_EDITS to Supabase:", error);
+        if (error) {
+          console.error("Error upserting SHARIK_EDITS to Supabase:", error);
+          if (typeof showToast === 'function') showToast("⚠️ Erreur de sauvegarde du Registre dans le Cloud !", true);
+        }
+      }).catch(e => {
+        console.error("Exception upserting SHARIK_EDITS:", e);
+        if (typeof showToast === 'function') showToast("⚠️ Erreur réseau lors de la sauvegarde du Registre !", true);
       });
   }
 }
@@ -18560,6 +18566,7 @@ async function validerLiaisonSuggestion(editKey, targetName, targetV, targetRm) 
   _ADMIN_SHARIK_CUSTOM_EDITS[editKey].statut = 'ACTIF';
 
   localStorage.setItem('numiplan_admin_sharik_custom_edits', JSON.stringify(_ADMIN_SHARIK_CUSTOM_EDITS));
+  window._lastSharikLocalSaveTs = Date.now();
   pushSharikEditsToCloud();
 
   renderAdminEntreesSorties();
@@ -18642,6 +18649,7 @@ async function refuserLiaisonSuggestion(registryName, numiplanName, targetV, tar
   _ADMIN_SHARIK_CUSTOM_EDITS.new_drivers.push(newCh);
 
   localStorage.setItem('numiplan_admin_sharik_custom_edits', JSON.stringify(_ADMIN_SHARIK_CUSTOM_EDITS));
+  window._lastSharikLocalSaveTs = Date.now();
   pushSharikEditsToCloud();
 
   renderAdminEntreesSorties();
@@ -18763,6 +18771,7 @@ async function deleteAdminSharikLine() {
   }
 
   localStorage.setItem('numiplan_admin_sharik_custom_edits', JSON.stringify(window._ADMIN_SHARIK_CUSTOM_EDITS));
+  window._lastSharikLocalSaveTs = Date.now();
   pushSharikEditsToCloud();
 
   // 3. Supprimer également des plannings actifs de toutes les équipes (pour éviter qu'il réapparaisse en boucle)
