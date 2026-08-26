@@ -7424,20 +7424,7 @@ function switchTab(name, btn) {
   if (name==='flashinfo') renderAdminFlashList();
   
   if (name === 'incidents-livraison') renderIncidentsLivraisonPage();
-  if (name === 'poi') {
-    renderPoiPage();
-    // Forcer le harcèlement immédiat des alertes POI en entrant dans l'onglet
-    if (typeof checkPoiAlerts === 'function') {
-      Object.keys(sessionStorage).forEach(key => {
-        if (key.startsWith('blacklist_time_') || key.startsWith('poi_warning_time_')) {
-          sessionStorage.removeItem(key);
-        }
-      });
-      sessionStorage.removeItem('client_alerted_blacklist_ids');
-      if (typeof window.clientAlertedSet !== 'undefined') window.clientAlertedSet.clear();
-      checkPoiAlerts();
-    }
-  }
+  if (name === 'poi') renderPoiPage();
   checkBascule();
 }
 
