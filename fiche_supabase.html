@@ -15363,6 +15363,12 @@ function renderFlashInfos() {
                 <label style="display:flex; align-items:center; gap:3px; cursor:pointer; font-family:monospace; font-size:11px; color:var(--txt2);">
                   <input type="checkbox" name="flash-teams-inline" value="D" style="width:auto;cursor:pointer;"> D
                 </label>
+                <label style="display:flex; align-items:center; gap:3px; cursor:pointer; font-family:monospace; font-size:11px; color:var(--txt2);">
+                  <input type="checkbox" name="flash-teams-inline" value="E" style="width:auto;cursor:pointer;"> E
+                </label>
+                <label style="display:flex; align-items:center; gap:3px; cursor:pointer; font-family:monospace; font-size:11px; color:var(--txt2);">
+                  <input type="checkbox" name="flash-teams-inline" value="F" style="width:auto;cursor:pointer;"> F
+                </label>
               </div>
             </div>
             <textarea id="flash-content-inline" placeholder="Saisissez ici le texte du flash info..." style="width:100%; min-height:60px; background:var(--bg2); border:1px solid var(--border); border-radius:6px; padding:8px 10px; color:var(--txt); font-size:12px; outline:none; resize:vertical;"></textarea>
@@ -15717,11 +15723,11 @@ function verifierImmobilisationsActives(forceShow = false) {
   const now = Date.now();
   const lastShown = sessionStorage.getItem('immo_alert_last_shown_' + eq);
   
-  // 30 minutes = 30 * 60 * 1000 ms
-  const interval = 30 * 60 * 1000;
-  
-  if (!forceShow && lastShown && (now - parseInt(lastShown) < interval)) {
-    return;
+  // 1 minute = 60 * 1000 ms (Harcelement mode)
+  if (lastShown && !forceShow) {
+    if (now - parseInt(lastShown) < 60 * 1000) {
+      return; 
+    }
   }
   
   const listContainer = document.getElementById('active-immo-list-container');
@@ -15773,11 +15779,11 @@ function verifierCspcNonTraite(forceShow = false) {
   const now = Date.now();
   const lastShown = sessionStorage.getItem('cspc_alert_last_shown_' + eq);
   
-  // 30 minutes = 30 * 60 * 1000 ms
-  const interval = 30 * 60 * 1000;
-  
-  if (!forceShow && lastShown && (now - parseInt(lastShown) < interval)) {
-    return;
+  // 1 minute = 60 * 1000 ms (Harcelement mode)
+  if (lastShown && !forceShow) {
+    if (now - parseInt(lastShown) < 60 * 1000) {
+      return; 
+    }
   }
   
   const listContainer = document.getElementById('active-cspc-list-container');
@@ -16119,6 +16125,47 @@ async function renderPoiPage() {
 
   // Contrôle de visibilité pour les vues d'administration
   const isUserAdmin = isAdmin();
+     // 3. Traiter chaque visite active
+    for (let visit of activeVisitsList) {
+      // Nettoyer le client pour le matching
+      const clientName = visit.poi_name.trim();
+
+      // Si le client fait partie de la liste noire
+      if (blacklistPois.has(clientName)) {
+        // Alerte Blacklist !
+        const alertId = `${visit.v}_${clientName}`;
+        
+        // Mode harcelement : on reset l'alerte si elle date de plus d'1 minute
+        let lastAlertedTime = parseInt(sessionStorage.getItem(`blacklist_time_${alertId}`) || '0');
+        if (Date.now() - lastAlertedTime > 60 * 1000) {
+          clientAlertedSet.delete(alertId);
+        }
+
+        if (!clientAlertedSet.has(alertId)) {
+          // Afficher le modal rouge clignotant localement
+          showBlacklistAlertModal(visit.v, clientName, visit.entered_at, visit.team);
+          
+          // Marquer comme alerté pour la minute en cours
+          clientAlertedSet.add(alertId);
+          sessionStorage.setItem('client_alerted_blacklist_ids', JSON.stringify([...clientAlertedSet]));
+          sessionStorage.setItem(`blacklist_time_${alertId}`, Date.now().toString());
+
+          // Broadcast immédiat aux autres fenêtres via Realtime
+          if (window.realtimePoiChannel) {
+            window.realtimePoiChannel.send({
+              type: 'broadcast',
+              event: 'blacklist_alert_broadcast',
+              payload: {
+                truck: visit.v,
+                client: clientName,
+                time: visit.entered_at,
+                team: visit.team
+              }
+            });
+          }
+        }
+      }
+    }
   const diagBtn = document.getElementById("btn-poi-diag");
   const addBtn = document.getElementById("btn-poi-add");
   const adminBlock = document.getElementById("admin-poi-management-block");
@@ -16536,9 +16583,17 @@ async function checkPoiAlerts() {
       const isBlacklisted = blacklistPois.has(v.poi_name);
 
       if (isBlacklisted) {
+        // Mode harcelement : on reset l'alerte locale si elle date de plus d'1 minute
+        let lastAlertedTime = parseInt(sessionStorage.getItem(`blacklist_time_${v.id}`) || '0');
+        if (Date.now() - lastAlertedTime > 60 * 1000) {
+          clientAlertedSet.delete(v.id);
+        }
+
         if (!clientAlertedSet.has(v.id)) {
           clientAlertedSet.add(v.id);
           sessionStorage.setItem('client_alerted_blacklist_ids', JSON.stringify([...clientAlertedSet]));
+          sessionStorage.setItem(`blacklist_time_${v.id}`, Date.now().toString());
+
           const timeStr = new Date(v.arrived_at).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
           showBlacklistAlertModal(v.v, v.poi_name, timeStr, v.team, v.chauffeur);
 
@@ -16551,11 +16606,18 @@ async function checkPoiAlerts() {
             });
           }
         }
-      } else if (v.duration_hours >= 2.0 && !v.notified) {
+      } else if (v.duration_hours >= 2.0) {
         const activeTeam = typeof window.CURRENT_EQUIPE !== 'undefined' ? window.CURRENT_EQUIPE : 'A';
         if (!v.team || v.team === activeTeam) {
-          showPoiWarningModal(v);
-          await poiSupabaseFetch(`np_poi_visits?id=eq.${v.id}`, "PATCH", { notified: true });
+          // Mode harcelement pour immobilisation > 2h
+          let lastPoiWarningTime = parseInt(sessionStorage.getItem(`poi_warning_time_${v.id}`) || '0');
+          if (Date.now() - lastPoiWarningTime > 60 * 1000) {
+            showPoiWarningModal(v);
+            sessionStorage.setItem(`poi_warning_time_${v.id}`, Date.now().toString());
+            if (!v.notified) {
+              await poiSupabaseFetch(`np_poi_visits?id=eq.${v.id}`, "PATCH", { notified: true });
+            }
+          }
         }
       }
     }
@@ -18008,6 +18070,11 @@ function areNamesFuzzyMatching(nameA, nameB) {
   nB = nB.replace(/\s+\d+$/, '').trim();
 
   if (nA === nB) return true;
+
+  // Validation automatique des inversions Nom/Prénom (même après suppression des chiffres)
+  const partsA = nA.split(' ').sort().join(' ');
+  const partsB = nB.split(' ').sort().join(' ');
+  if (partsA === partsB) return true;
   
   if (nA.length > 8 && nB.length > 8) {
     if (nA.startsWith(nB) || nB.startsWith(nA)) return true;
@@ -18126,6 +18193,9 @@ function pushSharikEditsToCloud() {
         if (error) {
           console.error("Error upserting SHARIK_EDITS to Supabase:", error);
           if (typeof showToast === 'function') showToast("⚠️ Erreur de sauvegarde du Registre dans le Cloud !", true);
+        } else {
+          // Confirm success
+          if (typeof showToast === 'function') showToast("✅ Registre sauvegardé dans le Cloud avec succès !", false);
         }
       }).catch(e => {
         console.error("Exception upserting SHARIK_EDITS:", e);
@@ -18136,9 +18206,10 @@ function pushSharikEditsToCloud() {
 
 // Proactive migration: push to Supabase on startup if edits exist locally
 if (_ADMIN_SHARIK_CUSTOM_EDITS && Object.keys(_ADMIN_SHARIK_CUSTOM_EDITS).length > 0) {
-  setTimeout(() => {
-    pushSharikEditsToCloud();
-  }, 3000);
+  // Désactivé suite à l'abandon de la stratégie de registre, pour éviter l'erreur RLS sur le Dashboard Numiplan
+  // setTimeout(() => {
+  //   pushSharikEditsToCloud();
+  // }, 3000);
 }
 
 
