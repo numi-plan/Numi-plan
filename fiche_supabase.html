@@ -12191,16 +12191,28 @@ async function verifierDeblocageGps() {
     const todayIsoStr = todayIso.toISOString();
     const todayStr = new Date().toISOString().split('T')[0];
 
-    // Lire les logs de type GPS_SYNC pour aujourd'hui
+    // Lire les logs de type GPS_SYNC pour aujourd'hui (plus robuste avec le champ timestamp)
     let records = [];
     if (window.supabase) {
+      const todayMsStr = String(todayIso.getTime());
       const { data, error } = await window.supabase
         .from('np_tracabilite')
-        .select('target')
+        .select('target, created_at, timestamp')
         .eq('type', 'GPS_SYNC')
-        .gte('created_at', todayIsoStr);
+        .gte('timestamp', todayMsStr);
+        
       if (!error && data) {
         records = data;
+      }
+      
+      // Essayer aussi avec created_at si timestamp ne remonte rien
+      if (!error && (!data || data.length === 0)) {
+        const { data: data2, error: err2 } = await window.supabase
+          .from('np_tracabilite')
+          .select('target, created_at, timestamp')
+          .eq('type', 'GPS_SYNC')
+          .gte('created_at', todayIsoStr);
+        if (!err2 && data2) records = data2;
       }
     }
 
@@ -16045,7 +16057,8 @@ async function renderPoiPage() {
       if (dispos && dispos.length > 0 && typeof DB !== 'undefined' && DB && DB.dispo) {
         let modified = false;
         DB.dispo.forEach(r => {
-          const matchingLive = dispos.find(d => d.v.trim().toUpperCase() === r.v.trim().toUpperCase());
+          if (!r || !r.v) return;
+          const matchingLive = dispos.find(d => d.v && d.v.trim().toUpperCase() === r.v.trim().toUpperCase());
           if (matchingLive) {
             const newGeoloc = matchingLive.geoloc || 'OFF';
             const newGeolocDate = matchingLive.geoloc_date || null;
@@ -16143,7 +16156,7 @@ async function renderPoiPage() {
     if (activeVisits && pois) {
       activeVisits.forEach(v => {
         const poiDef = pois.find(p => p.name === v.poi_name || p.point_designation === v.poi_name);
-        const truckDispo = dispos ? dispos.find(d => d.v.trim().toUpperCase() === v.v.trim().toUpperCase()) : null;
+        const truckDispo = dispos ? dispos.find(d => d.v && v.v && d.v.trim().toUpperCase() === v.v.trim().toUpperCase()) : null;
         if (poiDef && truckDispo && truckDispo.geoloc && truckDispo.geoloc !== 'OFF' && truckDispo.lat !== null && truckDispo.lng !== null) {
           const tLat = parseFloat(truckDispo.lat);
           const tLng = parseFloat(truckDispo.lng);
@@ -16172,7 +16185,7 @@ async function renderPoiPage() {
       const blacklistPois = new Set(pois.filter(p => p.is_blacklist).map(p => p.name));
       
       liveActiveVisits.forEach(v => {
-        const truckDispo = dispos ? dispos.find(d => d.v.trim().toUpperCase() === v.v.trim().toUpperCase()) : null;
+        const truckDispo = dispos ? dispos.find(d => d.v && v.v && d.v.trim().toUpperCase() === v.v.trim().toUpperCase()) : null;
         const driverName = truckDispo?.chauffeur || (window.DB && window.DB.dispo ? (window.DB.dispo.find(d => (d.v || "").trim().toUpperCase() === (v.v || "").trim().toUpperCase())?.chauffeur || "—") : "—");
         
         let panneBadge = '';
@@ -16365,7 +16378,8 @@ async function checkPoiAlerts() {
           const db = (eq === window.CURRENT_EQUIPE && typeof window.DB !== 'undefined') ? window.DB : window['DB_' + eq];
           if (db && db.dispo) {
             db.dispo.forEach(r => {
-              const matchingLive = liveDispos.find(d => d.v.trim().toUpperCase() === r.v.trim().toUpperCase());
+              if (!r || !r.v) return;
+              const matchingLive = liveDispos.find(d => d.v && d.v.trim().toUpperCase() === r.v.trim().toUpperCase());
               if (matchingLive) {
                 const newGeoloc = matchingLive.geoloc || 'OFF';
                 const newGeolocDate = matchingLive.geoloc_date || null;
@@ -16415,7 +16429,7 @@ async function checkPoiAlerts() {
       // Si le camion a physiquement quitté la zone du client POI (distance > rayon + 1500m de marge),
       // nous clôturons immédiatement la visite obsolète dans la base de données.
       const poiDef = poiMap[v.poi_name];
-      const truckDispo = liveDispos ? liveDispos.find(d => d.v.trim().toUpperCase() === v.v.trim().toUpperCase()) : null;
+      const truckDispo = liveDispos ? liveDispos.find(d => d.v && v.v && d.v.trim().toUpperCase() === v.v.trim().toUpperCase()) : null;
       
       if (poiDef && truckDispo && truckDispo.geoloc && truckDispo.geoloc !== 'OFF' && truckDispo.lat !== null && truckDispo.lng !== null) {
         const tLat = parseFloat(truckDispo.lat);
