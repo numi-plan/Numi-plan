@@ -18181,7 +18181,6 @@ function findBestNumiplanSuggestion(registryName, numiplanDrivers) {
 _ADMIN_SHARIK_CUSTOM_EDITS = window._ADMIN_SHARIK_CUSTOM_EDITS;
 
 function pushSharikEditsToCloud() {
-  return;
   if (window.supabase) {
     window.supabase.from('numiplan_teams')
       .upsert({
@@ -18682,7 +18681,6 @@ function renderAdminEntreesSorties() {
 window.renderAdminEntreesSorties = renderAdminEntreesSorties;
 
 async function validerLiaisonSuggestion(editKey, targetName, targetV, targetRm) {
-  return;
   const pwd = await demanderMotDePasseMasque("🔒 Validation Sécurisée Direction", "Veuillez saisir votre mot de passe pour confirmer cette correspondance :");
   if (pwd === null) return; // Annulation
   
@@ -18750,7 +18748,6 @@ async function validerLiaisonSuggestion(editKey, targetName, targetV, targetRm) 
 window.validerLiaisonSuggestion = validerLiaisonSuggestion;
 
 async function refuserLiaisonSuggestion(registryName, numiplanName, targetV, targetRm) {
-  return;
   const pwd = await demanderMotDePasseMasque("🔒 Refus Correspondance & Création Chauffeur", `Veuillez saisir votre mot de passe Direction pour rejeter la ressemblance et créer le chauffeur « ${numiplanName} » :`);
   if (pwd === null) return; // Annulation
   
@@ -18987,7 +18984,6 @@ async function deleteAdminSharikLine() {
 window.deleteAdminSharikLine = deleteAdminSharikLine;
 
 function saveAdminSharikEdit() {
-  return;
   const editKey = document.getElementById('edit-sharik-index').value;
   if (!editKey) return;
 
