@@ -300,6 +300,11 @@
     const isFirstLoad = !_initialCloudLoadCompleted[eq];
     _initialCloudLoadCompleted[eq] = true;
 
+    if (!window._lastCloudTs) window._lastCloudTs = {};
+    window._lastCloudTs[eq] = src._localTs || Date.now();
+    if (!window._baseCloudDB) window._baseCloudDB = {};
+    window._baseCloudDB[eq] = window.cloneEquipePayload ? cloneEquipePayload(src) : JSON.parse(JSON.stringify(src));
+
     // Migrer les anciens etats "Manque chauffeur" vers "DISPONIBLE"
     if (src.dispo) {
       src.dispo.forEach(r => {
@@ -1062,25 +1067,105 @@
   }
   window.saveNormalizedTables = saveNormalizedTables;
 
+  function smartMergePayloads(base, cloud, local) {
+    if (!base) return local;
+    let merged = JSON.parse(JSON.stringify(cloud));
+    const mergeArray = (arrName, keyProp) => {
+        if (!local[arrName]) return;
+        if (!merged[arrName]) merged[arrName] = [];
+        const baseMap = new Map((base[arrName]||[]).map(x => [x[keyProp], x]));
+        const cloudMap = new Map((cloud[arrName]||[]).map(x => [x[keyProp], x]));
+        const localMap = new Map((local[arrName]||[]).map(x => [x[keyProp], x]));
+        let finalArr = [];
+        for (let cItem of merged[arrName]) {
+            let key = cItem[keyProp];
+            if (!key) { finalArr.push(cItem); continue; }
+            let lItem = localMap.get(key);
+            let bItem = baseMap.get(key);
+            if (lItem) {
+                let mergedItem = Object.assign({}, cItem);
+                for (let k in lItem) {
+                    if (!bItem || JSON.stringify(bItem[k]) !== JSON.stringify(lItem[k])) {
+                        mergedItem[k] = lItem[k];
+                    }
+                }
+                finalArr.push(mergedItem);
+                localMap.delete(key);
+            } else if (!bItem) {
+                finalArr.push(cItem);
+            }
+        }
+        for (let [key, lItem] of localMap.entries()) {
+            if (key) finalArr.push(lItem);
+        }
+        merged[arrName] = finalArr;
+    };
+    mergeArray("dispo", "v");
+    mergeArray("activite", "v");
+    mergeArray("equip", "tr");
+    const appendOnly = (arrName) => {
+        if (!local[arrName]) return;
+        if (!merged[arrName]) merged[arrName] = [];
+        let baseStr = (base[arrName]||[]).map(x=>JSON.stringify(x));
+        for (let lItem of local[arrName]) {
+            if (!baseStr.includes(JSON.stringify(lItem))) {
+                merged[arrName].push(lItem);
+            }
+        }
+    };
+    appendOnly("nc");
+    appendOnly("tracabilite");
+    for (let k in local) {
+        if (["dispo", "activite", "nc", "tracabilite", "equip"].includes(k)) continue;
+        if (typeof local[k] !== "object") {
+            if (!base || base[k] !== local[k]) {
+                merged[k] = local[k];
+            }
+        }
+    }
+    return merged;
+  }
+
   // Helper interne pour sauvegarder et émettre l'upsert
   async function supabaseUpsertTeam(eq, payload) {
+    let payloadToSave = payload;
+    // OCC Smart Merge
+    if (window._lastCloudTs && window._lastCloudTs[eq]) {
+      const { data: checkData, error: checkError } = await supabase.from('numiplan_teams').select('payload').eq('team', eq).single();
+      if (!checkError && checkData && checkData.payload && checkData.payload._localTs) {
+        if (checkData.payload._localTs > window._lastCloudTs[eq]) {
+          console.warn(`[OCC] Collision évitée par Fusion Intelligente !`);
+          const baseData = (window._baseCloudDB && window._baseCloudDB[eq]) ? window._baseCloudDB[eq] : null;
+          payloadToSave = smartMergePayloads(baseData, checkData.payload, payload);
+          payloadToSave._localTs = Date.now(); // New timestamp for the merged payload
+          // Mettre à jour l'UI locale pour refléter la fusion !
+          applyEquipeData(eq, payloadToSave);
+        }
+      }
+    }
+
     const { error } = await supabase
       .from('numiplan_teams')
       .upsert({
         team: eq,
-        payload: payload,
+        payload: payloadToSave,
         updated_at: new Date().toISOString()
       });
     if (error) {
       console.error(`Supabase write error for Team ${eq}:`, error);
       showFirebaseBadge(`⚠️ Erreur cloud équipe ${eq}`, true);
     } else {
+      if (!window._lastCloudTs) window._lastCloudTs = {};
+      window._lastCloudTs[eq] = payloadToSave._localTs; 
+      if (!window._baseCloudDB) window._baseCloudDB = {};
+      window._baseCloudDB[eq] = cloneEquipePayload(payloadToSave);
+
       // Déclencher la double écriture normalisée en arrière-plan avec un Debounce de 30s
       // C'EST CE DEBOUNCE QUI EMPÊCHE LE DÉPASSEMENT DE QUOTA EGRESS (6.6GB)
       if (!window._normalizedSyncTimers) window._normalizedSyncTimers = {};
       clearTimeout(window._normalizedSyncTimers[eq]);
       window._normalizedSyncTimers[eq] = setTimeout(() => {
-        saveNormalizedTables(eq, payload);
+        saveNormalizedTables(eq, payloadToSave);
       }, 30000);
     }
   }
