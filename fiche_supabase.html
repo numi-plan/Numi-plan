@@ -1075,8 +1075,13 @@
       console.error(`Supabase write error for Team ${eq}:`, error);
       showFirebaseBadge(`⚠️ Erreur cloud équipe ${eq}`, true);
     } else {
-      // Déclencher la double écriture normalisée en arrière-plan
-      saveNormalizedTables(eq, payload);
+      // Déclencher la double écriture normalisée en arrière-plan avec un Debounce de 30s
+      // C'EST CE DEBOUNCE QUI EMPÊCHE LE DÉPASSEMENT DE QUOTA EGRESS (6.6GB)
+      if (!window._normalizedSyncTimers) window._normalizedSyncTimers = {};
+      clearTimeout(window._normalizedSyncTimers[eq]);
+      window._normalizedSyncTimers[eq] = setTimeout(() => {
+        saveNormalizedTables(eq, payload);
+      }, 30000);
     }
   }
 
