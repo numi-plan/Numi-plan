@@ -7450,6 +7450,17 @@ function updateDataLists() {
     }
   });
 
+  if (window._ADMIN_SHARIK_ENTREES_SORTIES) {
+    window._ADMIN_SHARIK_ENTREES_SORTIES.forEach(r => {
+      if (r.sharik && r.statut === 'ACTIF') chauffeurs.add(r.sharik.toUpperCase());
+    });
+  }
+  if (window._ADMIN_SHARIK_CUSTOM_EDITS && Array.isArray(window._ADMIN_SHARIK_CUSTOM_EDITS.new_drivers)) {
+    window._ADMIN_SHARIK_CUSTOM_EDITS.new_drivers.forEach(r => {
+      if (r.sharik && r.statut === 'ACTIF') chauffeurs.add(r.sharik.toUpperCase());
+    });
+  }
+
   const sortedVehicles = [...vehicles].filter(Boolean).sort();
   const sortedChauffeurs = [...chauffeurs].filter(Boolean).sort();
 
@@ -15488,9 +15499,7 @@ window.setupBlacklistListeners = function() {
       let warning = el.parentNode.querySelector('.blacklist-warning-msg');
       if (warning) warning.remove();
       
-      const saveBtn = document.querySelector(`#${cfg.btn.replace(' ', ' #')}`); // Select specific btn in modal
-      const fallbackBtn = document.querySelector(`#${cfg.btn.split(' ')[0]} .btn-save`);
-      const targetBtn = saveBtn || fallbackBtn;
+      const targetBtn = document.querySelector(`#${cfg.modal} .btn-save`);
       
       if (check) {
         warning = document.createElement('div');
