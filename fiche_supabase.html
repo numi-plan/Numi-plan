@@ -7424,7 +7424,20 @@ function switchTab(name, btn) {
   if (name==='flashinfo') renderAdminFlashList();
   
   if (name === 'incidents-livraison') renderIncidentsLivraisonPage();
-  if (name === 'poi') renderPoiPage();
+  if (name === 'poi') {
+    renderPoiPage();
+    // Forcer le harcèlement immédiat des alertes POI en entrant dans l'onglet
+    if (typeof checkPoiAlerts === 'function') {
+      Object.keys(sessionStorage).forEach(key => {
+        if (key.startsWith('blacklist_time_') || key.startsWith('poi_warning_time_')) {
+          sessionStorage.removeItem(key);
+        }
+      });
+      sessionStorage.removeItem('client_alerted_blacklist_ids');
+      if (typeof window.clientAlertedSet !== 'undefined') window.clientAlertedSet.clear();
+      checkPoiAlerts();
+    }
+  }
   checkBascule();
 }
 
@@ -16581,9 +16594,9 @@ async function checkPoiAlerts() {
       const isBlacklisted = blacklistPois.has(v.poi_name);
 
       if (isBlacklisted) {
-        // Mode harcelement : on reset l'alerte locale si elle date de plus d'1 minute
+        // Mode harcelement : on reset l'alerte locale si elle date de plus de 30 minutes
         let lastAlertedTime = parseInt(sessionStorage.getItem(`blacklist_time_${v.id}`) || '0');
-        if (Date.now() - lastAlertedTime > 60 * 1000) {
+        if (Date.now() - lastAlertedTime > 30 * 60 * 1000) {
           clientAlertedSet.delete(v.id);
         }
 
@@ -16607,9 +16620,9 @@ async function checkPoiAlerts() {
       } else if (v.duration_hours >= 2.0) {
         const activeTeam = typeof window.CURRENT_EQUIPE !== 'undefined' ? window.CURRENT_EQUIPE : 'A';
         if (!v.team || v.team === activeTeam) {
-          // Mode harcelement pour immobilisation > 2h
+          // Mode harcelement pour immobilisation > 2h (toutes les 30 minutes)
           let lastPoiWarningTime = parseInt(sessionStorage.getItem(`poi_warning_time_${v.id}`) || '0');
-          if (Date.now() - lastPoiWarningTime > 60 * 1000) {
+          if (Date.now() - lastPoiWarningTime > 30 * 60 * 1000) {
             showPoiWarningModal(v);
             sessionStorage.setItem(`poi_warning_time_${v.id}`, Date.now().toString());
             if (!v.notified) {
@@ -17388,7 +17401,7 @@ async function checkLoadedBreakdowns() {
     userPannes.forEach(p => {
       const key = `${p.team}_${p.immat}`;
       const lastTime = lastAlerts[key] || 0;
-      if (now - lastTime >= 2 * 60 * 60 * 1000) { // 2 heures
+      if (now - lastTime >= 30 * 60 * 1000) { // 30 minutes (Mode Harcèlement)
         alertsToTrigger.push(p);
         lastAlerts[key] = now;
       }
