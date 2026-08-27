@@ -10535,18 +10535,25 @@ function importKmFacture(input) {
 
         raw.forEach(r => {
           const camionKey = Object.keys(r).find(k => {
-            const kl = k.toLowerCase();
+            const kl = k.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
             return kl.includes('camion') || kl.includes('vehicule') || kl.includes('immat') || kl.includes('tracteur');
           });
-          const kmKey = Object.keys(r).find(k => {
-            const kl = k.toLowerCase();
-            return kl.includes('factur') || kl.includes('km');
+          let kmKey = Object.keys(r).find(k => {
+            const kl = k.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+            return kl.includes('factur');
           });
+          if (!kmKey) {
+            kmKey = Object.keys(r).find(k => {
+              const kl = k.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+              return kl.includes('km');
+            });
+          }
 
           if (!camionKey || !kmKey) return;
 
           const v = (r[camionKey] || '').toString().trim().toUpperCase();
-          const km = parseFloat(r[kmKey]);
+          const kmRaw = (r[kmKey] || '').toString().replace(/\s/g, '').replace(',', '.');
+          const km = parseFloat(kmRaw);
 
           if (!v || isNaN(km)) return;
 
