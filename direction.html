@@ -14817,6 +14817,7 @@ function getKmMissingByEquipe() {
 }
 
 function showKmHorairePopup() {
+  return; // Désactivé pour direction.html
   // Supprimer un éventuel popup déjà présent
   const existing = document.getElementById('modal-km-horaire');
   if (existing) existing.remove();
@@ -16463,6 +16464,7 @@ async function saveNewPoi() {
 }
 
 async function checkPoiAlerts() {
+  return; // Désactivé pour direction.html
   try {
     // 1. Récupérer TOUTES les visites en cours sur TOUTES les équipes confondues (A à F)
     const activeVisitsList = await poiSupabaseFetch(`np_poi_visits?left_at=is.null`);
@@ -17356,6 +17358,7 @@ function exportPoiHistoryToExcel() {
 
 // --- ALERTE PANNES À CHARGE ---
 async function checkLoadedBreakdowns() {
+  return; // Désactivé pour direction.html
   try {
     const activeTeam = typeof window.CURRENT_EQUIPE !== 'undefined' ? window.CURRENT_EQUIPE : 'A';
     const isUserAdmin = isAdmin();
