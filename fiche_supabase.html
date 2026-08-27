@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Espace Direction  Numiplan</title>
+<title>NUMIPLAN</title>
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600;700&family=IBM+Plex+Sans:wght@300;400;600;700&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script>
@@ -7323,11 +7323,13 @@ function showToast(msg, isErr=false) {
 }
 
 function openModal(id, editIdx=-1) {
-  document.getElementById(id).classList.add('open');
-  if (editIdx !== -1) {
-    const hi = document.querySelector(`#${id} input[type=hidden]`);
-    if (hi) hi.value = editIdx;
-  }
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.classList.add('open');
+  el.style.display = '';
+  const hi = document.querySelector(`#${id} input[type=hidden]`);
+  if (hi) hi.value = editIdx;
+  
   if (id === 'modal-dispo') {
     const isCreation = (editIdx === -1);
     const gr = document.getElementById('group-dispo-remorque');
@@ -10583,64 +10585,55 @@ function importKmFacture(input) {
 
         // 3. Appliquer les valeurs écrasées dans chaque base d'équipe
         Object.entries(importedTrucks).forEach(([v, kmTotal]) => {
-          let targetEq = teamMap[v] || CURRENT_EQUIPE;
-          let targetDb = (targetEq === CURRENT_EQUIPE && typeof window.DB !== 'undefined') ? window.DB : window['DB_' + targetEq];
-
-          if (!targetDb) return;
-          if (!targetDb.odo) targetDb.odo = [];
-
-          let weekIdx = -1;
-          if (endStr && targetDb.odo_weeks) {
-            weekIdx = targetDb.odo_weeks.indexOf(endStr);
-            if (weekIdx === -1) {
-              const dVal = new Date(endStr).getTime();
-              if (!isNaN(dVal)) {
-                weekIdx = targetDb.odo_weeks.findIndex(w => {
-                  const wVal = new Date(w).getTime();
-                  return !isNaN(wVal) && Math.abs(wVal - dVal) <= 2 * 86400 * 1000;
-                });
+          let foundInAny = false;
+          
+          EQUIPS.forEach(eq => {
+            const eqDb = (eq === CURRENT_EQUIPE && typeof window.DB !== 'undefined') ? window.DB : window['DB_' + eq];
+            if (eqDb && eqDb.odo) {
+              let odoRec = eqDb.odo.find(item => item.v && item.v.trim().toUpperCase() === v);
+              if (odoRec) {
+                let weekIdx = -1;
+                if (endStr && eqDb.odo_weeks) {
+                  weekIdx = eqDb.odo_weeks.indexOf(endStr);
+                  if (weekIdx === -1) {
+                    const dVal = new Date(endStr).getTime();
+                    if (!isNaN(dVal)) {
+                      weekIdx = eqDb.odo_weeks.findIndex(w => {
+                        const wVal = new Date(w).getTime();
+                        return !isNaN(wVal) && Math.abs(wVal - dVal) <= 2 * 86400 * 1000;
+                      });
+                    }
+                  }
+                }
+                if (weekIdx === -1) {
+                  weekIdx = eqDb.odo_weeks ? eqDb.odo_weeks.length - 1 : 0;
+                }
+                
+                odoRec.kmFacture = kmTotal;
+                odoRec.kmFactures = [];
+                odoRec.kmFactures[weekIdx] = kmTotal;
+                foundInAny = true;
+                countUpdated++;
               }
             }
-          }
-          if (weekIdx === -1) {
-            weekIdx = targetDb.odo_weeks ? targetDb.odo_weeks.length - 1 : 0;
-          }
+          });
 
-          let odoRec = targetDb.odo.find(item => item.v && item.v.trim().toUpperCase() === v);
-          if (odoRec) {
-            odoRec.kmFacture = kmTotal;
-            odoRec.kmFactures = [];
-            odoRec.kmFactures[weekIdx] = kmTotal;
-            countUpdated++;
-          } else {
-            const newRec = {
-              v: v,
-              chauffeur: '',
-              vals: new Array(targetDb.odo_weeks ? targetDb.odo_weeks.length : 0).fill(null),
-              kmFacture: kmTotal,
-              kmFactures: []
-            };
-            newRec.kmFactures[weekIdx] = kmTotal;
-            targetDb.odo.push(newRec);
-            countAdded++;
-          }
-
-          if (targetEq === CURRENT_EQUIPE && typeof window.DB !== 'undefined') {
-            let activeRec = window.DB.odo.find(item => item.v && item.v.trim().toUpperCase() === v);
-            if (activeRec) {
-              activeRec.kmFacture = kmTotal;
-              activeRec.kmFactures = [];
-              activeRec.kmFactures[weekIdx] = kmTotal;
-            } else {
+          if (!foundInAny) {
+            let targetEq = teamMap[v] || CURRENT_EQUIPE;
+            let targetDb = (targetEq === CURRENT_EQUIPE && typeof window.DB !== 'undefined') ? window.DB : window['DB_' + targetEq];
+            if (targetDb) {
+              if (!targetDb.odo) targetDb.odo = [];
+              let weekIdx = targetDb.odo_weeks ? targetDb.odo_weeks.length - 1 : 0;
               const newRec = {
                 v: v,
                 chauffeur: '',
-                vals: new Array(window.DB.odo_weeks ? window.DB.odo_weeks.length : 0).fill(null),
+                vals: new Array(targetDb.odo_weeks ? targetDb.odo_weeks.length : 0).fill(null),
                 kmFacture: kmTotal,
                 kmFactures: []
               };
               newRec.kmFactures[weekIdx] = kmTotal;
-              window.DB.odo.push(newRec);
+              targetDb.odo.push(newRec);
+              countAdded++;
             }
           }
         });
