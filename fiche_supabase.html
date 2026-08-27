@@ -16132,47 +16132,7 @@ async function renderPoiPage() {
 
   // Contrôle de visibilité pour les vues d'administration
   const isUserAdmin = isAdmin();
-     // 3. Traiter chaque visite active
-    for (let visit of activeVisitsList) {
-      // Nettoyer le client pour le matching
-      const clientName = visit.poi_name.trim();
 
-      // Si le client fait partie de la liste noire
-      if (blacklistPois.has(clientName)) {
-        // Alerte Blacklist !
-        const alertId = `${visit.v}_${clientName}`;
-        
-        // Mode harcelement : on reset l'alerte si elle date de plus d'1 minute
-        let lastAlertedTime = parseInt(sessionStorage.getItem(`blacklist_time_${alertId}`) || '0');
-        if (Date.now() - lastAlertedTime > 60 * 1000) {
-          clientAlertedSet.delete(alertId);
-        }
-
-        if (!clientAlertedSet.has(alertId)) {
-          // Afficher le modal rouge clignotant localement
-          showBlacklistAlertModal(visit.v, clientName, visit.entered_at, visit.team);
-          
-          // Marquer comme alerté pour la minute en cours
-          clientAlertedSet.add(alertId);
-          sessionStorage.setItem('client_alerted_blacklist_ids', JSON.stringify([...clientAlertedSet]));
-          sessionStorage.setItem(`blacklist_time_${alertId}`, Date.now().toString());
-
-          // Broadcast immédiat aux autres fenêtres via Realtime
-          if (window.realtimePoiChannel) {
-            window.realtimePoiChannel.send({
-              type: 'broadcast',
-              event: 'blacklist_alert_broadcast',
-              payload: {
-                truck: visit.v,
-                client: clientName,
-                time: visit.entered_at,
-                team: visit.team
-              }
-            });
-          }
-        }
-      }
-    }
   const diagBtn = document.getElementById("btn-poi-diag");
   const addBtn = document.getElementById("btn-poi-add");
   const adminBlock = document.getElementById("admin-poi-management-block");
