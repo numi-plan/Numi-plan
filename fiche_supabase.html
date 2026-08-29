@@ -2961,15 +2961,15 @@ mark.hl { background: rgba(56,189,248,.25); color: var(--acc); border-radius: 3p
   
   <div style="padding-top:20px">
     <div class="stats-row" id="poi-stats-row">
-      <div class="stat-card">
+      <div class="stat-card" id="poi-card-total" onclick="filterPoiActive('all')" title="Afficher tous les camions" style="cursor:pointer">
         <div class="stat-num" id="poi-stat-total">0</div>
         <div class="stat-lbl">Points d'Intérêt (POI)</div>
       </div>
-      <div class="stat-card org">
+      <div class="stat-card org active" id="poi-card-waiting" onclick="filterPoiActive('all')" title="Afficher tous les camions en attente" style="cursor:pointer">
         <div class="stat-num" id="poi-stat-waiting">0</div>
         <div class="stat-lbl">Camions en Attente</div>
       </div>
-      <div class="stat-card red">
+      <div class="stat-card red" id="poi-card-alerts" onclick="filterPoiActive('alerts')" title="Filtrer uniquement les alertes (> 2H ou Blacklist)" style="cursor:pointer">
         <div class="stat-num" id="poi-stat-alerts">0</div>
         <div class="stat-lbl">Alertes (> 2H)</div>
       </div>
@@ -16092,143 +16092,170 @@ window.selectHistoryDate = selectHistoryDate;
 // ══════════════════════════════════════════════════════════════════════════════
 // SUIVI DES POI ET IMMOBILISATIONS (>2H)
 // ══════════════════════════════════════════════════════════════════════════════
-// POI_SUPABASE_URL et POI_SUPABASE_KEY sont déclarées en haut du script (var) pour éviter la TDZ
+// ─── POI CACHE & OPTIMIZATION ENGINE ───
+window.POI_CACHE = null;
+window.POI_CACHE_TIME = 0;
+window.POI_ACTIVE_FILTER = 'all'; // 'all' or 'alerts'
 
-async function poiSupabaseFetch(endpoint, method = "GET", body = null) {
-  let token = POI_SUPABASE_KEY;
-  if (window.supabase) {
-    try {
-      const { data: { session } } = await window.supabase.auth.getSession();
-      if (session) {
-        token = session.access_token;
-      }
-    } catch (e) {
-      console.warn("Could not get active supabase session, falling back to anon key", e);
+async function getPoisCached(forceRefresh = false) {
+  const now = Date.now();
+  if (!forceRefresh && window.POI_CACHE && (now - window.POI_CACHE_TIME < 10 * 60 * 1000)) {
+    return window.POI_CACHE;
+  }
+  try {
+    const pois = await poiSupabaseFetch("np_pois?select=*&order=name.asc");
+    if (pois && Array.isArray(pois)) {
+      window.POI_CACHE = pois;
+      window.POI_CACHE_TIME = now;
+      return pois;
+    }
+  } catch(e) {
+    console.error("Erreur chargement POIs:", e);
+  }
+  return window.POI_CACHE || [];
+}
+window.getPoisCached = getPoisCached;
+
+function filterPoiActive(filterType) {
+  window.POI_ACTIVE_FILTER = filterType;
+  const cardWaiting = document.getElementById("poi-card-waiting");
+  const cardAlerts = document.getElementById("poi-card-alerts");
+  
+  if (cardWaiting && cardAlerts) {
+    if (filterType === 'alerts') {
+      cardAlerts.style.boxShadow = "0 0 16px rgba(239, 68, 68, 0.6)";
+      cardAlerts.style.borderColor = "#ef4444";
+      cardWaiting.style.boxShadow = "none";
+      cardWaiting.style.borderColor = "";
+    } else {
+      cardWaiting.style.boxShadow = "0 0 16px rgba(245, 158, 11, 0.4)";
+      cardWaiting.style.borderColor = "";
+      cardAlerts.style.boxShadow = "none";
+      cardAlerts.style.borderColor = "";
     }
   }
+  
+  if (window.CURRENT_LIVE_ACTIVE_VISITS) {
+    renderActiveVisitsTable(window.CURRENT_LIVE_ACTIVE_VISITS, window.CURRENT_POI_BLACKLIST_SET || new Set());
+  }
+}
+window.filterPoiActive = filterPoiActive;
 
-  const headers = {
-    "apikey": POI_SUPABASE_KEY,
-    "Authorization": `Bearer ${token}`,
-    "Content-Type": "application/json"
-  };
-  if (endpoint && endpoint.includes("on_conflict")) {
-    headers["Prefer"] = "resolution=merge-duplicates";
+function renderActiveVisitsTable(liveActiveVisits, blacklistPois) {
+  const activeBody = document.getElementById("poi-active-body");
+  if (!activeBody) return;
+  
+  let visitsToRender = liveActiveVisits;
+  if (window.POI_ACTIVE_FILTER === 'alerts') {
+    visitsToRender = liveActiveVisits.filter(v => (v.duration_hours >= 2.0) || blacklistPois.has(v.poi_name));
   }
-  const config = { method, headers };
-  if (body) config.body = JSON.stringify(body);
-  const res = await fetch(`${POI_SUPABASE_URL}/rest/v1/${endpoint}`, config);
-  if (!res.ok) {
-    if (res.status === 401) {
-      console.warn("Session expirée (401), déconnexion...");
-      if (window.supabase) window.supabase.auth.signOut();
-      sessionStorage.clear();
-      showToast("⚠️ Votre session a expiré. Veuillez vous reconnecter.", true);
-      setTimeout(() => { window.location.reload(); }, 2000);
+  
+  if (!visitsToRender || visitsToRender.length === 0) {
+    activeBody.innerHTML = `<tr><td colspan="6" style="text-align:center;color:var(--txt3);padding:18px">${window.POI_ACTIVE_FILTER === 'alerts' ? 'Aucune alerte (> 2H) en cours pour le moment.' : 'Aucun camion n\'est actuellement chez un client.'}</td></tr>`;
+    return;
+  }
+  
+  const rowsHtml = visitsToRender.map(v => {
+    const truckDispo = window.LIVE_DISPOS_MAP ? window.LIVE_DISPOS_MAP[v.v.trim().toUpperCase()] : (window.DB && window.DB.dispo ? window.DB.dispo.find(d => (d.v || "").trim().toUpperCase() === (v.v || "").trim().toUpperCase()) : null);
+    const driverName = truckDispo?.chauffeur || "—";
+    
+    let panneBadge = '';
+    if (truckDispo && (truckDispo.etat === 'En panne' || truckDispo.etat === 'PANNE')) {
+      panneBadge = `<span style="background:#ef4444; color:white; padding:1px 6px; border-radius:4px; font-size:10px; margin-left:8px; font-weight:bold; white-space:nowrap; display:inline-block;"><i class="fa-solid fa-wrench"></i> EN PANNE</span>`;
     }
-    throw new Error(`Supabase Error: ${res.status} ${await res.text()}`);
-  }
-  return res.status === 204 ? null : await res.json();
+
+    const hours = Math.floor(v.duration_hours || 0);
+    const mins = Math.round(((v.duration_hours || 0) - hours) * 60);
+    const waitStr = `${hours}h ${mins}m`;
+    
+    const isBlacklisted = blacklistPois.has(v.poi_name);
+    const alertClass = isBlacklisted ? 'class="poi-wait-time-td" style="color:#ef4444;font-weight:900;animation:pulse-red 1s infinite"' : (v.duration_hours >= 2.0 ? 'class="poi-wait-time-td" style="color:#ef4444;font-weight:700"' : 'class="poi-wait-time-td" style="color:#f59e0b;font-weight:600"');
+    const alertIcon = isBlacklisted ? "🚨 BLACKLIST 🚨" : (v.duration_hours >= 2.0 ? "🔴" : "🟠");
+    const rowBg = isBlacklisted ? 'style="background:rgba(239,68,68,0.12); border-left: 4px solid #ef4444"' : '';
+    
+    return `
+      <tr ${rowBg}>
+        <td class="mono" style="color:var(--acc);font-weight:600">${v.v}${panneBadge}</td>
+        <td>${driverName}</td>
+        <td style="font-weight:600;color:${isBlacklisted ? '#ef4444' : 'var(--txt1)'}">${v.poi_name}</td>
+        <td>${new Date(v.arrived_at).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}</td>
+        <td>${new Date(v.last_seen_at).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}</td>
+        <td ${alertClass} data-arrived="${v.arrived_at}" data-alert-type="${isBlacklisted ? 'blacklist' : (v.duration_hours >= 2.0 ? 'red' : 'orange')}">${alertIcon} ${waitStr}</td>
+      </tr>
+    `;
+  }).join('');
+  
+  activeBody.innerHTML = rowsHtml;
 }
 
+let isRenderingPoiPage = false;
 async function renderPoiPage() {
+  if (isRenderingPoiPage) return;
+  isRenderingPoiPage = true;
+  
   const activeTeam = typeof window.CURRENT_EQUIPE !== 'undefined' ? window.CURRENT_EQUIPE : 'A';
-  if (!activeTeam) return;
+  if (!activeTeam) {
+    isRenderingPoiPage = false;
+    return;
+  }
 
   // Contrôle de visibilité pour les vues d'administration
   const isUserAdmin = isAdmin();
-
   const diagBtn = document.getElementById("btn-poi-diag");
   const addBtn = document.getElementById("btn-poi-add");
   const adminBlock = document.getElementById("admin-poi-management-block");
   
-  if (diagBtn) diagBtn.style.display = "inline-block"; // Visible pour tous
+  if (diagBtn) diagBtn.style.display = "inline-block";
   if (addBtn) addBtn.style.display = isUserAdmin ? "inline-block" : "none";
   if (adminBlock) adminBlock.style.display = isUserAdmin ? "block" : "none";
 
   try {
-    const pois = await poiSupabaseFetch("np_pois?select=*&order=name.asc");
-    const activeVisits = await poiSupabaseFetch(`np_poi_visits?select=*&team=eq.${activeTeam}&left_at=is.null&order=arrived_at.desc`);
-    const historyVisits = await poiSupabaseFetch(`np_poi_visits?select=*&team=eq.${activeTeam}&left_at=not.is.null&order=left_at.desc&limit=1000`);
-    window.POI_HISTORY_DATA = historyVisits;
+    // 1. Récupération parallèle & ultra-rapide
+    const [pois, activeVisits, historyVisits, dispos] = await Promise.all([
+      getPoisCached(),
+      poiSupabaseFetch(`np_poi_visits?select=*&team=eq.${activeTeam}&left_at=is.null&order=arrived_at.desc`),
+      poiSupabaseFetch(`np_poi_visits?select=*&team=eq.${activeTeam}&left_at=not.is.null&order=left_at.desc&limit=1000`),
+      poiSupabaseFetch(`np_dispo?select=v,geoloc,geoloc_date,etat,chauffeur,lat,lng&team=eq.${activeTeam}`).catch(() => null)
+    ]);
+
+    window.POI_HISTORY_DATA = historyVisits || [];
     
-    // Contrôle des balises GPS inactives (n'émettant plus)
-    let dispos = null;
-    try {
-      dispos = await poiSupabaseFetch(`np_dispo?select=v,geoloc,geoloc_date,etat,chauffeur,lat,lng&team=eq.${activeTeam}`);
-      
-      // Fusionner les données GPS en direct dans l'objet DB.dispo local en mémoire
-      if (dispos && dispos.length > 0 && typeof DB !== 'undefined' && DB && DB.dispo) {
-        let modified = false;
-        DB.dispo.forEach(r => {
-          if (!r || !r.v) return;
-          const matchingLive = dispos.find(d => d.v && d.v.trim().toUpperCase() === r.v.trim().toUpperCase());
-          if (matchingLive) {
-            const newGeoloc = matchingLive.geoloc || 'OFF';
-            const newGeolocDate = matchingLive.geoloc_date || null;
-            const newLat = matchingLive.lat !== undefined ? matchingLive.lat : null;
-            const newLng = matchingLive.lng !== undefined ? matchingLive.lng : null;
-            
-            if (r.geoloc !== newGeoloc || r.geolocDate !== newGeolocDate || r.lat !== newLat || r.lng !== newLng) {
-              r.geoloc = newGeoloc;
-              r.geolocDate = newGeolocDate;
-              r.lat = newLat;
-              r.lng = newLng;
-              modified = true;
-            }
-          }
-        });
-        if (modified && typeof renderDispo === 'function') {
-          renderDispo();
-        }
-      }
-
-      if (dispos && sessionStorage.getItem('numiplan_gps_alert_shown') !== 'yes') {
-        const todayStr = new Date().toISOString().split('T')[0];
-        const todayTime = new Date(todayStr).getTime();
-        const offlineTrucks = [];
-        
-        dispos.forEach(d => {
-          if (d.geoloc_date) {
-            const gpsTime = new Date(d.geoloc_date).getTime();
-            const diffDays = Math.round((todayTime - gpsTime) / (1000 * 60 * 60 * 24));
-            if (diffDays >= 3) { // 3 jours ou plus sans émission
-              offlineTrucks.push({ v: d.v, last_date: d.geoloc_date, days: diffDays });
-            }
-          }
-        });
-        
-        if (offlineTrucks.length > 0) {
-          sessionStorage.setItem('numiplan_gps_alert_shown', 'yes');
-          showGpsOfflineAlertModal(offlineTrucks);
-        }
-      }
-    } catch (e) {
-      console.warn("Erreur contrôle balises GPS:", e);
+    // Indexation O(1) des positions en mémoire
+    const disposMap = {};
+    if (dispos && Array.isArray(dispos)) {
+      dispos.forEach(d => {
+        if (d.v) disposMap[d.v.trim().toUpperCase()] = d;
+      });
     }
+    window.LIVE_DISPOS_MAP = disposMap;
 
-    const totalPois = pois ? pois.length : 0;
-    const totalActive = activeVisits ? activeVisits.length : 0;
-    const totalAlerts = activeVisits ? activeVisits.filter(v => v.duration_hours >= 2.0).length : 0;
-
-    document.getElementById("poi-stat-total").textContent = totalPois;
-    document.getElementById("poi-stat-waiting").textContent = totalActive;
-    document.getElementById("poi-stat-alerts").textContent = totalAlerts;
-
-    const badge = document.getElementById("cnt-poi-alerts");
-    if (badge) {
-      if (totalAlerts > 0) {
-        badge.textContent = totalAlerts;
-        badge.style.display = "inline-block";
-      } else {
-        badge.style.display = "none";
+    // Fusionner les données GPS en direct dans l'objet DB.dispo local
+    if (dispos && dispos.length > 0 && typeof DB !== 'undefined' && DB && DB.dispo) {
+      let modified = false;
+      DB.dispo.forEach(r => {
+        if (!r || !r.v) return;
+        const matchingLive = disposMap[r.v.trim().toUpperCase()];
+        if (matchingLive) {
+          const newGeoloc = matchingLive.geoloc || 'OFF';
+          const newGeolocDate = matchingLive.geoloc_date || null;
+          const newLat = matchingLive.lat !== undefined ? matchingLive.lat : null;
+          const newLng = matchingLive.lng !== undefined ? matchingLive.lng : null;
+          
+          if (r.geoloc !== newGeoloc || r.geolocDate !== newGeolocDate || r.lat !== newLat || r.lng !== newLng) {
+            r.geoloc = newGeoloc;
+            r.geolocDate = newGeolocDate;
+            r.lat = newLat;
+            r.lng = newLng;
+            modified = true;
+          }
+        }
+      });
+      if (modified && typeof renderDispo === 'function') {
+        renderDispo();
       }
     }
 
-    const activeBody = document.getElementById("poi-active-body");
-    activeBody.innerHTML = "";
-    
-    // Filtrage des visites actives : exclure les balises GPS inactives (> 48h)
+    // Filtrage des balises GPS actives (<= 2 jours)
     const activeGpsTrucks = new Set();
     if (dispos) {
       const todayStr = new Date().toISOString().split('T')[0];
@@ -16243,107 +16270,53 @@ async function renderPoiPage() {
         }
       });
     }
-    
-    // Helper de distance Haversine
-    const getGpsDistanceLocal = (lat1, lon1, lat2, lon2) => {
-      const R = 6371000;
-      const dLat = (lat2 - lat1) * Math.PI / 180;
-      const dLon = (lon2 - lon1) * Math.PI / 180;
-      const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
-                Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
-                Math.sin(dLon/2) * Math.sin(dLon/2);
-      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-      return R * c;
-    };
 
-    // Auto-clôture des visites de camions qui ont quitté les lieux physiquement (Self-Healing)
-    if (activeVisits && pois) {
-      activeVisits.forEach(v => {
-        const poiDef = pois.find(p => p.name === v.poi_name || p.point_designation === v.poi_name);
-        const truckDispo = dispos ? dispos.find(d => d.v && v.v && d.v.trim().toUpperCase() === v.v.trim().toUpperCase()) : null;
-        if (poiDef && truckDispo && truckDispo.geoloc && truckDispo.geoloc !== 'OFF' && truckDispo.lat !== null && truckDispo.lng !== null) {
-          const tLat = parseFloat(truckDispo.lat);
-          const tLng = parseFloat(truckDispo.lng);
-          const pLat = parseFloat(poiDef.point_latitude || poiDef.lat);
-          const pLng = parseFloat(poiDef.point_longitude || poiDef.lng);
-          const pRadius = parseFloat(poiDef.point_radius || poiDef.buffer || 300);
-          
-          if (!isNaN(tLat) && !isNaN(tLng) && !isNaN(pLat) && !isNaN(pLng)) {
-            const dist = getGpsDistanceLocal(tLat, tLng, pLat, pLng);
-            if (dist > pRadius + 1500) {
-              console.log(`[Self-Healing UI] Camion ${v.v} éloigné de ${Math.round(dist)}m de ${v.poi_name}. Fermeture.`);
-              poiSupabaseFetch(`np_poi_visits?id=eq.${v.id}`, "PATCH", { left_at: new Date().toISOString() });
-              v.left_at = new Date().toISOString(); // Marquer comme clôturé localement
-            }
-          }
-        }
-      });
-    }
+    const totalPois = pois ? pois.length : 0;
+    const blacklistPois = new Set(pois ? pois.filter(p => p.is_blacklist).map(p => p.name) : []);
+    window.CURRENT_POI_BLACKLIST_SET = blacklistPois;
 
     const liveActiveVisits = activeVisits ? activeVisits.filter(v => !v.left_at && activeGpsTrucks.has(v.v.trim().toUpperCase())) : [];
-    const totalLiveActive = liveActiveVisits.length;
+    window.CURRENT_LIVE_ACTIVE_VISITS = liveActiveVisits;
 
-    if (totalLiveActive === 0) {
-      activeBody.innerHTML = `<tr><td colspan="6" style="text-align:center;color:var(--txt3)">Aucun camion n'est actuellement chez un client.</td></tr>`;
-    } else {
-      const blacklistPois = new Set(pois.filter(p => p.is_blacklist).map(p => p.name));
-      
-      liveActiveVisits.forEach(v => {
-        const truckDispo = dispos ? dispos.find(d => d.v && v.v && d.v.trim().toUpperCase() === v.v.trim().toUpperCase()) : null;
-        const driverName = truckDispo?.chauffeur || (window.DB && window.DB.dispo ? (window.DB.dispo.find(d => (d.v || "").trim().toUpperCase() === (v.v || "").trim().toUpperCase())?.chauffeur || "—") : "—");
-        
-        let panneBadge = '';
-        if (truckDispo && (truckDispo.etat === 'En panne' || truckDispo.etat === 'PANNE')) {
-          panneBadge = `<span style="background:#ef4444; color:white; padding:1px 6px; border-radius:4px; font-size:10px; margin-left:8px; font-weight:bold; white-space:nowrap; display:inline-block;"><i class="fa-solid fa-wrench"></i> EN PANNE</span>`;
-        }
+    const totalActive = liveActiveVisits.length;
+    const totalAlerts = liveActiveVisits.filter(v => v.duration_hours >= 2.0 || blacklistPois.has(v.poi_name)).length;
 
-        const hours = Math.floor(v.duration_hours);
-        const mins = Math.round((v.duration_hours - hours) * 60);
-        const waitStr = `${hours}h ${mins}m`;
-        
-        const isBlacklisted = blacklistPois.has(v.poi_name);
-        
-        // Alerte noire sonore + popup si blacklist
-        if (isBlacklisted) {
-          window.ALERTED_BLACKLIST_VISITS = window.ALERTED_BLACKLIST_VISITS || new Set();
-          if (!window.ALERTED_BLACKLIST_VISITS.has(v.id)) {
-            window.ALERTED_BLACKLIST_VISITS.add(v.id);
-            const timeStr = new Date(v.arrived_at).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
-            showBlacklistAlertModal(v.v, v.poi_name, timeStr, v.team, v.chauffeur);
-          }
-        }
-        
-        const alertClass = isBlacklisted ? 'class="poi-wait-time-td" style="color:#ef4444;font-weight:900;animation:pulse-red 1s infinite"' : (v.duration_hours >= 2.0 ? 'class="poi-wait-time-td" style="color:#ef4444;font-weight:700"' : 'class="poi-wait-time-td" style="color:#f59e0b;font-weight:600"');
-        const alertIcon = isBlacklisted ? "🚨 BLACKLIST 🚨" : (v.duration_hours >= 2.0 ? "🔴" : "🟠");
-        const rowBg = isBlacklisted ? 'style="background:rgba(239,68,68,0.12); border-left: 4px solid #ef4444"' : '';
-        
-        activeBody.innerHTML += `
-          <tr ${rowBg}>
-            <td class="mono" style="color:var(--acc);font-weight:600">${v.v}${panneBadge}</td>
-            <td>${driverName}</td>
-            <td style="font-weight:600;color:${isBlacklisted ? '#ef4444' : 'var(--txt1)'}">${v.poi_name}</td>
-            <td>${new Date(v.arrived_at).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}</td>
-            <td>${new Date(v.last_seen_at).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}</td>
-            <td ${alertClass} data-arrived="${v.arrived_at}" data-alert-type="${isBlacklisted ? 'blacklist' : (v.duration_hours >= 2.0 ? 'red' : 'orange')}">${alertIcon} ${waitStr}</td>
-          </tr>
-        `;
-      });
+    // Mise à jour instantanée des compteurs
+    const statTotalEl = document.getElementById("poi-stat-total");
+    const statWaitingEl = document.getElementById("poi-stat-waiting");
+    const statAlertsEl = document.getElementById("poi-stat-alerts");
+    if (statTotalEl) statTotalEl.textContent = totalPois;
+    if (statWaitingEl) statWaitingEl.textContent = totalActive;
+    if (statAlertsEl) statAlertsEl.textContent = totalAlerts;
+
+    const badge = document.getElementById("cnt-poi-alerts");
+    if (badge) {
+      if (totalAlerts > 0) {
+        badge.textContent = totalAlerts;
+        badge.style.display = "inline-block";
+      } else {
+        badge.style.display = "none";
+      }
     }
 
+    // 2. Rendu instantané du tableau actif
+    renderActiveVisitsTable(liveActiveVisits, blacklistPois);
+
+    // 3. Rendu instantané de l'historique
     filterPoiHistory();
 
+    // 4. Rendu de la gestion POI en 1 seule passe DOM si admin
     const listBody = document.getElementById("poi-list-body");
-    listBody.innerHTML = "";
-    if (totalPois === 0) {
-      listBody.innerHTML = `<tr><td colspan="6" style="text-align:center;color:var(--txt3)">Aucun point d'intérêt enregistré.</td></tr>`;
-    } else {
-      pois.forEach(p => {
-        listBody.innerHTML += `
+    if (listBody && isUserAdmin) {
+      if (totalPois === 0) {
+        listBody.innerHTML = `<tr><td colspan="6" style="text-align:center;color:var(--txt3)">Aucun point d'intérêt enregistré.</td></tr>`;
+      } else {
+        listBody.innerHTML = pois.map(p => `
           <tr>
             <td style="font-weight:600;color:var(--txt1)">${p.name}</td>
-            <td class="mono">${p.lat.toFixed(6)}</td>
-            <td class="mono">${p.lng.toFixed(6)}</td>
-            <td>${p.radius} m</td>
+            <td class="mono">${(p.lat || 0).toFixed(6)}</td>
+            <td class="mono">${(p.lng || 0).toFixed(6)}</td>
+            <td>${p.radius || 300} m</td>
             <td>
               <input type="checkbox" ${p.is_blacklist ? 'checked' : ''} onchange="togglePoiBlacklist('${p.id}', '${p.name}', this.checked)" style="width:16px;height:16px;cursor:pointer">
             </td>
@@ -16351,12 +16324,13 @@ async function renderPoiPage() {
               <button class="del-btn" onclick="deletePoi('${p.id}')" style="color:var(--red)" title="Supprimer">🗑</button>
             </td>
           </tr>
-        `;
-      });
+        `).join('');
+      }
     }
   } catch(e) {
     console.error("Erreur de rendu POI:", e);
-    showToast("❌ Impossible de charger les données POI.");
+  } finally {
+    isRenderingPoiPage = false;
   }
 }
 
@@ -17040,6 +17014,7 @@ async function updatePoiRadius(poiId, name, newRadius) {
         .eq('id', poiId);
 
       if (error) throw error;
+      window.POI_CACHE = null; // Invalidation du cache
       alert(`✅ Rayon du POI "${name}" mis à jour avec succès à ${newRadius}m.`);
       runGpsDiagnostic(); // refresh
       if (typeof renderPoiPage === 'function') renderPoiPage(); // refresh UI
@@ -17055,10 +17030,15 @@ window.updatePoiRadius = updatePoiRadius;
 
 // --- FILTRAGE DE L'HISTORIQUE POI ---
 function filterPoiHistory() {
-  const clientQuery = document.getElementById("poi-hist-search-client").value.trim().toLowerCase();
-  const truckQuery = document.getElementById("poi-hist-search-truck").value.trim().toLowerCase();
-  const dateFrom = document.getElementById("poi-hist-date-from").value;
-  const dateTo = document.getElementById("poi-hist-date-to").value;
+  const clientInput = document.getElementById("poi-hist-search-client");
+  const truckInput = document.getElementById("poi-hist-search-truck");
+  const dateFromInput = document.getElementById("poi-hist-date-from");
+  const dateToInput = document.getElementById("poi-hist-date-to");
+
+  const clientQuery = clientInput ? clientInput.value.trim().toLowerCase() : '';
+  const truckQuery = truckInput ? truckInput.value.trim().toLowerCase() : '';
+  const dateFrom = dateFromInput ? dateFromInput.value : '';
+  const dateTo = dateToInput ? dateToInput.value : '';
 
   const historyBody = document.getElementById("poi-history-body");
   if (!historyBody || !window.POI_HISTORY_DATA) return;
@@ -17067,46 +17047,47 @@ function filterPoiHistory() {
     if (clientQuery && !v.poi_name.toLowerCase().includes(clientQuery)) return false;
     if (truckQuery && !v.v.toLowerCase().includes(truckQuery)) return false;
     if (dateFrom) {
-      const arrivedDate = v.arrived_at.split('T')[0];
+      const arrivedDate = (v.arrived_at || '').split('T')[0];
       if (arrivedDate < dateFrom) return false;
     }
     if (dateTo) {
-      const arrivedDate = v.arrived_at.split('T')[0];
+      const arrivedDate = (v.arrived_at || '').split('T')[0];
       if (arrivedDate > dateTo) return false;
     }
     return true;
   });
 
-  historyBody.innerHTML = "";
   if (filtered.length === 0) {
-    historyBody.innerHTML = `<tr><td colspan="7" style="text-align:center;color:var(--txt3)">Aucune immobilisation ne correspond aux filtres.</td></tr>`;
-  } else {
-    filtered.forEach(v => {
-      const truckDispo = window.DB && window.DB.dispo ? window.DB.dispo.find(d => (d.v || "").trim().toUpperCase() === (v.v || "").trim().toUpperCase()) : null;
-      const driverName = truckDispo?.chauffeur || "—";
-      
-      let panneBadge = '';
-      if (truckDispo && (truckDispo.etat === 'En panne' || truckDispo.etat === 'PANNE')) {
-        panneBadge = `<span style="background:#ef4444; color:white; padding:1px 6px; border-radius:4px; font-size:10px; margin-left:8px; font-weight:bold; white-space:nowrap; display:inline-block;"><i class="fa-solid fa-wrench"></i> EN PANNE</span>`;
-      }
-
-      const hours = Math.floor(v.duration_hours);
-      const mins = Math.round((v.duration_hours - hours) * 60);
-      const durationStr = `${hours}h ${mins}m`;
-      
-      historyBody.innerHTML += `
-        <tr>
-          <td>${new Date(v.arrived_at).toLocaleDateString('fr-FR')}</td>
-          <td class="mono">${v.v}${panneBadge}</td>
-          <td>${driverName}</td>
-          <td style="font-weight:600">${v.poi_name}</td>
-          <td>${new Date(v.arrived_at).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}</td>
-          <td>${new Date(v.left_at).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}</td>
-          <td style="color:var(--txt2);font-weight:600">${durationStr}</td>
-        </tr>
-      `;
-    });
+    historyBody.innerHTML = `<tr><td colspan="7" style="text-align:center;color:var(--txt3);padding:14px">Aucune immobilisation ne correspond aux filtres.</td></tr>`;
+    return;
   }
+
+  // Rendu par batch (1 seule écriture DOM pour des centaines de lignes)
+  historyBody.innerHTML = filtered.map(v => {
+    const truckDispo = window.LIVE_DISPOS_MAP ? window.LIVE_DISPOS_MAP[v.v.trim().toUpperCase()] : (window.DB && window.DB.dispo ? window.DB.dispo.find(d => (d.v || "").trim().toUpperCase() === (v.v || "").trim().toUpperCase()) : null);
+    const driverName = truckDispo?.chauffeur || "—";
+    
+    let panneBadge = '';
+    if (truckDispo && (truckDispo.etat === 'En panne' || truckDispo.etat === 'PANNE')) {
+      panneBadge = `<span style="background:#ef4444; color:white; padding:1px 6px; border-radius:4px; font-size:10px; margin-left:8px; font-weight:bold; white-space:nowrap; display:inline-block;"><i class="fa-solid fa-wrench"></i> EN PANNE</span>`;
+    }
+
+    const hours = Math.floor(v.duration_hours || 0);
+    const mins = Math.round(((v.duration_hours || 0) - hours) * 60);
+    const durationStr = `${hours}h ${mins}m`;
+    
+    return `
+      <tr>
+        <td>${new Date(v.arrived_at).toLocaleDateString('fr-FR')}</td>
+        <td class="mono">${v.v}${panneBadge}</td>
+        <td>${driverName}</td>
+        <td style="font-weight:600">${v.poi_name}</td>
+        <td>${new Date(v.arrived_at).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}</td>
+        <td>${v.left_at ? new Date(v.left_at).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) : '—'}</td>
+        <td style="color:var(--txt2);font-weight:600">${durationStr}</td>
+      </tr>
+    `;
+  }).join('');
 }
 
 function resetPoiHistoryFilters() {
@@ -17121,6 +17102,7 @@ function resetPoiHistoryFilters() {
 async function togglePoiBlacklist(poiId, name, isChecked) {
   try {
     await poiSupabaseFetch(`np_pois?id=eq.${poiId}`, "PATCH", { is_blacklist: isChecked, updated_at: new Date().toISOString() });
+    window.POI_CACHE = null; // Invalidation du cache
     showToast(`✅ Statut blacklist mis à jour pour "${name}".`);
     renderPoiPage();
   } catch(e) {
