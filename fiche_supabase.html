@@ -12336,6 +12336,11 @@ async function verifierDeblocageGps() {
         window._gpsSyncDataFirstToday = true;
         isUnlocked = true;
         showToast("⚠️ Déblocage via ancien favori détecté. Veuillez réinstaller le bouton 'Favori GPS' en le glissant depuis le haut de la page.", false);
+      } else {
+        // SI LE FALLBACK ECHOUE : l'utilisateur utilise l'ancien favori ET aucun camion n'a bougé.
+        // À la demande expresse de l'administrateur, ON MAINTIENT LE BLOCAGE !
+        // Mais on affiche un message extrêmement clair pour qu'ils mettent à jour leur favori.
+        alert("⛔ BLOCAGE DE SÉCURITÉ ⛔\n\nVotre bouton 'Favori GPS' est PÉRIMÉ et ne transmet plus les validations au système !\n\nACTION REQUISE OBLIGATOIRE :\n1. Supprimez l'ancien bouton de vos favoris.\n2. Glissez le nouveau bouton '🌟 Favori GPS' (situé tout en haut de Numiplan) dans votre barre.\n3. Cliquez sur le nouveau bouton depuis les sites GPS.");
       }
     }
     
