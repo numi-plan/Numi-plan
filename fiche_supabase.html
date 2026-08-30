@@ -8013,34 +8013,71 @@ function saveDispo() {
     return;
   }
 
-  const ch = document.getElementById('f-dispo-chauffeur').value.trim().toUpperCase();
+  let ch = document.getElementById('f-dispo-chauffeur').value.trim().toUpperCase();
   if (!ch || ch === '—' || ch === '?' || ch.includes('MANQUE CHAUFFEUR')) {
     showToast('⚠️ Chauffeur obligatoire — un camion doit obligatoirement être accompagné d\'un chauffeur', true);
     document.getElementById('f-dispo-chauffeur').focus();
     return;
   }
 
-  // Vérifier si le chauffeur existe déjà (match exact ou fuzzy) dans le registre pour éviter les doublons
-  if (idx < 0 && window._ADMIN_SHARIK_ENTREES_SORTIES) {
+  // Vérifier si le chauffeur existe déjà dans le registre (match exact, inversé ou fuzzy)
+  // S'il existe déjà, il s'agit d'un camion supplémentaire (EXTENSION) pour ce chauffeur physique
+  let isExtensionTruck = false;
+  let matchedDriver = null;
+  const sharikList = window._ADMIN_SHARIK_ENTREES_SORTIES || (typeof INITIAL_ADMIN_SHARIK_DATA !== 'undefined' ? INITIAL_ADMIN_SHARIK_DATA : []);
+
+  if (idx < 0 && sharikList.length > 0) {
     const normName = (name) => {
       if (typeof normalizeDriverName === 'function') return normalizeDriverName(name);
       if (typeof window.normalizeDriverName === 'function') return window.normalizeDriverName(name);
       return (name || '').trim().toUpperCase();
     };
     const inputNorm = normName(ch);
-    const existing = window._ADMIN_SHARIK_ENTREES_SORTIES.find(r => {
-      return r.statut === 'ACTIF' && (normName(r.sharik) === inputNorm || areNamesFuzzyMatching(r.sharik, ch));
+    
+    // 1. Recherche par correspondance exacte ou canonique inversée
+    matchedDriver = sharikList.find(r => {
+      return (r.statut === 'ACTIF' || !r.statut) && (normName(r.sharik) === inputNorm || (typeof areNamesMatching === 'function' && areNamesMatching(r.sharik, ch)));
     });
-    if (existing) {
-      showToast(`⚠️ Le chauffeur « ${existing.sharik} » existe déjà dans le registre (saisie proche : « ${ch} »). Veuillez utiliser l'orthographe exacte existante.`, true);
-      document.getElementById('f-dispo-chauffeur').focus();
-      return;
+
+    // 2. Recherche par ressemblance fuzzy (tolérance translit./accents/fautes de frappe)
+    if (!matchedDriver) {
+      matchedDriver = sharikList.find(r => {
+        return (r.statut === 'ACTIF' || !r.statut) && typeof areNamesFuzzyMatching === 'function' && areNamesFuzzyMatching(r.sharik, ch);
+      });
+    }
+
+    if (matchedDriver) {
+      // Chauffeur existant trouvé -> Aligner automatiquement sur l'orthographe officielle sans bloquer
+      isExtensionTruck = true;
+      ch = matchedDriver.sharik;
+      const chInput = document.getElementById('f-dispo-chauffeur');
+      if (chInput) chInput.value = ch;
     }
   }
 
-  // --- NOUVEAU : Validation Remorque et Date d'entrée obligatoires à la création ---
-  const rmVal = document.getElementById('f-dispo-remorque') ? document.getElementById('f-dispo-remorque').value.trim().toUpperCase() : '';
-  const dateInVal = document.getElementById('f-dispo-date-in') ? document.getElementById('f-dispo-date-in').value : '';
+  // --- NOUVEAU : Validation Remorque et Date d'entrée avec auto-résolution intelligente ---
+  let rmVal = document.getElementById('f-dispo-remorque') ? document.getElementById('f-dispo-remorque').value.trim().toUpperCase() : '';
+  let dateInVal = document.getElementById('f-dispo-date-in') ? document.getElementById('f-dispo-date-in').value : '';
+
+  // Auto-résolution remorque si manquante via Master Parc ou chauffeur existant
+  if (!rmVal || rmVal === '—' || rmVal === '?') {
+    if (typeof MASTER_TRUCK_PARC !== 'undefined' && MASTER_TRUCK_PARC[v]) {
+      rmVal = MASTER_TRUCK_PARC[v];
+      const rmInput = document.getElementById('f-dispo-remorque');
+      if (rmInput) rmInput.value = rmVal;
+    } else if (matchedDriver && matchedDriver.remorque) {
+      rmVal = matchedDriver.remorque.split(' · ')[0];
+      const rmInput = document.getElementById('f-dispo-remorque');
+      if (rmInput) rmInput.value = rmVal;
+    }
+  }
+
+  // Auto-résolution date_in si manquante pour une extension
+  if (!dateInVal && matchedDriver && matchedDriver.date_in) {
+    dateInVal = matchedDriver.date_in;
+    const dateInput = document.getElementById('f-dispo-date-in');
+    if (dateInput) dateInput.value = dateInVal;
+  }
 
   if (idx < 0) {
     if (!rmVal || rmVal === '—' || rmVal === '?') {
@@ -8050,10 +8087,10 @@ function saveDispo() {
       return;
     }
     if (!dateInVal) {
-      showToast('⚠️ Date d\'entrée / démarrage obligatoire pour la création', true);
+      // Si la date d'entrée n'est pas renseignée, date du jour par défaut
+      dateInVal = new Date().toISOString().split('T')[0];
       const el = document.getElementById('f-dispo-date-in');
-      if (el) el.focus();
-      return;
+      if (el) el.value = dateInVal;
     }
   }
 
@@ -8159,10 +8196,14 @@ function saveDispo() {
           if (typeof window.normalizeDriverName === 'function') return window.normalizeDriverName(name);
           return (name || '').trim().toUpperCase();
         };
-        const exists = window._ADMIN_SHARIK_CUSTOM_EDITS.new_drivers.some(d => {
-          return norm(d.sharik) === norm(obj.chauffeur);
+        const existsInNew = window._ADMIN_SHARIK_CUSTOM_EDITS.new_drivers.some(d => {
+          return norm(d.sharik) === norm(obj.chauffeur) || (typeof areNamesMatching === 'function' && areNamesMatching(d.sharik, obj.chauffeur));
         });
-        if (!exists) {
+        const existsInBase = (window._ADMIN_SHARIK_ENTREES_SORTIES || (typeof INITIAL_ADMIN_SHARIK_DATA !== 'undefined' ? INITIAL_ADMIN_SHARIK_DATA : [])).some(d => {
+          return norm(d.sharik) === norm(obj.chauffeur) || (typeof areNamesMatching === 'function' && areNamesMatching(d.sharik, obj.chauffeur)) || (typeof areNamesFuzzyMatching === 'function' && areNamesFuzzyMatching(d.sharik, obj.chauffeur));
+        });
+
+        if (!existsInNew && !existsInBase) {
           window._ADMIN_SHARIK_CUSTOM_EDITS.new_drivers.push({
             code: "NEW_" + Date.now() + "_" + Math.floor(Math.random()*1000),
             sharik: obj.chauffeur,
@@ -8189,12 +8230,20 @@ function saveDispo() {
             renderAdminEntreesSorties();
           }
         } else {
-          // Chauffeur déjà dans new_drivers : pousser quand même dans DB.dispo
+          // Chauffeur déjà dans le registre : camion supplémentaire (EXTENSION)
+          isExtensionTruck = true;
           DB.dispo.push(obj);
+          if (typeof renderAdminEntreesSorties === 'function') {
+            renderAdminEntreesSorties();
+          }
         }
       }
       
-      saveDB(); closeModal('modal-dispo'); renderDispo(); showToast('✅ Disponibilité enregistrée');
+      saveDB(); closeModal('modal-dispo'); renderDispo(); 
+      const toastMsg = isExtensionTruck 
+        ? `⭐ Camion ${obj.v} ajouté comme EXTENSION pour « ${obj.chauffeur} »` 
+        : '✅ Disponibilité enregistrée';
+      showToast(toastMsg);
     });
   });
 }
@@ -18004,6 +18053,22 @@ function normalizeDriverName(str) {
     .replace(/[\u0300-\u036f]/g, "")
     .toUpperCase();
   normalized = normalized.replace(/[^A-Z]/g, ' ');
+  normalized = normalized.replace(/\s+/g, ' ').trim();
+
+  // Pré-normalisation des prénoms composés, préfixes et particules
+  normalized = normalized.replace(/\bNOUR\s+EDD?INE\b/g, 'NOUREDINE');
+  normalized = normalized.replace(/\bNOUR\s+ED\s+DINE\b/g, 'NOUREDINE');
+  normalized = normalized.replace(/\bNOURED+INE\b/g, 'NOUREDINE');
+  normalized = normalized.replace(/\bNOURRED+INE\b/g, 'NOUREDINE');
+  normalized = normalized.replace(/\bABD\s*EL\s*/g, 'ABDEL');
+  normalized = normalized.replace(/\bABD\s*ALLAH\b/g, 'ABDELLAH');
+  normalized = normalized.replace(/\bABD\s*ER\s*/g, 'ABDER');
+  normalized = normalized.replace(/\bBEN\s+/g, 'BEN');
+  normalized = normalized.replace(/\bAIT\s+/g, 'AIT');
+  normalized = normalized.replace(/\bEL\s+/g, 'EL');
+  normalized = normalized.replace(/\bOULD\s+/g, 'OULD');
+  normalized = normalized.replace(/\bBOU\s+/g, 'BOU');
+
   const words = normalized.split(/\s+/).filter(w => w.length > 0);
   const normalizedWords = words.map(w => {
     let collapsed = w.replace(/([A-Z])\1+/g, '$1');
@@ -18013,8 +18078,26 @@ function normalizeDriverName(str) {
     if (['CHRIF', 'CHERIF'].includes(collapsed) || ['CHRIF', 'CHERIF'].includes(w)) {
       return 'CHERIF';
     }
-    if (['NOUREDINE', 'NOURREDINE'].includes(collapsed) || ['NOUREDINE', 'NOURREDINE'].includes(w)) {
+    if (['NOUREDINE', 'NOURREDINE', 'NOUREDDINE'].includes(collapsed) || ['NOUREDINE', 'NOURREDINE', 'NOUREDDINE'].includes(w)) {
       return 'NOUREDINE';
+    }
+    if (['LAKHDAR', 'LAKHDER'].includes(collapsed) || ['LAKHDAR', 'LAKHDER'].includes(w)) {
+      return 'LAKHDAR';
+    }
+    if (['REDHA', 'REDA', 'RIDHA'].includes(collapsed) || ['REDHA', 'REDA', 'RIDHA'].includes(w)) {
+      return 'REDA';
+    }
+    if (['DJAMEL', 'DJAMAL'].includes(collapsed) || ['DJAMEL', 'DJAMAL'].includes(w)) {
+      return 'DJAMEL';
+    }
+    if (['YOUCEF', 'YOUSSEF'].includes(collapsed) || ['YOUCEF', 'YOUSSEF'].includes(w)) {
+      return 'YOUCEF';
+    }
+    if (['TOUFIK', 'TEWFIK', 'TAOUFIK'].includes(collapsed) || ['TOUFIK', 'TEWFIK', 'TAOUFIK'].includes(w)) {
+      return 'TOUFIK';
+    }
+    if (['HACENE', 'HASSEN', 'HASSAN'].includes(collapsed) || ['HACENE', 'HASSEN', 'HASSAN'].includes(w)) {
+      return 'HACENE';
     }
     return collapsed;
   });
@@ -18025,7 +18108,8 @@ function getCanonicalDriverName(name) {
   if (!name) return "";
   let n = normalizeDriverName(name);
   n = n.replace(/\s+\d+$/, '').trim();
-  return n;
+  const parts = n.split(' ').sort().join(' ');
+  return parts;
 }
 
 function isResemblanceRejected(regName, numiName) {
@@ -18076,6 +18160,7 @@ function areNamesFuzzyMatching(nameA, nameB) {
   if (isResemblanceRejected(nameA, nameB)) return false;
 
   if (levenshteinDistance(nA, nB) <= 2) return true;
+  if (levenshteinDistance(partsA, partsB) <= 2) return true;
   return false;
 }
 
@@ -18357,22 +18442,34 @@ function renderAdminEntreesSorties() {
   }
 
   // Dédoublonner strictement rawList pour que chaque chauffeur physique ne compte qu'1 SEULE FOIS
-  const seenSharikKeys = new Set();
+  const seenSharikKeys = new Map();
   const dedupedList = [];
   rawList.forEach(r => {
-    const sKey = normalizeDriverName(r.sharik).replace(/\s+\d+$/, '').trim();
-    let hasConflictWithKept = false;
+    const sKey = getCanonicalDriverName(r.sharik);
     if (seenSharikKeys.has(sKey)) {
-      const matchingKept = dedupedList.find(x => normalizeDriverName(x.sharik).replace(/\s+\d+$/, '').trim() === sKey);
-      if (matchingKept && isResemblanceRejected(r.sharik, matchingKept.sharik)) {
-        hasConflictWithKept = true;
+      const existingIdx = seenSharikKeys.get(sKey);
+      const existing = dedupedList[existingIdx];
+      if (matchingKeptConflict(r, existing)) {
+        dedupedList.push(r);
+      } else {
+        // Fusionner intelligemment pour préserver le code officiel, le contrat et le camion Numiplan
+        if (!existing.code && r.code) existing.code = r.code;
+        if (!existing.contrat && r.contrat) existing.contrat = r.contrat;
+        if (!existing.date_contrat_fin && r.date_contrat_fin) existing.date_contrat_fin = r.date_contrat_fin;
+        if (!existing.date_in && r.date_in) existing.date_in = r.date_in;
+        if ((!existing.tracteur || existing.tracteur === '—') && r.tracteur) existing.tracteur = r.tracteur;
+        if ((!existing.remorque || existing.remorque === '—') && r.remorque) existing.remorque = r.remorque;
       }
-    }
-    if (!seenSharikKeys.has(sKey) || hasConflictWithKept) {
-      seenSharikKeys.add(sKey);
+    } else {
+      seenSharikKeys.set(sKey, dedupedList.length);
       dedupedList.push(r);
     }
   });
+
+  function matchingKeptConflict(rA, rB) {
+    if (typeof isResemblanceRejected === 'function' && isResemblanceRejected(rA.sharik, rB.sharik)) return true;
+    return false;
+  }
   rawList = dedupedList;
 
   // 4. Analyser les correspondances exactes, extensions et suggestions de ressemblance
@@ -18434,7 +18531,7 @@ function renderAdminEntreesSorties() {
     const driverTrucksSet = new Set();
     
     // Tracteurs trouvés en direct dans Numiplan (Priorité Numiplan actif)
-    const baseNameKey = normalizeDriverName(r.sharik).replace(/\s+\d+$/, '').trim();
+    const baseNameKey = getCanonicalDriverName(r.sharik);
     for (const [nKey, nTrucks] of Object.entries(numiplanDriverTrucks)) {
       if (areNamesFuzzyMatching(baseNameKey, nKey)) {
         nTrucks.forEach(t => driverTrucksSet.add(t));
