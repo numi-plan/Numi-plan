@@ -28,7 +28,11 @@
   // Configuration Supabase
   const supabaseUrl = "https://mfljrozyxyfkymzlnsmt.supabase.co";
   const supabaseKey = "sb_publishable_sMb9uHOr4gpyqmZGrkY-YQ_z90TgNAB";
-  const supabase = createClient(supabaseUrl, supabaseKey);
+  const supabase = createClient(supabaseUrl, supabaseKey, {
+    auth: {
+      storageKey: 'supabase.auth.direction.token'
+    }
+  });
   window.supabase = supabase; // Exposer globalement pour l'authentification et RLS
   window._gpsSyncIdenetToday = false;
   window._gpsSyncDataFirstToday = false;
@@ -2962,15 +2966,15 @@ mark.hl { background: rgba(56,189,248,.25); color: var(--acc); border-radius: 3p
   
   <div style="padding-top:20px">
     <div class="stats-row" id="poi-stats-row">
-      <div class="stat-card">
+      <div class="stat-card" id="poi-card-total" onclick="filterPoiActive('all')" title="Afficher tous les camions" style="cursor:pointer">
         <div class="stat-num" id="poi-stat-total">0</div>
         <div class="stat-lbl">Points d'Intérêt (POI)</div>
       </div>
-      <div class="stat-card org">
+      <div class="stat-card org active" id="poi-card-waiting" onclick="filterPoiActive('all')" title="Afficher tous les camions en attente" style="cursor:pointer">
         <div class="stat-num" id="poi-stat-waiting">0</div>
         <div class="stat-lbl">Camions en Attente</div>
       </div>
-      <div class="stat-card red">
+      <div class="stat-card red" id="poi-card-alerts" onclick="filterPoiActive('alerts')" title="Filtrer uniquement les alertes (> 2H ou Blacklist)" style="cursor:pointer">
         <div class="stat-num" id="poi-stat-alerts">0</div>
         <div class="stat-lbl">Alertes (> 2H)</div>
       </div>
@@ -8001,14 +8005,14 @@ function saveDispo() {
     return;
   }
 
-  const ch = document.getElementById('f-dispo-chauffeur').value.trim().toUpperCase();
+  let ch = document.getElementById('f-dispo-chauffeur').value.trim().toUpperCase();
   if (!ch || ch === '—' || ch === '?' || ch.includes('MANQUE CHAUFFEUR')) {
     showToast('⚠️ Chauffeur obligatoire — un camion doit obligatoirement être accompagné d\'un chauffeur', true);
     document.getElementById('f-dispo-chauffeur').focus();
     return;
   }
 
-  // Vérifier si le chauffeur existe déjà (match exact ou fuzzy) dans le registre pour éviter les doublons
+  // Vérifier si le chauffeur existe déjà (match exact ou fuzzy) dans le registre pour aligner l'orthographe ou confirmer
   if (idx < 0 && window._ADMIN_SHARIK_ENTREES_SORTIES) {
     const normName = (name) => {
       if (typeof normalizeDriverName === 'function') return normalizeDriverName(name);
@@ -8016,13 +8020,31 @@ function saveDispo() {
       return (name || '').trim().toUpperCase();
     };
     const inputNorm = normName(ch);
-    const existing = window._ADMIN_SHARIK_ENTREES_SORTIES.find(r => {
-      return r.statut === 'ACTIF' && (normName(r.sharik) === inputNorm || areNamesFuzzyMatching(r.sharik, ch));
+    const exactMatch = window._ADMIN_SHARIK_ENTREES_SORTIES.find(r => {
+      return r.statut === 'ACTIF' && normName(r.sharik) === inputNorm;
     });
-    if (existing) {
-      showToast(`⚠️ Le chauffeur « ${existing.sharik} » existe déjà dans le registre (saisie proche : « ${ch} »). Veuillez utiliser l'orthographe exacte existante.`, true);
-      document.getElementById('f-dispo-chauffeur').focus();
-      return;
+
+    if (exactMatch) {
+      ch = exactMatch.sharik;
+      document.getElementById('f-dispo-chauffeur').value = ch;
+    } else {
+      const fuzzyMatch = window._ADMIN_SHARIK_ENTREES_SORTIES.find(r => {
+        return r.statut === 'ACTIF' && typeof areNamesFuzzyMatching === 'function' && areNamesFuzzyMatching(r.sharik, ch);
+      });
+      if (fuzzyMatch) {
+        const useExisting = confirm(
+          `⚠️ Un chauffeur avec une orthographe proche existe déjà dans le registre :\n\n` +
+          `• Nom existant : « ${fuzzyMatch.sharik} »\n` +
+          `• Saisie : « ${ch} »\n\n` +
+          `Voulez-vous utiliser l'orthographe existante (« ${fuzzyMatch.sharik} ») ?\n\n` +
+          `[OK] = Utiliser « ${fuzzyMatch.sharik} »\n` +
+          `[Annuler] = Conserver « ${ch} » comme nouveau chauffeur distinct`
+        );
+        if (useExisting) {
+          ch = fuzzyMatch.sharik;
+          document.getElementById('f-dispo-chauffeur').value = ch;
+        }
+      }
     }
   }
 
@@ -8147,10 +8169,14 @@ function saveDispo() {
           if (typeof window.normalizeDriverName === 'function') return window.normalizeDriverName(name);
           return (name || '').trim().toUpperCase();
         };
-        const exists = window._ADMIN_SHARIK_CUSTOM_EDITS.new_drivers.some(d => {
+        const existsInNew = window._ADMIN_SHARIK_CUSTOM_EDITS.new_drivers.some(d => {
           return norm(d.sharik) === norm(obj.chauffeur);
         });
-        if (!exists) {
+        const existsInBase = window._ADMIN_SHARIK_ENTREES_SORTIES && window._ADMIN_SHARIK_ENTREES_SORTIES.some(d => {
+          return norm(d.sharik) === norm(obj.chauffeur);
+        });
+
+        if (!existsInNew && !existsInBase) {
           window._ADMIN_SHARIK_CUSTOM_EDITS.new_drivers.push({
             code: "NEW_" + Date.now() + "_" + Math.floor(Math.random()*1000),
             sharik: obj.chauffeur,
@@ -8177,7 +8203,7 @@ function saveDispo() {
             renderAdminEntreesSorties();
           }
         } else {
-          // Chauffeur déjà dans new_drivers : pousser quand même dans DB.dispo
+          // Chauffeur déjà dans le registre ou new_drivers : pousser quand même dans DB.dispo
           DB.dispo.push(obj);
         }
       }
@@ -15669,7 +15695,6 @@ window.renderComplianceDashboard = function() {
       }
     }
 
-
     // Calcul des anomalies de segment Orientation et Chargement à son compte
     let totalKmOrientation = 0;
     let countCompteTotal = 0;
@@ -15692,7 +15717,6 @@ window.renderComplianceDashboard = function() {
       });
     }
 
-
     const kmOriStr = totalKmOrientation > 0 ? `${totalKmOrientation.toLocaleString('fr-FR')} km` : '—';
     
     return `
@@ -15712,371 +15736,6 @@ window.renderComplianceDashboard = function() {
     `;
   }).join('');
 };
-
-
-function verifierImmobilisationsActives(forceShow = false) {
-  if (!DB.incidentsLivraison) return;
-  const activeImmos = DB.incidentsLivraison.filter(im => im.type === 'Immobilisation chez le client' && !im.fin);
-  if (activeImmos.length === 0) return;
-  
-  const eq = CURRENT_EQUIPE || 'A';
-  const now = Date.now();
-  const lastShown = sessionStorage.getItem('immo_alert_last_shown_' + eq);
-  
-  // 1 minute = 60 * 1000 ms (Harcelement mode)
-  if (lastShown && !forceShow) {
-    if (now - parseInt(lastShown) < 60 * 1000) {
-      return; 
-    }
-  }
-  
-  const listContainer = document.getElementById('active-immo-list-container');
-  if (!listContainer) return;
-  
-  listContainer.innerHTML = activeImmos.map(im => {
-    const dateFormatted = new Date(im.debut).toLocaleString('fr-FR', {
-      day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit'
-    });
-    return `
-      <div style="border-bottom: 1px solid var(--border); padding: 8px 0; display: flex; justify-content: space-between; align-items: center; font-size: 12px;">
-        <div>
-          <b style="color: var(--txt);">👤 ${im.chauffeur}</b> 
-          <span style="font-size: 11px; color: var(--acc); font-family: monospace;">(Camion ${im.v})</span>
-          <div style="font-size: 10px; color: var(--txt3); margin-top: 2px;">Client : ${im.client} | Dest. Prévue : ${im.destPrevue || '—'} | Cmd : ${im.refCommande || '—'}</div>
-        </div>
-        <div style="text-align: right;">
-          <span style="font-size: 10px; background: rgba(239,68,68,0.2); color: #ef4444; padding: 2px 6px; border-radius: 4px; font-weight: 700;">Immobilisé</span>
-          <div style="font-size: 9px; color: var(--txt3); margin-top: 2px;">Depuis le ${dateFormatted}</div>
-        </div>
-      </div>
-    `;
-  }).join('');
-  
-  sessionStorage.setItem('immo_alert_last_shown_' + eq, String(now));
-  openModal('modal-active-immo-alert');
-}
-
-// Background checker for recurring reminders every 30 seconds
-setInterval(() => {
-  if (typeof verifierImmobilisationsActives === 'function') {
-    verifierImmobilisationsActives(false);
-  }
-  if (typeof verifierCspcNonTraite === 'function') {
-    verifierCspcNonTraite(false);
-  }
-}, 30 * 1000);
-
-
-function verifierCspcNonTraite(forceShow = false) {
-  if (!DB.cspc) return;
-  const untreatedCspc = DB.cspc.filter(r => {
-    const etat = (r.etat || '').toLowerCase();
-    return etat === 'disponible' || !r.etat || !etat.trim();
-  });
-  if (untreatedCspc.length === 0) return;
-  
-  const eq = CURRENT_EQUIPE || 'A';
-  const now = Date.now();
-  const lastShown = sessionStorage.getItem('cspc_alert_last_shown_' + eq);
-  
-  // 1 minute = 60 * 1000 ms (Harcelement mode)
-  if (lastShown && !forceShow) {
-    if (now - parseInt(lastShown) < 60 * 1000) {
-      return; 
-    }
-  }
-  
-  const listContainer = document.getElementById('active-cspc-list-container');
-  if (!listContainer) return;
-  
-  listContainer.innerHTML = untreatedCspc.map(r => {
-    const dateFormatted = r.date ? new Date(r.date).toLocaleDateString('fr-FR') : '—';
-    return `
-      <div style="border-bottom: 1px solid var(--border); padding: 8px 0; display: flex; justify-content: space-between; align-items: center; font-size: 12px;">
-        <div>
-          <b style="color: var(--txt);">🚛 Camion ${r.v}</b> 
-          <span style="font-size: 11px; color: var(--acc); font-family: monospace;">(${r.chauffeur || '—'})</span>
-          <div style="font-size: 10px; color: var(--txt3); margin-top: 2px;">Prog : ${r.prog || 'CSPC'} | Dest : ${r.lieuJ1 || '—'}</div>
-        </div>
-        <div style="text-align: right;">
-          <span style="font-size: 10px; background: rgba(167,139,250,0.2); color: var(--pur); padding: 2px 6px; border-radius: 4px; font-weight: 700;">Non Traité</span>
-          <div style="font-size: 9px; color: var(--txt3); margin-top: 2px;">Date : ${dateFormatted}</div>
-        </div>
-      </div>
-    `;
-  }).join('');
-  
-  sessionStorage.setItem('cspc_alert_last_shown_' + eq, String(now));
-  openModal('modal-active-cspc-alert');
-}
-
-
-
-function modifierAnomalie(eq, key) {
-  const lock = sessionStorage.getItem('numiplan_team_lock');
-  if (lock && lock !== eq) {
-    showToast(`⚠️ Lecture seule — vous ne pouvez modifier que les anomalies de l'Équipe ${lock}`, true);
-    return;
-  }
-  
-  const dbEq = (eq === CURRENT_EQUIPE && typeof window.DB !== 'undefined') ? window.DB : window['DB_' + eq];
-  if (!dbEq || !dbEq.anomaliesPointees || !dbEq.anomaliesPointees[key]) {
-    showToast("⚠️ Anomalie introuvable", true);
-    return;
-  }
-  
-  const item = dbEq.anomaliesPointees[key];
-  
-  openModal('modal-modifier-anomalie');
-  
-  document.getElementById('edit-anom-eq').value = eq;
-  document.getElementById('edit-anom-key').value = key;
-  document.getElementById('edit-anom-v').textContent = key.split('_')[0] || '—';
-  document.getElementById('edit-anom-chauf').textContent = item.chauffeur || '—';
-  document.getElementById('edit-anom-motif').value = item.motif || (item.justif || 'Orientation');
-  document.getElementById('edit-anom-detail').value = item.detail || '';
-}
-
-function saveModifiedAnomalie() {
-  const eq = document.getElementById('edit-anom-eq').value;
-  const key = document.getElementById('edit-anom-key').value;
-  const motif = document.getElementById('edit-anom-motif').value;
-  const detail = document.getElementById('edit-anom-detail').value.trim();
-  
-  const lock = sessionStorage.getItem('numiplan_team_lock');
-  if (lock && lock !== eq) {
-    showToast(`⚠️ Lecture seule — vous ne pouvez modifier que les anomalies de l'Équipe ${lock}`, true);
-    return;
-  }
-
-  if (!detail) {
-    showToast("⚠️ La précision / détail est obligatoire !", true);
-    const detailEl = document.getElementById('edit-anom-detail');
-    if (detailEl) {
-      detailEl.style.border = '1px solid #f87171';
-      detailEl.focus();
-    }
-    return;
-  }
-  
-  const dbEq = (eq === CURRENT_EQUIPE && typeof window.DB !== 'undefined') ? window.DB : window['DB_' + eq];
-  if (!dbEq || !dbEq.anomaliesPointees || !dbEq.anomaliesPointees[key]) {
-    showToast("⚠️ Anomalie introuvable", true);
-    return;
-  }
-  
-  // Update in memory
-  dbEq.anomaliesPointees[key].motif = motif;
-  dbEq.anomaliesPointees[key].justif = motif;
-  dbEq.anomaliesPointees[key].detail = detail;
-  dbEq.anomaliesPointees[key]._lastEditedTs = Date.now();
-  dbEq._localTs = Date.now();
-  
-  // Save database
-  if (eq === CURRENT_EQUIPE && typeof saveDB === 'function') {
-    saveDB();
-  } else if (typeof window.saveTeamDB === 'function') {
-    window.saveTeamDB(eq, dbEq);
-  }
-  
-  if (typeof supabaseUpsertTeam === 'function') {
-    supabaseUpsertTeam(eq, dbEq);
-  }
-  
-  closeModal('modal-modifier-anomalie');
-  if (typeof renderHistoriqueAnomalies === 'function') {
-    renderHistoriqueAnomalies();
-  }
-  showToast('✅ Anomalie modifiée avec succès');
-}
-
-
-
-function populateIncidentDestinationSelects() {
-  const dl = document.getElementById('dl-wilayas');
-  const selPrevSite = document.getElementById('f-inc-liv-dest-prevue-site');
-  const selPrevVille = document.getElementById('f-inc-liv-dest-prevue-ville');
-  const selReelleSite = document.getElementById('f-inc-liv-dest-reelle-site');
-  const selReelleVille = document.getElementById('f-inc-liv-dest-reelle-ville');
-  if (!dl || !selPrevSite || !selPrevVille || !selReelleSite || !selReelleVille) return;
-  
-  const placeholder = '<option value="">— Choisir la ville —</option>';
-  selPrevSite.innerHTML = placeholder;
-  selPrevVille.innerHTML = placeholder;
-  selReelleSite.innerHTML = placeholder;
-  selReelleVille.innerHTML = placeholder;
-  
-  const options = Array.from(dl.options).map(opt => opt.value).sort();
-  options.forEach(val => {
-    const optHTML = `<option value="${val}">${val}</option>`;
-    selPrevSite.insertAdjacentHTML('beforeend', optHTML);
-    selPrevVille.insertAdjacentHTML('beforeend', optHTML);
-    selReelleSite.insertAdjacentHTML('beforeend', optHTML);
-    selReelleVille.insertAdjacentHTML('beforeend', optHTML);
-  });
-}
-
-
-
-
-
-function populateLoginUserDropdown() {
-  const dropdown = document.getElementById('username-input');
-  if (!dropdown) return;
-  
-  const currentSelected = dropdown.value;
-  dropdown.innerHTML = '<option value="">Sélectionnez votre identifiant...</option>';
-  
-  const adminOpt = document.createElement('option');
-  adminOpt.value = 'ADMIN';
-  adminOpt.textContent = 'ADMIN (Superviseur Admin)';
-  dropdown.appendChild(adminOpt);
-
-  const regOpt = document.createElement('option');
-  regOpt.value = 'REGISTRE';
-  regOpt.textContent = '🏛️ REGISTRE (Espace Direction)';
-  dropdown.appendChild(regOpt);
-  
-  const teams = ['A', 'B', 'C', 'D', 'E', 'F'];
-  teams.forEach(eq => {
-    const db = window['DB_' + eq];
-    const users = (db && db.users) ? db.users : [];
-    users.forEach(u => {
-      const opt = document.createElement('option');
-      opt.value = u;
-      opt.textContent = `${u} (Équipe ${eq})`;
-      dropdown.appendChild(opt);
-    });
-  });
-  
-  if (currentSelected) {
-    dropdown.value = currentSelected;
-  }
-}
-window.populateLoginUserDropdown = populateLoginUserDropdown;
-
-
-// ── PLANIFICATEUR D'EXTRACTION DE DONNÉES AUTOMATIQUE ──
-function initAutoExportScheduler() {
-  const targetHours = [8, 10, 12, 14, 16, 19, 21];
-  
-  setInterval(() => {
-    // Exécuter uniquement si la session est active (authentifié)
-    if (sessionStorage.getItem('numiplan_auth') !== 'ok') return;
-    
-    const now = new Date();
-    const currentHour = now.getHours();
-    const todayStr = now.getFullYear() + '-' + String(now.getMonth()+1).padStart(2,'0') + '-' + String(now.getDate()).padStart(2,'0');
-    
-    if (targetHours.includes(currentHour)) {
-      const key = `numiplan_auto_export_${todayStr}_${currentHour}`;
-      if (!localStorage.getItem(key)) {
-        localStorage.setItem(key, 'done');
-        console.log(`[Auto-Export] Déclenchement automatique pour ${currentHour}h...`);
-        if (typeof showToast === 'function') {
-          showToast(`📥 Extraction automatique de ${currentHour}h en cours...`);
-        }
-        
-        setTimeout(() => {
-          if (typeof exportAllData === 'function') {
-            exportAllData().catch(err => console.error('[Auto-Export] Erreur:', err));
-          }
-        }, 1000);
-      }
-    }
-  }, 15000); // Vérification toutes les 15 secondes
-}
-window.initAutoExportScheduler = initAutoExportScheduler;
-
-
-function toggleDispoInsurance(cb) {
-  if (!DB.config_ui) DB.config_ui = {};
-  DB.config_ui.showInsurance = cb.checked;
-  saveDB();
-  renderDispo();
-  showToast(`✅ Affichage des Assurances ${cb.checked ? 'activé' : 'désactivé'}`);
-}
-window.toggleDispoInsurance = toggleDispoInsurance;
-
-// ── DAILY ARCHIVES / HISTORY CONSULTATION MODE ──
-var HISTORY_MODE = false;
-var HISTORY_DATA = null;
-
-function populateHistoryDateSelect() {
-  const select = document.getElementById('history-date-select');
-  if (!select) return;
-  
-  const eq = typeof window.CURRENT_EQUIPE !== 'undefined' ? window.CURRENT_EQUIPE : 'A';
-  const teamArchives = ARCHIVES[eq] || {};
-  const dates = Object.keys(teamArchives).sort().reverse();
-  
-  select.innerHTML = '<option value="">📅 En direct (Aujourd\'hui)</option>';
-  dates.forEach(d => {
-    const opt = document.createElement('option');
-    opt.value = d;
-    const dateObj = new Date(d);
-    const label = isNaN(dateObj) ? d : dateObj.toLocaleDateString('fr-FR', { weekday: 'short', day: '2-digit', month: 'short' });
-    opt.textContent = `📋 Archive du ${label}`;
-    select.appendChild(opt);
-  });
-  
-  const isAuthed = sessionStorage.getItem('numiplan_auth') === 'ok';
-  select.style.display = isAuthed ? 'inline-block' : 'none';
-}
-window.populateHistoryDateSelect = populateHistoryDateSelect;
-
-function selectHistoryDate(dateKey) {
-  const eq = typeof window.CURRENT_EQUIPE !== 'undefined' ? window.CURRENT_EQUIPE : 'A';
-  if (!dateKey) {
-    HISTORY_MODE = false;
-    HISTORY_DATA = null;
-    const liveDb = window['DB_' + eq];
-    if (liveDb) window.DB = liveDb;
-    
-    const banner = document.getElementById('history-mode-banner');
-    if (banner) banner.style.display = 'none';
-    
-    showToast('🔙 Retour au mode en direct (Modifications autorisées)');
-  } else {
-    const teamArchives = ARCHIVES[eq] || {};
-    const snap = teamArchives[dateKey];
-    if (!snap) {
-      showToast('⚠️ Archive introuvable pour cette date', true);
-      return;
-    }
-    
-    HISTORY_MODE = true;
-    HISTORY_DATA = JSON.parse(JSON.stringify(snap));
-    window.DB = HISTORY_DATA;
-    
-    let banner = document.getElementById('history-mode-banner');
-    if (!banner) {
-      banner = document.createElement('div');
-      banner.id = 'history-mode-banner';
-      banner.style.cssText = 'background:linear-gradient(90deg, #f59e0b, #d97706); color:#000; padding:10px 20px; font-size:12px; font-weight:800; text-align:center; position:sticky; top:0; z-index:1000; box-shadow:0 4px 12px rgba(0,0,0,.2); display:flex; align-items:center; justify-content:center; gap:8px; border-bottom:1px solid rgba(0,0,0,.1);';
-      document.body.insertBefore(banner, document.body.firstChild);
-    }
-    const formattedDate = new Date(dateKey).toLocaleDateString('fr-FR', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' });
-    banner.innerHTML = `⚠️ MODE CONSULTATION HISTORIQUE — Vous visualisez les données du ${formattedDate} (Lecture seule)`;
-    banner.style.display = 'flex';
-    
-    showToast(`📜 Chargement de l'archive du ${dateKey} (Mode Lecture seule)`);
-  }
-  
-  renderDispo();
-  if (typeof renderPannes === 'function') renderPannes();
-  if (typeof renderNC === 'function') renderNC();
-  if (typeof renderGasoil === 'function') renderGasoil();
-  if (typeof renderEquip === 'function') renderEquip();
-  if (typeof renderActivite === 'function') renderActivite();
-  if (typeof renderBL === 'function') renderBL();
-  if (typeof renderOdo === 'function') renderOdo();
-  if (typeof renderCSPC === 'function') renderCSPC();
-  if (typeof renderBlacklist === 'function') renderBlacklist();
-  if (typeof renderIncidentsLivraisonPage === 'function') renderIncidentsLivraisonPage();
-}
-window.selectHistoryDate = selectHistoryDate;
-
 // ══════════════════════════════════════════════════════════════════════════════
 // SUIVI DES POI ET IMMOBILISATIONS (>2H)
 // ══════════════════════════════════════════════════════════════════════════════
@@ -16119,144 +15778,170 @@ async function poiSupabaseFetch(endpoint, method = "GET", body = null) {
   return res.status === 204 ? null : await res.json();
 }
 
+// ─── POI CACHE & OPTIMIZATION ENGINE ───
+window.POI_CACHE = null;
+window.POI_CACHE_TIME = 0;
+window.POI_ACTIVE_FILTER = 'all'; // 'all' or 'alerts'
+
+async function getPoisCached(forceRefresh = false) {
+  const now = Date.now();
+  if (!forceRefresh && window.POI_CACHE && (now - window.POI_CACHE_TIME < 10 * 60 * 1000)) {
+    return window.POI_CACHE;
+  }
+  try {
+    const pois = await poiSupabaseFetch("np_pois?select=*&order=name.asc");
+    if (pois && Array.isArray(pois)) {
+      window.POI_CACHE = pois;
+      window.POI_CACHE_TIME = now;
+      return pois;
+    }
+  } catch(e) {
+    console.error("Erreur chargement POIs:", e);
+  }
+  return window.POI_CACHE || [];
+}
+window.getPoisCached = getPoisCached;
+
+function filterPoiActive(filterType) {
+  window.POI_ACTIVE_FILTER = filterType;
+  const cardWaiting = document.getElementById("poi-card-waiting");
+  const cardAlerts = document.getElementById("poi-card-alerts");
+  
+  if (cardWaiting && cardAlerts) {
+    if (filterType === 'alerts') {
+      cardAlerts.style.boxShadow = "0 0 16px rgba(239, 68, 68, 0.6)";
+      cardAlerts.style.borderColor = "#ef4444";
+      cardWaiting.style.boxShadow = "none";
+      cardWaiting.style.borderColor = "";
+    } else {
+      cardWaiting.style.boxShadow = "0 0 16px rgba(245, 158, 11, 0.4)";
+      cardWaiting.style.borderColor = "";
+      cardAlerts.style.boxShadow = "none";
+      cardAlerts.style.borderColor = "";
+    }
+  }
+  
+  if (window.CURRENT_LIVE_ACTIVE_VISITS) {
+    renderActiveVisitsTable(window.CURRENT_LIVE_ACTIVE_VISITS, window.CURRENT_POI_BLACKLIST_SET || new Set());
+  }
+}
+window.filterPoiActive = filterPoiActive;
+
+function renderActiveVisitsTable(liveActiveVisits, blacklistPois) {
+  const activeBody = document.getElementById("poi-active-body");
+  if (!activeBody) return;
+  
+  let visitsToRender = liveActiveVisits;
+  if (window.POI_ACTIVE_FILTER === 'alerts') {
+    visitsToRender = liveActiveVisits.filter(v => (v.duration_hours >= 2.0) || blacklistPois.has(v.poi_name));
+  }
+  
+  if (!visitsToRender || visitsToRender.length === 0) {
+    activeBody.innerHTML = `<tr><td colspan="6" style="text-align:center;color:var(--txt3);padding:18px">${window.POI_ACTIVE_FILTER === 'alerts' ? 'Aucune alerte (> 2H) en cours pour le moment.' : 'Aucun camion n\'est actuellement chez un client.'}</td></tr>`;
+    return;
+  }
+  
+  const rowsHtml = visitsToRender.map(v => {
+    const truckDispo = window.LIVE_DISPOS_MAP ? window.LIVE_DISPOS_MAP[v.v.trim().toUpperCase()] : (window.DB && window.DB.dispo ? window.DB.dispo.find(d => (d.v || "").trim().toUpperCase() === (v.v || "").trim().toUpperCase()) : null);
+    const driverName = truckDispo?.chauffeur || "—";
+    
+    let panneBadge = '';
+    if (truckDispo && (truckDispo.etat === 'En panne' || truckDispo.etat === 'PANNE')) {
+      panneBadge = `<span style="background:#ef4444; color:white; padding:1px 6px; border-radius:4px; font-size:10px; margin-left:8px; font-weight:bold; white-space:nowrap; display:inline-block;"><i class="fa-solid fa-wrench"></i> EN PANNE</span>`;
+    }
+
+    const hours = Math.floor(v.duration_hours || 0);
+    const mins = Math.round(((v.duration_hours || 0) - hours) * 60);
+    const waitStr = `${hours}h ${mins}m`;
+    
+    const isBlacklisted = blacklistPois.has(v.poi_name);
+    const alertClass = isBlacklisted ? 'class="poi-wait-time-td" style="color:#ef4444;font-weight:900;animation:pulse-red 1s infinite"' : (v.duration_hours >= 2.0 ? 'class="poi-wait-time-td" style="color:#ef4444;font-weight:700"' : 'class="poi-wait-time-td" style="color:#f59e0b;font-weight:600"');
+    const alertIcon = isBlacklisted ? "🚨 BLACKLIST 🚨" : (v.duration_hours >= 2.0 ? "🔴" : "🟠");
+    const rowBg = isBlacklisted ? 'style="background:rgba(239,68,68,0.12); border-left: 4px solid #ef4444"' : '';
+    
+    return `
+      <tr ${rowBg}>
+        <td class="mono" style="color:var(--acc);font-weight:600">${v.v}${panneBadge}</td>
+        <td>${driverName}</td>
+        <td style="font-weight:600;color:${isBlacklisted ? '#ef4444' : 'var(--txt1)'}">${v.poi_name}</td>
+        <td>${new Date(v.arrived_at).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}</td>
+        <td>${new Date(v.last_seen_at).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}</td>
+        <td ${alertClass} data-arrived="${v.arrived_at}" data-alert-type="${isBlacklisted ? 'blacklist' : (v.duration_hours >= 2.0 ? 'red' : 'orange')}">${alertIcon} ${waitStr}</td>
+      </tr>
+    `;
+  }).join('');
+  
+  activeBody.innerHTML = rowsHtml;
+}
+
+let isRenderingPoiPage = false;
 async function renderPoiPage() {
+  if (isRenderingPoiPage) return;
+  isRenderingPoiPage = true;
+  
   const activeTeam = typeof window.CURRENT_EQUIPE !== 'undefined' ? window.CURRENT_EQUIPE : 'A';
-  if (!activeTeam) return;
+  if (!activeTeam) {
+    isRenderingPoiPage = false;
+    return;
+  }
 
   // Contrôle de visibilité pour les vues d'administration
   const isUserAdmin = isAdmin();
-     // 3. Traiter chaque visite active
-    for (let visit of activeVisitsList) {
-      // Nettoyer le client pour le matching
-      const clientName = visit.poi_name.trim();
-
-      // Si le client fait partie de la liste noire
-      if (blacklistPois.has(clientName)) {
-        // Alerte Blacklist !
-        const alertId = `${visit.v}_${clientName}`;
-        
-        // Mode harcelement : on reset l'alerte si elle date de plus d'1 minute
-        let lastAlertedTime = parseInt(sessionStorage.getItem(`blacklist_time_${alertId}`) || '0');
-        if (Date.now() - lastAlertedTime > 60 * 1000) {
-          clientAlertedSet.delete(alertId);
-        }
-
-        if (!clientAlertedSet.has(alertId)) {
-          // Afficher le modal rouge clignotant localement
-          showBlacklistAlertModal(visit.v, clientName, visit.entered_at, visit.team);
-          
-          // Marquer comme alerté pour la minute en cours
-          clientAlertedSet.add(alertId);
-          sessionStorage.setItem('client_alerted_blacklist_ids', JSON.stringify([...clientAlertedSet]));
-          sessionStorage.setItem(`blacklist_time_${alertId}`, Date.now().toString());
-
-          // Broadcast immédiat aux autres fenêtres via Realtime
-          if (window.realtimePoiChannel) {
-            window.realtimePoiChannel.send({
-              type: 'broadcast',
-              event: 'blacklist_alert_broadcast',
-              payload: {
-                truck: visit.v,
-                client: clientName,
-                time: visit.entered_at,
-                team: visit.team
-              }
-            });
-          }
-        }
-      }
-    }
   const diagBtn = document.getElementById("btn-poi-diag");
   const addBtn = document.getElementById("btn-poi-add");
   const adminBlock = document.getElementById("admin-poi-management-block");
   
-  if (diagBtn) diagBtn.style.display = "inline-block"; // Visible pour tous
+  if (diagBtn) diagBtn.style.display = "inline-block";
   if (addBtn) addBtn.style.display = isUserAdmin ? "inline-block" : "none";
   if (adminBlock) adminBlock.style.display = isUserAdmin ? "block" : "none";
 
   try {
-    const pois = await poiSupabaseFetch("np_pois?select=*&order=name.asc");
-    const activeVisits = await poiSupabaseFetch(`np_poi_visits?select=*&team=eq.${activeTeam}&left_at=is.null&order=arrived_at.desc`);
-    const historyVisits = await poiSupabaseFetch(`np_poi_visits?select=*&team=eq.${activeTeam}&left_at=not.is.null&order=left_at.desc&limit=1000`);
-    window.POI_HISTORY_DATA = historyVisits;
+    // 1. Récupération parallèle & ultra-rapide
+    const [pois, activeVisits, historyVisits, dispos] = await Promise.all([
+      getPoisCached(),
+      poiSupabaseFetch(`np_poi_visits?select=*&team=eq.${activeTeam}&left_at=is.null&order=arrived_at.desc`),
+      poiSupabaseFetch(`np_poi_visits?select=*&team=eq.${activeTeam}&left_at=not.is.null&order=left_at.desc&limit=1000`),
+      poiSupabaseFetch(`np_dispo?select=v,geoloc,geoloc_date,etat,chauffeur,lat,lng&team=eq.${activeTeam}`).catch(() => null)
+    ]);
+
+    window.POI_HISTORY_DATA = historyVisits || [];
     
-    // Contrôle des balises GPS inactives (n'émettant plus)
-    let dispos = null;
-    try {
-      dispos = await poiSupabaseFetch(`np_dispo?select=v,geoloc,geoloc_date,etat,chauffeur,lat,lng&team=eq.${activeTeam}`);
-      
-      // Fusionner les données GPS en direct dans l'objet DB.dispo local en mémoire
-      if (dispos && dispos.length > 0 && typeof DB !== 'undefined' && DB && DB.dispo) {
-        let modified = false;
-        DB.dispo.forEach(r => {
-          if (!r || !r.v) return;
-          const matchingLive = dispos.find(d => d.v && d.v.trim().toUpperCase() === r.v.trim().toUpperCase());
-          if (matchingLive) {
-            const newGeoloc = matchingLive.geoloc || 'OFF';
-            const newGeolocDate = matchingLive.geoloc_date || null;
-            const newLat = matchingLive.lat !== undefined ? matchingLive.lat : null;
-            const newLng = matchingLive.lng !== undefined ? matchingLive.lng : null;
-            
-            if (r.geoloc !== newGeoloc || r.geolocDate !== newGeolocDate || r.lat !== newLat || r.lng !== newLng) {
-              r.geoloc = newGeoloc;
-              r.geolocDate = newGeolocDate;
-              r.lat = newLat;
-              r.lng = newLng;
-              modified = true;
-            }
-          }
-        });
-        if (modified && typeof renderDispo === 'function') {
-          renderDispo();
-        }
-      }
-
-      if (dispos && sessionStorage.getItem('numiplan_gps_alert_shown') !== 'yes') {
-        const todayStr = new Date().toISOString().split('T')[0];
-        const todayTime = new Date(todayStr).getTime();
-        const offlineTrucks = [];
-        
-        dispos.forEach(d => {
-          if (d.geoloc_date) {
-            const gpsTime = new Date(d.geoloc_date).getTime();
-            const diffDays = Math.round((todayTime - gpsTime) / (1000 * 60 * 60 * 24));
-            if (diffDays >= 3) { // 3 jours ou plus sans émission
-              offlineTrucks.push({ v: d.v, last_date: d.geoloc_date, days: diffDays });
-            }
-          }
-        });
-        
-        if (offlineTrucks.length > 0) {
-          sessionStorage.setItem('numiplan_gps_alert_shown', 'yes');
-          showGpsOfflineAlertModal(offlineTrucks);
-        }
-      }
-    } catch (e) {
-      console.warn("Erreur contrôle balises GPS:", e);
+    // Indexation O(1) des positions en mémoire
+    const disposMap = {};
+    if (dispos && Array.isArray(dispos)) {
+      dispos.forEach(d => {
+        if (d.v) disposMap[d.v.trim().toUpperCase()] = d;
+      });
     }
+    window.LIVE_DISPOS_MAP = disposMap;
 
-    const totalPois = pois ? pois.length : 0;
-    const totalActive = activeVisits ? activeVisits.length : 0;
-    const totalAlerts = activeVisits ? activeVisits.filter(v => v.duration_hours >= 2.0).length : 0;
-
-    document.getElementById("poi-stat-total").textContent = totalPois;
-    document.getElementById("poi-stat-waiting").textContent = totalActive;
-    document.getElementById("poi-stat-alerts").textContent = totalAlerts;
-
-    const badge = document.getElementById("cnt-poi-alerts");
-    if (badge) {
-      if (totalAlerts > 0) {
-        badge.textContent = totalAlerts;
-        badge.style.display = "inline-block";
-      } else {
-        badge.style.display = "none";
+    // Fusionner les données GPS en direct dans l'objet DB.dispo local
+    if (dispos && dispos.length > 0 && typeof DB !== 'undefined' && DB && DB.dispo) {
+      let modified = false;
+      DB.dispo.forEach(r => {
+        if (!r || !r.v) return;
+        const matchingLive = disposMap[r.v.trim().toUpperCase()];
+        if (matchingLive) {
+          const newGeoloc = matchingLive.geoloc || 'OFF';
+          const newGeolocDate = matchingLive.geoloc_date || null;
+          const newLat = matchingLive.lat !== undefined ? matchingLive.lat : null;
+          const newLng = matchingLive.lng !== undefined ? matchingLive.lng : null;
+          
+          if (r.geoloc !== newGeoloc || r.geolocDate !== newGeolocDate || r.lat !== newLat || r.lng !== newLng) {
+            r.geoloc = newGeoloc;
+            r.geolocDate = newGeolocDate;
+            r.lat = newLat;
+            r.lng = newLng;
+            modified = true;
+          }
+        }
+      });
+      if (modified && typeof renderDispo === 'function') {
+        renderDispo();
       }
     }
 
-    const activeBody = document.getElementById("poi-active-body");
-    activeBody.innerHTML = "";
-    
-    // Filtrage des visites actives : exclure les balises GPS inactives (> 48h)
+    // Filtrage des balises GPS actives (<= 2 jours)
     const activeGpsTrucks = new Set();
     if (dispos) {
       const todayStr = new Date().toISOString().split('T')[0];
@@ -16271,59 +15956,12 @@ async function renderPoiPage() {
         }
       });
     }
-    
-    // Helper de distance Haversine
-    const getGpsDistanceLocal = (lat1, lon1, lat2, lon2) => {
-      const R = 6371000;
-      const dLat = (lat2 - lat1) * Math.PI / 180;
-      const dLon = (lon2 - lon1) * Math.PI / 180;
-      const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
-                Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
-                Math.sin(dLon/2) * Math.sin(dLon/2);
-      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-      return R * c;
-    };
 
-    // Auto-clôture des visites de camions qui ont quitté les lieux physiquement (Self-Healing)
-    if (activeVisits && pois) {
-      activeVisits.forEach(v => {
-        const poiDef = pois.find(p => p.name === v.poi_name || p.point_designation === v.poi_name);
-        const truckDispo = dispos ? dispos.find(d => d.v && v.v && d.v.trim().toUpperCase() === v.v.trim().toUpperCase()) : null;
-        if (poiDef && truckDispo && truckDispo.geoloc && truckDispo.geoloc !== 'OFF' && truckDispo.lat !== null && truckDispo.lng !== null) {
-          const tLat = parseFloat(truckDispo.lat);
-          const tLng = parseFloat(truckDispo.lng);
-          const pLat = parseFloat(poiDef.point_latitude || poiDef.lat);
-          const pLng = parseFloat(poiDef.point_longitude || poiDef.lng);
-          const pRadius = parseFloat(poiDef.point_radius || poiDef.buffer || 300);
-          
-          if (!isNaN(tLat) && !isNaN(tLng) && !isNaN(pLat) && !isNaN(pLng)) {
-            const dist = getGpsDistanceLocal(tLat, tLng, pLat, pLng);
-            if (dist > pRadius + 1500) {
-              console.log(`[Self-Healing UI] Camion ${v.v} éloigné de ${Math.round(dist)}m de ${v.poi_name}. Fermeture.`);
-              poiSupabaseFetch(`np_poi_visits?id=eq.${v.id}`, "PATCH", { left_at: new Date().toISOString() });
-              v.left_at = new Date().toISOString(); // Marquer comme clôturé localement
-            }
-          }
-        }
-      });
-    }
+    const totalPois = pois ? pois.length : 0;
+    const blacklistPois = new Set(pois ? pois.filter(p => p.is_blacklist).map(p => p.name) : []);
+    window.CURRENT_POI_BLACKLIST_SET = blacklistPois;
 
     const liveActiveVisits = activeVisits ? activeVisits.filter(v => !v.left_at && activeGpsTrucks.has(v.v.trim().toUpperCase())) : [];
-    const totalLiveActive = liveActiveVisits.length;
-
-    if (totalLiveActive === 0) {
-      activeBody.innerHTML = `<tr><td colspan="6" style="text-align:center;color:var(--txt3)">Aucun camion n'est actuellement chez un client.</td></tr>`;
-    } else {
-      const blacklistPois = new Set(pois.filter(p => p.is_blacklist).map(p => p.name));
-      
-      liveActiveVisits.forEach(v => {
-        const truckDispo = dispos ? dispos.find(d => d.v && v.v && d.v.trim().toUpperCase() === v.v.trim().toUpperCase()) : null;
-        const driverName = truckDispo?.chauffeur || (window.DB && window.DB.dispo ? (window.DB.dispo.find(d => (d.v || "").trim().toUpperCase() === (v.v || "").trim().toUpperCase())?.chauffeur || "—") : "—");
-        
-        let panneBadge = '';
-        if (truckDispo && (truckDispo.etat === 'En panne' || truckDispo.etat === 'PANNE')) {
-          panneBadge = `<span style="background:#ef4444; color:white; padding:1px 6px; border-radius:4px; font-size:10px; margin-left:8px; font-weight:bold; white-space:nowrap; display:inline-block;"><i class="fa-solid fa-wrench"></i> EN PANNE</span>`;
-        }
 
         const hours = Math.floor(v.duration_hours);
         const mins = Math.round((v.duration_hours - hours) * 60);
@@ -17069,6 +16707,7 @@ async function updatePoiRadius(poiId, name, newRadius) {
         .eq('id', poiId);
 
       if (error) throw error;
+      window.POI_CACHE = null; // Invalidation du cache
       alert(`✅ Rayon du POI "${name}" mis à jour avec succès à ${newRadius}m.`);
       runGpsDiagnostic(); // refresh
       if (typeof renderPoiPage === 'function') renderPoiPage(); // refresh UI
@@ -17084,10 +16723,15 @@ window.updatePoiRadius = updatePoiRadius;
 
 // --- FILTRAGE DE L'HISTORIQUE POI ---
 function filterPoiHistory() {
-  const clientQuery = document.getElementById("poi-hist-search-client").value.trim().toLowerCase();
-  const truckQuery = document.getElementById("poi-hist-search-truck").value.trim().toLowerCase();
-  const dateFrom = document.getElementById("poi-hist-date-from").value;
-  const dateTo = document.getElementById("poi-hist-date-to").value;
+  const clientInput = document.getElementById("poi-hist-search-client");
+  const truckInput = document.getElementById("poi-hist-search-truck");
+  const dateFromInput = document.getElementById("poi-hist-date-from");
+  const dateToInput = document.getElementById("poi-hist-date-to");
+
+  const clientQuery = clientInput ? clientInput.value.trim().toLowerCase() : '';
+  const truckQuery = truckInput ? truckInput.value.trim().toLowerCase() : '';
+  const dateFrom = dateFromInput ? dateFromInput.value : '';
+  const dateTo = dateToInput ? dateToInput.value : '';
 
   const historyBody = document.getElementById("poi-history-body");
   if (!historyBody || !window.POI_HISTORY_DATA) return;
@@ -17096,46 +16740,47 @@ function filterPoiHistory() {
     if (clientQuery && !v.poi_name.toLowerCase().includes(clientQuery)) return false;
     if (truckQuery && !v.v.toLowerCase().includes(truckQuery)) return false;
     if (dateFrom) {
-      const arrivedDate = v.arrived_at.split('T')[0];
+      const arrivedDate = (v.arrived_at || '').split('T')[0];
       if (arrivedDate < dateFrom) return false;
     }
     if (dateTo) {
-      const arrivedDate = v.arrived_at.split('T')[0];
+      const arrivedDate = (v.arrived_at || '').split('T')[0];
       if (arrivedDate > dateTo) return false;
     }
     return true;
   });
 
-  historyBody.innerHTML = "";
   if (filtered.length === 0) {
-    historyBody.innerHTML = `<tr><td colspan="7" style="text-align:center;color:var(--txt3)">Aucune immobilisation ne correspond aux filtres.</td></tr>`;
-  } else {
-    filtered.forEach(v => {
-      const truckDispo = window.DB && window.DB.dispo ? window.DB.dispo.find(d => (d.v || "").trim().toUpperCase() === (v.v || "").trim().toUpperCase()) : null;
-      const driverName = truckDispo?.chauffeur || "—";
-      
-      let panneBadge = '';
-      if (truckDispo && (truckDispo.etat === 'En panne' || truckDispo.etat === 'PANNE')) {
-        panneBadge = `<span style="background:#ef4444; color:white; padding:1px 6px; border-radius:4px; font-size:10px; margin-left:8px; font-weight:bold; white-space:nowrap; display:inline-block;"><i class="fa-solid fa-wrench"></i> EN PANNE</span>`;
-      }
-
-      const hours = Math.floor(v.duration_hours);
-      const mins = Math.round((v.duration_hours - hours) * 60);
-      const durationStr = `${hours}h ${mins}m`;
-      
-      historyBody.innerHTML += `
-        <tr>
-          <td>${new Date(v.arrived_at).toLocaleDateString('fr-FR')}</td>
-          <td class="mono">${v.v}${panneBadge}</td>
-          <td>${driverName}</td>
-          <td style="font-weight:600">${v.poi_name}</td>
-          <td>${new Date(v.arrived_at).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}</td>
-          <td>${new Date(v.left_at).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}</td>
-          <td style="color:var(--txt2);font-weight:600">${durationStr}</td>
-        </tr>
-      `;
-    });
+    historyBody.innerHTML = `<tr><td colspan="7" style="text-align:center;color:var(--txt3);padding:14px">Aucune immobilisation ne correspond aux filtres.</td></tr>`;
+    return;
   }
+
+  // Rendu par batch (1 seule écriture DOM pour des centaines de lignes)
+  historyBody.innerHTML = filtered.map(v => {
+    const truckDispo = window.LIVE_DISPOS_MAP ? window.LIVE_DISPOS_MAP[v.v.trim().toUpperCase()] : (window.DB && window.DB.dispo ? window.DB.dispo.find(d => (d.v || "").trim().toUpperCase() === (v.v || "").trim().toUpperCase()) : null);
+    const driverName = truckDispo?.chauffeur || "—";
+    
+    let panneBadge = '';
+    if (truckDispo && (truckDispo.etat === 'En panne' || truckDispo.etat === 'PANNE')) {
+      panneBadge = `<span style="background:#ef4444; color:white; padding:1px 6px; border-radius:4px; font-size:10px; margin-left:8px; font-weight:bold; white-space:nowrap; display:inline-block;"><i class="fa-solid fa-wrench"></i> EN PANNE</span>`;
+    }
+
+    const hours = Math.floor(v.duration_hours || 0);
+    const mins = Math.round(((v.duration_hours || 0) - hours) * 60);
+    const durationStr = `${hours}h ${mins}m`;
+    
+    return `
+      <tr>
+        <td>${new Date(v.arrived_at).toLocaleDateString('fr-FR')}</td>
+        <td class="mono">${v.v}${panneBadge}</td>
+        <td>${driverName}</td>
+        <td style="font-weight:600">${v.poi_name}</td>
+        <td>${new Date(v.arrived_at).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}</td>
+        <td>${v.left_at ? new Date(v.left_at).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) : '—'}</td>
+        <td style="color:var(--txt2);font-weight:600">${durationStr}</td>
+      </tr>
+    `;
+  }).join('');
 }
 
 function resetPoiHistoryFilters() {
@@ -17150,6 +16795,7 @@ function resetPoiHistoryFilters() {
 async function togglePoiBlacklist(poiId, name, isChecked) {
   try {
     await poiSupabaseFetch(`np_pois?id=eq.${poiId}`, "PATCH", { is_blacklist: isChecked, updated_at: new Date().toISOString() });
+    window.POI_CACHE = null; // Invalidation du cache
     showToast(`✅ Statut blacklist mis à jour pour "${name}".`);
     renderPoiPage();
   } catch(e) {
@@ -18013,6 +17659,22 @@ function normalizeDriverName(str) {
     .replace(/[\u0300-\u036f]/g, "")
     .toUpperCase();
   normalized = normalized.replace(/[^A-Z]/g, ' ');
+  normalized = normalized.replace(/\s+/g, ' ').trim();
+
+  // Pré-normalisation des prénoms composés, préfixes et particules
+  normalized = normalized.replace(/\bNOUR\s+EDD?INE\b/g, 'NOUREDINE');
+  normalized = normalized.replace(/\bNOUR\s+ED\s+DINE\b/g, 'NOUREDINE');
+  normalized = normalized.replace(/\bNOURED+INE\b/g, 'NOUREDINE');
+  normalized = normalized.replace(/\bNOURRED+INE\b/g, 'NOUREDINE');
+  normalized = normalized.replace(/\bABD\s*EL\s*/g, 'ABDEL');
+  normalized = normalized.replace(/\bABD\s*ALLAH\b/g, 'ABDELLAH');
+  normalized = normalized.replace(/\bABD\s*ER\s*/g, 'ABDER');
+  normalized = normalized.replace(/\bBEN\s+/g, 'BEN');
+  normalized = normalized.replace(/\bAIT\s+/g, 'AIT');
+  normalized = normalized.replace(/\bEL\s+/g, 'EL');
+  normalized = normalized.replace(/\bOULD\s+/g, 'OULD');
+  normalized = normalized.replace(/\bBOU\s+/g, 'BOU');
+
   const words = normalized.split(/\s+/).filter(w => w.length > 0);
   const normalizedWords = words.map(w => {
     let collapsed = w.replace(/([A-Z])\1+/g, '$1');
@@ -18022,8 +17684,26 @@ function normalizeDriverName(str) {
     if (['CHRIF', 'CHERIF'].includes(collapsed) || ['CHRIF', 'CHERIF'].includes(w)) {
       return 'CHERIF';
     }
-    if (['NOUREDINE', 'NOURREDINE'].includes(collapsed) || ['NOUREDINE', 'NOURREDINE'].includes(w)) {
+    if (['NOUREDINE', 'NOURREDINE', 'NOUREDDINE'].includes(collapsed) || ['NOUREDINE', 'NOURREDINE', 'NOUREDDINE'].includes(w)) {
       return 'NOUREDINE';
+    }
+    if (['LAKHDAR', 'LAKHDER'].includes(collapsed) || ['LAKHDAR', 'LAKHDER'].includes(w)) {
+      return 'LAKHDAR';
+    }
+    if (['REDHA', 'REDA', 'RIDHA'].includes(collapsed) || ['REDHA', 'REDA', 'RIDHA'].includes(w)) {
+      return 'REDA';
+    }
+    if (['DJAMEL', 'DJAMAL'].includes(collapsed) || ['DJAMEL', 'DJAMAL'].includes(w)) {
+      return 'DJAMEL';
+    }
+    if (['YOUCEF', 'YOUSSEF'].includes(collapsed) || ['YOUCEF', 'YOUSSEF'].includes(w)) {
+      return 'YOUCEF';
+    }
+    if (['TOUFIK', 'TEWFIK', 'TAOUFIK'].includes(collapsed) || ['TOUFIK', 'TEWFIK', 'TAOUFIK'].includes(w)) {
+      return 'TOUFIK';
+    }
+    if (['HACENE', 'HASSEN', 'HASSAN'].includes(collapsed) || ['HACENE', 'HASSEN', 'HASSAN'].includes(w)) {
+      return 'HACENE';
     }
     return collapsed;
   });
@@ -18034,7 +17714,8 @@ function getCanonicalDriverName(name) {
   if (!name) return "";
   let n = normalizeDriverName(name);
   n = n.replace(/\s+\d+$/, '').trim();
-  return n;
+  const parts = n.split(' ').sort().join(' ');
+  return parts;
 }
 
 function isResemblanceRejected(regName, numiName) {
@@ -18085,6 +17766,7 @@ function areNamesFuzzyMatching(nameA, nameB) {
   if (isResemblanceRejected(nameA, nameB)) return false;
 
   if (levenshteinDistance(nA, nB) <= 2) return true;
+  if (levenshteinDistance(partsA, partsB) <= 2) return true;
   return false;
 }
 
@@ -18194,7 +17876,7 @@ function pushSharikEditsToCloud() {
       }).then(({error}) => {
         if (error) {
           console.error("Error upserting SHARIK_EDITS to Supabase:", error);
-          if (typeof showToast === 'function') showToast("⚠️ Erreur de sauvegarde du Registre dans le Cloud !", true);
+          if (typeof showToast === 'function') showToast("⚠️ Erreur de sauvegarde: " + (error.message || JSON.stringify(error)), true);
         } else {
           // Confirm success
           if (typeof showToast === 'function') showToast("✅ Registre sauvegardé dans le Cloud avec succès !", false);
@@ -18366,22 +18048,34 @@ function renderAdminEntreesSorties() {
   }
 
   // Dédoublonner strictement rawList pour que chaque chauffeur physique ne compte qu'1 SEULE FOIS
-  const seenSharikKeys = new Set();
+  const seenSharikKeys = new Map();
   const dedupedList = [];
   rawList.forEach(r => {
-    const sKey = normalizeDriverName(r.sharik).replace(/\s+\d+$/, '').trim();
-    let hasConflictWithKept = false;
+    const sKey = getCanonicalDriverName(r.sharik);
     if (seenSharikKeys.has(sKey)) {
-      const matchingKept = dedupedList.find(x => normalizeDriverName(x.sharik).replace(/\s+\d+$/, '').trim() === sKey);
-      if (matchingKept && isResemblanceRejected(r.sharik, matchingKept.sharik)) {
-        hasConflictWithKept = true;
+      const existingIdx = seenSharikKeys.get(sKey);
+      const existing = dedupedList[existingIdx];
+      if (matchingKeptConflict(r, existing)) {
+        dedupedList.push(r);
+      } else {
+        // Fusionner intelligemment pour préserver le code officiel, le contrat et le camion Numiplan
+        if (!existing.code && r.code) existing.code = r.code;
+        if (!existing.contrat && r.contrat) existing.contrat = r.contrat;
+        if (!existing.date_contrat_fin && r.date_contrat_fin) existing.date_contrat_fin = r.date_contrat_fin;
+        if (!existing.date_in && r.date_in) existing.date_in = r.date_in;
+        if ((!existing.tracteur || existing.tracteur === '—') && r.tracteur) existing.tracteur = r.tracteur;
+        if ((!existing.remorque || existing.remorque === '—') && r.remorque) existing.remorque = r.remorque;
       }
-    }
-    if (!seenSharikKeys.has(sKey) || hasConflictWithKept) {
-      seenSharikKeys.add(sKey);
+    } else {
+      seenSharikKeys.set(sKey, dedupedList.length);
       dedupedList.push(r);
     }
   });
+
+  function matchingKeptConflict(rA, rB) {
+    if (typeof isResemblanceRejected === 'function' && isResemblanceRejected(rA.sharik, rB.sharik)) return true;
+    return false;
+  }
   rawList = dedupedList;
 
   // 4. Analyser les correspondances exactes, extensions et suggestions de ressemblance
@@ -18443,7 +18137,7 @@ function renderAdminEntreesSorties() {
     const driverTrucksSet = new Set();
     
     // Tracteurs trouvés en direct dans Numiplan (Priorité Numiplan actif)
-    const baseNameKey = normalizeDriverName(r.sharik).replace(/\s+\d+$/, '').trim();
+    const baseNameKey = getCanonicalDriverName(r.sharik);
     for (const [nKey, nTrucks] of Object.entries(numiplanDriverTrucks)) {
       if (areNamesFuzzyMatching(baseNameKey, nKey)) {
         nTrucks.forEach(t => driverTrucksSet.add(t));
