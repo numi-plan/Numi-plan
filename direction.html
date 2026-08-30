@@ -8012,45 +8012,64 @@ function saveDispo() {
     return;
   }
 
-  // Vérifier si le chauffeur existe déjà (match exact ou fuzzy) dans le registre pour aligner l'orthographe ou confirmer
-  if (idx < 0 && window._ADMIN_SHARIK_ENTREES_SORTIES) {
+  // Vérifier si le chauffeur existe déjà dans le registre (match exact, inversé ou fuzzy)
+  // S'il existe déjà, il s'agit d'un camion supplémentaire (EXTENSION) pour ce chauffeur physique
+  let isExtensionTruck = false;
+  let matchedDriver = null;
+  const sharikList = window._ADMIN_SHARIK_ENTREES_SORTIES || (typeof INITIAL_ADMIN_SHARIK_DATA !== 'undefined' ? INITIAL_ADMIN_SHARIK_DATA : []);
+
+  if (idx < 0 && sharikList.length > 0) {
     const normName = (name) => {
       if (typeof normalizeDriverName === 'function') return normalizeDriverName(name);
       if (typeof window.normalizeDriverName === 'function') return window.normalizeDriverName(name);
       return (name || '').trim().toUpperCase();
     };
     const inputNorm = normName(ch);
-    const exactMatch = window._ADMIN_SHARIK_ENTREES_SORTIES.find(r => {
-      return r.statut === 'ACTIF' && normName(r.sharik) === inputNorm;
+    
+    // 1. Recherche par correspondance exacte ou canonique inversée
+    matchedDriver = sharikList.find(r => {
+      return (r.statut === 'ACTIF' || !r.statut) && (normName(r.sharik) === inputNorm || (typeof areNamesMatching === 'function' && areNamesMatching(r.sharik, ch)));
     });
 
-    if (exactMatch) {
-      ch = exactMatch.sharik;
-      document.getElementById('f-dispo-chauffeur').value = ch;
-    } else {
-      const fuzzyMatch = window._ADMIN_SHARIK_ENTREES_SORTIES.find(r => {
-        return r.statut === 'ACTIF' && typeof areNamesFuzzyMatching === 'function' && areNamesFuzzyMatching(r.sharik, ch);
+    // 2. Recherche par ressemblance fuzzy (tolérance translit./accents/fautes de frappe)
+    if (!matchedDriver) {
+      matchedDriver = sharikList.find(r => {
+        return (r.statut === 'ACTIF' || !r.statut) && typeof areNamesFuzzyMatching === 'function' && areNamesFuzzyMatching(r.sharik, ch);
       });
-      if (fuzzyMatch) {
-        const useExisting = confirm(
-          `⚠️ Un chauffeur avec une orthographe proche existe déjà dans le registre :\n\n` +
-          `• Nom existant : « ${fuzzyMatch.sharik} »\n` +
-          `• Saisie : « ${ch} »\n\n` +
-          `Voulez-vous utiliser l'orthographe existante (« ${fuzzyMatch.sharik} ») ?\n\n` +
-          `[OK] = Utiliser « ${fuzzyMatch.sharik} »\n` +
-          `[Annuler] = Conserver « ${ch} » comme nouveau chauffeur distinct`
-        );
-        if (useExisting) {
-          ch = fuzzyMatch.sharik;
-          document.getElementById('f-dispo-chauffeur').value = ch;
-        }
-      }
+    }
+
+    if (matchedDriver) {
+      // Chauffeur existant trouvé -> Aligner automatiquement sur l'orthographe officielle sans bloquer
+      isExtensionTruck = true;
+      ch = matchedDriver.sharik;
+      const chInput = document.getElementById('f-dispo-chauffeur');
+      if (chInput) chInput.value = ch;
     }
   }
 
-  // --- NOUVEAU : Validation Remorque et Date d'entrée obligatoires à la création ---
-  const rmVal = document.getElementById('f-dispo-remorque') ? document.getElementById('f-dispo-remorque').value.trim().toUpperCase() : '';
-  const dateInVal = document.getElementById('f-dispo-date-in') ? document.getElementById('f-dispo-date-in').value : '';
+  // --- NOUVEAU : Validation Remorque et Date d'entrée avec auto-résolution intelligente ---
+  let rmVal = document.getElementById('f-dispo-remorque') ? document.getElementById('f-dispo-remorque').value.trim().toUpperCase() : '';
+  let dateInVal = document.getElementById('f-dispo-date-in') ? document.getElementById('f-dispo-date-in').value : '';
+
+  // Auto-résolution remorque si manquante via Master Parc ou chauffeur existant
+  if (!rmVal || rmVal === '—' || rmVal === '?') {
+    if (typeof MASTER_TRUCK_PARC !== 'undefined' && MASTER_TRUCK_PARC[v]) {
+      rmVal = MASTER_TRUCK_PARC[v];
+      const rmInput = document.getElementById('f-dispo-remorque');
+      if (rmInput) rmInput.value = rmVal;
+    } else if (matchedDriver && matchedDriver.remorque) {
+      rmVal = matchedDriver.remorque.split(' · ')[0];
+      const rmInput = document.getElementById('f-dispo-remorque');
+      if (rmInput) rmInput.value = rmVal;
+    }
+  }
+
+  // Auto-résolution date_in si manquante pour une extension
+  if (!dateInVal && matchedDriver && matchedDriver.date_in) {
+    dateInVal = matchedDriver.date_in;
+    const dateInput = document.getElementById('f-dispo-date-in');
+    if (dateInput) dateInput.value = dateInVal;
+  }
 
   if (idx < 0) {
     if (!rmVal || rmVal === '—' || rmVal === '?') {
@@ -8060,10 +8079,10 @@ function saveDispo() {
       return;
     }
     if (!dateInVal) {
-      showToast('⚠️ Date d\'entrée / démarrage obligatoire pour la création', true);
+      // Si la date d'entrée n'est pas renseignée, date du jour par défaut
+      dateInVal = new Date().toISOString().split('T')[0];
       const el = document.getElementById('f-dispo-date-in');
-      if (el) el.focus();
-      return;
+      if (el) el.value = dateInVal;
     }
   }
 
@@ -8170,10 +8189,10 @@ function saveDispo() {
           return (name || '').trim().toUpperCase();
         };
         const existsInNew = window._ADMIN_SHARIK_CUSTOM_EDITS.new_drivers.some(d => {
-          return norm(d.sharik) === norm(obj.chauffeur);
+          return norm(d.sharik) === norm(obj.chauffeur) || (typeof areNamesMatching === 'function' && areNamesMatching(d.sharik, obj.chauffeur));
         });
-        const existsInBase = window._ADMIN_SHARIK_ENTREES_SORTIES && window._ADMIN_SHARIK_ENTREES_SORTIES.some(d => {
-          return norm(d.sharik) === norm(obj.chauffeur);
+        const existsInBase = (window._ADMIN_SHARIK_ENTREES_SORTIES || (typeof INITIAL_ADMIN_SHARIK_DATA !== 'undefined' ? INITIAL_ADMIN_SHARIK_DATA : [])).some(d => {
+          return norm(d.sharik) === norm(obj.chauffeur) || (typeof areNamesMatching === 'function' && areNamesMatching(d.sharik, obj.chauffeur)) || (typeof areNamesFuzzyMatching === 'function' && areNamesFuzzyMatching(d.sharik, obj.chauffeur));
         });
 
         if (!existsInNew && !existsInBase) {
@@ -8203,12 +8222,20 @@ function saveDispo() {
             renderAdminEntreesSorties();
           }
         } else {
-          // Chauffeur déjà dans le registre ou new_drivers : pousser quand même dans DB.dispo
+          // Chauffeur déjà dans le registre : camion supplémentaire (EXTENSION)
+          isExtensionTruck = true;
           DB.dispo.push(obj);
+          if (typeof renderAdminEntreesSorties === 'function') {
+            renderAdminEntreesSorties();
+          }
         }
       }
       
-      saveDB(); closeModal('modal-dispo'); renderDispo(); showToast('✅ Disponibilité enregistrée');
+      saveDB(); closeModal('modal-dispo'); renderDispo(); 
+      const toastMsg = isExtensionTruck 
+        ? `⭐ Camion ${obj.v} ajouté comme EXTENSION pour « ${obj.chauffeur} »` 
+        : '✅ Disponibilité enregistrée';
+      showToast(toastMsg);
     });
   });
 }
