@@ -15962,54 +15962,47 @@ async function renderPoiPage() {
     window.CURRENT_POI_BLACKLIST_SET = blacklistPois;
 
     const liveActiveVisits = activeVisits ? activeVisits.filter(v => !v.left_at && activeGpsTrucks.has(v.v.trim().toUpperCase())) : [];
+    window.CURRENT_LIVE_ACTIVE_VISITS = liveActiveVisits;
 
-        const hours = Math.floor(v.duration_hours);
-        const mins = Math.round((v.duration_hours - hours) * 60);
-        const waitStr = `${hours}h ${mins}m`;
-        
-        const isBlacklisted = blacklistPois.has(v.poi_name);
-        
-        // Alerte noire sonore + popup si blacklist
-        if (isBlacklisted) {
-          window.ALERTED_BLACKLIST_VISITS = window.ALERTED_BLACKLIST_VISITS || new Set();
-          if (!window.ALERTED_BLACKLIST_VISITS.has(v.id)) {
-            window.ALERTED_BLACKLIST_VISITS.add(v.id);
-            const timeStr = new Date(v.arrived_at).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
-            showBlacklistAlertModal(v.v, v.poi_name, timeStr, v.team, v.chauffeur);
-          }
-        }
-        
-        const alertClass = isBlacklisted ? 'class="poi-wait-time-td" style="color:#ef4444;font-weight:900;animation:pulse-red 1s infinite"' : (v.duration_hours >= 2.0 ? 'class="poi-wait-time-td" style="color:#ef4444;font-weight:700"' : 'class="poi-wait-time-td" style="color:#f59e0b;font-weight:600"');
-        const alertIcon = isBlacklisted ? "🚨 BLACKLIST 🚨" : (v.duration_hours >= 2.0 ? "🔴" : "🟠");
-        const rowBg = isBlacklisted ? 'style="background:rgba(239,68,68,0.12); border-left: 4px solid #ef4444"' : '';
-        
-        activeBody.innerHTML += `
-          <tr ${rowBg}>
-            <td class="mono" style="color:var(--acc);font-weight:600">${v.v}${panneBadge}</td>
-            <td>${driverName}</td>
-            <td style="font-weight:600;color:${isBlacklisted ? '#ef4444' : 'var(--txt1)'}">${v.poi_name}</td>
-            <td>${new Date(v.arrived_at).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}</td>
-            <td>${new Date(v.last_seen_at).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}</td>
-            <td ${alertClass} data-arrived="${v.arrived_at}" data-alert-type="${isBlacklisted ? 'blacklist' : (v.duration_hours >= 2.0 ? 'red' : 'orange')}">${alertIcon} ${waitStr}</td>
-          </tr>
-        `;
-      });
+    const totalActive = liveActiveVisits.length;
+    const totalAlerts = liveActiveVisits.filter(v => v.duration_hours >= 2.0 || blacklistPois.has(v.poi_name)).length;
+
+    // Mise à jour instantanée des compteurs
+    const statTotalEl = document.getElementById("poi-stat-total");
+    const statWaitingEl = document.getElementById("poi-stat-waiting");
+    const statAlertsEl = document.getElementById("poi-stat-alerts");
+    if (statTotalEl) statTotalEl.textContent = totalPois;
+    if (statWaitingEl) statWaitingEl.textContent = totalActive;
+    if (statAlertsEl) statAlertsEl.textContent = totalAlerts;
+
+    const badge = document.getElementById("cnt-poi-alerts");
+    if (badge) {
+      if (totalAlerts > 0) {
+        badge.textContent = totalAlerts;
+        badge.style.display = "inline-block";
+      } else {
+        badge.style.display = "none";
+      }
     }
 
+    // 2. Rendu instantané du tableau actif
+    renderActiveVisitsTable(liveActiveVisits, blacklistPois);
+
+    // 3. Rendu instantané de l'historique
     filterPoiHistory();
 
+    // 4. Rendu de la gestion POI en 1 seule passe DOM si admin
     const listBody = document.getElementById("poi-list-body");
-    listBody.innerHTML = "";
-    if (totalPois === 0) {
-      listBody.innerHTML = `<tr><td colspan="6" style="text-align:center;color:var(--txt3)">Aucun point d'intérêt enregistré.</td></tr>`;
-    } else {
-      pois.forEach(p => {
-        listBody.innerHTML += `
+    if (listBody && isUserAdmin) {
+      if (totalPois === 0) {
+        listBody.innerHTML = `<tr><td colspan="6" style="text-align:center;color:var(--txt3)">Aucun point d'intérêt enregistré.</td></tr>`;
+      } else {
+        listBody.innerHTML = pois.map(p => `
           <tr>
             <td style="font-weight:600;color:var(--txt1)">${p.name}</td>
-            <td class="mono">${p.lat.toFixed(6)}</td>
-            <td class="mono">${p.lng.toFixed(6)}</td>
-            <td>${p.radius} m</td>
+            <td class="mono">${(p.lat || 0).toFixed(6)}</td>
+            <td class="mono">${(p.lng || 0).toFixed(6)}</td>
+            <td>${p.radius || 300} m</td>
             <td>
               <input type="checkbox" ${p.is_blacklist ? 'checked' : ''} onchange="togglePoiBlacklist('${p.id}', '${p.name}', this.checked)" style="width:16px;height:16px;cursor:pointer">
             </td>
@@ -16017,12 +16010,14 @@ async function renderPoiPage() {
               <button class="del-btn" onclick="deletePoi('${p.id}')" style="color:var(--red)" title="Supprimer">🗑</button>
             </td>
           </tr>
-        `;
-      });
+        `).join('');
+      }
     }
   } catch(e) {
     console.error("Erreur de rendu POI:", e);
     showToast("❌ Impossible de charger les données POI.");
+  } finally {
+    isRenderingPoiPage = false;
   }
 }
 
