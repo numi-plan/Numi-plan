@@ -1,9 +1,9 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="fr">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Espace Direction  Numiplan</title>
+<title>NUMIPLAN</title>
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600;700&family=IBM+Plex+Sans:wght@300;400;600;700&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script>
@@ -28,11 +28,7 @@
   // Configuration Supabase
   const supabaseUrl = "https://mfljrozyxyfkymzlnsmt.supabase.co";
   const supabaseKey = "sb_publishable_sMb9uHOr4gpyqmZGrkY-YQ_z90TgNAB";
-  const supabase = createClient(supabaseUrl, supabaseKey, {
-    auth: {
-      storageKey: 'supabase.auth.direction.token'
-    }
-  });
+  const supabase = createClient(supabaseUrl, supabaseKey);
   window.supabase = supabase; // Exposer globalement pour l'authentification et RLS
   window._gpsSyncIdenetToday = false;
   window._gpsSyncDataFirstToday = false;
@@ -432,7 +428,7 @@
       const dd = document.getElementById('username-input');
       if (dd && dd.options.length <= 1) {
         console.warn('[Fallback] Supabase timeout — affichage du dropdown avec ADMIN uniquement');
-        if (typeof window.populateLoginUserDropdown === 'function') window.populateLoginUserDropdown();
+        if (typeof populateLoginUserDropdown === 'function') populateLoginUserDropdown();
       }
     }, 3000);
     
@@ -457,13 +453,13 @@
             window['DB_' + eq].users.push(row.login);
           }
         });
-        if (typeof window.populateLoginUserDropdown === 'function') window.populateLoginUserDropdown();
+        if (typeof populateLoginUserDropdown === 'function') populateLoginUserDropdown();
       }
     } catch (e) {
       clearTimeout(fallbackTimer);
       console.error("Error loading dropdown users:", e);
       // En cas d'erreur Supabase, afficher quand même ADMIN pour permettre la connexion
-      if (typeof window.populateLoginUserDropdown === 'function') window.populateLoginUserDropdown();
+      if (typeof populateLoginUserDropdown === 'function') populateLoginUserDropdown();
     }
   }
 
@@ -583,7 +579,7 @@
           }
           applyEquipeData(eq, payload);
         });
-        if (typeof window.populateLoginUserDropdown === 'function') window.populateLoginUserDropdown();
+        if (typeof populateLoginUserDropdown === 'function') populateLoginUserDropdown();
         loadGlobalDispoForExtensions();
         if (typeof alignOdoWeeksGlobal === 'function') alignOdoWeeksGlobal();
         if (typeof updateHeaderRAC === 'function') updateHeaderRAC();
@@ -633,7 +629,7 @@
                     _fbReady = true;
                   }
                   applyEquipeData(eq, data);
-                  if (typeof window.populateLoginUserDropdown === 'function') window.populateLoginUserDropdown();
+                  if (typeof populateLoginUserDropdown === 'function') populateLoginUserDropdown();
                   if (typeof alignOdoWeeksGlobal === 'function') alignOdoWeeksGlobal();
                   if (typeof updateHeaderRAC === 'function') updateHeaderRAC();
                 }
@@ -2110,7 +2106,7 @@ function applyTeamLockUI(eq) {
   <div style="display: flex; flex-direction: column; gap: 4px;">
     <div style="display: flex; align-items: center; gap: 12px;">
     <img src="data:image/png;base64,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" style="height:54px;border-radius:6px;" alt="NUMILOG">
-      <span style="font-family:'IBM Plex Sans',sans-serif;font-size:20px;font-weight:700;color:var(--acc);letter-spacing:1px;text-transform:uppercase;">Espace Direction</span>
+      <span style="font-family:'IBM Plex Sans',sans-serif;font-size:20px;font-weight:700;color:var(--acc);letter-spacing:1px;text-transform:uppercase;">NUMIPLAN</span>
     </div>
     <div class="header-sub">Suivi Chauffeur · Équipe A</div>
   </div>
@@ -2541,7 +2537,6 @@ mark.hl { background: rgba(56,189,248,.25); color: var(--acc); border-radius: 3p
   <button class="tab-btn" id="tab-flashinfo" onclick="switchTab('flashinfo',this)">📢 Flash Info</button>
   <button class="tab-btn" id="tab-poi" onclick="switchTab('poi',this)">🛰️ Suivi POI <span class="tab-count red" id="cnt-poi-alerts" style="display:none;background:#ef4444">—</span></button>
   <button class="tab-btn" onclick="ouvrirHistoriqueAnomalies()" style="color:#fbbf24;border-color:rgba(251,191,36,.3)">📊 Historique Anomalies</button>
-  <button class="tab-btn" id="tab-admin-direction" onclick="ouvrirEspaceAdminDirection(this)" style="color:#38bdf8;border-color:rgba(56,189,248,.3);margin-top:6px;background:rgba(56,189,248,0.06);font-weight:800">🏛️ Espace Direction 🔒</button>
 </div>
 
 <!-- ══════════════ DISPO ══════════════ -->
@@ -7286,11 +7281,13 @@ function showToast(msg, isErr=false) {
 }
 
 function openModal(id, editIdx=-1) {
-  document.getElementById(id).classList.add('open');
-  if (editIdx !== -1) {
-    const hi = document.querySelector(`#${id} input[type=hidden]`);
-    if (hi) hi.value = editIdx;
-  }
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.classList.add('open');
+  el.style.display = '';
+  const hi = document.querySelector(`#${id} input[type=hidden]`);
+  if (hi) hi.value = editIdx;
+  
   if (id === 'modal-dispo') {
     const isCreation = (editIdx === -1);
     const gr = document.getElementById('group-dispo-remorque');
@@ -7412,6 +7409,17 @@ function updateDataLists() {
       if (db.odo) db.odo.forEach(r => { if (r.v) vehicles.add(r.v.toUpperCase()); if (r.chauffeur) chauffeurs.add(r.chauffeur.toUpperCase()); });
     }
   });
+
+  if (window._ADMIN_SHARIK_ENTREES_SORTIES) {
+    window._ADMIN_SHARIK_ENTREES_SORTIES.forEach(r => {
+      if (r.sharik && r.statut === 'ACTIF') chauffeurs.add(r.sharik.toUpperCase());
+    });
+  }
+  if (window._ADMIN_SHARIK_CUSTOM_EDITS && Array.isArray(window._ADMIN_SHARIK_CUSTOM_EDITS.new_drivers)) {
+    window._ADMIN_SHARIK_CUSTOM_EDITS.new_drivers.forEach(r => {
+      if (r.sharik && r.statut === 'ACTIF') chauffeurs.add(r.sharik.toUpperCase());
+    });
+  }
 
   const sortedVehicles = [...vehicles].filter(Boolean).sort();
   const sortedChauffeurs = [...chauffeurs].filter(Boolean).sort();
@@ -10542,18 +10550,25 @@ function importKmFacture(input) {
 
         raw.forEach(r => {
           const camionKey = Object.keys(r).find(k => {
-            const kl = k.toLowerCase();
+            const kl = k.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
             return kl.includes('camion') || kl.includes('vehicule') || kl.includes('immat') || kl.includes('tracteur');
           });
-          const kmKey = Object.keys(r).find(k => {
-            const kl = k.toLowerCase();
-            return kl.includes('factur') || kl.includes('km');
+          let kmKey = Object.keys(r).find(k => {
+            const kl = k.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+            return kl.includes('factur');
           });
+          if (!kmKey) {
+            kmKey = Object.keys(r).find(k => {
+              const kl = k.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+              return kl.includes('km');
+            });
+          }
 
           if (!camionKey || !kmKey) return;
 
           const v = (r[camionKey] || '').toString().trim().toUpperCase();
-          const km = parseFloat(r[kmKey]);
+          const kmRaw = (r[kmKey] || '').toString().replace(/\s/g, '').replace(',', '.');
+          const km = parseFloat(kmRaw);
 
           if (!v || isNaN(km)) return;
 
@@ -10583,64 +10598,55 @@ function importKmFacture(input) {
 
         // 3. Appliquer les valeurs écrasées dans chaque base d'équipe
         Object.entries(importedTrucks).forEach(([v, kmTotal]) => {
-          let targetEq = teamMap[v] || CURRENT_EQUIPE;
-          let targetDb = (targetEq === CURRENT_EQUIPE && typeof window.DB !== 'undefined') ? window.DB : window['DB_' + targetEq];
-
-          if (!targetDb) return;
-          if (!targetDb.odo) targetDb.odo = [];
-
-          let weekIdx = -1;
-          if (endStr && targetDb.odo_weeks) {
-            weekIdx = targetDb.odo_weeks.indexOf(endStr);
-            if (weekIdx === -1) {
-              const dVal = new Date(endStr).getTime();
-              if (!isNaN(dVal)) {
-                weekIdx = targetDb.odo_weeks.findIndex(w => {
-                  const wVal = new Date(w).getTime();
-                  return !isNaN(wVal) && Math.abs(wVal - dVal) <= 2 * 86400 * 1000;
-                });
+          let foundInAny = false;
+          
+          EQUIPS.forEach(eq => {
+            const eqDb = (eq === CURRENT_EQUIPE && typeof window.DB !== 'undefined') ? window.DB : window['DB_' + eq];
+            if (eqDb && eqDb.odo) {
+              let odoRec = eqDb.odo.find(item => item.v && item.v.trim().toUpperCase() === v);
+              if (odoRec) {
+                let weekIdx = -1;
+                if (endStr && eqDb.odo_weeks) {
+                  weekIdx = eqDb.odo_weeks.indexOf(endStr);
+                  if (weekIdx === -1) {
+                    const dVal = new Date(endStr).getTime();
+                    if (!isNaN(dVal)) {
+                      weekIdx = eqDb.odo_weeks.findIndex(w => {
+                        const wVal = new Date(w).getTime();
+                        return !isNaN(wVal) && Math.abs(wVal - dVal) <= 2 * 86400 * 1000;
+                      });
+                    }
+                  }
+                }
+                if (weekIdx === -1) {
+                  weekIdx = eqDb.odo_weeks ? eqDb.odo_weeks.length - 1 : 0;
+                }
+                
+                odoRec.kmFacture = kmTotal;
+                odoRec.kmFactures = [];
+                odoRec.kmFactures[weekIdx] = kmTotal;
+                foundInAny = true;
+                countUpdated++;
               }
             }
-          }
-          if (weekIdx === -1) {
-            weekIdx = targetDb.odo_weeks ? targetDb.odo_weeks.length - 1 : 0;
-          }
+          });
 
-          let odoRec = targetDb.odo.find(item => item.v && item.v.trim().toUpperCase() === v);
-          if (odoRec) {
-            odoRec.kmFacture = kmTotal;
-            odoRec.kmFactures = [];
-            odoRec.kmFactures[weekIdx] = kmTotal;
-            countUpdated++;
-          } else {
-            const newRec = {
-              v: v,
-              chauffeur: '',
-              vals: new Array(targetDb.odo_weeks ? targetDb.odo_weeks.length : 0).fill(null),
-              kmFacture: kmTotal,
-              kmFactures: []
-            };
-            newRec.kmFactures[weekIdx] = kmTotal;
-            targetDb.odo.push(newRec);
-            countAdded++;
-          }
-
-          if (targetEq === CURRENT_EQUIPE && typeof window.DB !== 'undefined') {
-            let activeRec = window.DB.odo.find(item => item.v && item.v.trim().toUpperCase() === v);
-            if (activeRec) {
-              activeRec.kmFacture = kmTotal;
-              activeRec.kmFactures = [];
-              activeRec.kmFactures[weekIdx] = kmTotal;
-            } else {
+          if (!foundInAny) {
+            let targetEq = teamMap[v] || CURRENT_EQUIPE;
+            let targetDb = (targetEq === CURRENT_EQUIPE && typeof window.DB !== 'undefined') ? window.DB : window['DB_' + targetEq];
+            if (targetDb) {
+              if (!targetDb.odo) targetDb.odo = [];
+              let weekIdx = targetDb.odo_weeks ? targetDb.odo_weeks.length - 1 : 0;
               const newRec = {
                 v: v,
                 chauffeur: '',
-                vals: new Array(window.DB.odo_weeks ? window.DB.odo_weeks.length : 0).fill(null),
+                vals: new Array(targetDb.odo_weeks ? targetDb.odo_weeks.length : 0).fill(null),
                 kmFacture: kmTotal,
                 kmFactures: []
               };
               newRec.kmFactures[weekIdx] = kmTotal;
-              window.DB.odo.push(newRec);
+              targetDb.odo.push(newRec);
+              countAdded++;
             }
           }
         });
@@ -12343,6 +12349,11 @@ async function verifierDeblocageGps() {
         window._gpsSyncDataFirstToday = true;
         isUnlocked = true;
         showToast("⚠️ Déblocage via ancien favori détecté. Veuillez réinstaller le bouton 'Favori GPS' en le glissant depuis le haut de la page.", false);
+      } else {
+        // SI LE FALLBACK ECHOUE : l'utilisateur utilise l'ancien favori ET aucun camion n'a bougé.
+        // À la demande expresse de l'administrateur, ON MAINTIENT LE BLOCAGE !
+        // Mais on affiche un message extrêmement clair pour qu'ils mettent à jour leur favori.
+        alert("⛔ BLOCAGE DE SÉCURITÉ ⛔\n\nVotre bouton 'Favori GPS' est PÉRIMÉ et ne transmet plus les validations au système !\n\nACTION REQUISE OBLIGATOIRE :\n1. Supprimez l'ancien bouton de vos favoris.\n2. Glissez le nouveau bouton '🌟 Favori GPS' (situé tout en haut de Numiplan) dans votre barre.\n3. Cliquez sur le nouveau bouton depuis les sites GPS.");
       }
     }
     
@@ -14834,7 +14845,6 @@ function getKmMissingByEquipe() {
 }
 
 function showKmHorairePopup() {
-  return; // Désactivé pour direction.html
   // Supprimer un éventuel popup déjà présent
   const existing = document.getElementById('modal-km-horaire');
   if (existing) existing.remove();
@@ -15454,6 +15464,74 @@ function emargerFlash(flashId) {
   showToast("✍️ Émargement enregistré avec succès !");
 }
 window.emargerFlash = emargerFlash;
+
+const DEFAULT_NUMIPLAN_USERS = [
+  { login: "abdesslam.d", nom: "ABDESSLAM.D", team: "A" },
+  { login: "mourad.b", nom: "MOURAD.B", team: "A" },
+  { login: "mohamed.s", nom: "MOHAMED.S", team: "B" },
+  { login: "nabil.t", nom: "NABIL.T", team: "B" },
+  { login: "oussama.a", nom: "OUSSAMA.A", team: "C" },
+  { login: "houssam.a", nom: "HOUSSAM.A", team: "C" },
+  { login: "kheirdine.c", nom: "KHEIRDINE.C", team: "D" },
+  { login: "walid.m", nom: "WALID.M", team: "D" },
+  { login: "b.oussama", nom: "B.OUSSAMA", team: "E" },
+  { login: "abdallah.d", nom: "ABDALLAH.D", team: "E" },
+  { login: "rayane.a", nom: "RAYANE.A", team: "E" },
+  { login: "younes.g", nom: "YOUNES.G", team: "F" },
+  { login: "islam.m", nom: "ISLAM.M", team: "F" }
+];
+
+async function populateLoginUserDropdown() {
+  const dropdown = document.getElementById('username-input');
+  if (!dropdown) return;
+  
+  const currentSelected = dropdown.value;
+  dropdown.innerHTML = '<option value="">Sélectionnez votre identifiant...</option>';
+  
+  const adminOpt = document.createElement('option');
+  adminOpt.value = 'ADMIN';
+  adminOpt.textContent = 'ADMIN (Superviseur Admin)';
+  dropdown.appendChild(adminOpt);
+
+  const regOpt = document.createElement('option');
+  regOpt.value = 'REGISTRE';
+  regOpt.textContent = '🏛️ REGISTRE (Espace Direction)';
+  dropdown.appendChild(regOpt);
+  
+  let userList = [...DEFAULT_NUMIPLAN_USERS];
+  try {
+    if (window.supabase) {
+      const { data: dbUsers, error } = await window.supabase.from('np_users').select('login, nom, role, team').eq('actif', true);
+      if (!error && dbUsers && dbUsers.length > 0) {
+        dbUsers.forEach(dbu => {
+          if (dbu.role === 'equipe' && dbu.team) {
+            const exists = userList.find(x => x.login.toLowerCase() === dbu.login.toLowerCase());
+            if (!exists) {
+              userList.push({ login: dbu.login, nom: dbu.nom || dbu.login.toUpperCase(), team: dbu.team });
+            }
+          }
+        });
+      }
+    }
+  } catch(e) {}
+
+  userList.sort((a,b) => (a.team + (a.nom||a.login)).localeCompare(b.team + (b.nom||b.login)));
+
+  userList.forEach(u => {
+    const opt = document.createElement('option');
+    opt.value = u.login;
+    opt.textContent = `${u.nom || u.login.toUpperCase()} (Équipe ${u.team})`;
+    dropdown.appendChild(opt);
+  });
+  
+  if (currentSelected) {
+    dropdown.value = currentSelected;
+  }
+}
+window.populateLoginUserDropdown = populateLoginUserDropdown;
+try { populateLoginUserDropdown(); } catch(e) {}
+document.addEventListener('DOMContentLoaded', () => { try { populateLoginUserDropdown(); } catch(e) {} });
+
 function toggleGeoloc(idx) {
   if (!_checkActionsLibres('toggleGeoloc')) return;
   const r = DB.dispo[idx];
@@ -15470,7 +15548,6 @@ function toggleGeoloc(idx) {
   renderDispo();
   showToast(`🛰️ Géoloc ${r.v} → ${newVal === 'ON' ? '🟢 ON' : '🔴 OFF'}`);
 }
-window.toggleGeoloc = toggleGeoloc;
 
 window.toggleGeoloc = toggleGeoloc;
 
@@ -15507,9 +15584,7 @@ window.setupBlacklistListeners = function() {
       let warning = el.parentNode.querySelector('.blacklist-warning-msg');
       if (warning) warning.remove();
       
-      const saveBtn = document.querySelector(`#${cfg.btn.replace(' ', ' #')}`); // Select specific btn in modal
-      const fallbackBtn = document.querySelector(`#${cfg.btn.split(' ')[0]} .btn-save`);
-      const targetBtn = saveBtn || fallbackBtn;
+      const targetBtn = document.querySelector(`#${cfg.modal} .btn-save`);
       
       if (check) {
         warning = document.createElement('div');
@@ -15686,6 +15761,7 @@ window.renderComplianceDashboard = function() {
       }
     }
 
+
     // Calcul des anomalies de segment Orientation et Chargement à son compte
     let totalKmOrientation = 0;
     let countCompteTotal = 0;
@@ -15708,6 +15784,7 @@ window.renderComplianceDashboard = function() {
       });
     }
 
+
     const kmOriStr = totalKmOrientation > 0 ? `${totalKmOrientation.toLocaleString('fr-FR')} km` : '—';
     
     return `
@@ -15727,6 +15804,371 @@ window.renderComplianceDashboard = function() {
     `;
   }).join('');
 };
+
+
+function verifierImmobilisationsActives(forceShow = false) {
+  if (!DB.incidentsLivraison) return;
+  const activeImmos = DB.incidentsLivraison.filter(im => im.type === 'Immobilisation chez le client' && !im.fin);
+  if (activeImmos.length === 0) return;
+  
+  const eq = CURRENT_EQUIPE || 'A';
+  const now = Date.now();
+  const lastShown = sessionStorage.getItem('immo_alert_last_shown_' + eq);
+  
+  // 1 minute = 60 * 1000 ms (Harcelement mode)
+  if (lastShown && !forceShow) {
+    if (now - parseInt(lastShown) < 60 * 1000) {
+      return; 
+    }
+  }
+  
+  const listContainer = document.getElementById('active-immo-list-container');
+  if (!listContainer) return;
+  
+  listContainer.innerHTML = activeImmos.map(im => {
+    const dateFormatted = new Date(im.debut).toLocaleString('fr-FR', {
+      day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit'
+    });
+    return `
+      <div style="border-bottom: 1px solid var(--border); padding: 8px 0; display: flex; justify-content: space-between; align-items: center; font-size: 12px;">
+        <div>
+          <b style="color: var(--txt);">👤 ${im.chauffeur}</b> 
+          <span style="font-size: 11px; color: var(--acc); font-family: monospace;">(Camion ${im.v})</span>
+          <div style="font-size: 10px; color: var(--txt3); margin-top: 2px;">Client : ${im.client} | Dest. Prévue : ${im.destPrevue || '—'} | Cmd : ${im.refCommande || '—'}</div>
+        </div>
+        <div style="text-align: right;">
+          <span style="font-size: 10px; background: rgba(239,68,68,0.2); color: #ef4444; padding: 2px 6px; border-radius: 4px; font-weight: 700;">Immobilisé</span>
+          <div style="font-size: 9px; color: var(--txt3); margin-top: 2px;">Depuis le ${dateFormatted}</div>
+        </div>
+      </div>
+    `;
+  }).join('');
+  
+  sessionStorage.setItem('immo_alert_last_shown_' + eq, String(now));
+  openModal('modal-active-immo-alert');
+}
+
+// Background checker for recurring reminders every 30 seconds
+setInterval(() => {
+  if (typeof verifierImmobilisationsActives === 'function') {
+    verifierImmobilisationsActives(false);
+  }
+  if (typeof verifierCspcNonTraite === 'function') {
+    verifierCspcNonTraite(false);
+  }
+}, 30 * 1000);
+
+
+function verifierCspcNonTraite(forceShow = false) {
+  if (!DB.cspc) return;
+  const untreatedCspc = DB.cspc.filter(r => {
+    const etat = (r.etat || '').toLowerCase();
+    return etat === 'disponible' || !r.etat || !etat.trim();
+  });
+  if (untreatedCspc.length === 0) return;
+  
+  const eq = CURRENT_EQUIPE || 'A';
+  const now = Date.now();
+  const lastShown = sessionStorage.getItem('cspc_alert_last_shown_' + eq);
+  
+  // 1 minute = 60 * 1000 ms (Harcelement mode)
+  if (lastShown && !forceShow) {
+    if (now - parseInt(lastShown) < 60 * 1000) {
+      return; 
+    }
+  }
+  
+  const listContainer = document.getElementById('active-cspc-list-container');
+  if (!listContainer) return;
+  
+  listContainer.innerHTML = untreatedCspc.map(r => {
+    const dateFormatted = r.date ? new Date(r.date).toLocaleDateString('fr-FR') : '—';
+    return `
+      <div style="border-bottom: 1px solid var(--border); padding: 8px 0; display: flex; justify-content: space-between; align-items: center; font-size: 12px;">
+        <div>
+          <b style="color: var(--txt);">🚛 Camion ${r.v}</b> 
+          <span style="font-size: 11px; color: var(--acc); font-family: monospace;">(${r.chauffeur || '—'})</span>
+          <div style="font-size: 10px; color: var(--txt3); margin-top: 2px;">Prog : ${r.prog || 'CSPC'} | Dest : ${r.lieuJ1 || '—'}</div>
+        </div>
+        <div style="text-align: right;">
+          <span style="font-size: 10px; background: rgba(167,139,250,0.2); color: var(--pur); padding: 2px 6px; border-radius: 4px; font-weight: 700;">Non Traité</span>
+          <div style="font-size: 9px; color: var(--txt3); margin-top: 2px;">Date : ${dateFormatted}</div>
+        </div>
+      </div>
+    `;
+  }).join('');
+  
+  sessionStorage.setItem('cspc_alert_last_shown_' + eq, String(now));
+  openModal('modal-active-cspc-alert');
+}
+
+
+
+function modifierAnomalie(eq, key) {
+  const lock = sessionStorage.getItem('numiplan_team_lock');
+  if (lock && lock !== eq) {
+    showToast(`⚠️ Lecture seule — vous ne pouvez modifier que les anomalies de l'Équipe ${lock}`, true);
+    return;
+  }
+  
+  const dbEq = (eq === CURRENT_EQUIPE && typeof window.DB !== 'undefined') ? window.DB : window['DB_' + eq];
+  if (!dbEq || !dbEq.anomaliesPointees || !dbEq.anomaliesPointees[key]) {
+    showToast("⚠️ Anomalie introuvable", true);
+    return;
+  }
+  
+  const item = dbEq.anomaliesPointees[key];
+  
+  openModal('modal-modifier-anomalie');
+  
+  document.getElementById('edit-anom-eq').value = eq;
+  document.getElementById('edit-anom-key').value = key;
+  document.getElementById('edit-anom-v').textContent = key.split('_')[0] || '—';
+  document.getElementById('edit-anom-chauf').textContent = item.chauffeur || '—';
+  document.getElementById('edit-anom-motif').value = item.motif || (item.justif || 'Orientation');
+  document.getElementById('edit-anom-detail').value = item.detail || '';
+}
+
+function saveModifiedAnomalie() {
+  const eq = document.getElementById('edit-anom-eq').value;
+  const key = document.getElementById('edit-anom-key').value;
+  const motif = document.getElementById('edit-anom-motif').value;
+  const detail = document.getElementById('edit-anom-detail').value.trim();
+  
+  const lock = sessionStorage.getItem('numiplan_team_lock');
+  if (lock && lock !== eq) {
+    showToast(`⚠️ Lecture seule — vous ne pouvez modifier que les anomalies de l'Équipe ${lock}`, true);
+    return;
+  }
+
+  if (!detail) {
+    showToast("⚠️ La précision / détail est obligatoire !", true);
+    const detailEl = document.getElementById('edit-anom-detail');
+    if (detailEl) {
+      detailEl.style.border = '1px solid #f87171';
+      detailEl.focus();
+    }
+    return;
+  }
+  
+  const dbEq = (eq === CURRENT_EQUIPE && typeof window.DB !== 'undefined') ? window.DB : window['DB_' + eq];
+  if (!dbEq || !dbEq.anomaliesPointees || !dbEq.anomaliesPointees[key]) {
+    showToast("⚠️ Anomalie introuvable", true);
+    return;
+  }
+  
+  // Update in memory
+  dbEq.anomaliesPointees[key].motif = motif;
+  dbEq.anomaliesPointees[key].justif = motif;
+  dbEq.anomaliesPointees[key].detail = detail;
+  dbEq.anomaliesPointees[key]._lastEditedTs = Date.now();
+  dbEq._localTs = Date.now();
+  
+  // Save database
+  if (eq === CURRENT_EQUIPE && typeof saveDB === 'function') {
+    saveDB();
+  } else if (typeof window.saveTeamDB === 'function') {
+    window.saveTeamDB(eq, dbEq);
+  }
+  
+  if (typeof supabaseUpsertTeam === 'function') {
+    supabaseUpsertTeam(eq, dbEq);
+  }
+  
+  closeModal('modal-modifier-anomalie');
+  if (typeof renderHistoriqueAnomalies === 'function') {
+    renderHistoriqueAnomalies();
+  }
+  showToast('✅ Anomalie modifiée avec succès');
+}
+
+
+
+function populateIncidentDestinationSelects() {
+  const dl = document.getElementById('dl-wilayas');
+  const selPrevSite = document.getElementById('f-inc-liv-dest-prevue-site');
+  const selPrevVille = document.getElementById('f-inc-liv-dest-prevue-ville');
+  const selReelleSite = document.getElementById('f-inc-liv-dest-reelle-site');
+  const selReelleVille = document.getElementById('f-inc-liv-dest-reelle-ville');
+  if (!dl || !selPrevSite || !selPrevVille || !selReelleSite || !selReelleVille) return;
+  
+  const placeholder = '<option value="">— Choisir la ville —</option>';
+  selPrevSite.innerHTML = placeholder;
+  selPrevVille.innerHTML = placeholder;
+  selReelleSite.innerHTML = placeholder;
+  selReelleVille.innerHTML = placeholder;
+  
+  const options = Array.from(dl.options).map(opt => opt.value).sort();
+  options.forEach(val => {
+    const optHTML = `<option value="${val}">${val}</option>`;
+    selPrevSite.insertAdjacentHTML('beforeend', optHTML);
+    selPrevVille.insertAdjacentHTML('beforeend', optHTML);
+    selReelleSite.insertAdjacentHTML('beforeend', optHTML);
+    selReelleVille.insertAdjacentHTML('beforeend', optHTML);
+  });
+}
+
+
+
+
+
+function populateLoginUserDropdown() {
+  const dropdown = document.getElementById('username-input');
+  if (!dropdown) return;
+  
+  const currentSelected = dropdown.value;
+  dropdown.innerHTML = '<option value="">Sélectionnez votre identifiant...</option>';
+  
+  const adminOpt = document.createElement('option');
+  adminOpt.value = 'ADMIN';
+  adminOpt.textContent = 'ADMIN (Superviseur Admin)';
+  dropdown.appendChild(adminOpt);
+
+  const regOpt = document.createElement('option');
+  regOpt.value = 'REGISTRE';
+  regOpt.textContent = '🏛️ REGISTRE (Espace Direction)';
+  dropdown.appendChild(regOpt);
+  
+  const teams = ['A', 'B', 'C', 'D', 'E', 'F'];
+  teams.forEach(eq => {
+    const db = window['DB_' + eq];
+    const users = (db && db.users) ? db.users : [];
+    users.forEach(u => {
+      const opt = document.createElement('option');
+      opt.value = u;
+      opt.textContent = `${u} (Équipe ${eq})`;
+      dropdown.appendChild(opt);
+    });
+  });
+  
+  if (currentSelected) {
+    dropdown.value = currentSelected;
+  }
+}
+window.populateLoginUserDropdown = populateLoginUserDropdown;
+
+
+// ── PLANIFICATEUR D'EXTRACTION DE DONNÉES AUTOMATIQUE ──
+function initAutoExportScheduler() {
+  const targetHours = [8, 10, 12, 14, 16, 19, 21];
+  
+  setInterval(() => {
+    // Exécuter uniquement si la session est active (authentifié)
+    if (sessionStorage.getItem('numiplan_auth') !== 'ok') return;
+    
+    const now = new Date();
+    const currentHour = now.getHours();
+    const todayStr = now.getFullYear() + '-' + String(now.getMonth()+1).padStart(2,'0') + '-' + String(now.getDate()).padStart(2,'0');
+    
+    if (targetHours.includes(currentHour)) {
+      const key = `numiplan_auto_export_${todayStr}_${currentHour}`;
+      if (!localStorage.getItem(key)) {
+        localStorage.setItem(key, 'done');
+        console.log(`[Auto-Export] Déclenchement automatique pour ${currentHour}h...`);
+        if (typeof showToast === 'function') {
+          showToast(`📥 Extraction automatique de ${currentHour}h en cours...`);
+        }
+        
+        setTimeout(() => {
+          if (typeof exportAllData === 'function') {
+            exportAllData().catch(err => console.error('[Auto-Export] Erreur:', err));
+          }
+        }, 1000);
+      }
+    }
+  }, 15000); // Vérification toutes les 15 secondes
+}
+window.initAutoExportScheduler = initAutoExportScheduler;
+
+
+function toggleDispoInsurance(cb) {
+  if (!DB.config_ui) DB.config_ui = {};
+  DB.config_ui.showInsurance = cb.checked;
+  saveDB();
+  renderDispo();
+  showToast(`✅ Affichage des Assurances ${cb.checked ? 'activé' : 'désactivé'}`);
+}
+window.toggleDispoInsurance = toggleDispoInsurance;
+
+// ── DAILY ARCHIVES / HISTORY CONSULTATION MODE ──
+var HISTORY_MODE = false;
+var HISTORY_DATA = null;
+
+function populateHistoryDateSelect() {
+  const select = document.getElementById('history-date-select');
+  if (!select) return;
+  
+  const eq = typeof window.CURRENT_EQUIPE !== 'undefined' ? window.CURRENT_EQUIPE : 'A';
+  const teamArchives = ARCHIVES[eq] || {};
+  const dates = Object.keys(teamArchives).sort().reverse();
+  
+  select.innerHTML = '<option value="">📅 En direct (Aujourd\'hui)</option>';
+  dates.forEach(d => {
+    const opt = document.createElement('option');
+    opt.value = d;
+    const dateObj = new Date(d);
+    const label = isNaN(dateObj) ? d : dateObj.toLocaleDateString('fr-FR', { weekday: 'short', day: '2-digit', month: 'short' });
+    opt.textContent = `📋 Archive du ${label}`;
+    select.appendChild(opt);
+  });
+  
+  const isAuthed = sessionStorage.getItem('numiplan_auth') === 'ok';
+  select.style.display = isAuthed ? 'inline-block' : 'none';
+}
+window.populateHistoryDateSelect = populateHistoryDateSelect;
+
+function selectHistoryDate(dateKey) {
+  const eq = typeof window.CURRENT_EQUIPE !== 'undefined' ? window.CURRENT_EQUIPE : 'A';
+  if (!dateKey) {
+    HISTORY_MODE = false;
+    HISTORY_DATA = null;
+    const liveDb = window['DB_' + eq];
+    if (liveDb) window.DB = liveDb;
+    
+    const banner = document.getElementById('history-mode-banner');
+    if (banner) banner.style.display = 'none';
+    
+    showToast('🔙 Retour au mode en direct (Modifications autorisées)');
+  } else {
+    const teamArchives = ARCHIVES[eq] || {};
+    const snap = teamArchives[dateKey];
+    if (!snap) {
+      showToast('⚠️ Archive introuvable pour cette date', true);
+      return;
+    }
+    
+    HISTORY_MODE = true;
+    HISTORY_DATA = JSON.parse(JSON.stringify(snap));
+    window.DB = HISTORY_DATA;
+    
+    let banner = document.getElementById('history-mode-banner');
+    if (!banner) {
+      banner = document.createElement('div');
+      banner.id = 'history-mode-banner';
+      banner.style.cssText = 'background:linear-gradient(90deg, #f59e0b, #d97706); color:#000; padding:10px 20px; font-size:12px; font-weight:800; text-align:center; position:sticky; top:0; z-index:1000; box-shadow:0 4px 12px rgba(0,0,0,.2); display:flex; align-items:center; justify-content:center; gap:8px; border-bottom:1px solid rgba(0,0,0,.1);';
+      document.body.insertBefore(banner, document.body.firstChild);
+    }
+    const formattedDate = new Date(dateKey).toLocaleDateString('fr-FR', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' });
+    banner.innerHTML = `⚠️ MODE CONSULTATION HISTORIQUE — Vous visualisez les données du ${formattedDate} (Lecture seule)`;
+    banner.style.display = 'flex';
+    
+    showToast(`📜 Chargement de l'archive du ${dateKey} (Mode Lecture seule)`);
+  }
+  
+  renderDispo();
+  if (typeof renderPannes === 'function') renderPannes();
+  if (typeof renderNC === 'function') renderNC();
+  if (typeof renderGasoil === 'function') renderGasoil();
+  if (typeof renderEquip === 'function') renderEquip();
+  if (typeof renderActivite === 'function') renderActivite();
+  if (typeof renderBL === 'function') renderBL();
+  if (typeof renderOdo === 'function') renderOdo();
+  if (typeof renderCSPC === 'function') renderCSPC();
+  if (typeof renderBlacklist === 'function') renderBlacklist();
+  if (typeof renderIncidentsLivraisonPage === 'function') renderIncidentsLivraisonPage();
+}
+window.selectHistoryDate = selectHistoryDate;
+
 // ══════════════════════════════════════════════════════════════════════════════
 // SUIVI DES POI ET IMMOBILISATIONS (>2H)
 // ══════════════════════════════════════════════════════════════════════════════
@@ -16006,7 +16448,6 @@ async function renderPoiPage() {
     }
   } catch(e) {
     console.error("Erreur de rendu POI:", e);
-    showToast("❌ Impossible de charger les données POI.");
   } finally {
     isRenderingPoiPage = false;
   }
@@ -16088,7 +16529,6 @@ async function saveNewPoi() {
 }
 
 async function checkPoiAlerts() {
-  return; // Désactivé pour direction.html
   try {
     // 1. Récupérer TOUTES les visites en cours sur TOUTES les équipes confondues (A à F)
     const activeVisitsList = await poiSupabaseFetch(`np_poi_visits?left_at=is.null`);
@@ -16208,9 +16648,9 @@ async function checkPoiAlerts() {
       const isBlacklisted = blacklistPois.has(v.poi_name);
 
       if (isBlacklisted) {
-        // Mode harcelement : on reset l'alerte locale si elle date de plus d'1 minute
+        // Mode harcelement : on reset l'alerte locale si elle date de plus de 30 minutes
         let lastAlertedTime = parseInt(sessionStorage.getItem(`blacklist_time_${v.id}`) || '0');
-        if (Date.now() - lastAlertedTime > 60 * 1000) {
+        if (Date.now() - lastAlertedTime > 30 * 60 * 1000) {
           clientAlertedSet.delete(v.id);
         }
 
@@ -16234,9 +16674,9 @@ async function checkPoiAlerts() {
       } else if (v.duration_hours >= 2.0) {
         const activeTeam = typeof window.CURRENT_EQUIPE !== 'undefined' ? window.CURRENT_EQUIPE : 'A';
         if (!v.team || v.team === activeTeam) {
-          // Mode harcelement pour immobilisation > 2h
+          // Mode harcelement pour immobilisation > 2h (toutes les 30 minutes)
           let lastPoiWarningTime = parseInt(sessionStorage.getItem(`poi_warning_time_${v.id}`) || '0');
-          if (Date.now() - lastPoiWarningTime > 60 * 1000) {
+          if (Date.now() - lastPoiWarningTime > 30 * 60 * 1000) {
             showPoiWarningModal(v);
             sessionStorage.setItem(`poi_warning_time_${v.id}`, Date.now().toString());
             if (!v.notified) {
@@ -16990,7 +17430,6 @@ function exportPoiHistoryToExcel() {
 
 // --- ALERTE PANNES À CHARGE ---
 async function checkLoadedBreakdowns() {
-  return; // Désactivé pour direction.html
   try {
     const activeTeam = typeof window.CURRENT_EQUIPE !== 'undefined' ? window.CURRENT_EQUIPE : 'A';
     const isUserAdmin = isAdmin();
@@ -17024,7 +17463,7 @@ async function checkLoadedBreakdowns() {
     userPannes.forEach(p => {
       const key = `${p.team}_${p.immat}`;
       const lastTime = lastAlerts[key] || 0;
-      if (now - lastTime >= 2 * 60 * 60 * 1000) { // 2 heures
+      if (now - lastTime >= 30 * 60 * 1000) { // 30 minutes (Mode Harcèlement)
         alertsToTrigger.push(p);
         lastAlerts[key] = now;
       }
@@ -17862,7 +18301,7 @@ function pushSharikEditsToCloud() {
       }).then(({error}) => {
         if (error) {
           console.error("Error upserting SHARIK_EDITS to Supabase:", error);
-          if (typeof showToast === 'function') showToast("⚠️ Erreur de sauvegarde: " + (error.message || JSON.stringify(error)), true);
+          if (typeof showToast === 'function') showToast("⚠️ Erreur de sauvegarde du Registre dans le Cloud !", true);
         } else {
           // Confirm success
           if (typeof showToast === 'function') showToast("✅ Registre sauvegardé dans le Cloud avec succès !", false);
