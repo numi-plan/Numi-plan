@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="fr">
 <head>
 <meta charset="UTF-8">
@@ -924,14 +924,19 @@
       (payload.odo || []).forEach(item => {
         const v = item.v || '';
         const chauffeur = item.chauffeur || '';
-        const kmFacture = item.kmFacture || null;
+        const kmFacture = item.kmFacture;
+        const kmFactureNum = (kmFacture !== null && kmFacture !== undefined && kmFacture !== '') ? Number(kmFacture) : null;
         const vals = item.vals || [];
         vals.forEach((kmVal, idx) => {
-          if (idx < weeks.length && kmVal !== null && kmVal !== undefined) {
-            odoRows.push({
-              team: eq, v: v, chauffeur: chauffeur,
-              week: weeks[idx], km: kmVal, km_facture: kmFacture
-            });
+          if (idx < weeks.length && kmVal !== null && kmVal !== undefined && kmVal !== '') {
+            const numVal = Number(kmVal);
+            if (!isNaN(numVal)) {
+              odoRows.push({
+                team: eq, v: v, chauffeur: chauffeur,
+                week: weeks[idx], km: Math.round(numVal),
+                km_facture: (kmFactureNum !== null && !isNaN(kmFactureNum)) ? Math.round(kmFactureNum) : null
+              });
+            }
           }
         });
       });
@@ -7940,6 +7945,12 @@ async function deleteDispo(idx) {
         updated_at: new Date().toISOString()
       });
       if (upsertErr) throw upsertErr;
+
+      // Update OCC timestamp and base snapshot to prevent rollback
+      if (!window._lastCloudTs) window._lastCloudTs = {};
+      window._lastCloudTs[eq] = payloadCloud._localTs;
+      if (!window._baseCloudDB) window._baseCloudDB = {};
+      window._baseCloudDB[eq] = JSON.parse(JSON.stringify(payloadCloud));
       
       // 3. Sauvegarder les tables normalisées
       if (typeof window.saveNormalizedTables === 'function') {
