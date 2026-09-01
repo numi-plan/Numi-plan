@@ -18323,9 +18323,6 @@ function renderAdminEntreesSorties() {
             });
           }
         });
-      }
-    } catch(e) {}
-  });
 
   // 3.1 Consolidation stricte : 1 entrée unique par chauffeur physique (sans doublon)
   for (const [nKey, nVal] of Object.entries(numiplanActiveDrivers)) {
@@ -18512,7 +18509,7 @@ function renderAdminEntreesSorties() {
   const globalUniqueExtDrivers = new Set();
   let globalTotalCamions = 0;
 
-  // 1Ã¨re passe : compter les occurrences de chaque chauffeur physique dans toutes les Ã©quipes
+  // 1ère passe : compter les occurrences de chaque chauffeur physique dans toutes les équipes (avec dédoublonnage fuzzy)
   teamsList.forEach(eq => {
     try {
       const db = (eq === window.CURRENT_EQUIPE && typeof window.DB !== 'undefined') ? window.DB : window['DB_' + eq];
@@ -18520,10 +18517,19 @@ function renderAdminEntreesSorties() {
         globalTotalCamions += db.dispo.length;
         db.dispo.forEach(row => {
           const ch = (row.chauffeur || '').trim().toUpperCase();
-          if (ch && ch !== 'â€”' && ch !== '-' && !ch.includes('MANQUE CHAUFFEUR') && !ch.includes('AC/DC') && !ch.includes('DISPONIBLE') && !ch.includes('EN PANNE') && !ch.includes('INDISPONIBLE')) {
-            const canon = getCanonicalDriverName(ch);
-            allTeamDriverOccurrences[canon] = (allTeamDriverOccurrences[canon] || 0) + 1;
-            globalUniqueAllDrivers.add(canon);
+          if (ch && ch !== '—' && ch !== '-' && !ch.includes('MANQUE CHAUFFEUR') && !ch.includes('AC/DC') && !ch.includes('DISPONIBLE') && !ch.includes('EN PANNE') && !ch.includes('INDISPONIBLE')) {
+            const canon = (typeof getCanonicalDriverName === 'function') ? getCanonicalDriverName(ch) : ch;
+            let matchedCanon = null;
+            for (const existingCanon of globalUniqueAllDrivers) {
+              if (typeof areNamesFuzzyMatching === 'function' && areNamesFuzzyMatching(existingCanon, canon)) {
+                if (typeof isResemblanceRejected === 'function' && isResemblanceRejected(existingCanon, canon)) continue;
+                matchedCanon = existingCanon;
+                break;
+              }
+            }
+            const finalKey = matchedCanon || canon;
+            allTeamDriverOccurrences[finalKey] = (allTeamDriverOccurrences[finalKey] || 0) + 1;
+            globalUniqueAllDrivers.add(finalKey);
           }
         });
       }
