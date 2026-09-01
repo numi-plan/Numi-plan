@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="fr">
 <head>
 <meta charset="UTF-8">
@@ -12326,6 +12326,8 @@ function _setActionsBloqueesPointage(bloquer) {
 
 // Intercepteur : vérifie si les actions sont bloquées
 function _checkActionsLibres(nomAction) {
+  const role = sessionStorage.getItem('numiplan_user_role');
+  if (role === 'admin' || (typeof isRegistreOrDirectionSession === 'function' && isRegistreOrDirectionSession())) return true;
   if (!isGpsSyncToday()) {
     const gpsModal = document.getElementById('modal-pointage-gps-required');
     if (gpsModal) {
