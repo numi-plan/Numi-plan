@@ -1,3 +1,14 @@
+﻿function isRegistreOrDirectionSession() {
+  const role = sessionStorage.getItem('numiplan_user_role');
+  const lock = sessionStorage.getItem('numiplan_team_lock');
+  const user = (sessionStorage.getItem('numiplan_username') || '').toUpperCase().trim();
+  if (role === 'direction_only' || role === 'readonly' || lock === 'DIR' || user === 'REGISTRE' || user.includes('REGISTRE')) return true;
+  if (document.body.classList.contains('direction-isolated-view')) return true;
+  const dirPage = document.getElementById('page-admin-direction');
+  if (dirPage && dirPage.classList.contains('active')) return true;
+  return false;
+}
+window.isRegistreOrDirectionSession = isRegistreOrDirectionSession;
 <!DOCTYPE html>
 <html lang="fr">
 <head>
@@ -537,7 +548,8 @@
       // --- NOUVEAU : Auto-connexion de secours pour l'espace Registre ---
       const role = sessionStorage.getItem('numiplan_user_role');
       const username = sessionStorage.getItem('numiplan_username');
-      if (role === 'direction_only' || role === 'readonly' || username === 'REGISTRE') {
+      const _un = (username || '').toUpperCase().trim();
+  if (role === 'direction_only' || role === 'readonly' || _un === 'REGISTRE' || _un.includes('REGISTRE')) {
         const { data: { session } } = await supabase.auth.getSession();
         if (!session) {
           console.log("Session Supabase absente pour le registre, connexion de secours...");
@@ -664,7 +676,7 @@
             e => {
               console.log("🚨 [Realtime Broadcast] Alerte Blacklist reçue :", e.payload);
               if (e.payload) {
-                showBlacklistAlertModal(e.payload.truck, e.payload.client, e.payload.time, e.payload.team);
+                if (!isRegistreOrDirectionSession()) showBlacklistAlertModal(e.payload.truck, e.payload.client, e.payload.time, e.payload.team);
               }
             }
           )
@@ -1601,7 +1613,8 @@ body.direction-isolated-view .table-wrap {
     try {
       const role = sessionStorage.getItem('numiplan_user_role');
       const username = sessionStorage.getItem('numiplan_username');
-      if (role === 'direction_only' || role === 'readonly' || username === 'REGISTRE') {
+      const _un = (username || '').toUpperCase().trim();
+  if (role === 'direction_only' || role === 'readonly' || _un === 'REGISTRE' || _un.includes('REGISTRE')) {
         document.documentElement.classList.add('direction-isolated-view');
         window.addEventListener('DOMContentLoaded', () => {
           document.body.classList.add('direction-isolated-view');
@@ -1756,7 +1769,8 @@ body.direction-isolated-view .table-wrap {
   function applyDirectionOnlyIsolation() {
   const role = sessionStorage.getItem('numiplan_user_role');
   const username = sessionStorage.getItem('numiplan_username');
-  if (role === 'direction_only' || role === 'readonly' || username === 'REGISTRE') {
+  const _un = (username || '').toUpperCase().trim();
+  if (role === 'direction_only' || role === 'readonly' || _un === 'REGISTRE' || _un.includes('REGISTRE')) {
     document.body.classList.add('direction-isolated-view');
     
     // Masquer toutes les autres pages
@@ -10244,197 +10258,6 @@ function renderOdo() {
   }).join('');
 }
 
-function renderOdo() {
-  const q = document.getElementById('odo-search').value;
-  const anomalyVehicles = new Set();
-  DB.odo.forEach(r => {
-    const vs = (r.vals||[]);
-    for (let i = 1; i < vs.length; i++) {
-      const vVal = parseFloat(vs[i]);
-      if (isNaN(vVal) || vVal <= 1000) continue;
-      
-      let prevVal = null;
-      for (let j = i - 1; j >= 0; j--) {
-        const pVal = parseFloat(vs[j]);
-        if (!isNaN(pVal) && pVal > 1000) {
-          prevVal = pVal;
-          break;
-        }
-      }
-      
-      if (prevVal !== null && vVal < prevVal) {
-        anomalyVehicles.add(r.v);
-        break;
-      }
-    }
-  });
-  let data = DB.odo.filter(r => {
-    if (q==='__anomaly__') return anomalyVehicles.has(r.v);
-    return !q || (r.v+' '+r.chauffeur).toLowerCase().includes(q.toLowerCase());
-  });
-  document.getElementById('cnt-odo').textContent = DB.odo.length;
-  
-  const weeks = DB.odo_weeks || [];
-  const startVal = document.getElementById('odo-filter-start')?.value;
-  const endVal = document.getElementById('odo-filter-end')?.value;
-  const filteredWeeks = weeks.filter(w => {
-    if (startVal && w < startVal) return false;
-    if (endVal && w > endVal) return false;
-    return true;
-  });
-
-  const head = document.getElementById('odo-head');
-  head.innerHTML = `<th>Véhicule</th><th>Chauffeur</th>` +
-    filteredWeeks.map(w=>`<th style="font-size:9px">${w}</th>`).join('') + `<th>KM Parcourus</th><th>KM Facturé</th><th>Roulage à charge</th><th style="color:var(--acc)">🔄 Orientation (KM)</th><th style="color:var(--red)">🛒 A son compte (KM)</th><th style="color:var(--grn)">🟢 Autorisé (KM)</th><th style="color:var(--red)">🔧 Pannes</th><th style="color:var(--org)">Dernière panne</th><th>Action</th>`;
-  
-  let totalKm = 0;
-  let totalFact = 0;
-  let totalOdo = 0;
-  data.forEach(r => {
-    const rangeVals = filteredWeeks.map(w => parseFloat(r.vals[weeks.indexOf(w)])).filter(v => !isNaN(v) && v > 1000);
-    let deltaVal = 0;
-    if (rangeVals.length >= 2) {
-      const d = rangeVals[rangeVals.length - 1] - rangeVals[0];
-      if (d > 0 && d <= 50000) {
-        totalKm += d;
-        deltaVal = d;
-      }
-    }
-    let rowKmFact = 0;
-    filteredWeeks.forEach(w => {
-      const origIdx = weeks.indexOf(w);
-      if (r.kmFactures && r.kmFactures[origIdx] !== undefined && r.kmFactures[origIdx] !== null) {
-        rowKmFact += r.kmFactures[origIdx];
-      }
-    });
-    if (deltaVal > 0 && rowKmFact > 0) {
-      totalFact += rowKmFact;
-      totalOdo += deltaVal;
-    }
-  });
-  const tabRac = totalOdo > 0 ? (totalFact / totalOdo) * 100 : null;
-  const tabRacStr = tabRac !== null ? `${tabRac.toFixed(1)} %` : '—';
-
-  document.getElementById('odo-stats').innerHTML = `
-    <div class="stat-card" onclick="resetFilters('odo-search', 'odo-filter-start', 'odo-filter-end');renderOdo()" title="Reset — Tous les véhicules" style="cursor:pointer"><div class="stat-num">${data.length}</div><div class="stat-lbl">Véhicules ↺</div></div>
-    <div class="stat-card blue" title="KM total parcourus sur la période visible"><div class="stat-num">${totalKm.toLocaleString('fr-FR')}</div><div class="stat-lbl">KM parcourus</div></div>
-    <div class="stat-card green" title="Roulage à charge moyen de la sélection"><div class="stat-num">${tabRacStr}</div><div class="stat-lbl">Roulage à charge</div></div>
-    <div class="stat-card red" onclick="filterOdoAnomalies()" title="Afficher uniquement les anomalies" style="pointer-events:auto;cursor:pointer"><div class="stat-num" id="odo-anomaly-count">—</div><div class="stat-lbl">Anomalies ⚠</div></div>`;
-  if(document.getElementById('odo-anomaly-count')) document.getElementById('odo-anomaly-count').textContent = anomalyVehicles.size;
-  if (typeof updateHeaderRAC === 'function') {
-    updateHeaderRAC();
-  }
-  const body = document.getElementById('odo-body');
-  if (!data.length) { body.innerHTML = `<tr><td colspan="${filteredWeeks.length+10}"><div class="empty-state"><div class="icon">🔍</div>Aucun résultat</div></td></tr>`; return; }
-  // Lookup pannes par matricule (uniquement dans renderOdo)
-  const pannesByVehicle = {};
-  (DB.pannes||[]).forEach(p => {
-    if (!p.immat) return;
-    const key = p.immat.trim().toUpperCase();
-    if (!pannesByVehicle[key]) pannesByVehicle[key] = [];
-    if (p.date) pannesByVehicle[key].push(p.date);
-  });
-  body.innerHTML = data.map(r => {
-    const realIdx = DB.odo.indexOf(r);
-    const cells = filteredWeeks.map(w => {
-      const origIdx = weeks.indexOf(w);
-      const v = r.vals ? r.vals[origIdx] : null;
-      const vNum = parseFloat(v);
-      if (isNaN(vNum) || v === null || v === undefined) return `<td class="no-data">—</td>`;
-      if (vNum === 0) return `<td class="mono" style="color:var(--txt3)">0</td>`;
-      
-      let prevVal = null;
-      if (r.vals) {
-        for (let j = origIdx - 1; j >= 0; j--) {
-          const pVal = parseFloat(r.vals[j]);
-          if (!isNaN(pVal) && pVal > 1000) {
-            prevVal = pVal;
-            break;
-          }
-        }
-      }
-      const anom = prevVal !== null && vNum < prevVal;
-      return `<td class="mono ${anom?'km-anomaly':''}">${Math.round(vNum).toLocaleString('fr-FR')}</td>`;
-    }).join('');
-    
-    const rangeVals = filteredWeeks.map(w => parseFloat(r.vals[weeks.indexOf(w)])).filter(v => !isNaN(v) && v > 1000);
-    let deltaVal = null;
-    let delta = '—';
-    if (rangeVals.length >= 2) {
-      const d = rangeVals[rangeVals.length - 1] - rangeVals[0];
-      deltaVal = d;
-      delta = `<span style="color:${d>0?'var(--grn)':'var(--red)'}">${d>0?'+':''}${Math.round(d).toLocaleString('fr-FR')}</span>`;
-    }
-    
-    let kmFacture = null;
-    if (filteredWeeks.length === 1) {
-      const origIdx = weeks.indexOf(filteredWeeks[0]);
-      if (r.kmFactures && r.kmFactures[origIdx] !== undefined && r.kmFactures[origIdx] !== null) {
-        kmFacture = r.kmFactures[origIdx];
-      } else {
-        kmFacture = (r.kmFacture !== undefined && r.kmFacture !== null) ? r.kmFacture : null;
-      }
-    } else {
-      kmFacture = (r.kmFacture !== undefined && r.kmFacture !== null) ? r.kmFacture : null;
-    }
-    if (kmFacture === 0) kmFacture = null;
-    const kmFactureStr = kmFacture !== null ? kmFacture.toLocaleString('fr-FR') : '—';
-    let racStr = '—';
-    if (deltaVal !== null && deltaVal > 0 && kmFacture !== null && kmFacture > 0) {
-      const rac = (kmFacture / deltaVal) * 100;
-      let badgeStyle = '';
-      let titleText = '';
-      let alertIcon = '';
-      
-      if (rac < 40) {
-        badgeStyle = 'color: var(--red); font-weight: 800; background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.4); padding: 2px 6px; border-radius: 4px; display: inline-block;';
-        titleText = '🚨 Focus absolu (< 40%)';
-        alertIcon = '🚨 ';
-      } else if (rac < 50) {
-        badgeStyle = 'color: var(--org); font-weight: 800; background: rgba(245, 158, 11, 0.1); border: 1px solid rgba(245, 158, 11, 0.4); padding: 2px 6px; border-radius: 4px; display: inline-block;';
-        titleText = '🔍 À surveiller (< 50%)';
-        alertIcon = '🔍 ';
-      } else {
-        badgeStyle = 'color: var(--grn); font-weight: 700; background: rgba(16, 185, 129, 0.1); border: 1px solid rgba(16, 185, 129, 0.4); padding: 2px 6px; border-radius: 4px; display: inline-block;';
-        titleText = '✅ Performant (≥ 50%)';
-        alertIcon = '✅ ';
-      }
-      racStr = `<span style="${badgeStyle}" title="${titleText}">${alertIcon}${rac.toFixed(1)} %</span>`;
-    }
-    const pKey = (r.v||''). trim().toUpperCase();
-    const panDates = (pannesByVehicle[pKey]||[]).filter(Boolean).sort();
-    const panCount = panDates.length;
-    const panLast  = panDates.length ? panDates[panDates.length-1] : null;
-    const panCountCell = panCount > 0
-      ? `<td style="text-align:center"><span style="color:var(--red);font-weight:700;font-family:monospace">${panCount}×</span></td>`
-      : `<td style="text-align:center;color:var(--txt3)">—</td>`;
-    const panLastCell  = panLast
-      ? `<td class="mono" style="font-size:11px;color:var(--org)">${panLast}</td>`
-      : `<td style="color:var(--txt3);font-size:11px">—</td>`;
-    const kmOrientation = getVehicleAnomalyKm(r.v, 'Orientation', startVal, endVal);
-    const kmSonCompte = getVehicleAnomalyKm(r.v, 'Chargement à son compte', startVal, endVal);
-    const kmAutorise = getVehicleAnomalyKm(r.v, 'Chargement à son compte autorisé', startVal, endVal);
-    const kmOrientationStr = kmOrientation > 0 ? `<b style="color:var(--acc)">${kmOrientation.toLocaleString('fr-FR')}</b>` : `<span style="color:var(--txt3)">—</span>`;
-    const kmSonCompteStr = kmSonCompte > 0 ? `<b style="color:var(--red)">${kmSonCompte.toLocaleString('fr-FR')}</b>` : `<span style="color:var(--txt3)">—</span>`;
-    const kmAutoriseStr = kmAutorise > 0 ? `<b style="color:var(--grn)">${kmAutorise.toLocaleString('fr-FR')}</b>` : `<span style="color:var(--txt3)">—</span>`;
-
-    return `<tr>
-      <td class="mono" style="color:var(--acc)">${r.v}</td>
-      <td style="font-weight:600">${r.chauffeur||'—'}</td>
-      ${cells}
-      <td class="mono">${delta}</td>
-      <td class="mono" style="color:var(--grn);font-weight:600">${kmFactureStr}</td>
-      <td class="mono">${racStr}</td>
-      <td class="mono" style="text-align:center">${kmOrientationStr}</td>
-      <td class="mono" style="text-align:center">${kmSonCompteStr}</td>
-      <td class="mono" style="text-align:center">${kmAutoriseStr}</td>
-      ${panCountCell}
-      ${panLastCell}
-      <td><button class="del-btn" onclick="editOdo(${realIdx})">✏️</button><button class="del-btn" onclick="deleteOdo(${realIdx})">🗑</button></td>
-    </tr>`;
-  }).join('');
-}
-
 function editOdo(idx) {
   const r = DB.odo[idx];
   document.getElementById('f-odo-v').value = r.v||'';
@@ -12262,7 +12085,8 @@ function isGpsSyncToday() {
   // L'accès direction_only (registre) ne doit pas être bloqué par le GPS
   const role = sessionStorage.getItem('numiplan_user_role');
   const username = sessionStorage.getItem('numiplan_username');
-  if (role === 'direction_only' || role === 'readonly' || username === 'REGISTRE') {
+  const _un = (username || '').toUpperCase().trim();
+  if (role === 'direction_only' || role === 'readonly' || _un === 'REGISTRE' || _un.includes('REGISTRE')) {
     return true;
   }
 
@@ -12508,7 +12332,8 @@ function checkPointageRequired() {
   // 1.5. Si l'utilisateur est de la direction administrative (direction_only / readonly / REGISTRE), aucun blocage ni popup !
   const role = sessionStorage.getItem('numiplan_user_role');
   const username = sessionStorage.getItem('numiplan_username');
-  if (role === 'direction_only' || role === 'readonly' || username === 'REGISTRE') {
+  const _un = (username || '').toUpperCase().trim();
+  if (role === 'direction_only' || role === 'readonly' || _un === 'REGISTRE' || _un.includes('REGISTRE')) {
     _setActionsBloqueesPointage(false);
     const gpsModal = document.getElementById('modal-pointage-gps-required');
     if (gpsModal) gpsModal.style.setProperty('display', 'none', 'important');
@@ -16529,6 +16354,12 @@ async function saveNewPoi() {
 }
 
 async function checkPoiAlerts() {
+  if (isRegistreOrDirectionSession()) return;
+  const _uRole = sessionStorage.getItem('numiplan_user_role');
+  const _uName = (sessionStorage.getItem('numiplan_username') || '').toUpperCase().trim();
+  if (_uRole === 'direction_only' || _uRole === 'readonly' || _uName === 'REGISTRE' || _uName.includes('REGISTRE')) {
+    return;
+  }
   try {
     // 1. Récupérer TOUTES les visites en cours sur TOUTES les équipes confondues (A à F)
     const activeVisitsList = await poiSupabaseFetch(`np_poi_visits?left_at=is.null`);
@@ -16720,7 +16551,13 @@ async function checkPoiAlerts() {
   }
 }
 
-function showPoiWarningModal(alertRow) {
+function showPoiWarningModal(v) {
+  if (isRegistreOrDirectionSession()) return;
+  const _uRole = sessionStorage.getItem('numiplan_user_role');
+  const _uName = (sessionStorage.getItem('numiplan_username') || '').toUpperCase().trim();
+  if (_uRole === 'direction_only' || _uRole === 'readonly' || _uName === 'REGISTRE' || _uName.includes('REGISTRE')) {
+    return;
+  }
   const driver = window.DB && window.DB.dispo ? (window.DB.dispo.find(x => (x.v || "").trim().toUpperCase() === (alertRow.v || "").trim().toUpperCase())?.chauffeur || "non renseigné") : "non renseigné";
   const hours = Math.floor(alertRow.duration_hours);
   const minutes = Math.round((alertRow.duration_hours - hours) * 60);
@@ -17276,6 +17113,12 @@ function playBlacklistAlarm() {
 }
 
 function showBlacklistAlertModal(truck, client, time, team, driver) {
+  if (isRegistreOrDirectionSession()) return;
+  const _uRole = sessionStorage.getItem('numiplan_user_role');
+  const _uName = (sessionStorage.getItem('numiplan_username') || '').toUpperCase().trim();
+  if (_uRole === 'direction_only' || _uRole === 'readonly' || _uName === 'REGISTRE' || _uName.includes('REGISTRE')) {
+    return;
+  }
   const existing = document.getElementById('modal-blacklist-alert');
   if (existing) existing.remove();
   
@@ -17840,7 +17683,8 @@ async function ouvrirEspaceAdminDirection(btn) {
   // Si déjà connecté avec le profil isolé direction_only, accès automatique
   const role = sessionStorage.getItem('numiplan_user_role');
   const username = sessionStorage.getItem('numiplan_username');
-  if (role === 'direction_only' || role === 'readonly' || username === 'REGISTRE') {
+  const _un = (username || '').toUpperCase().trim();
+  if (role === 'direction_only' || role === 'readonly' || _un === 'REGISTRE' || _un.includes('REGISTRE')) {
     window._DIRECTION_UNLOCKED_SESSION = true;
   }
 
@@ -18619,35 +18463,14 @@ function renderAdminEntreesSorties() {
     }
   });
 
-  // 5. Calcul EXACT et STRICT aligné à 100% sur la somme des badges de Disponibilité Numiplan
+  // 5. Calcul EXACT et STRICT alignÃ© Ã  100% sur la somme des badges de DisponibilitÃ© Numiplan
   const allTeamDriverOccurrences = {};
   const teamsList = ['A', 'B', 'C', 'D', 'E', 'F'];
-
-  // 1ère passe : compter les occurrences de chaque chauffeur dans toutes les équipes
-  teamsList.forEach(eq => {
-    try {
-      const db = (eq === window.CURRENT_EQUIPE && typeof window.DB !== 'undefined') ? window.DB : window['DB_' + eq];
-      if (db && Array.isArray(db.dispo)) {
-        db.dispo.forEach(row => {
-          const ch = (row.chauffeur || '').trim().toUpperCase();
-          if (ch && ch !== '—' && ch !== '' && !ch.includes('MANQUE CHAUFFEUR') && !ch.includes('AC/DC') && !ch.includes('DISPONIBLE') && !ch.includes('EN PANNE') && !ch.includes('INDISPONIBLE')) {
-            let matchedName = ch;
-            const registryMatch = rawList.find(r => areNamesFuzzyMatching(r.sharik, ch));
-            if (registryMatch && registryMatch.sharik) {
-              matchedName = registryMatch.sharik.trim().toUpperCase();
-            }
-            allTeamDriverOccurrences[matchedName] = (allTeamDriverOccurrences[matchedName] || 0) + 1;
-          }
-        });
-      }
-    } catch(e) {}
-  });
-
-  // 2ème passe : décompte des chauffeurs uniques et des extensions
   const globalUniqueAllDrivers = new Set();
   const globalUniqueExtDrivers = new Set();
   let globalTotalCamions = 0;
 
+  // 1Ã¨re passe : compter les occurrences de chaque chauffeur physique dans toutes les Ã©quipes
   teamsList.forEach(eq => {
     try {
       const db = (eq === window.CURRENT_EQUIPE && typeof window.DB !== 'undefined') ? window.DB : window['DB_' + eq];
@@ -18655,26 +18478,27 @@ function renderAdminEntreesSorties() {
         globalTotalCamions += db.dispo.length;
         db.dispo.forEach(row => {
           const ch = (row.chauffeur || '').trim().toUpperCase();
-          if (ch && ch !== '—' && ch !== '' && !ch.includes('MANQUE CHAUFFEUR') && !ch.includes('AC/DC') && !ch.includes('DISPONIBLE') && !ch.includes('EN PANNE') && !ch.includes('INDISPONIBLE')) {
-            let matchedName = ch;
-            const registryMatch = rawList.find(r => areNamesFuzzyMatching(r.sharik, ch));
-            if (registryMatch && registryMatch.sharik) {
-              matchedName = registryMatch.sharik.trim().toUpperCase();
-            }
-            globalUniqueAllDrivers.add(matchedName);
-            if (allTeamDriverOccurrences[matchedName] >= 2) {
-              globalUniqueExtDrivers.add(matchedName);
-            }
+          if (ch && ch !== 'â€”' && ch !== '-' && !ch.includes('MANQUE CHAUFFEUR') && !ch.includes('AC/DC') && !ch.includes('DISPONIBLE') && !ch.includes('EN PANNE') && !ch.includes('INDISPONIBLE')) {
+            const canon = getCanonicalDriverName(ch);
+            allTeamDriverOccurrences[canon] = (allTeamDriverOccurrences[canon] || 0) + 1;
+            globalUniqueAllDrivers.add(canon);
           }
         });
       }
     } catch(e) {}
   });
 
-  // Chauffeurs physiques actifs = Exactement tous les chauffeurs uniques sur Numiplan (planning de disponibilité)
-  const totalActifs = (globalUniqueAllDrivers.size > 0) ? globalUniqueAllDrivers.size : rawList.filter(r => r.statut === 'ACTIF').length;
-  const totalExtensions = (globalUniqueExtDrivers.size > 0) ? globalUniqueExtDrivers.size : rawList.filter(r => r.statut === 'ACTIF' && r.is_extension).length;
-  const totalCamionsParc = (globalTotalCamions > 0) ? globalTotalCamions : 181;
+  // 2Ã¨me passe : dÃ©compte des extensions (>= 2 camions)
+  for (const [canon, occ] of Object.entries(allTeamDriverOccurrences)) {
+    if (occ >= 2) {
+      globalUniqueExtDrivers.add(canon);
+    }
+  }
+
+  // Chauffeurs physiques actifs = Exactement tous les chauffeurs uniques sur Numiplan (planning de disponibilitÃ©)
+  const totalActifs = (globalUniqueAllDrivers.size > 0) ? globalUniqueAllDrivers.size : 120;
+  const totalExtensions = (globalUniqueExtDrivers.size > 0) ? globalUniqueExtDrivers.size : 35;
+  const totalCamionsParc = (globalTotalCamions > 0) ? globalTotalCamions : 187;
   const totalInactifs = rawList.filter(r => r.statut === 'INACTIF').length;
 
   const statTotalEl = document.getElementById('admin-es-stat-total');
