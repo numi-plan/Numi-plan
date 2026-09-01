@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="fr">
 <head>
 <meta charset="UTF-8">
@@ -1602,13 +1602,28 @@ body.direction-isolated-view #page-admin-direction {
   overflow: visible !important;
 }
 
+body.direction-isolated-view #header-team-nav-container,
+body.direction-isolated-view #btn-eqA,
+body.direction-isolated-view #btn-eqB,
+body.direction-isolated-view #btn-eqC,
+body.direction-isolated-view #btn-eqD,
+body.direction-isolated-view #btn-eqE,
+body.direction-isolated-view #btn-eqF {
+  display: none !important;
+}
+
+body.direction-isolated-view #page-admin-direction {
+  padding: 10px 16px 16px 16px !important;
+}
+
 body.direction-isolated-view .table-wrap {
-  max-height: calc(100vh - 270px) !important;
+  max-height: calc(100vh - 190px) !important;
+  min-height: calc(100vh - 210px) !important;
   overflow-y: auto !important;
   overflow-x: auto !important;
   border-radius: 12px !important;
   border: 1px solid var(--border) !important;
-  margin-bottom: 24px !important;
+  margin-bottom: 8px !important;
 }
 
 </style>
@@ -1777,7 +1792,16 @@ body.direction-isolated-view .table-wrap {
   const _un = (username || '').toUpperCase().trim();
   if (role === 'direction_only' || role === 'readonly' || _un === 'REGISTRE' || _un.includes('REGISTRE')) {
     document.body.classList.add('direction-isolated-view');
+    document.documentElement.classList.add('direction-isolated-view');
     
+    // Masquer le sélecteur d'équipes en haut
+    const teamNav = document.getElementById('header-team-nav-container') || document.getElementById('btn-eqA')?.parentElement;
+    if (teamNav) teamNav.style.setProperty('display', 'none', 'important');
+    
+    // Mettre à jour le sous-titre de l'en-tête
+    const subEl = document.querySelector('.header-sub');
+    if (subEl) subEl.textContent = 'ESPACE DIRECTION · GESTION ADMINISTRATIVE & REGISTRE';
+
     // Masquer toutes les autres pages
     document.querySelectorAll('.page').forEach(p => {
       if (p.id !== 'page-admin-direction') {
@@ -1792,10 +1816,6 @@ body.direction-isolated-view .table-wrap {
       dirPage.classList.add('active');
       dirPage.style.display = 'block';
     }
-
-    // Masquer le sélecteur d'équipes en haut
-    const eqBar = document.querySelector('.equipe-bar') || document.querySelector('.team-bar');
-    if (eqBar) eqBar.style.display = 'none';
 
     // Masquer la barre de recherche globale
     const gsBar = document.querySelector('.global-search-bar');
@@ -2130,7 +2150,7 @@ function applyTeamLockUI(eq) {
     <div class="header-sub">Suivi Chauffeur · Équipe A</div>
   </div>
   <div class="header-right">
-    <div style="display:flex;background:var(--bg3);border:1px solid var(--border);border-radius:8px;overflow:hidden">
+    <div id="header-team-nav-container" style="display:flex;background:var(--bg3);border:1px solid var(--border);border-radius:8px;overflow:hidden">
       <button id="btn-eqA" onclick="switchEquipe('A')" ondragover="handleTeamDragOver(event)" ondragenter="handleTeamDragEnter(this)" ondragleave="handleTeamDragLeave(this)" ondrop="handleTeamDrop(event, 'A')" style="padding:7px 18px;font-size:11px;font-weight:700;letter-spacing:1px;border:none;cursor:pointer;background:var(--acc);color:#000;transition:all .2s">ÉQUIPE A</button>
       <button id="btn-eqB" onclick="switchEquipe('B')" ondragover="handleTeamDragOver(event)" ondragenter="handleTeamDragEnter(this)" ondragleave="handleTeamDragLeave(this)" ondrop="handleTeamDrop(event, 'B')" style="padding:7px 18px;font-size:11px;font-weight:700;letter-spacing:1px;border:none;cursor:pointer;background:transparent;color:var(--txt2);transition:all .2s">ÉQUIPE B</button>
       <button id="btn-eqC" onclick="switchEquipe('C')" ondragover="handleTeamDragOver(event)" ondragenter="handleTeamDragEnter(this)" ondragleave="handleTeamDragLeave(this)" ondrop="handleTeamDrop(event, 'C')" style="padding:7px 18px;font-size:11px;font-weight:700;letter-spacing:1px;border:none;cursor:pointer;background:transparent;color:var(--txt2);transition:all .2s">ÉQUIPE C</button>
