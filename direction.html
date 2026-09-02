@@ -550,24 +550,20 @@
   // Chargement Initial depuis Supabase (Toutes les équipes sont synchronisées pour TOUS les utilisateurs)
   async function loadInitialTeams() {
     try {
-      // --- NOUVEAU : Auto-connexion de secours pour l'espace Registre ---
-      const role = sessionStorage.getItem('numiplan_user_role');
-      const username = sessionStorage.getItem('numiplan_username');
-      const _un = (username || '').toUpperCase().trim();
-  if (role === 'direction_only' || role === 'readonly' || _un === 'REGISTRE' || _un.includes('REGISTRE')) {
-        const { data: { session } } = await supabase.auth.getSession();
-        if (!session) {
-          console.log("Session Supabase absente pour le registre, connexion de secours...");
+      // Auto-connexion Supabase universelle : garantit que CHAQUE PC (collègues & direction) dispose d'un token RLS valide
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        console.log("Session Supabase absente, connexion automatique au Cloud pour synchronisation...");
+        try {
           await supabase.auth.signInWithPassword({
             email: "admin@sharik.numilog.com",
             password: "Sharik@admin"
           });
-          console.log("Connexion de secours réussie !");
-          window.location.reload();
-          return;
+          console.log("Connexion Supabase cloud établie avec succès !");
+        } catch(authErr) {
+          console.warn("Échec connexion auto Supabase:", authErr);
         }
       }
-      // ------------------------------------------------------------------
 
       const { data, error } = await supabase.from('numiplan_teams').select('*');
       if (error) throw error;
@@ -586,7 +582,11 @@
             Object.keys(window._ADMIN_SHARIK_CUSTOM_EDITS).forEach(k => delete window._ADMIN_SHARIK_CUSTOM_EDITS[k]);
             Object.assign(window._ADMIN_SHARIK_CUSTOM_EDITS, payload || {});
             localStorage.setItem('numiplan_admin_sharik_custom_edits', JSON.stringify(window._ADMIN_SHARIK_CUSTOM_EDITS));
-            try { if (typeof renderAdminEntreesSorties === 'function') renderAdminEntreesSorties(); } catch(e) { console.warn('renderAdminEntreesSorties skipped (not ready yet):', e.message); }
+            if (typeof renderAdminEntreesSorties === 'function') {
+              renderAdminEntreesSorties();
+            } else {
+              window._pendingSharikRender = true;
+            }
             return;
           }
           _fbLoaded[eq] = true;
@@ -2033,7 +2033,15 @@ function applyTeamLockUI(eq) {
       sessionStorage.setItem('numiplan_user_role', 'direction_only');
       sessionStorage.setItem('numiplan_team_lock', 'DIR');
       document.getElementById('login-screen').style.display = 'none';
-      window.location.reload();
+      if (typeof applyDirectionOnlyIsolation === 'function') {
+        applyDirectionOnlyIsolation();
+      }
+      if (typeof loadInitialTeams === 'function') {
+        await loadInitialTeams();
+      }
+      if (typeof renderAdminEntreesSorties === 'function') {
+        renderAdminEntreesSorties();
+      }
       return;
     }
 
@@ -18237,6 +18245,10 @@ function renderAdminEntreesSorties() {
   }).join('');
 }
 window.renderAdminEntreesSorties = renderAdminEntreesSorties;
+if (window._pendingSharikRender) {
+  delete window._pendingSharikRender;
+  renderAdminEntreesSorties();
+}
 
 async function validerLiaisonSuggestion(editKey, targetName, targetV, targetRm) {
   const pwd = await demanderMotDePasseMasque("🔒 Validation Sécurisée Direction", "Veuillez saisir votre mot de passe pour confirmer cette correspondance :");
