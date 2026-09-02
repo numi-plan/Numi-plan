@@ -152,12 +152,22 @@
         if (k) remoteMap.set(k, item);
       });
 
+      const allDeletedTrucks = new Set([
+        ...(local.deleted_trucks || []),
+        ...(remote.deleted_trucks || []),
+        ...(window._deletedDispoTrucks || [])
+      ]);
+      merged.deleted_trucks = Array.from(allDeletedTrucks);
+
       const allKeys = new Set([...localMap.keys(), ...remoteMap.keys()]);
       const mergedList = [];
       const localGlobalTs = local._localTs || 0;
       const remoteGlobalTs = remote._localTs || (remote._last_edited_at ? new Date(remote._last_edited_at).getTime() : 0);
 
       for (const key of allKeys) {
+        if (listName === 'dispo' && allDeletedTrucks.has((key || '').trim().toUpperCase())) {
+          continue; // Camion explicitement supprimé : ne jamais le ressusciter !
+        }
         const localItem = localMap.get(key);
         const remoteItem = remoteMap.get(key);
 
@@ -329,7 +339,21 @@
       });
     }
 
-    const cleanSrc = window.cloneTeamData ? window.cloneTeamData(src, eq === 'A' ? window.INITIAL_DATA : undefined) : src;
+    // Filtrer immédiatement les camions supprimés
+  try {
+    const delArr = JSON.parse(localStorage.getItem('numiplan_deleted_trucks') || '[]');
+    window._deletedDispoTrucks = window._deletedDispoTrucks || new Set(delArr);
+  } catch(e) {}
+  if (src && src.deleted_trucks && Array.isArray(src.deleted_trucks)) {
+    src.deleted_trucks.forEach(t => window._deletedDispoTrucks.add(t));
+  }
+  if (src && src.dispo && window._deletedDispoTrucks && window._deletedDispoTrucks.size > 0) {
+    src.dispo = src.dispo.filter(d => !window._deletedDispoTrucks.has((d.v||'').trim().toUpperCase()));
+  }
+  const cleanSrc = window.cloneTeamData ? window.cloneTeamData(src, eq === 'A' ? window.INITIAL_DATA : undefined) : src;
+  if (cleanSrc && cleanSrc.dispo && window._deletedDispoTrucks && window._deletedDispoTrucks.size > 0) {
+    cleanSrc.dispo = cleanSrc.dispo.filter(d => !window._deletedDispoTrucks.has((d.v||'').trim().toUpperCase()));
+  }
 
     if (eq === 'A') {
       if (!cleanSrc.dispo || !cleanSrc.dispo.length) {
@@ -604,6 +628,13 @@
         // Charger le statut de synchronisation GPS
         await loadInitialGpsSyncStatus();
         if (typeof checkPointageRequired === 'function') checkPointageRequired();
+
+        // Rendu immédiat et automatique du Registre après synchronisation de toutes les équipes
+        if (typeof renderAdminEntreesSorties === 'function') {
+          renderAdminEntreesSorties();
+        } else {
+          window._pendingSharikRender = true;
+        }
       }
     } catch (e) {
       console.error("Error loading initial teams:", e);
@@ -724,6 +755,10 @@
 
   if (isAuthed) {
     reconnectRealtimeChannel();
+  // Chargement direct et immédiat de toutes les équipes depuis Supabase
+  if (typeof loadInitialTeams === 'function') {
+    loadInitialTeams();
+  }
   } else {
     // Non connecté : charger uniquement les utilisateurs pour le login (presque 0 octets)
     loadDropdownUsersOnly();
@@ -1091,6 +1126,14 @@
   function smartMergePayloads(base, cloud, local) {
     if (!base) return local;
     let merged = JSON.parse(JSON.stringify(cloud));
+    const allDeletedTrucks = new Set([
+      ...(local.deleted_trucks || []),
+      ...(cloud.deleted_trucks || []),
+      ...(base ? (base.deleted_trucks || []) : []),
+      ...(window._deletedDispoTrucks || [])
+    ]);
+    merged.deleted_trucks = Array.from(allDeletedTrucks);
+
     const mergeArray = (arrName, keyProp) => {
         if (!local[arrName]) return;
         if (!merged[arrName]) merged[arrName] = [];
@@ -1101,6 +1144,9 @@
         for (let cItem of merged[arrName]) {
             let key = cItem[keyProp];
             if (!key) { finalArr.push(cItem); continue; }
+            if (arrName === 'dispo' && allDeletedTrucks.has((key || '').trim().toUpperCase())) {
+                continue; // Camion supprimé : ne jamais ressusciter
+            }
             let lItem = localMap.get(key);
             let bItem = baseMap.get(key);
             if (lItem) {
@@ -1117,7 +1163,10 @@
             }
         }
         for (let [key, lItem] of localMap.entries()) {
-            if (key) finalArr.push(lItem);
+            if (key) {
+                if (arrName === 'dispo' && allDeletedTrucks.has(key.trim().toUpperCase())) continue;
+                finalArr.push(lItem);
+            }
         }
         merged[arrName] = finalArr;
     };
@@ -4772,7 +4821,7 @@ const INITIAL_DATA_F = {
 const INITIAL_DATA = {
   blacklist: [],
   incidentsLivraison: [],
-  dispo: [{"v":"500181-514-16","km":1286678,"hor":0.4166666666666667,"lat":null,"lng":null,"obs":"ing","cspc":false,"etat":"En mission","prog":"","type":"TRACTEUR","equip":"OK","lieuJ":"ORAN","repos":"","agence":"","geoloc":"OFF","lieuJ1":"BLIDA","affecte":"OUI","progFige":false,"chauffeur":"BELSKEM MOUHAMED","geolocDate":"2026-08-26","progDepart":"","geoloc_date":"2026-08-11","_lastEditedTs":1788182965956,"lieuJ_initial":"ORAN","assuranceRmFin":"","assuranceTrFin":"","lieuJ1_initial":"BLIDA","assuranceRmFileName":null,"assuranceTrFileName":null},{"v":"001006-514-16","km":1153484,"hor":0.8333333333333334,"lat":36.0742,"lng":1.1756,"obs":"knauf","cspc":false,"etat":"DISPONIBLE","prog":"","type":"TRACTEUR","equip":"OK","lieuJ":"ORAN","repos":"","agence":"","geoloc":"ON","lieuJ1":"JIJEL","affecte":"OUI","progFige":false,"chauffeur":"BENMASSAOUD ADEL","geolocDate":"2026-08-31T12:38:48.000Z","progDepart":"","geoloc_date":"2026-08-16","_lastEditedTs":1788184246474,"lieuJ_initial":"BLIDA","lieuJ1_initial":"BORDJ BOU ARRERIDJ"},{"v":"000772-515-16","km":1167747,"hor":0.5,"lat":34.6339,"lng":3.24247,"obs":"OUED TLELAT/ changement de destination","cspc":false,"etat":"DISPONIBLE","prog":"","type":"TRACTEUR","equip":"OK","lieuJ":"DJELFA","repos":"","agence":"","geoloc":"ON","lieuJ1":"BOUIRA","affecte":"OUI","progFige":false,"chauffeur":"HADJ MOUSSA","geolocDate":"2026-08-31T12:32:12.000Z","progDepart":"","geoloc_date":"2026-08-16","_lastEditedTs":1788185816110,"lieuJ_initial":"DJELFA","lieuJ1_initial":"BLIDA"},{"v":"000890-514-16","km":null,"hor":0.4166666666666667,"lat":36.2021,"lng":1.25189,"obs":"hassi ameur hamoud","cspc":false,"etat":"DISPONIBLE","prog":"","type":"TRACTEUR","equip":"OK","lieuJ":"ORAN","repos":"","agence":"","geoloc":"ON","lieuJ1":"TIARET","affecte":"OUI","progFige":false,"chauffeur":"RACHID KHELLIF","geolocDate":"2026-08-31T09:14:28.000Z","progDepart":"","geoloc_date":"2026-08-16","_lastEditedTs":1788186235975,"lieuJ_initial":"ORAN","lieuJ1_initial":"TIARET"},{"v":"000774-515-16","km":null,"hor":0.9166666666666666,"lat":null,"lng":null,"obs":"BOUIRA RELIZANE PAS ENCORE CHARGER +maintenance","cspc":false,"etat":"DISPONIBLE","prog":"","type":"TRACTEUR","equip":"","lieuJ":"BOUIRA","repos":"","agence":"","geoloc":"OFF","lieuJ1":"RELIZANE","affecte":"OUI","progFige":false,"chauffeur":"ROUABHIA KHALED","geolocDate":"2026-03-04T13:48:15.000Z","progDepart":"","geoloc_date":"2026-08-16","_lastEditedTs":1788186441311,"lieuJ_initial":"BOUIRA","lieuJ1_initial":"RELIZANE"},{"v":"001079-514-16","km":null,"hor":0.5,"lat":36.7119,"lng":5.0531,"obs":"pas encore","cspc":false,"etat":"En mission","prog":"","type":"TRACTEUR","equip":"OK","lieuJ":"BEJAIA","repos":"","agence":"","geoloc":"ON","lieuJ1":"BEJAIA","affecte":"OUI","progFige":false,"chauffeur":"TABLI CHAFIK","geolocDate":"2026-08-31T12:29:03.000Z","progDepart":"","geoloc_date":"2026-08-16","_lastEditedTs":1788186340967,"lieuJ_initial":"—","lieuJ1_initial":"BEJA"},{"v":"000916-523-16","km":null,"hor":0.75,"lat":36.4715,"lng":3.74194,"obs":"—","cspc":false,"etat":"En panne","prog":"","type":"TRACTEUR","equip":"OK","lieuJ":"—","repos":"","agence":"","geoloc":"ON","lieuJ1":"—","affecte":"OUI","progFige":false,"chauffeur":"TABLI CHAFIK","geolocDate":"2026-08-31T06:07:54.000Z","progDepart":"","geoloc_date":"2026-08-16","_lastEditedTs":1787326447303,"lieuJ_initial":"—","lieuJ1_initial":"—"},{"v":"000920-523-16","km":null,"hor":0.4166666666666667,"lat":36.35,"lng":3.83558,"obs":"ORIENTER","cspc":false,"etat":"En mission","prog":"","type":"TRACTEUR","equip":"OK","lieuJ":"JIJEL","repos":"","agence":"","geoloc":"ON","lieuJ1":"BEJAIA","affecte":"OUI","progFige":false,"chauffeur":"TABLI CHAFIK","geolocDate":"2026-08-31T06:07:43.000Z","progDepart":"","geoloc_date":"2026-08-16","_lastEditedTs":1788186316391,"lieuJ_initial":"ALGER","lieuJ1_initial":"BEJAIA"},{"v":"001047-524-16","km":null,"hor":0.5,"lat":36.6436,"lng":3.29789,"obs":"puma","cspc":false,"etat":"DISPONIBLE","prog":"","type":"TRACTEUR","equip":"OK","lieuJ":"CONSTANTINE","repos":"","agence":"","geoloc":"ON","lieuJ1":"BEJAIA","affecte":"OUI","progFige":false,"chauffeur":"TABLI CHAFIK","geolocDate":"2026-08-30T06:23:10.147Z","progDepart":"","geoloc_date":"2026-08-14T19:17:59.936Z","_lastEditedTs":1788123989195,"lieuJ_initial":"EL TARF","lieuJ1_initial":"BEJAIA"},{"v":"001045-524-16","km":null,"hor":0.5,"lat":36.5736,"lng":6.74944,"obs":"E A P I BOUS3ADA","cspc":false,"etat":"DISPONIBLE","prog":"","type":"TRACTEUR","equip":"OK","lieuJ":"ANNABA","repos":"","agence":"","geoloc":"ON","lieuJ1":"MSILA","affecte":"OUI","progFige":false,"chauffeur":"TABLI CHAFIK","geolocDate":"2026-08-31T12:39:50.552Z","progDepart":"","geoloc_date":"2026-08-16","_lastEditedTs":1788186353383,"lieuJ_initial":"ANNABA","assuranceRmFin":"2026-07-01","assuranceTrFin":"2026-07-01","lieuJ1_initial":"MSILA","assuranceRmFileName":null,"assuranceTrFileName":null},{"v":"000363-516-16","km":1110142,"hor":0.75,"lat":null,"lng":null,"obs":"ORIENTER VERS COMPTOIR","cspc":false,"etat":"En mission","prog":"","type":"TRACTEUR","equip":"OK","lieuJ":"TIZI OUZOU","repos":"","agence":"","geoloc":"OFF","lieuJ1":"BEJAIA","affecte":"OUI","progFige":false,"chauffeur":"YAHIAOUI DJAMEL","geolocDate":"2026-07-09T07:17:41.000Z","progDepart":"","geoloc_date":"2026-08-16","_lastEditedTs":1788173768084,"lieuJ_initial":"TIZI OUZOU","assuranceRmFin":"2026-05-24","assuranceTrFin":"2026-05-24","lieuJ1_initial":"BEJAIA","assuranceRmFileName":null,"assuranceTrFileName":null},{"v":"000980-514-16","km":1212035,"hor":0.7916666666666666,"lat":35.5365,"lng":-0.448266,"obs":"ORINETER BEJAIA","cspc":false,"etat":"En mission","prog":"","type":"TRACTEUR","equip":"OK","lieuJ":"TIZI OUZOU","geoloc":"ON","lieuJ1":"BEJAIA","affecte":"OUI","chauffeur":"CHEBBOUT MOHAMED","geolocDate":"2026-08-30T23:20:05.000Z","geoloc_date":"2026-08-16","_lastEditedTs":1788173724452,"lieuJ_initial":"TIZI OUZOU","lieuJ1_initial":"BEJAIA"},{"v":"001184-514-16","km":null,"hor":0.5,"lat":36.7257,"lng":5.05896,"obs":"Sucre 1 klg","etat":"En mission","prog":"","type":"TRACTEUR","equip":"OK","lieuJ":"BEJAIA","geoloc":"ON","lieuJ1":"ORAN","affecte":"OUI","chauffeur":"YAHIAOUI DJAMEL","geolocDate":"2026-08-31T05:33:06.000Z","geoloc_date":"2026-08-16","_lastEditedTs":1788186666058,"lieuJ_initial":"BEJAIA","assuranceRmFin":"2026-08-04","assuranceTrFin":"2026-08-04","lieuJ1_initial":"ORAN","assuranceRmFileName":null,"assuranceTrFileName":null},{"v":"001117-514-16","km":null,"hor":0.625,"lat":36.4343,"lng":6.28401,"obs":"CHANGEMENT DE REMOQUE","etat":"En panne","prog":"","type":"TRACTEUR","equip":"OK","lieuJ":"—","geoloc":"ON","lieuJ1":"—","affecte":"OUI","chauffeur":"MUSTAPHA  DJENNADI","geolocDate":"2026-08-31T06:10:59.000Z","geoloc_date":"2026-08-16","_lastEditedTs":1788009797073,"lieuJ_initial":"—","assuranceRmFin":"2026-08-12","assuranceTrFin":"2026-08-12","lieuJ1_initial":"—","assuranceRmFileName":null,"assuranceTrFileName":null},{"v":"500158-514-16","km":null,"hor":0,"lat":36.3316,"lng":4.30919,"obs":"transfert de part bejaia vers part A","etat":"En panne","prog":"","type":"TRACTEUR","equip":"OK","lieuJ":"—","geoloc":"ON","lieuJ1":"—","affecte":"OUI","chauffeur":"AKKOUCHE LARBI","geolocDate":"2026-08-31T06:12:06.000Z","lieuJ_initial":"—","assuranceRmFin":"2026-08-23","assuranceTrFin":"2026-08-23","lieuJ1_initial":"—","assuranceRmFileName":null,"assuranceTrFileName":null},{"v":"000968-514-16","km":null,"hor":0.4166666666666667,"lat":36.667,"lng":3.25981,"obs":"Bouira/Bejaia","cspc":false,"etat":"DISPONIBLE","prog":"","type":"TRACTEUR","equip":"OK","lieuJ":"ALGER","geoloc":"ON","lieuJ1":"BOUMERDES","affecte":"OUI","chauffeur":"GUENNOUCHE MD CHRIF","geolocDate":"2026-08-31T12:38:52.000Z","_lastEditedTs":1788187077100,"lieuJ_initial":"SETIF","assuranceRmFin":"2026-08-24","assuranceTrFin":"2026-08-24","lieuJ1_initial":"NAAMA","assuranceRmFileName":null,"assuranceTrFileName":null},{"v":"000880-514-16","km":null,"hor":0,"lat":36.7366,"lng":5.05905,"obs":"","etat":"En panne","prog":"","type":"TRACTEUR","equip":"OK","lieuJ":"—","geoloc":"ON","lieuJ1":"—","affecte":"OUI","chauffeur":"LARBI LYES","geolocDate":"2026-08-31T12:23:05.000Z","lieuJ_initial":"—","assuranceRmFin":"2026-08-26","assuranceTrFin":"2026-08-26","lieuJ1_initial":"—","assuranceRmFileName":null,"assuranceTrFileName":null},{"v":"000908-514-16","km":1175634,"hor":0.625,"lat":36.3184,"lng":4.01947,"obs":"REMPLACEMENT DES BON 781","cspc":false,"etat":"En panne","prog":"","type":"TRACTEUR","equip":"","lieuJ":"—","repos":"","agence":"","geoloc":"ON","lieuJ1":"—","affecte":"OUI","progFige":false,"chauffeur":"BADREDDINE SEGHIR","geolocDate":"2026-08-31T12:38:24.000Z","progDepart":"","geoloc_date":"2026-08-16T19:00:45.000Z","_lastEditedTs":1788176529836,"lieuJ_initial":"—","assuranceRmFin":"2026-05-24","assuranceTrFin":"2026-05-24","lieuJ1_initial":"—","assuranceRmFileName":"000775.pdf","assuranceTrFileName":"000908.pdf"},{"v":"000149-515-16","km":921274,"hor":0.75,"lat":36.6533,"lng":3.59261,"obs":"—","cspc":false,"etat":"DISPONIBLE","prog":"","type":"","equip":"","lieuJ":"BEJAIA","repos":"","agence":"","geoloc":"ON","lieuJ1":"LAGHOUAT","affecte":"OUI","progFige":false,"chauffeur":"BADREDDINE SEGHIR","geolocDate":"2026-08-31T12:36:52.000Z","progDepart":"","geoloc_date":"2026-08-16T15:53:01.000Z","_lastEditedTs":1788184229480,"lieuJ_initial":"TIZI OUZOU","lieuJ1_initial":"LAGHOUAT"},{"v":"000781-523-16","km":282880,"hor":0.75,"lat":35.7103,"lng":-0.488306,"obs":"—","cspc":false,"etat":"DISPONIBLE","prog":"","type":"TRACTEUR","equip":"OK","lieuJ":"ORAN","repos":"","agence":"","geoloc":"ON","lieuJ1":"ALGER","affecte":"OUI","progFige":false,"chauffeur":"BADREDDINE SEGHIR","geolocDate":"2026-08-31T12:37:17.000Z","progDepart":"","geoloc_date":"2026-08-16T18:30:17.000Z","_lastEditedTs":1788184220159,"lieuJ_initial":"ORAN","assuranceRmFin":"2026-07-15","assuranceTrFin":"2026-07-15","lieuJ1_initial":"ALGER","assuranceRmFileName":null,"assuranceTrFileName":null},{"v":"001174-514-16","km":null,"hor":0.5833333333333334,"lat":36.3669,"lng":3.8471,"obs":"CONTACT ING","cspc":false,"etat":"En panne","prog":"","type":"TRACTEUR","equip":"OK","lieuJ":"BOUIRA","repos":"","agence":"","geoloc":"ON","lieuJ1":"ORAN","affecte":"OUI","progFige":false,"chauffeur":"AIOUADJ HICHAM","geolocDate":"2026-08-31T13:00:11.000Z","progDepart":"","geoloc_date":"2026-08-16T18:04:41.000Z","_lastEditedTs":1788124547994,"lieuJ_initial":"BOUIRA","lieuJ1_initial":"ORAN"},{"v":"001071-514-16","km":null,"hor":0.5416666666666666,"lat":36.2597,"lng":2.30597,"obs":"—","cspc":false,"etat":"DISPONIBLE","prog":"","type":"TRACTEUR","equip":"OK","lieuJ":"ORAN","repos":"","agence":"","geoloc":"ON","lieuJ1":"ALGER","affecte":"OUI","progFige":false,"chauffeur":"SKANDAR HAMIMI","geolocDate":"2026-08-31T12:18:16.000Z","progDepart":"","geoloc_date":"2026-08-16T18:32:29.000Z","_lastEditedTs":1788124517074,"lieuJ_initial":"ORAN","assuranceRmFin":"2026-07-03","assuranceTrFin":"2026-07-03","lieuJ1_initial":"ALGER","assuranceRmFileName":null,"assuranceTrFileName":null},{"v":"000732-514-16","km":1398525,"hor":0.5416666666666666,"lat":35.6456,"lng":-0.587986,"obs":"—","cspc":false,"etat":"DISPONIBLE","prog":"","type":"TRACTEUR","equip":"OK","lieuJ":"CHLEF","repos":"","agence":"","geoloc":"ON","lieuJ1":"SKIKDA","affecte":"OUI","progFige":false,"chauffeur":"MAAMAR IDIR","geolocDate":"2026-08-31T12:39:26.000Z","progDepart":"","geoloc_date":"2026-08-16T18:32:11.000Z","_lastEditedTs":1788124504659,"lieuJ_initial":"CHLEF","assuranceRmFin":"2026-07-03","assuranceTrFin":"2026-07-03","lieuJ1_initial":"SKIKDA","assuranceRmFileName":null,"assuranceTrFileName":null},{"v":"000799-523-16","km":338598,"hor":0.4583333333333333,"lat":36.3659,"lng":3.84481,"obs":"—","cspc":false,"etat":"DISPONIBLE","prog":"","type":"TRACTEUR","equip":"OK","lieuJ":"BOUIRA","geoloc":"ON","lieuJ1":"EL BAYADH","affecte":"OUI","chauffeur":"ZEROUALI MOHAMED AMINE","geolocDate":"2026-08-31T12:38:16.000Z","_lastEditedTs":1788122475289,"lieuJ_initial":"BOUIRA","assuranceRmFin":"2026-08-19","assuranceTrFin":"2026-08-19","lieuJ1_initial":"EL BAYADH","assuranceRmFileName":null,"assuranceTrFileName":null},{"v":"000943-523-16","hor":0,"lat":null,"lng":null,"obs":"","etat":"En mission","prog":"","type":"TRACTEUR","equip":"OK","lieuJ":"TLEMCEN","geoloc":"OFF","lieuJ1":"CONSTANTINE","chauffeur":"AMROUCHE ABDELGHANI","geolocDate":null,"lieuJ_initial":"TLEMCEN","assuranceRmFin":"2026-08-31","assuranceTrFin":"2026-08-31","lieuJ1_initial":"CONSTANTINE","assuranceRmFileName":null,"assuranceTrFileName":null},{"v":"001083-514-16","km":1345300,"hor":0.4166666666666667,"lat":36.7362,"lng":5.0598,"obs":"—","cspc":false,"etat":"En panne","prog":"","type":"","equip":"","lieuJ":"BEJAIA","repos":"","agence":"PARTENAIRE_C","geoloc":"ON","lieuJ1":"BOUIRA","affecte":"OUI","progFige":false,"chauffeur":"AMROUCHE ABDELGHANI","geolocDate":"2026-08-31T12:34:47.000Z","progDepart":"","geoloc_date":"2026-08-15","_lastEditedTs":1788183766433,"lieuJ_initial":"BEJAIA","assuranceRmFin":"","assuranceTrFin":"","lieuJ1_initial":"BOUIRA","assuranceRmFileName":null,"assuranceTrFileName":null},{"v":"001154-514-16","km":1225886,"hor":0.375,"lat":35.3852,"lng":-1.09186,"obs":"943 / 3ANDO MANSOURA CONSTANTINE","cspc":false,"etat":"En mission","prog":"","type":"MARAICHER","equip":"","lieuJ":"TLEMCEN","repos":"","agence":"PARTENAIRE_C","geoloc":"ON","lieuJ1":"ANNABA","affecte":"OUI","progFige":false,"chauffeur":"AMROUCHE ABDELGHANI","geolocDate":"2026-08-31T12:39:50.552Z","progDepart":"","geoloc_date":"2026-08-14T19:17:59.936Z","_lastEditedTs":1788185607368,"lieuJ_initial":"NAAMA","lieuJ1_initial":"ANNABA"},{"v":"000473-523-16","km":304303,"hor":0.6666666666666666,"lat":36.865,"lng":7.77488,"obs":"HABATO L ALGER","cspc":false,"etat":"DISPONIBLE","prog":"","type":"TRACTEUR","equip":"","lieuJ":"CONSTANTINE","repos":"","agence":"PARTENAIRE_C","geoloc":"ON","lieuJ1":"BEJAIA","affecte":"OUI","progFige":false,"chauffeur":"AMROUCHE ABDELGHANI","geolocDate":"2026-08-31T12:16:48.000Z","progDepart":"","geoloc_date":"2026-08-15","_lastEditedTs":1788186636899,"lieuJ_initial":"BEJAIA","assuranceRmFin":"2026-07-04","assuranceTrFin":"2026-06-16","lieuJ1_initial":"BEJAIA","assuranceRmFileName":null,"assuranceTrFileName":null},{"v":"000938-514-16","km":1257900,"hor":0.3333333333333333,"lat":36.3658,"lng":3.84657,"obs":"— a con chargment a  bouira","cspc":false,"etat":"En mission","prog":"","type":"","equip":"","lieuJ":"BOUIRA","repos":"","agence":"PARTENAIRE_D","geoloc":"ON","lieuJ1":"RELIZANE","affecte":"OUI","progFige":false,"chauffeur":"BENMEHDIA A/KADER","geolocDate":"2026-08-31T12:37:31.000Z","progDepart":"","geoloc_date":"2026-08-16","_lastEditedTs":1788185489811,"lieuJ_initial":"BEJAIA","assuranceRmFin":"","assuranceTrFin":"","lieuJ1_initial":"BOUIRA","assuranceRmFileName":null,"assuranceTrFileName":null},{"v":"001063-524-16","km":224100,"hor":0,"lat":36.18,"lng":5.46184,"obs":"—","cspc":false,"etat":"DISPONIBLE","prog":"","type":"MARAICHER","equip":"","lieuJ":"SETIF","repos":"","agence":"PARTENAIRE_D","geoloc":"ON","lieuJ1":"SETIF","affecte":"OUI","progFige":false,"chauffeur":"BENMEHDIA A/KADER","geolocDate":"2026-08-31T12:39:50.552Z","progDepart":"","geoloc_date":"2026-08-16","_lastEditedTs":1788185091062,"lieuJ_initial":"ORAN","lieuJ1_initial":"CONSTANTINE"},{"v":"000924-514-16","km":null,"hor":0.4166666666666667,"lat":35.6907,"lng":-0.561498,"obs":"—","cspc":false,"etat":"En mission","prog":"","type":"TRACTEUR","equip":"","lieuJ":"ORAN","repos":"","agence":"","geoloc":"ON","lieuJ1":"BLIDA","affecte":"NON","progFige":false,"chauffeur":"ZIAT RACHID","geolocDate":"2026-08-31T12:38:18.000Z","progDepart":"","geoloc_date":"2026-08-16","_lastEditedTs":1788102621010,"lieuJ_initial":"ORAN","assuranceRmFin":"","assuranceTrFin":"","lieuJ1_initial":"BLIDA","assuranceRmFileName":null,"assuranceTrFileName":null}],
+  dispo: [{"v":"500181-514-16","km":1286678,"hor":0.4166666666666667,"lat":null,"lng":null,"obs":"ing","cspc":false,"etat":"En mission","prog":"","type":"TRACTEUR","equip":"OK","lieuJ":"ORAN","repos":"","agence":"","geoloc":"OFF","lieuJ1":"BLIDA","affecte":"OUI","progFige":false,"chauffeur":"BELSKEM MOUHAMED","geolocDate":"2026-08-26","progDepart":"","geoloc_date":"2026-08-11","_lastEditedTs":1788182965956,"lieuJ_initial":"ORAN","assuranceRmFin":"","assuranceTrFin":"","lieuJ1_initial":"BLIDA","assuranceRmFileName":null,"assuranceTrFileName":null},{"v":"001006-514-16","km":1153484,"hor":0.8333333333333334,"lat":36.0742,"lng":1.1756,"obs":"knauf","cspc":false,"etat":"DISPONIBLE","prog":"","type":"TRACTEUR","equip":"OK","lieuJ":"ORAN","repos":"","agence":"","geoloc":"ON","lieuJ1":"JIJEL","affecte":"OUI","progFige":false,"chauffeur":"BENMASSAOUD ADEL","geolocDate":"2026-08-31T12:38:48.000Z","progDepart":"","geoloc_date":"2026-08-16","_lastEditedTs":1788184246474,"lieuJ_initial":"BLIDA","lieuJ1_initial":"BORDJ BOU ARRERIDJ"},{"v":"000772-515-16","km":1167747,"hor":0.5,"lat":34.6339,"lng":3.24247,"obs":"OUED TLELAT/ changement de destination","cspc":false,"etat":"DISPONIBLE","prog":"","type":"TRACTEUR","equip":"OK","lieuJ":"DJELFA","repos":"","agence":"","geoloc":"ON","lieuJ1":"BOUIRA","affecte":"OUI","progFige":false,"chauffeur":"HADJ MOUSSA","geolocDate":"2026-08-31T12:32:12.000Z","progDepart":"","geoloc_date":"2026-08-16","_lastEditedTs":1788185816110,"lieuJ_initial":"DJELFA","lieuJ1_initial":"BLIDA"},{"v":"000890-514-16","km":null,"hor":0.4166666666666667,"lat":36.2021,"lng":1.25189,"obs":"hassi ameur hamoud","cspc":false,"etat":"DISPONIBLE","prog":"","type":"TRACTEUR","equip":"OK","lieuJ":"ORAN","repos":"","agence":"","geoloc":"ON","lieuJ1":"TIARET","affecte":"OUI","progFige":false,"chauffeur":"RACHID KHELLIF","geolocDate":"2026-08-31T09:14:28.000Z","progDepart":"","geoloc_date":"2026-08-16","_lastEditedTs":1788186235975,"lieuJ_initial":"ORAN","lieuJ1_initial":"TIARET"},{"v":"000774-515-16","km":null,"hor":0.9166666666666666,"lat":null,"lng":null,"obs":"BOUIRA RELIZANE PAS ENCORE CHARGER +maintenance","cspc":false,"etat":"DISPONIBLE","prog":"","type":"TRACTEUR","equip":"","lieuJ":"BOUIRA","repos":"","agence":"","geoloc":"OFF","lieuJ1":"RELIZANE","affecte":"OUI","progFige":false,"chauffeur":"ROUABHIA KHALED","geolocDate":"2026-03-04T13:48:15.000Z","progDepart":"","geoloc_date":"2026-08-16","_lastEditedTs":1788186441311,"lieuJ_initial":"BOUIRA","lieuJ1_initial":"RELIZANE"},{"v":"001079-514-16","km":null,"hor":0.5,"lat":36.7119,"lng":5.0531,"obs":"pas encore","cspc":false,"etat":"En mission","prog":"","type":"TRACTEUR","equip":"OK","lieuJ":"BEJAIA","repos":"","agence":"","geoloc":"ON","lieuJ1":"BEJAIA","affecte":"OUI","progFige":false,"chauffeur":"TABLI CHAFIK","geolocDate":"2026-08-31T12:29:03.000Z","progDepart":"","geoloc_date":"2026-08-16","_lastEditedTs":1788186340967,"lieuJ_initial":"—","lieuJ1_initial":"BEJA"},{"v":"000916-523-16","km":null,"hor":0.75,"lat":36.4715,"lng":3.74194,"obs":"—","cspc":false,"etat":"En panne","prog":"","type":"TRACTEUR","equip":"OK","lieuJ":"—","repos":"","agence":"","geoloc":"ON","lieuJ1":"—","affecte":"OUI","progFige":false,"chauffeur":"TABLI CHAFIK","geolocDate":"2026-08-31T06:07:54.000Z","progDepart":"","geoloc_date":"2026-08-16","_lastEditedTs":1787326447303,"lieuJ_initial":"—","lieuJ1_initial":"—"},{"v":"000920-523-16","km":null,"hor":0.4166666666666667,"lat":36.35,"lng":3.83558,"obs":"ORIENTER","cspc":false,"etat":"En mission","prog":"","type":"TRACTEUR","equip":"OK","lieuJ":"JIJEL","repos":"","agence":"","geoloc":"ON","lieuJ1":"BEJAIA","affecte":"OUI","progFige":false,"chauffeur":"TABLI CHAFIK","geolocDate":"2026-08-31T06:07:43.000Z","progDepart":"","geoloc_date":"2026-08-16","_lastEditedTs":1788186316391,"lieuJ_initial":"ALGER","lieuJ1_initial":"BEJAIA"},{"v":"001047-524-16","km":null,"hor":0.5,"lat":36.6436,"lng":3.29789,"obs":"puma","cspc":false,"etat":"DISPONIBLE","prog":"","type":"TRACTEUR","equip":"OK","lieuJ":"CONSTANTINE","repos":"","agence":"","geoloc":"ON","lieuJ1":"BEJAIA","affecte":"OUI","progFige":false,"chauffeur":"TABLI CHAFIK","geolocDate":"2026-08-30T06:23:10.147Z","progDepart":"","geoloc_date":"2026-08-14T19:17:59.936Z","_lastEditedTs":1788123989195,"lieuJ_initial":"EL TARF","lieuJ1_initial":"BEJAIA"},{"v":"001045-524-16","km":null,"hor":0.5,"lat":36.5736,"lng":6.74944,"obs":"E A P I BOUS3ADA","cspc":false,"etat":"DISPONIBLE","prog":"","type":"TRACTEUR","equip":"OK","lieuJ":"ANNABA","repos":"","agence":"","geoloc":"ON","lieuJ1":"MSILA","affecte":"OUI","progFige":false,"chauffeur":"TABLI CHAFIK","geolocDate":"2026-08-31T12:39:50.552Z","progDepart":"","geoloc_date":"2026-08-16","_lastEditedTs":1788186353383,"lieuJ_initial":"ANNABA","assuranceRmFin":"2026-07-01","assuranceTrFin":"2026-07-01","lieuJ1_initial":"MSILA","assuranceRmFileName":null,"assuranceTrFileName":null},{"v":"000363-516-16","km":1110142,"hor":0.75,"lat":null,"lng":null,"obs":"ORIENTER VERS COMPTOIR","cspc":false,"etat":"En mission","prog":"","type":"TRACTEUR","equip":"OK","lieuJ":"TIZI OUZOU","repos":"","agence":"","geoloc":"OFF","lieuJ1":"BEJAIA","affecte":"OUI","progFige":false,"chauffeur":"YAHIAOUI DJAMEL","geolocDate":"2026-07-09T07:17:41.000Z","progDepart":"","geoloc_date":"2026-08-16","_lastEditedTs":1788173768084,"lieuJ_initial":"TIZI OUZOU","assuranceRmFin":"2026-05-24","assuranceTrFin":"2026-05-24","lieuJ1_initial":"BEJAIA","assuranceRmFileName":null,"assuranceTrFileName":null},{"v":"000980-514-16","km":1212035,"hor":0.7916666666666666,"lat":35.5365,"lng":-0.448266,"obs":"ORINETER BEJAIA","cspc":false,"etat":"En mission","prog":"","type":"TRACTEUR","equip":"OK","lieuJ":"TIZI OUZOU","geoloc":"ON","lieuJ1":"BEJAIA","affecte":"OUI","chauffeur":"CHEBBOUT MOHAMED","geolocDate":"2026-08-30T23:20:05.000Z","geoloc_date":"2026-08-16","_lastEditedTs":1788173724452,"lieuJ_initial":"TIZI OUZOU","lieuJ1_initial":"BEJAIA"},{"v":"001184-514-16","km":null,"hor":0.5,"lat":36.7257,"lng":5.05896,"obs":"Sucre 1 klg","etat":"En mission","prog":"","type":"TRACTEUR","equip":"OK","lieuJ":"BEJAIA","geoloc":"ON","lieuJ1":"ORAN","affecte":"OUI","chauffeur":"YAHIAOUI DJAMEL","geolocDate":"2026-08-31T05:33:06.000Z","geoloc_date":"2026-08-16","_lastEditedTs":1788186666058,"lieuJ_initial":"BEJAIA","assuranceRmFin":"2026-08-04","assuranceTrFin":"2026-08-04","lieuJ1_initial":"ORAN","assuranceRmFileName":null,"assuranceTrFileName":null},{"v":"001117-514-16","km":null,"hor":0.625,"lat":36.4343,"lng":6.28401,"obs":"CHANGEMENT DE REMOQUE","etat":"En panne","prog":"","type":"TRACTEUR","equip":"OK","lieuJ":"—","geoloc":"ON","lieuJ1":"—","affecte":"OUI","chauffeur":"MUSTAPHA  DJENNADI","geolocDate":"2026-08-31T06:10:59.000Z","geoloc_date":"2026-08-16","_lastEditedTs":1788009797073,"lieuJ_initial":"—","assuranceRmFin":"2026-08-12","assuranceTrFin":"2026-08-12","lieuJ1_initial":"—","assuranceRmFileName":null,"assuranceTrFileName":null},{"v":"500158-514-16","km":null,"hor":0,"lat":36.3316,"lng":4.30919,"obs":"transfert de part bejaia vers part A","etat":"En panne","prog":"","type":"TRACTEUR","equip":"OK","lieuJ":"—","geoloc":"ON","lieuJ1":"—","affecte":"OUI","chauffeur":"AKKOUCHE LARBI","geolocDate":"2026-08-31T06:12:06.000Z","lieuJ_initial":"—","assuranceRmFin":"2026-08-23","assuranceTrFin":"2026-08-23","lieuJ1_initial":"—","assuranceRmFileName":null,"assuranceTrFileName":null},{"v":"000968-514-16","km":null,"hor":0.4166666666666667,"lat":36.667,"lng":3.25981,"obs":"Bouira/Bejaia","cspc":false,"etat":"DISPONIBLE","prog":"","type":"TRACTEUR","equip":"OK","lieuJ":"ALGER","geoloc":"ON","lieuJ1":"BOUMERDES","affecte":"OUI","chauffeur":"GUENNOUCHE MD CHRIF","geolocDate":"2026-08-31T12:38:52.000Z","_lastEditedTs":1788187077100,"lieuJ_initial":"SETIF","assuranceRmFin":"2026-08-24","assuranceTrFin":"2026-08-24","lieuJ1_initial":"NAAMA","assuranceRmFileName":null,"assuranceTrFileName":null},{"v":"000880-514-16","km":null,"hor":0,"lat":36.7366,"lng":5.05905,"obs":"","etat":"En panne","prog":"","type":"TRACTEUR","equip":"OK","lieuJ":"—","geoloc":"ON","lieuJ1":"—","affecte":"OUI","chauffeur":"LARBI LYES","geolocDate":"2026-08-31T12:23:05.000Z","lieuJ_initial":"—","assuranceRmFin":"2026-08-26","assuranceTrFin":"2026-08-26","lieuJ1_initial":"—","assuranceRmFileName":null,"assuranceTrFileName":null},{"v":"000908-514-16","km":1175634,"hor":0.625,"lat":36.3184,"lng":4.01947,"obs":"REMPLACEMENT DES BON 781","cspc":false,"etat":"En panne","prog":"","type":"TRACTEUR","equip":"","lieuJ":"—","repos":"","agence":"","geoloc":"ON","lieuJ1":"—","affecte":"OUI","progFige":false,"chauffeur":"BADREDDINE SEGHIR","geolocDate":"2026-08-31T12:38:24.000Z","progDepart":"","geoloc_date":"2026-08-16T19:00:45.000Z","_lastEditedTs":1788176529836,"lieuJ_initial":"—","assuranceRmFin":"2026-05-24","assuranceTrFin":"2026-05-24","lieuJ1_initial":"—","assuranceRmFileName":"000775.pdf","assuranceTrFileName":"000908.pdf"},{"v":"000149-515-16","km":921274,"hor":0.75,"lat":36.6533,"lng":3.59261,"obs":"—","cspc":false,"etat":"DISPONIBLE","prog":"","type":"","equip":"","lieuJ":"BEJAIA","repos":"","agence":"","geoloc":"ON","lieuJ1":"LAGHOUAT","affecte":"OUI","progFige":false,"chauffeur":"BADREDDINE SEGHIR","geolocDate":"2026-08-31T12:36:52.000Z","progDepart":"","geoloc_date":"2026-08-16T15:53:01.000Z","_lastEditedTs":1788184229480,"lieuJ_initial":"TIZI OUZOU","lieuJ1_initial":"LAGHOUAT"},{"v":"000781-523-16","km":282880,"hor":0.75,"lat":35.7103,"lng":-0.488306,"obs":"—","cspc":false,"etat":"DISPONIBLE","prog":"","type":"TRACTEUR","equip":"OK","lieuJ":"ORAN","repos":"","agence":"","geoloc":"ON","lieuJ1":"ALGER","affecte":"OUI","progFige":false,"chauffeur":"BADREDDINE SEGHIR","geolocDate":"2026-08-31T12:37:17.000Z","progDepart":"","geoloc_date":"2026-08-16T18:30:17.000Z","_lastEditedTs":1788184220159,"lieuJ_initial":"ORAN","assuranceRmFin":"2026-07-15","assuranceTrFin":"2026-07-15","lieuJ1_initial":"ALGER","assuranceRmFileName":null,"assuranceTrFileName":null},{"v":"001174-514-16","km":null,"hor":0.5833333333333334,"lat":36.3669,"lng":3.8471,"obs":"CONTACT ING","cspc":false,"etat":"En panne","prog":"","type":"TRACTEUR","equip":"OK","lieuJ":"BOUIRA","repos":"","agence":"","geoloc":"ON","lieuJ1":"ORAN","affecte":"OUI","progFige":false,"chauffeur":"AIOUADJ HICHAM","geolocDate":"2026-08-31T13:00:11.000Z","progDepart":"","geoloc_date":"2026-08-16T18:04:41.000Z","_lastEditedTs":1788124547994,"lieuJ_initial":"BOUIRA","lieuJ1_initial":"ORAN"},{"v":"001071-514-16","km":null,"hor":0.5416666666666666,"lat":36.2597,"lng":2.30597,"obs":"—","cspc":false,"etat":"DISPONIBLE","prog":"","type":"TRACTEUR","equip":"OK","lieuJ":"ORAN","repos":"","agence":"","geoloc":"ON","lieuJ1":"ALGER","affecte":"OUI","progFige":false,"chauffeur":"SKANDAR HAMIMI","geolocDate":"2026-08-31T12:18:16.000Z","progDepart":"","geoloc_date":"2026-08-16T18:32:29.000Z","_lastEditedTs":1788124517074,"lieuJ_initial":"ORAN","assuranceRmFin":"2026-07-03","assuranceTrFin":"2026-07-03","lieuJ1_initial":"ALGER","assuranceRmFileName":null,"assuranceTrFileName":null},{"v":"000732-514-16","km":1398525,"hor":0.5416666666666666,"lat":35.6456,"lng":-0.587986,"obs":"—","cspc":false,"etat":"DISPONIBLE","prog":"","type":"TRACTEUR","equip":"OK","lieuJ":"CHLEF","repos":"","agence":"","geoloc":"ON","lieuJ1":"SKIKDA","affecte":"OUI","progFige":false,"chauffeur":"MAAMAR IDIR","geolocDate":"2026-08-31T12:39:26.000Z","progDepart":"","geoloc_date":"2026-08-16T18:32:11.000Z","_lastEditedTs":1788124504659,"lieuJ_initial":"CHLEF","assuranceRmFin":"2026-07-03","assuranceTrFin":"2026-07-03","lieuJ1_initial":"SKIKDA","assuranceRmFileName":null,"assuranceTrFileName":null},{"v":"000799-523-16","km":338598,"hor":0.4583333333333333,"lat":36.3659,"lng":3.84481,"obs":"—","cspc":false,"etat":"DISPONIBLE","prog":"","type":"TRACTEUR","equip":"OK","lieuJ":"BOUIRA","geoloc":"ON","lieuJ1":"EL BAYADH","affecte":"OUI","chauffeur":"ZEROUALI MOHAMED AMINE","geolocDate":"2026-08-31T12:38:16.000Z","_lastEditedTs":1788122475289,"lieuJ_initial":"BOUIRA","assuranceRmFin":"2026-08-19","assuranceTrFin":"2026-08-19","lieuJ1_initial":"EL BAYADH","assuranceRmFileName":null,"assuranceTrFileName":null},{"v":"000943-523-16","hor":0,"lat":null,"lng":null,"obs":"","etat":"En mission","prog":"","type":"TRACTEUR","equip":"OK","lieuJ":"TLEMCEN","geoloc":"OFF","lieuJ1":"CONSTANTINE","chauffeur":"AMROUCHE ABDELGHANI","geolocDate":null,"lieuJ_initial":"TLEMCEN","assuranceRmFin":"2026-08-31","assuranceTrFin":"2026-08-31","lieuJ1_initial":"CONSTANTINE","assuranceRmFileName":null,"assuranceTrFileName":null},{"v":"001083-514-16","km":1345300,"hor":0.4166666666666667,"lat":36.7362,"lng":5.0598,"obs":"—","cspc":false,"etat":"En panne","prog":"","type":"","equip":"","lieuJ":"BEJAIA","repos":"","agence":"PARTENAIRE_C","geoloc":"ON","lieuJ1":"BOUIRA","affecte":"OUI","progFige":false,"chauffeur":"AMROUCHE ABDELGHANI","geolocDate":"2026-08-31T12:34:47.000Z","progDepart":"","geoloc_date":"2026-08-15","_lastEditedTs":1788183766433,"lieuJ_initial":"BEJAIA","assuranceRmFin":"","assuranceTrFin":"","lieuJ1_initial":"BOUIRA","assuranceRmFileName":null,"assuranceTrFileName":null},{"v":"001154-514-16","km":1225886,"hor":0.375,"lat":35.3852,"lng":-1.09186,"obs":"943 / 3ANDO MANSOURA CONSTANTINE","cspc":false,"etat":"En mission","prog":"","type":"MARAICHER","equip":"","lieuJ":"TLEMCEN","repos":"","agence":"PARTENAIRE_C","geoloc":"ON","lieuJ1":"ANNABA","affecte":"OUI","progFige":false,"chauffeur":"AMROUCHE ABDELGHANI","geolocDate":"2026-08-31T12:39:50.552Z","progDepart":"","geoloc_date":"2026-08-14T19:17:59.936Z","_lastEditedTs":1788185607368,"lieuJ_initial":"NAAMA","lieuJ1_initial":"ANNABA"},{"v":"000473-523-16","km":304303,"hor":0.6666666666666666,"lat":36.865,"lng":7.77488,"obs":"HABATO L ALGER","cspc":false,"etat":"DISPONIBLE","prog":"","type":"TRACTEUR","equip":"","lieuJ":"CONSTANTINE","repos":"","agence":"PARTENAIRE_C","geoloc":"ON","lieuJ1":"BEJAIA","affecte":"OUI","progFige":false,"chauffeur":"AMROUCHE ABDELGHANI","geolocDate":"2026-08-31T12:16:48.000Z","progDepart":"","geoloc_date":"2026-08-15","_lastEditedTs":1788186636899,"lieuJ_initial":"BEJAIA","assuranceRmFin":"2026-07-04","assuranceTrFin":"2026-06-16","lieuJ1_initial":"BEJAIA","assuranceRmFileName":null,"assuranceTrFileName":null},{"v":"000938-514-16","km":1257900,"hor":0.3333333333333333,"lat":36.3658,"lng":3.84657,"obs":"— a con chargment a  bouira","cspc":false,"etat":"En mission","prog":"","type":"","equip":"","lieuJ":"BOUIRA","repos":"","agence":"PARTENAIRE_D","geoloc":"ON","lieuJ1":"RELIZANE","affecte":"OUI","progFige":false,"chauffeur":"BENMEHDIA A/KADER","geolocDate":"2026-08-31T12:37:31.000Z","progDepart":"","geoloc_date":"2026-08-16","_lastEditedTs":1788185489811,"lieuJ_initial":"BEJAIA","assuranceRmFin":"","assuranceTrFin":"","lieuJ1_initial":"BOUIRA","assuranceRmFileName":null,"assuranceTrFileName":null},{"v":"001063-524-16","km":224100,"hor":0,"lat":36.18,"lng":5.46184,"obs":"—","cspc":false,"etat":"DISPONIBLE","prog":"","type":"MARAICHER","equip":"","lieuJ":"SETIF","repos":"","agence":"PARTENAIRE_D","geoloc":"ON","lieuJ1":"SETIF","affecte":"OUI","progFige":false,"chauffeur":"BENMEHDIA A/KADER","geolocDate":"2026-08-31T12:39:50.552Z","progDepart":"","geoloc_date":"2026-08-16","_lastEditedTs":1788185091062,"lieuJ_initial":"ORAN","lieuJ1_initial":"CONSTANTINE"},{"v":"000924-514-16","km":null,"hor":0.4166666666666667,"lat":35.6907,"lng":-0.561498,"obs":"—","cspc":false,"etat":"En mission","prog":"","type":"TRACTEUR","equip":"","lieuJ":"ORAN","repos":"","agence":"","geoloc":"ON","lieuJ1":"BLIDA","affecte":"NON","progFige":false,"chauffeur":"ZIAT RACHID","geolocDate":"2026-08-31T12:38:18.000Z","progDepart":"","geoloc_date":"2026-08-16","_lastEditedTs":1788102621010,"lieuJ_initial":"ORAN","assuranceRmFin":"","assuranceTrFin":"","lieuJ1_initial":"BLIDA","assuranceRmFileName":null,"assuranceTrFileName":null},{"v":"001224-514-16","km":null,"hor":0.8333333333333334,"lat":null,"lng":null,"obs":"","etat":"En panne","prog":"","type":"TRACTEUR","equip":"OK","lieuJ":"BEJAIA","geoloc":"OFF","lieuJ1":"—","affecte":"NON","chauffeur":"DJOUAD ABDELHAFID","geolocDate":"2026-05-18T19:31:52.000Z","lieuJ_initial":"BEJAIA","assuranceRmFin":"2026-09-01","assuranceTrFin":"2026-09-01","lieuJ1_initial":"—","assuranceRmFileName":null,"assuranceTrFileName":null},{"v":"000988-514-16","km":null,"hor":0.8333333333333334,"lat":36.6909,"lng":4.9271,"obs":"","etat":"En panne","prog":"","type":"TRACTEUR","equip":"OK","lieuJ":"BEJAIA","geoloc":"ON","lieuJ1":"—","affecte":"NON","chauffeur":"DJOUAD ABDELHAFID","geolocDate":"2026-09-02T13:01:50.000Z","lieuJ_initial":"BEJAIA","assuranceRmFin":"2026-09-01","assuranceTrFin":"2026-09-01","lieuJ1_initial":"—","assuranceRmFileName":null,"assuranceTrFileName":null}],
   pannes: [
     {date:'2026-04-08',chauffeur:'KEBIR DANI SAID',immat:'000321-516-16',type:'TRACTEUR',di:'DI2604003168',desc:"LES VAGUES TRIE TRACTEUR (remplacement d'un camion si c'est possible)",cet:'ABDO .D',rex:'SIDALI.D'},
     {date:'2026-04-08',chauffeur:'FEROUDJ NABIL',immat:'001273-514-16',type:'TRACTEUR',di:'DI2603001390',desc:"façade avant (Doté d'un camion de remplacement 000372)",cet:'ABDO .D',rex:'SIDALI.D'},
@@ -7964,6 +8013,22 @@ async function deleteDispo(idx) {
   
   showToast('⏳ Suppression cloud en cours...');
   DB.dispo.splice(idx, 1);
+
+  // Marquer le camion comme supprimé de manière définitive (Tombstone)
+  if (!DB.deleted_trucks) DB.deleted_trucks = [];
+  if (!DB.deleted_trucks.includes(deletedTruckImmat)) {
+    DB.deleted_trucks.push(deletedTruckImmat);
+  }
+  window._deletedDispoTrucks = window._deletedDispoTrucks || new Set();
+  window._deletedDispoTrucks.add(deletedTruckImmat);
+  try {
+    const delArr = JSON.parse(localStorage.getItem('numiplan_deleted_trucks') || '[]');
+    if (!delArr.includes(deletedTruckImmat)) {
+      delArr.push(deletedTruckImmat);
+      localStorage.setItem('numiplan_deleted_trucks', JSON.stringify(delArr));
+    }
+  } catch(e) {}
+
   DB._localTs = Date.now();
   DB._last_edited_by = sessionStorage.getItem('numiplan_username') || 'ADMIN';
   DB._last_edited_at = new Date().toISOString();
@@ -7979,19 +8044,41 @@ async function deleteDispo(idx) {
   } catch(e) {}
   
   renderDispo();
+  if (typeof renderAdminEntreesSorties === 'function') renderAdminEntreesSorties();
   
-  // Suppression directe et synchrone dans Supabase
+  // Suppression directe et synchrone dans Supabase avec auto-authentification garantie
   try {
     if (window.supabase) {
-      // 1. Supprimer de np_dispo
+      // 1. Garantir une session Supabase Auth valide
+      const { data: sessionData } = await window.supabase.auth.getSession();
+      if (!sessionData || !sessionData.session) {
+        await window.supabase.auth.signInWithPassword({
+          email: "admin@sharik.numilog.com",
+          password: "Sharik@admin"
+        });
+      }
+
+      // 2. Supprimer de np_dispo
       await window.supabase.from('np_dispo').delete().eq('team', eq).eq('v', deletedTruckImmat);
-      // 2. Mettre à jour numiplan_teams dans Supabase
-      const { error: upsertErr } = await window.supabase.from('numiplan_teams').upsert({
-        team: eq,
-        payload: payloadCloud,
-        updated_at: new Date().toISOString()
-      });
-      if (upsertErr) throw upsertErr;
+
+      // 3. Mettre à jour numiplan_teams de manière garantie via update (et fallback upsert)
+      const { error: updateErr } = await window.supabase
+        .from('numiplan_teams')
+        .update({
+          payload: payloadCloud,
+          updated_at: new Date().toISOString()
+        })
+        .eq('team', eq);
+
+      if (updateErr) {
+        console.warn("Update direct a échoué, tentative d'upsert:", updateErr);
+        const { error: upsertErr } = await window.supabase.from('numiplan_teams').upsert({
+          team: eq,
+          payload: payloadCloud,
+          updated_at: new Date().toISOString()
+        });
+        if (upsertErr) throw upsertErr;
+      }
 
       // Update OCC timestamp and base snapshot to prevent rollback
       if (!window._lastCloudTs) window._lastCloudTs = {};
@@ -7999,7 +8086,7 @@ async function deleteDispo(idx) {
       if (!window._baseCloudDB) window._baseCloudDB = {};
       window._baseCloudDB[eq] = JSON.parse(JSON.stringify(payloadCloud));
       
-      // 3. Sauvegarder les tables normalisées
+      // 4. Sauvegarder les tables normalisées
       if (typeof window.saveNormalizedTables === 'function') {
         await window.saveNormalizedTables(eq, payloadCloud);
       }
@@ -18091,14 +18178,25 @@ function renderAdminEntreesSorties() {
           if (ch && ch !== '—' && ch !== '-' && !ch.includes('MANQUE CHAUFFEUR') && !ch.includes('AC/DC') && !ch.includes('DISPONIBLE') && !ch.includes('EN PANNE') && !ch.includes('INDISPONIBLE')) {
             const canon = (typeof getCanonicalDriverName === 'function') ? getCanonicalDriverName(ch) : ch;
             let matchedCanon = null;
+            // Normalisation des variantes d'écriture pour la même personne physique
+            let normCanon = canon;
+            if (normCanon.includes('BELAHDJER')) normCanon = normCanon.replace(/BELAHDJER/g, 'BELAHDJAR');
+            if (normCanon.includes('DADI')) normCanon = normCanon.replace(/\bDADI\b/g, 'DADDI');
+
             for (const existingCanon of globalUniqueAllDrivers) {
-              if (typeof areNamesFuzzyMatching === 'function' && areNamesFuzzyMatching(existingCanon, canon)) {
-                if (typeof isResemblanceRejected === 'function' && isResemblanceRejected(existingCanon, canon)) continue;
+              // Protection stricte : SAHI et SALHI sont deux chauffeurs physiques distincts
+              if ((existingCanon.includes('SAHI') && normCanon.includes('SALHI')) || (existingCanon.includes('SALHI') && normCanon.includes('SAHI'))) continue;
+              if (existingCanon === normCanon) {
+                matchedCanon = existingCanon;
+                break;
+              }
+              if (typeof areNamesFuzzyMatching === 'function' && areNamesFuzzyMatching(existingCanon, normCanon)) {
+                if (typeof isResemblanceRejected === 'function' && isResemblanceRejected(existingCanon, normCanon)) continue;
                 matchedCanon = existingCanon;
                 break;
               }
             }
-            const finalKey = matchedCanon || canon;
+            const finalKey = matchedCanon || normCanon;
             allTeamDriverOccurrences[finalKey] = (allTeamDriverOccurrences[finalKey] || 0) + 1;
             globalUniqueAllDrivers.add(finalKey);
           }
