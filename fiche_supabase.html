@@ -11447,7 +11447,10 @@ function saveIncidentLivraison() {
   }
   
   // Envoi email
-  const emailDest = 'GRP_NUMILOG_SRC@cevital.com;GRP_NUMILOG_TRANSPORT_SYNCRO@cevital.com';
+  let emailDest = 'GRP_NUMILOG_SRC@cevital.com;GRP_NUMILOG_TRANSPORT_SYNCRO@cevital.com';
+  if (obj.type === 'Panne sur route' || (obj.type === 'OT non réalisé' && obj.motifOt === 'Panne sur route')) {
+    emailDest += ';Samir.cheboub@cevital.com;grp_numilog_parc_bouira@cevital.com';
+  }
   const equipe = typeof CURRENT_EQUIPE !== 'undefined' ? CURRENT_EQUIPE : 'A';
   const dateStr = new Date(debut).toLocaleString('fr-FR', {
     weekday: 'long', day: '2-digit', month: 'long', year: 'numeric',
