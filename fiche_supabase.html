@@ -3513,7 +3513,8 @@ mark.hl { background: rgba(56,189,248,.25); color: var(--acc); border-radius: 3p
       <option value="Changement de référence commande">Changement de référence commande</option>
       <option value="Retrait segment">Retrait segment</option>
       <option value="Manque programme">Manque programme</option>
-          </select>
+      <option value="OT non réalisé">OT non réalisé</option>
+    </select>
     <input type="date" class="filter-input" id="inc-date-from" onchange="renderIncidentsLivraisonPage()">
     <input type="date" class="filter-input" id="inc-date-to" onchange="renderIncidentsLivraisonPage()">
     <button class="btn btn-reset" onclick="resetIncFilters()">↺ Reset</button>
@@ -3564,7 +3565,17 @@ mark.hl { background: rgba(56,189,248,.25); color: var(--acc); border-radius: 3p
           <option value="Manque produit">Manque produit</option>
           <option value="Retrait segment">Retrait segment</option>
           <option value="Manque programme">Manque programme</option>
-                  </select>
+          <option value="OT non réalisé">OT non réalisé</option>
+        </select>
+      </div>
+      <div id="group-inc-liv-motif-ot" class="form-group" style="display:none; flex-direction:column; gap:4px">
+        <label style="font-weight:700; font-size:11px; color:#ef4444">Motif de non réalisation (Obligatoire) *</label>
+        <select id="f-inc-liv-motif-ot" style="background:rgba(255,255,255,.05);color:inherit;border:1px solid #ef4444;padding:8px 12px;border-radius:8px;outline:none">
+          <option value="">— Sélectionner le motif obligatoire —</option>
+          <option value="Chargement à son compte">Chargement à son compte</option>
+          <option value="Panne sur route">Panne sur route</option>
+          <option value="Retard de livraison">Retard de livraison</option>
+        </select>
       </div>
       <div style="display:grid; grid-template-columns:1fr; gap:12px">
         <div class="form-group"><label>Client</label><input id="f-inc-liv-client" placeholder="Nom du client" style="text-transform:uppercase"></div>
@@ -11196,6 +11207,8 @@ function openIncidentLivraisonModal(idx) {
   
   document.getElementById('f-inc-liv-ref-commande').value = '';
   document.getElementById('f-inc-liv-obs').value = '';
+  const elMotifOt = document.getElementById('f-inc-liv-motif-ot');
+  if (elMotifOt) elMotifOt.value = '';
   
   const now = new Date();
   const tzOffset = now.getTimezoneOffset() * 60000;
@@ -11209,6 +11222,12 @@ function openIncidentLivraisonModal(idx) {
 function toggleIncidentFields() {
   const type = document.getElementById('f-inc-liv-type').value;
   
+  // 0. Motif de non réalisation : affiché uniquement si "OT non réalisé"
+  const groupMotifOt = document.getElementById('group-inc-liv-motif-ot');
+  if (groupMotifOt) {
+    groupMotifOt.style.display = (type === 'OT non réalisé') ? 'flex' : 'none';
+  }
+
   // 1. Référence Commande Initiale : affiché uniquement si "Changement de référence commande"
   const groupRefInit = document.getElementById('group-ref-commande-initiale');
   if (groupRefInit) {
@@ -11382,6 +11401,14 @@ function saveIncidentLivraison() {
       return;
     }
   }
+
+  const motifOt = document.getElementById('f-inc-liv-motif-ot') ? document.getElementById('f-inc-liv-motif-ot').value.trim() : '';
+  if (type === 'OT non réalisé') {
+    if (!motifOt) {
+      showToast('⚠️ Le motif de non réalisation est obligatoire', true);
+      return;
+    }
+  }
   
   const incId = 'inc_' + Date.now();
   const obj = {
@@ -11389,6 +11416,7 @@ function saveIncidentLivraison() {
     v: r.v,
     chauffeur: r.chauffeur || '—',
     type,
+    motifOt: (type === 'OT non réalisé') ? motifOt : null,
     client,
     destPrevue: destPrevue || '—',
     destination: destination || '—',
@@ -11397,7 +11425,7 @@ function saveIncidentLivraison() {
     debut: new Date(debut).toISOString(),
     fin: null,
     dureeHeures: null,
-    obs: obs || '—',
+    obs: obs || (type === 'OT non réalisé' ? `Motif non réalisation : ${motifOt}` : '—'),
     equipe: CURRENT_EQUIPE,
     cet: sessionStorage.getItem('numiplan_username') || ''
   };
@@ -11431,6 +11459,13 @@ function saveIncidentLivraison() {
     mailRef = `Réf Commande Init  : ${obj.refCommandeInitiale}\n  Nouv. Réf Commande : ${obj.refCommande}`;
   }
 
+  let mailMotifOt = '';
+  let mailApology = '';
+  if (obj.type === 'OT non réalisé') {
+    mailMotifOt = `\n  Motif non réal.    : ${obj.motifOt || motifOt}`;
+    mailApology = `\n\nNous vous prions de bien vouloir accepter nos sincères excuses pour ce désagrément et cette non-réalisation indépendante de notre volonté. Nos équipes mettent tout en œuvre pour rétablir la situation dans les plus brefs délais.\n`;
+  }
+
   const subject = encodeURIComponent(`[SHARIK] Incident Livraison - ${obj.type} - Camion ${obj.v}`);
   const body = encodeURIComponent(
 `Bonjour,
@@ -11440,7 +11475,7 @@ Un incident de livraison a été déclaré sur SHARIK.
 ----------------------------------
   DÉTAIL DE L'INCIDENT
 ----------------------------------
-  Type d'incident    : ${obj.type}
+  Type d'incident    : ${obj.type}${mailMotifOt}
   Date / Heure       : ${dateStr}
   Équipe             : ÉQUIPE ${equipe}
   Véhicule           : ${obj.v}
@@ -11450,8 +11485,7 @@ Un incident de livraison a été déclaré sur SHARIK.
   Destination réelle  : ${obj.destination}
   ${mailRef}
   Observations       : ${obj.obs}
-----------------------------------
-
+----------------------------------${mailApology}
 Ce message a été généré automatiquement par SHARIK.`
   );
   
@@ -11603,7 +11637,10 @@ function renderIncidentsLivraisonPage() {
     return `<tr>
       <td class="mono" style="color:var(--acc)">${r.v}</td>
       <td style="font-weight:600">${r.chauffeur}</td>
-      <td style="font-weight:700; color:var(--yel)">${r.type}</td>
+      <td style="font-weight:700; color:var(--yel)">
+        ${r.type}
+        ${r.motifOt ? `<br><span style="color:#ef4444; font-size:10px; font-weight:600">⚠️ ${r.motifOt}</span>` : ''}
+      </td>
       <td>${r.client}</td>
       <td style="color:var(--txt3)">${r.destPrevue || '—'}</td>
       <td>${r.destination}</td>
