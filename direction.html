@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="fr">
 <head>
 <meta charset="UTF-8">
@@ -3663,6 +3663,7 @@ mark.hl { background: rgba(56,189,248,.25); color: var(--acc); border-radius: 3p
     <input type="text" class="filter-input" id="tracabilite-search" placeholder="Rechercher camion, chauffeur, motif, rôle…" oninput="renderTracabilite()">
     <select id="tracabilite-event-filter" class="filter-input" onchange="renderTracabilite()" style="max-width:200px;background:var(--bg3);color:var(--txt);border:1px solid var(--border);border-radius:8px;padding:8px 12px;outline:none;">
       <option value="">— Tous les événements —</option>
+      <option value="🚨 CLIENT BLACKLISTÉ">🚨 Clients Blacklistés</option>
       <option value="Sortie Chauffeur">Sortie Chauffeur</option>
       <option value="Entrée Chauffeur">Entrée Chauffeur</option>
       <option value="Sortie Camion">Sortie Camion</option>
@@ -7066,9 +7067,9 @@ function renderTracabilite() {
   const q = document.getElementById('tracabilite-search')?.value || '';
   const evFilter = document.getElementById('tracabilite-event-filter')?.value || '';
   const filtered = DB.tracabilite.filter(r => {
-    if (evFilter && r.type !== evFilter) return false;
+    if (evFilter && r.type !== evFilter && !(evFilter.includes('BLACKLIST') && (r.type || '').includes('BLACKLIST'))) return false;
     if (!q) return true;
-    const searchStr = `${r.date} ${r.type} ${r.v || ''} ${r.chauffeur || ''} ${r.operator || ''} ${r.motif || ''}`.toLowerCase();
+    const searchStr = `${r.date} ${r.type} ${r.v || ''} ${r.target || ''} ${r.chauffeur || ''} ${r.operator || ''} ${r.motif || ''}`.toLowerCase();
     return searchStr.includes(q.toLowerCase());
   });
 
@@ -7089,6 +7090,9 @@ function renderTracabilite() {
     let typeClass = '';
     if (r.type.includes('Entrée')) typeClass = 'color: var(--grn); font-weight: 700;';
     else if (r.type.includes('Sortie')) typeClass = 'color: var(--red); font-weight: 700;';
+    else if (r.type.includes('BLACKLIST') || r.type.includes('Blacklist')) {
+      typeClass = 'color: #ef4444; font-weight: 900; background: rgba(239, 68, 68, 0.15); border: 1px solid rgba(239, 68, 68, 0.35); padding: 3px 8px; border-radius: 6px; display: inline-flex; align-items: center; gap: 4px;';
+    }
 
     return `<tr>
       <td class="mono" style="color: var(--txt2); white-space: nowrap;">${r.date}</td>
