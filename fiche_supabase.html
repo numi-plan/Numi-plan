@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="fr">
 <head>
 <meta charset="UTF-8">
@@ -708,7 +708,7 @@
             e => {
               console.log("🚨 [Realtime Broadcast] Alerte Blacklist reçue :", e.payload);
               if (e.payload) {
-                if (!isRegistreOrDirectionSession()) showBlacklistAlertModal(e.payload.truck, e.payload.client, e.payload.time, e.payload.team);
+                if (!isRegistreOrDirectionSession()) showBlacklistAlertModal(e.payload.truck, e.payload.client, e.payload.time, e.payload.team, e.payload.driver);
               }
             }
           )
@@ -3658,6 +3658,7 @@ mark.hl { background: rgba(56,189,248,.25); color: var(--acc); border-radius: 3p
     <input type="text" class="filter-input" id="tracabilite-search" placeholder="Rechercher camion, chauffeur, motif, rôle…" oninput="renderTracabilite()">
     <select id="tracabilite-event-filter" class="filter-input" onchange="renderTracabilite()" style="max-width:200px;background:var(--bg3);color:var(--txt);border:1px solid var(--border);border-radius:8px;padding:8px 12px;outline:none;">
       <option value="">— Tous les événements —</option>
+      <option value="🚨 CLIENT BLACKLISTÉ">🚨 Clients Blacklistés</option>
       <option value="Sortie Chauffeur">Sortie Chauffeur</option>
       <option value="Entrée Chauffeur">Entrée Chauffeur</option>
       <option value="Sortie Camion">Sortie Camion</option>
@@ -7061,9 +7062,9 @@ function renderTracabilite() {
   const q = document.getElementById('tracabilite-search')?.value || '';
   const evFilter = document.getElementById('tracabilite-event-filter')?.value || '';
   const filtered = DB.tracabilite.filter(r => {
-    if (evFilter && r.type !== evFilter) return false;
+    if (evFilter && r.type !== evFilter && !(evFilter.includes('BLACKLIST') && (r.type || '').includes('BLACKLIST'))) return false;
     if (!q) return true;
-    const searchStr = `${r.date} ${r.type} ${r.v || ''} ${r.chauffeur || ''} ${r.operator || ''} ${r.motif || ''}`.toLowerCase();
+    const searchStr = `${r.date} ${r.type} ${r.v || ''} ${r.target || ''} ${r.chauffeur || ''} ${r.operator || ''} ${r.motif || ''}`.toLowerCase();
     return searchStr.includes(q.toLowerCase());
   });
 
@@ -7084,6 +7085,9 @@ function renderTracabilite() {
     let typeClass = '';
     if (r.type.includes('Entrée')) typeClass = 'color: var(--grn); font-weight: 700;';
     else if (r.type.includes('Sortie')) typeClass = 'color: var(--red); font-weight: 700;';
+    else if (r.type.includes('BLACKLIST') || r.type.includes('Blacklist')) {
+      typeClass = 'color: #ef4444; font-weight: 900; background: rgba(239, 68, 68, 0.15); border: 1px solid rgba(239, 68, 68, 0.35); padding: 3px 8px; border-radius: 6px; display: inline-flex; align-items: center; gap: 4px;';
+    }
 
     return `<tr>
       <td class="mono" style="color: var(--txt2); white-space: nowrap;">${r.date}</td>
@@ -7428,9 +7432,29 @@ function openModal(id, editIdx=-1) {
     const respEl = document.getElementById('f-gasoil-resp');
     if (respEl && !respEl.value) respEl.value = sessionStorage.getItem('numiplan_username') || '';
   }
+  if (id === 'modal-active-cspc-alert') {
+    const chk = document.getElementById('chk-confirm-cspc-ack');
+    if (chk) chk.checked = false;
+    const btn = document.getElementById('btn-ack-cspc');
+    if (btn) {
+      btn.disabled = true;
+      btn.style.background = '#4b5563';
+      btn.style.color = '#9ca3af';
+      btn.style.cursor = 'not-allowed';
+      btn.style.boxShadow = 'none';
+      btn.innerHTML = '🔒 Cochez la case ci-dessus pour acquitter';
+    }
+  }
 }
 
 function closeModal(id) {
+  if (id === 'modal-active-cspc-alert') {
+    const chk = document.getElementById('chk-confirm-cspc-ack');
+    if (chk && !chk.checked) {
+      showToast("⚠️ Confirmation obligatoire avant fermeture du popup CSPC !", true);
+      return;
+    }
+  }
   const el = document.getElementById(id);
   if (el) {
     el.classList.remove('open');
@@ -7444,7 +7468,16 @@ function closeModal(id) {
 }
 
 document.querySelectorAll('.modal-overlay').forEach(m => {
-  m.addEventListener('click', e => { if (e.target === m) { m.classList.remove('open'); m.style.display = 'none'; } });
+  m.addEventListener('click', e => {
+    if (e.target === m) {
+      if (m.id === 'modal-active-cspc-alert' || m.id === 'modal-blacklist-alert') {
+        // Interdiction formelle de fermer en cliquant à côté : confirmation obligatoire !
+        return;
+      }
+      m.classList.remove('open');
+      m.style.display = 'none';
+    }
+  });
 });
 
 function today() {
@@ -16626,14 +16659,60 @@ async function checkPoiAlerts() {
           sessionStorage.setItem(`blacklist_time_${v.id}`, Date.now().toString());
 
           const timeStr = new Date(v.arrived_at).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
-          showBlacklistAlertModal(v.v, v.poi_name, timeStr, v.team, v.chauffeur);
 
-          // Diffuser instantanément l'alerte à TOUS les autres postes connectés via Realtime Broadcast
+          // Résolution automatique du chauffeur pour traçabilité et alerte
+          let resolvedDriver = v.chauffeur || '';
+          if (!resolvedDriver && v.v) {
+            const allTeams = ['A', 'B', 'C', 'D', 'E', 'F'];
+            for (const eq of allTeams) {
+              const eqDb = window['DB_' + eq] || (eq === window.CURRENT_EQUIPE ? window.DB : null);
+              if (eqDb && Array.isArray(eqDb.dispo)) {
+                const found = eqDb.dispo.find(x => x && x.v && x.v.trim().toUpperCase() === v.v.trim().toUpperCase());
+                if (found && found.chauffeur && !['AC/DC', '—', '-', 'DISPONIBLE', 'MANQUE CHAUFFEUR'].includes(found.chauffeur.trim().toUpperCase())) {
+                  resolvedDriver = found.chauffeur.trim();
+                  break;
+                }
+              }
+            }
+          }
+
+          // 🚨 TRAÇABILITÉ EN DIRECT :
+          // 1. Enregistrement immédiat dans DB.tracabilite (affichage temps réel dans l'onglet Traçabilité)
+          if (typeof logMouvement === 'function') {
+            const motifText = `Camion détecté chez le client blacklisté : ${v.poi_name}` + (resolvedDriver ? ` (Chauffeur: ${resolvedDriver})` : '') + (v.team ? ` [Équipe ${v.team}]` : '');
+            logMouvement('🚨 CLIENT BLACKLISTÉ', 'TRACTEUR', v.v, motifText);
+            if (typeof renderTracabilite === 'function') renderTracabilite();
+          }
+
+          // 2. Enregistrement Cloud dans np_tracabilite
+          try {
+            poiSupabaseFetch('np_tracabilite', 'POST', [{
+              team: v.team || window.CURRENT_EQUIPE || 'B',
+              timestamp: String(Date.now()),
+              type: '🚨 CLIENT BLACKLISTÉ',
+              target: v.v,
+              user_login: 'GPS Live',
+              detail: {
+                client: v.poi_name,
+                chauffeur: resolvedDriver,
+                team: v.team,
+                arrived_at: v.arrived_at,
+                action: 'Détection client blacklisté'
+              }
+            }]);
+          } catch(eTrac) {
+            console.warn("Erreur écriture np_tracabilite blacklist:", eTrac);
+          }
+
+          // 3. Popup d'alerte (exclusivement pour Équipes et Admin, Direction & Registre silencieux)
+          showBlacklistAlertModal(v.v, v.poi_name, timeStr, v.team, resolvedDriver);
+
+          // 4. Diffuser instantanément l'alerte à TOUS les autres postes connectés via Realtime Broadcast
           if (window.realtimePoiChannel) {
             window.realtimePoiChannel.send({
               type: 'broadcast',
               event: 'blacklist_alert_broadcast',
-              payload: { truck: v.v, client: v.poi_name, time: timeStr, team: v.team }
+              payload: { truck: v.v, client: v.poi_name, time: timeStr, team: v.team, driver: resolvedDriver }
             });
           }
         }
@@ -17248,12 +17327,16 @@ function playBlacklistAlarm() {
 }
 
 function showBlacklistAlertModal(truck, client, time, team, driver) {
-  if (isRegistreOrDirectionSession()) return;
+  // RÈGLE STRICTE : Direction et Registre sont les mêmes -> AUCUN POPUP !
+  if (typeof isRegistreOrDirectionSession === 'function' && isRegistreOrDirectionSession()) return;
   const _uRole = sessionStorage.getItem('numiplan_user_role');
   const _uName = (sessionStorage.getItem('numiplan_username') || '').toUpperCase().trim();
-  if (_uRole === 'direction_only' || _uRole === 'readonly' || _uName === 'REGISTRE' || _uName.includes('REGISTRE')) {
+  const _lock = sessionStorage.getItem('numiplan_team_lock');
+  if (_uRole === 'direction_only' || _uRole === 'readonly' || _lock === 'DIR' || _uName === 'REGISTRE' || _uName.includes('REGISTRE')) {
     return;
   }
+
+  // TOUTES LES ÉQUIPES (A à F) ET L'ADMIN REÇOIVENT L'ALERTE (entraide inter-équipes)
   const existing = document.getElementById('modal-blacklist-alert');
   if (existing) existing.remove();
   
@@ -17326,21 +17409,32 @@ function showBlacklistAlertModal(truck, client, time, team, driver) {
   const teamBadge = team ? `<span style="display:inline-block;background:#ef4444;color:#fff;padding:2px 10px;border-radius:6px;font-size:13px;font-weight:800;margin-left:8px;vertical-align:middle">ÉQUIPE ${team}</span>` : '';
 
   const alertHtml = `
-    <div id="modal-blacklist-alert" class="modal-backdrop" style="position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(239,68,68,0.4);backdrop-filter:blur(8px);z-index:999999;display:flex;align-items:center;justify-content:center">
-      <div style="background:#181316;border:3px solid #ef4444;border-radius:16px;width:90%;max-width:480px;padding:32px;box-shadow:0 0 50px rgba(239,68,68,0.6);color:#fff;text-align:center;animation:pulse-alert 1s infinite alternate">
-        <div style="font-size:60px;margin-bottom:16px">🚨</div>
-        <h3 style="color:#ef4444;font-size:22px;font-weight:800;margin:0 0 16px 0;letter-spacing:1.5px">ALERTE CLIENT BLACKLISTÉ</h3>
+    <div id="modal-blacklist-alert" class="modal-backdrop" style="position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(239,68,68,0.45);backdrop-filter:blur(8px);z-index:999999;display:flex;align-items:center;justify-content:center">
+      <div style="background:#160f12;border:3px solid #ef4444;border-radius:18px;width:92%;max-width:520px;padding:32px;box-shadow:0 0 60px rgba(239,68,68,0.7);color:#fff;text-align:center;animation:pulse-alert 1s infinite alternate">
+        <div style="font-size:60px;margin-bottom:12px;animation:pulse-red 0.8s infinite alternate">🚨</div>
+        <h3 style="color:#ef4444;font-size:22px;font-weight:900;margin:0 0 14px 0;letter-spacing:1.5px;text-transform:uppercase">ALERTE CLIENT BLACKLISTÉ</h3>
         
-        <p style="font-size:14px;color:#eee;line-height:1.6;margin-bottom:20px">
-          Le camion <strong style="color:#ef4444;font-family:monospace;font-size:18px">${truck}</strong> ${teamBadge}<br>
+        <p style="font-size:14px;color:#eee;line-height:1.6;margin-bottom:18px">
+          Le camion <strong style="color:#ff3344;font-family:monospace;font-size:19px">${truck}</strong> ${teamBadge}<br>
           ${driverBadgeHtml}<br>
-          vient d'entrer chez le client blacklisté :<br>
-          <strong style="color:#fff;font-size:20px;display:block;margin:10px 0;text-transform:uppercase">${client}</strong>
+          est actuellement chez le client blacklisté :<br>
+          <strong style="color:#fff;font-size:22px;display:block;margin:10px 0;text-transform:uppercase;background:rgba(239,68,68,0.2);padding:6px 12px;border-radius:8px;border:1px solid rgba(239,68,68,0.5)">${client}</strong>
           Heure de détection : <strong style="color:#fbbf24;font-size:15px">${time}</strong>
         </p>
 
-        <button onclick="document.getElementById('modal-blacklist-alert').remove()" style="background:#ef4444;color:#fff;border:none;border-radius:8px;padding:12px 36px;font-weight:800;font-size:13px;cursor:pointer;box-shadow:0 4px 14px rgba(239,68,68,0.4);text-transform:uppercase;letter-spacing:1px">
-          Acquitter l'Alerte 🔕
+        <!-- Zone d'Insistance et de Confirmation Obligatoire -->
+        <div style="background:rgba(239,68,68,0.15);border:2px dashed #ef4444;border-radius:12px;padding:16px;margin:20px 0;text-align:left">
+          <label style="display:flex;align-items:flex-start;gap:12px;cursor:pointer;user-select:none;margin:0">
+            <input type="checkbox" id="chk-confirm-blacklist-ack" onchange="toggleBlacklistAckBtn(this)" style="width:22px;height:22px;accent-color:#ef4444;margin-top:2px;cursor:pointer;flex-shrink:0">
+            <span style="font-size:13px;color:#fecaca;line-height:1.45;font-weight:600">
+              ⚠️ <strong>Confirmation Chef d'Équipe obligatoire :</strong><br>
+              J'atteste avoir pris en considération qu'un camion est chez un <strong>client blacklisté</strong> et engage mon équipe à intervenir immédiatement.
+            </span>
+          </label>
+        </div>
+
+        <button id="btn-ack-blacklist" disabled onclick="confirmBlacklistAcknowledgment('${truck}', '${client}', '${team || ''}')" style="background:#4b5563;color:#9ca3af;border:none;border-radius:10px;padding:14px 28px;font-weight:800;font-size:13px;cursor:not-allowed;text-transform:uppercase;letter-spacing:1px;width:100%;transition:all 0.25s ease;display:flex;align-items:center;justify-content:center;gap:8px">
+          🔒 Cochez la case ci-dessus pour acquitter
         </button>
       </div>
     </div>
@@ -17348,6 +17442,114 @@ function showBlacklistAlertModal(truck, client, time, team, driver) {
   document.body.insertAdjacentHTML('beforeend', alertHtml);
   playBlacklistAlarm();
 }
+
+window.toggleBlacklistAckBtn = function(chk) {
+  const btn = document.getElementById('btn-ack-blacklist');
+  if (!btn) return;
+  if (chk.checked) {
+    btn.disabled = false;
+    btn.style.background = '#ef4444';
+    btn.style.color = '#fff';
+    btn.style.cursor = 'pointer';
+    btn.style.boxShadow = '0 0 25px rgba(239,68,68,0.7)';
+    btn.innerHTML = '✅ CONFIRMER LA PRISE EN COMPTE ET FERMER 🔕';
+  } else {
+    btn.disabled = true;
+    btn.style.background = '#4b5563';
+    btn.style.color = '#9ca3af';
+    btn.style.cursor = 'not-allowed';
+    btn.style.boxShadow = 'none';
+    btn.innerHTML = '🔒 Cochez la case ci-dessus pour acquitter';
+  }
+};
+
+window.confirmBlacklistAcknowledgment = function(truck, client, team) {
+  const chk = document.getElementById('chk-confirm-blacklist-ack');
+  if (!chk || !chk.checked) {
+    showToast("⚠️ Vous devez obligatoirement cocher la confirmation avant de fermer !", true);
+    return;
+  }
+  const operator = (sessionStorage.getItem('numiplan_username') || getOperatorRole() || 'Chef').toUpperCase().trim();
+  
+  // Trace de l'acquittement obligatoire
+  if (typeof logMouvement === 'function') {
+    logMouvement('ACQUITTEMENT_BLACKLIST', 'TRACTEUR', truck, `Alerte client blacklisté [${client}] formellement prise en compte par ${operator}`);
+    if (typeof renderTracabilite === 'function') renderTracabilite();
+  }
+  try {
+    poiSupabaseFetch('np_tracabilite', 'POST', [{
+      team: team || window.CURRENT_EQUIPE || 'B',
+      timestamp: String(Date.now()),
+      type: 'ACQUITTEMENT_BLACKLIST',
+      target: truck,
+      user_login: operator,
+      detail: {
+        client: client,
+        acknowledged_by: operator,
+        action: 'Confirmation prise en compte blacklist par chef d\'équipe'
+      }
+    }]);
+  } catch(e) {}
+  
+  showToast(`✅ Alerte ${client} (${truck}) formellement prise en compte par ${operator}.`);
+  const modal = document.getElementById('modal-blacklist-alert');
+  if (modal) modal.remove();
+};
+
+window.toggleCspcAckBtn = function(chk) {
+  const btn = document.getElementById('btn-ack-cspc');
+  if (!btn) return;
+  if (chk.checked) {
+    btn.disabled = false;
+    btn.style.background = 'var(--pur)';
+    btn.style.color = '#000';
+    btn.style.cursor = 'pointer';
+    btn.style.boxShadow = '0 0 25px rgba(167,139,250,0.7)';
+    btn.innerHTML = '✅ CONFIRMER LA PRISE EN COMPTE DU CSPC';
+  } else {
+    btn.disabled = true;
+    btn.style.background = '#4b5563';
+    btn.style.color = '#9ca3af';
+    btn.style.cursor = 'not-allowed';
+    btn.style.boxShadow = 'none';
+    btn.innerHTML = '🔒 Cochez la case ci-dessus pour valider';
+  }
+};
+
+window.confirmCspcAcknowledgment = function() {
+  const chk = document.getElementById('chk-confirm-cspc-ack');
+  if (!chk || !chk.checked) {
+    showToast("⚠️ Vous devez obligatoirement cocher la confirmation avant de fermer !", true);
+    return;
+  }
+  const operator = (sessionStorage.getItem('numiplan_username') || getOperatorRole() || 'Chef').toUpperCase().trim();
+  const eq = typeof CURRENT_EQUIPE !== 'undefined' ? CURRENT_EQUIPE : 'A';
+  
+  if (typeof logMouvement === 'function') {
+    logMouvement('ACQUITTEMENT_CSPC', 'PROGRAMME', `Équipe ${eq}`, `Alerte CSPC non traité formellement prise en compte par ${operator}`);
+    if (typeof renderTracabilite === 'function') renderTracabilite();
+  }
+  try {
+    poiSupabaseFetch('np_tracabilite', 'POST', [{
+      team: eq,
+      timestamp: String(Date.now()),
+      type: 'ACQUITTEMENT_CSPC',
+      target: `Équipe ${eq}`,
+      user_login: operator,
+      detail: {
+        acknowledged_by: operator,
+        action: 'Confirmation prise en compte CSPC non traité par chef d\'équipe'
+      }
+    }]);
+  } catch(e) {}
+  
+  showToast(`✅ CSPC formellement pris en compte par ${operator}.`);
+  const el = document.getElementById('modal-active-cspc-alert');
+  if (el) {
+    el.classList.remove('open');
+    el.style.display = 'none';
+  }
+};
 
 // Helper de sécurité Admin
 function isAdmin() {
@@ -20701,18 +20903,32 @@ window.resetAnalyticsFilters = resetAnalyticsFilters;
 </div>
 
 <!-- Modal Alerte CSPC Non Traité -->
-<div class="modal-overlay" id="modal-active-cspc-alert" style="z-index: 100011;">
-  <div class="modal" style="max-width: 500px; background: var(--bg2); border: 2px solid var(--pur); border-radius: 16px; padding: 24px; text-align: center; box-shadow: 0 0 25px rgba(167,139,250,0.3);">
-    <div style="font-size: 40px; margin-bottom: 12px; animation: pulse-eye 0.8s infinite alternate;">🔷</div>
-    <h3 style="margin: 0 0 16px 0; color: var(--pur); font-size: 16px; font-weight: 800;">Programme(s) CSPC Non Traité(s)</h3>
-    <p style="font-size: 13px; color: var(--txt2); margin-bottom: 20px; line-height: 1.5;">
-      Les véhicules suivants ont des programmes **CSPC non traités** (statut disponible ou non renseigné) :
+<div class="modal-overlay" id="modal-active-cspc-alert" style="z-index: 100011; backdrop-filter: blur(6px); background: rgba(0,0,0,0.75);">
+  <div class="modal" style="max-width: 520px; background: #181524; border: 3px solid var(--pur); border-radius: 18px; padding: 28px; text-align: center; box-shadow: 0 0 35px rgba(167,139,250,0.45);">
+    <div style="font-size: 48px; margin-bottom: 12px; animation: pulse-eye 0.8s infinite alternate;">🔷</div>
+    <h3 style="margin: 0 0 14px 0; color: #c084fc; font-size: 19px; font-weight: 900; letter-spacing: 1px; text-transform: uppercase;">Programme(s) CSPC Non Traité(s)</h3>
+    <p style="font-size: 13px; color: #cbd5e1; margin-bottom: 16px; line-height: 1.5;">
+      Les véhicules suivants ont des programmes <strong>CSPC non traités</strong> (statut disponible ou non renseigné) :
     </p>
-    <div id="active-cspc-list-container" style="background: var(--bg3); border: 1px solid var(--border); border-radius: 10px; padding: 12px; margin-bottom: 20px; text-align: left; max-height: 200px; overflow-y: auto;">
+    <div id="active-cspc-list-container" style="background: var(--bg3); border: 1px solid var(--border); border-radius: 10px; padding: 12px; margin-bottom: 18px; text-align: left; max-height: 180px; overflow-y: auto;">
       <!-- Liste peuplée dynamiquement -->
     </div>
+
+    <!-- Zone d'Insistance et de Confirmation Obligatoire -->
+    <div style="background: rgba(167, 139, 250, 0.12); border: 2px dashed #a78bfa; border-radius: 12px; padding: 16px; margin: 18px 0; text-align: left;">
+      <label style="display: flex; align-items: flex-start; gap: 12px; cursor: pointer; user-select: none; margin: 0;">
+        <input type="checkbox" id="chk-confirm-cspc-ack" onchange="toggleCspcAckBtn(this)" style="width: 22px; height: 22px; accent-color: #a78bfa; margin-top: 2px; cursor: pointer; flex-shrink: 0;">
+        <span style="font-size: 13px; color: #e9d5ff; line-height: 1.45; font-weight: 600;">
+          ⚠️ <strong>Confirmation Chef d'Équipe obligatoire :</strong><br>
+          J'atteste avoir pris en considération les programmes <strong>CSPC non traités</strong> de mon équipe et m'engage à leur affectation ou régularisation immédiate.
+        </span>
+      </label>
+    </div>
+
     <div style="display: flex; gap: 12px; justify-content: center;">
-      <button class="btn btn-save" onclick="closeModal('modal-active-cspc-alert')" style="background: var(--pur); color: #000; border: none; font-weight: 700;">D'accord</button>
+      <button id="btn-ack-cspc" disabled onclick="confirmCspcAcknowledgment()" style="background: #4b5563; color: #9ca3af; border: none; border-radius: 10px; padding: 14px 28px; font-weight: 800; font-size: 13px; cursor: not-allowed; text-transform: uppercase; letter-spacing: 1px; width: 100%; transition: all 0.25s ease; display: flex; align-items: center; justify-content: center; gap: 8px;">
+        🔒 Cochez la case ci-dessus pour acquitter
+      </button>
     </div>
   </div>
 </div>
