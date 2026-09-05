@@ -110,8 +110,10 @@
         if (idx >= 0 && local.bl[idx]) return local.bl[idx].chauffeur === key;
       }
       if (listName === 'odo' && document.getElementById('modal-odo')?.classList.contains('open')) {
+        const modalV = (document.getElementById('f-odo-v')?.value || '').trim().toUpperCase();
+        if (modalV && modalV === key) return true;
         const idx = parseInt(document.getElementById('odo-edit-idx')?.value);
-        if (idx >= 0 && local.odo[idx]) return local.odo[idx].v === key;
+        if (idx >= 0 && local.odo && local.odo[idx]) return local.odo[idx].v === key;
       }
       if (listName === 'cspc' && document.getElementById('modal-cspc')?.classList.contains('open')) {
         const idx = parseInt(document.getElementById('cspc-edit-idx')?.value);
@@ -4363,8 +4365,9 @@ mark.hl { background: rgba(56,189,248,.25); color: var(--acc); border-radius: 3p
 <!-- Modal ODO -->
 <div class="modal-overlay" id="modal-odo">
   <div class="modal">
-    <h3>🛣️ Ajouter relevé kilométrique</h3>
+    <h3>🛣️ Ajouter / Modifier relevé kilométrique</h3>
     <input type="hidden" id="odo-edit-idx">
+    <input type="hidden" id="odo-edit-team">
     <div class="form-grid">
       <div class="form-group"><label>Véhicule</label><input id="f-odo-v" list="dl-vehicules" placeholder="001079-514-16"></div>
       <div class="form-group"><label>Chauffeur</label><input id="f-odo-chauffeur" list="dl-chauffeurs" placeholder="NOM PRÉNOM"></div>
@@ -7418,7 +7421,14 @@ function openModal(id, editIdx=-1) {
     if (gr) gr.style.display = isCreation ? 'block' : 'none';
     if (gd) gd.style.display = isCreation ? 'block' : 'none';
   }
-  if (id === 'modal-odo' && editIdx === -1) buildOdoWeekInputs();
+  if (id === 'modal-odo' && editIdx === -1) {
+    document.getElementById('f-odo-v').value = '';
+    document.getElementById('f-odo-chauffeur').value = '';
+    document.getElementById('f-odo-km-facture').value = '';
+    const teamEl = document.getElementById('odo-edit-team');
+    if (teamEl) teamEl.value = window.CURRENT_EQUIPE || 'A';
+    buildOdoWeekInputs();
+  }
   if (id === 'modal-odo-export') initOdoExportModal();
   if (id === 'modal-panne') {
     const editInput = document.getElementById('panne-edit-idx');
@@ -9688,9 +9698,38 @@ function saveBL() {
 // ═══════════════════════════════════════════════════════════════
 // RENDER: ODOMÈTRE
 // ═══════════════════════════════════════════════════════════════
-function buildOdoWeekInputs() {
+function getGlobalOdoWeeks() {
+  const EQUIPES = ['A', 'B', 'C', 'D', 'E', 'F'];
+  const weeksSet = new Set();
+  EQUIPES.forEach(eq => {
+    const db = (eq === (window.CURRENT_EQUIPE||'A') && typeof window.DB !== 'undefined') ? window.DB : window['DB_' + eq];
+    if (db && Array.isArray(db.odo_weeks)) {
+      db.odo_weeks.forEach(w => {
+        const norm = typeof normalizeOdoDate === 'function' ? normalizeOdoDate(w) : w;
+        if (norm) weeksSet.add(norm);
+      });
+    }
+  });
+  if (window.DB && Array.isArray(window.DB.odo_weeks)) {
+    window.DB.odo_weeks.forEach(w => {
+      const norm = typeof normalizeOdoDate === 'function' ? normalizeOdoDate(w) : w;
+      if (norm) weeksSet.add(norm);
+    });
+  }
+  return Array.from(weeksSet).sort();
+}
+
+function buildOdoWeekInputs(customWeeks) {
+  let weeks = customWeeks;
+  if (!weeks || !weeks.length) {
+    weeks = getGlobalOdoWeeks();
+  }
+  if (!weeks || !weeks.length) {
+    weeks = (window.DB && window.DB.odo_weeks) ? window.DB.odo_weeks : [];
+  }
   const container = document.getElementById('odo-week-inputs');
-  container.innerHTML = (DB.odo_weeks||[]).map((w,i)=>`
+  if (!container) return;
+  container.innerHTML = (weeks||[]).map((w,i)=>`
     <div class="form-group">
       <label>${w}</label>
       <input type="number" id="f-odo-val-${i}" placeholder="KM…" style="width:100%">
@@ -10322,7 +10361,9 @@ function renderOdo() {
   body.innerHTML = data.map(r => {
     // Calculer le realIdx par rapport à son équipe d'origine
     const targetDb = (r._team === activeEq) ? activeDb : window['DB_' + r._team];
-    const realIdx = (targetDb && Array.isArray(targetDb.odo)) ? targetDb.odo.indexOf(r) : -1;
+    const realIdx = (targetDb && Array.isArray(targetDb.odo)) 
+      ? targetDb.odo.findIndex(item => item.v && item.v.trim().toUpperCase() === (r.v || '').trim().toUpperCase()) 
+      : -1;
     
     const cells = filteredWeeks.map(w => {
       const origIdx = weeks.indexOf(w);
@@ -10410,11 +10451,11 @@ function renderOdo() {
 
     const teamCell = (filterTeam === 'ALL') ? `<td style="font-weight:bold;color:var(--txt2);text-align:center">Éq. ${r._team}</td>` : ``;
     
-    // N'autoriser l'édition/suppression que si l'on est calé sur l'équipe active
-    const isEditable = (r._team === activeEq);
-    const actionCell = isEditable 
-      ? `<td><button class="del-btn" onclick="editOdo(${realIdx})">✏️</button><button class="del-btn" onclick="deleteOdo(${realIdx})">🗑</button></td>`
-      : `<td style="color:var(--txt3);font-size:10px;text-align:center" title="Basculez sur l'Équipe ${r._team} en haut à droite pour modifier">🔒 Éq. ${r._team}</td>`;
+    const rowTeam = r._team || activeEq;
+    const actionCell = `<td>
+      <button class="del-btn" title="Modifier les KM (${rowTeam})" onclick="editOdo('${rowTeam}', ${realIdx})">✏️</button>
+      <button class="del-btn" title="Supprimer (${rowTeam})" onclick="deleteOdo('${rowTeam}', ${realIdx})">🗑</button>
+    </td>`;
 
     return `<tr>
       <td class="mono" style="color:var(--acc)">${r.v}</td>
@@ -10434,44 +10475,153 @@ function renderOdo() {
   }).join('');
 }
 
-function editOdo(idx) {
-  const r = DB.odo[idx];
-  document.getElementById('f-odo-v').value = r.v||'';
-  document.getElementById('f-odo-chauffeur').value = r.chauffeur||'';
+function editOdo(teamOrIdx, maybeIdx) {
+  let team = 'A';
+  let idx = -1;
+  if (typeof teamOrIdx === 'string') {
+    team = teamOrIdx;
+    idx = maybeIdx !== undefined ? maybeIdx : -1;
+  } else {
+    idx = teamOrIdx;
+    team = window.CURRENT_EQUIPE || 'A';
+  }
+  
+  if (typeof alignOdoWeeksGlobal === 'function') {
+    alignOdoWeeksGlobal();
+  }
+  
+  const targetDb = (team === (window.CURRENT_EQUIPE || 'A') && typeof window.DB !== 'undefined') 
+    ? window.DB 
+    : window['DB_' + team];
+    
+  if (!targetDb || !Array.isArray(targetDb.odo)) {
+    showToast('⚠️ Impossible de charger la liste odomètre de l\'équipe ' + team, true);
+    return;
+  }
+  
+  let r = targetDb.odo[idx];
+  if (!r && typeof maybeIdx === 'string') {
+    r = targetDb.odo.find(item => item.v && item.v.trim().toUpperCase() === maybeIdx.trim().toUpperCase());
+    if (r) idx = targetDb.odo.indexOf(r);
+  }
+  if (!r) {
+    showToast('⚠️ Véhicule introuvable', true);
+    return;
+  }
+  
+  document.getElementById('f-odo-v').value = r.v || '';
+  document.getElementById('f-odo-chauffeur').value = r.chauffeur || '';
   document.getElementById('f-odo-km-facture').value = (r.kmFacture !== undefined && r.kmFacture !== null) ? r.kmFacture : '';
-  buildOdoWeekInputs();
-  (r.vals||[]).forEach((v,i)=>{
-    const el = document.getElementById('f-odo-val-'+i);
-    if (el && v!==null && v!==undefined) el.value = v;
+  
+  const teamEl = document.getElementById('odo-edit-team');
+  if (teamEl) teamEl.value = team;
+  const idxEl = document.getElementById('odo-edit-idx');
+  if (idxEl) idxEl.value = idx;
+  
+  const allWeeks = getGlobalOdoWeeks();
+  buildOdoWeekInputs(allWeeks);
+  
+  const dbWeeks = targetDb.odo_weeks || allWeeks;
+  (allWeeks || []).forEach((w, i) => {
+    const el = document.getElementById('f-odo-val-' + i);
+    if (!el) return;
+    const wIdx = dbWeeks.indexOf(w);
+    const val = (wIdx >= 0 && r.vals) ? r.vals[wIdx] : (r.vals ? r.vals[i] : null);
+    if (val !== null && val !== undefined) {
+      el.value = val;
+    } else {
+      el.value = '';
+    }
   });
+  
   openModal('modal-odo', idx);
 }
 
-function deleteOdo(idx) {
+function deleteOdo(teamOrIdx, maybeIdx) {
   if (!_checkActionsLibres('deleteOdo')) return;
-  if (!confirm('Supprimer ?')) return;
-  DB.odo.splice(idx,1); saveDB(); renderOdo(); showToast('✅ Supprimé');
+  if (!confirm('Supprimer ce relevé kilométrique ?')) return;
+  
+  let team = 'A';
+  let idx = -1;
+  if (typeof teamOrIdx === 'string') {
+    team = teamOrIdx;
+    idx = maybeIdx !== undefined ? maybeIdx : -1;
+  } else {
+    idx = teamOrIdx;
+    team = window.CURRENT_EQUIPE || 'A';
+  }
+  
+  const targetDb = (team === (window.CURRENT_EQUIPE || 'A') && typeof window.DB !== 'undefined') 
+    ? window.DB 
+    : window['DB_' + team];
+    
+  if (targetDb && Array.isArray(targetDb.odo) && targetDb.odo[idx]) {
+    targetDb.odo.splice(idx, 1);
+    if (team === (window.CURRENT_EQUIPE || 'A')) {
+      saveDB();
+    } else if (typeof saveTeamDB === 'function') {
+      saveTeamDB(team, targetDb);
+    }
+    renderOdo();
+    showToast('✅ Supprimé');
+  }
 }
 
 function saveOdo() {
   if (!_checkActionsLibres('saveOdo')) return;
   const v = document.getElementById('f-odo-v').value.trim();
   if (!v) { showToast('⚠️ Véhicule requis', true); return; }
-  const vals = (DB.odo_weeks||[]).map((_,i)=>{
-    const el = document.getElementById('f-odo-val-'+i);
-    if (!el||el.value==='') return null;
-    return parseInt(el.value)||null;
+  
+  if (typeof alignOdoWeeksGlobal === 'function') {
+    alignOdoWeeksGlobal();
+  }
+  
+  const teamEl = document.getElementById('odo-edit-team');
+  let targetTeam = teamEl ? teamEl.value : '';
+  const idx = parseInt(document.getElementById('odo-edit-idx').value);
+  
+  if (!targetTeam) {
+    const teamMap = typeof buildTracteurEquipeMap === 'function' ? buildTracteurEquipeMap() : {};
+    targetTeam = teamMap[v.toUpperCase()] || (window.CURRENT_EQUIPE || 'A');
+  }
+  
+  const targetDb = (targetTeam === (window.CURRENT_EQUIPE || 'A') && typeof window.DB !== 'undefined') 
+    ? window.DB 
+    : window['DB_' + targetTeam];
+    
+  if (!targetDb) {
+    showToast('⚠️ Erreur équipe cible ' + targetTeam, true);
+    return;
+  }
+  if (!targetDb.odo) targetDb.odo = [];
+  
+  const allWeeks = getGlobalOdoWeeks();
+  if (!targetDb.odo_weeks || !targetDb.odo_weeks.length) {
+    targetDb.odo_weeks = [...allWeeks];
+  }
+  
+  const vals = allWeeks.map((_, i) => {
+    const el = document.getElementById('f-odo-val-' + i);
+    if (!el || el.value === '') return null;
+    return parseInt(el.value) || null;
   });
+  
   const kmFactureInput = document.getElementById('f-odo-km-facture').value.trim();
   const kmFacture = kmFactureInput !== '' ? parseFloat(kmFactureInput) : null;
-  const idx = parseInt(document.getElementById('odo-edit-idx').value);
-  const existing = idx >= 0 ? DB.odo[idx] : {};
-  const odo_weeks = DB.odo_weeks || [];
-  const lastWeekIdx = odo_weeks.length - 1;
+  
+  let existingIdx = idx;
+  if (existingIdx < 0 || !targetDb.odo[existingIdx] || (targetDb.odo[existingIdx].v && targetDb.odo[existingIdx].v.toUpperCase() !== v.toUpperCase())) {
+    const foundIdx = targetDb.odo.findIndex(item => item.v && item.v.trim().toUpperCase() === v.toUpperCase());
+    if (foundIdx >= 0) existingIdx = foundIdx;
+  }
+  
+  const existing = (existingIdx >= 0 && targetDb.odo[existingIdx]) ? targetDb.odo[existingIdx] : {};
+  const lastWeekIdx = allWeeks.length - 1;
   const kmFactures = existing.kmFactures ? [...existing.kmFactures] : [];
   if (lastWeekIdx >= 0 && kmFacture !== null) {
     kmFactures[lastWeekIdx] = kmFacture;
   }
+  
   const obj = Object.assign({}, existing, {
     v,
     chauffeur: document.getElementById('f-odo-chauffeur').value.trim().toUpperCase(),
@@ -10479,8 +10629,24 @@ function saveOdo() {
     kmFacture,
     kmFactures
   });
-  if (idx >= 0) DB.odo[idx] = obj; else DB.odo.push(obj);
-  saveDB(); closeModal('modal-odo'); renderOdo(); showToast('✅ Relevé KM enregistré');
+  
+  if (existingIdx >= 0) {
+    targetDb.odo[existingIdx] = obj;
+  } else {
+    targetDb.odo.push(obj);
+  }
+  
+  targetDb.odo_weeks = [...allWeeks];
+  
+  if (targetTeam === (window.CURRENT_EQUIPE || 'A')) {
+    saveDB();
+  } else if (typeof saveTeamDB === 'function') {
+    saveTeamDB(targetTeam, targetDb);
+  }
+  
+  closeModal('modal-odo');
+  renderOdo();
+  showToast('✅ Relevé KM enregistré');
 }
 
 function triggerImportKmFacture() {
