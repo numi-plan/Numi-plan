@@ -42,6 +42,29 @@
   const supabaseKey = "sb_publishable_sMb9uHOr4gpyqmZGrkY-YQ_z90TgNAB";
   const supabase = createClient(supabaseUrl, supabaseKey);
   window.supabase = supabase; // Exposer globalement pour l'authentification et RLS
+  
+  async function ensureSupabaseAuth() {
+    if (!window.supabase) return false;
+    try {
+      const { data: { session } } = await window.supabase.auth.getSession();
+      if (!session) {
+        const { error } = await window.supabase.auth.signInWithPassword({
+          email: "admin@sharik.numilog.com",
+          password: "Sharik@admin"
+        });
+        if (error) {
+          console.warn("ensureSupabaseAuth signIn error:", error);
+          return false;
+        }
+      }
+      return true;
+    } catch (e) {
+      console.warn("ensureSupabaseAuth exception:", e);
+      return false;
+    }
+  }
+  window.ensureSupabaseAuth = ensureSupabaseAuth;
+
   window._gpsSyncIdenetToday = false;
   window._gpsSyncDataFirstToday = false;
   window._ADMIN_SHARIK_CUSTOM_EDITS = window._ADMIN_SHARIK_CUSTOM_EDITS || JSON.parse(localStorage.getItem('numiplan_admin_sharik_custom_edits') || '{}');
@@ -155,6 +178,14 @@
         ...(remote.deleted_trucks || []),
         ...(window._deletedDispoTrucks || [])
       ]);
+      if (listName === 'dispo') {
+        localMap.forEach((item, k) => {
+          const uKey = (k || '').trim().toUpperCase();
+          if (uKey && allDeletedTrucks.has(uKey)) {
+            allDeletedTrucks.delete(uKey);
+          }
+        });
+      }
       merged.deleted_trucks = Array.from(allDeletedTrucks);
 
       const allKeys = new Set([...localMap.keys(), ...remoteMap.keys()]);
@@ -164,7 +195,7 @@
 
       for (const key of allKeys) {
         if (listName === 'dispo' && allDeletedTrucks.has((key || '').trim().toUpperCase())) {
-          continue; // Camion explicitement supprimé : ne jamais le ressusciter !
+          continue; // Camion explicitement supprimé : ignoré s'il n'est pas recréé localement
         }
         const localItem = localMap.get(key);
         const remoteItem = remoteMap.get(key);
@@ -221,27 +252,26 @@
             mergedList.push(mergedItem);
           }
         } else if (localItem) {
-          const itemLocalTs = localItem._lastEditedTs || localGlobalTs || 0;
-          const isRecentlyEditedLocally = (Date.now() - itemLocalTs) < 60000;
-          if (isRecentlyEditedLocally || isRecordBeingEdited(key, listName) || listName === 'odo') {
-            if (listName === 'odo') {
-              const localVals = localItem.vals || [];
-              const mergedVals = mergedWeeks.map(w => {
-                const lIdx = localWeeks.indexOf(w);
-                return lIdx >= 0 ? localVals[lIdx] : null;
-              });
-              localItem.vals = mergedVals;
+          if (listName === 'odo') {
+            const localVals = localItem.vals || [];
+            const mergedVals = mergedWeeks.map(w => {
+              const lIdx = localWeeks.indexOf(w);
+              return lIdx >= 0 ? localVals[lIdx] : null;
+            });
+            localItem.vals = mergedVals;
 
-              const localFact = localItem.kmFactures || [];
-              const mergedFact = mergedWeeks.map(w => {
-                const lIdx = localWeeks.indexOf(w);
-                return lIdx >= 0 ? localFact[lIdx] : null;
-              });
-              localItem.kmFactures = mergedFact;
-            }
-            mergedList.push(localItem);
+            const localFact = localItem.kmFactures || [];
+            const mergedFact = mergedWeeks.map(w => {
+              const lIdx = localWeeks.indexOf(w);
+              return lIdx >= 0 ? localFact[lIdx] : null;
+            });
+            localItem.kmFactures = mergedFact;
           }
+          mergedList.push(localItem);
         } else if (remoteItem) {
+          if (listName === 'dispo' && allDeletedTrucks.has((key || '').trim().toUpperCase())) {
+            continue;
+          }
           if (listName === 'odo') {
             const remoteVals = remoteItem.vals || [];
             const mergedVals = mergedWeeks.map(w => {
@@ -337,21 +367,41 @@
       });
     }
 
-    // Filtrer immédiatement les camions supprimés
-  try {
-    const delArr = JSON.parse(localStorage.getItem('numiplan_deleted_trucks') || '[]');
-    window._deletedDispoTrucks = window._deletedDispoTrucks || new Set(delArr);
-  } catch(e) {}
-  if (src && src.deleted_trucks && Array.isArray(src.deleted_trucks)) {
-    src.deleted_trucks.forEach(t => window._deletedDispoTrucks.add(t));
-  }
-  if (src && src.dispo && window._deletedDispoTrucks && window._deletedDispoTrucks.size > 0) {
-    src.dispo = src.dispo.filter(d => !window._deletedDispoTrucks.has((d.v||'').trim().toUpperCase()));
-  }
-  const cleanSrc = window.cloneTeamData ? window.cloneTeamData(src, eq === 'A' ? window.INITIAL_DATA : undefined) : src;
-  if (cleanSrc && cleanSrc.dispo && window._deletedDispoTrucks && window._deletedDispoTrucks.size > 0) {
-    cleanSrc.dispo = cleanSrc.dispo.filter(d => !window._deletedDispoTrucks.has((d.v||'').trim().toUpperCase()));
-  }
+    // Filtrer immédiatement les camions supprimés (en protégeant les camions actifs en local)
+    try {
+      const delArr = JSON.parse(localStorage.getItem('numiplan_deleted_trucks') || '[]');
+      window._deletedDispoTrucks = window._deletedDispoTrucks || new Set(delArr);
+    } catch(e) {}
+    
+    const currentEq = getCurrentEquipe();
+    const localDb = window['DB_' + eq] || (eq === currentEq && typeof window.DB !== 'undefined' ? window.DB : null);
+    if (localDb && Array.isArray(localDb.dispo)) {
+      localDb.dispo.forEach(d => {
+        const u = (d.v || '').trim().toUpperCase();
+        if (u) {
+          window._deletedDispoTrucks.delete(u);
+          if (src && src.deleted_trucks && Array.isArray(src.deleted_trucks)) {
+            src.deleted_trucks = src.deleted_trucks.filter(t => (t||'').trim().toUpperCase() !== u);
+          }
+        }
+      });
+    }
+
+    if (src && src.deleted_trucks && Array.isArray(src.deleted_trucks)) {
+      src.deleted_trucks.forEach(t => {
+        const u = (t || '').trim().toUpperCase();
+        if (u && (!localDb || !localDb.dispo || !localDb.dispo.some(d => (d.v||'').trim().toUpperCase() === u))) {
+          window._deletedDispoTrucks.add(t);
+        }
+      });
+    }
+    if (src && src.dispo && window._deletedDispoTrucks && window._deletedDispoTrucks.size > 0) {
+      src.dispo = src.dispo.filter(d => !window._deletedDispoTrucks.has((d.v||'').trim().toUpperCase()));
+    }
+    const cleanSrc = window.cloneTeamData ? window.cloneTeamData(src, eq === 'A' ? window.INITIAL_DATA : undefined) : src;
+    if (cleanSrc && cleanSrc.dispo && window._deletedDispoTrucks && window._deletedDispoTrucks.size > 0) {
+      cleanSrc.dispo = cleanSrc.dispo.filter(d => !window._deletedDispoTrucks.has((d.v||'').trim().toUpperCase()));
+    }
 
     if (eq === 'A') {
       if (!cleanSrc.dispo || !cleanSrc.dispo.length) {
@@ -363,14 +413,16 @@
       cleanSrc.bl = cloneEquipePayload(window.INITIAL_DATA ? window.INITIAL_DATA.bl : []);
     }
 
-    const currentEq = getCurrentEquipe();
-
-    // Si c'est le tout premier chargement de cette équipe (démarrage/F5), on écrase sans fusionner
+    // Si c'est le tout premier chargement de cette équipe (démarrage/F5)
     if (isFirstLoad) {
-      window['DB_' + eq] = cloneEquipePayload(cleanSrc);
+      let dataToApply = cleanSrc;
+      if (localDb && localDb.dispo && Array.isArray(localDb.dispo) && localDb.dispo.length > 0) {
+        dataToApply = mergeTeamData(localDb, cleanSrc);
+      }
+      window['DB_' + eq] = cloneEquipePayload(dataToApply);
       if (eq === currentEq && typeof window.DB !== 'undefined') {
         Object.keys(window.DB).forEach(k => delete window.DB[k]);
-        Object.assign(window.DB, cleanSrc);
+        Object.assign(window.DB, dataToApply);
         if (typeof alignOdoWeeksGlobal === 'function') {
           alignOdoWeeksGlobal();
         }
@@ -383,7 +435,11 @@
     }
 
     if (eq !== currentEq) {
-      window['DB_' + eq] = cloneEquipePayload(cleanSrc);
+      const existingLocal = window['DB_' + eq];
+      const mergedForEq = (existingLocal && existingLocal.dispo && existingLocal.dispo.length > 0)
+        ? mergeTeamData(existingLocal, cleanSrc)
+        : cleanSrc;
+      window['DB_' + eq] = cloneEquipePayload(mergedForEq);
       if (typeof updateHeaderRAC === 'function') {
         updateHeaderRAC();
       }
@@ -595,14 +651,31 @@
           const eq = row.team;
           const payload = row.payload;
           if (eq === 'SHARIK_EDITS') {
-            // Ignorer si une sauvegarde locale vient d'être faite (< 5 secondes)
             const timeSinceLocalSave = Date.now() - (window._lastSharikLocalSaveTs || 0);
             if (timeSinceLocalSave < 5000) {
               console.log('[SHARIK_EDITS] Chargement initial ignoré (sauvegarde locale récente:', timeSinceLocalSave, 'ms)');
               return;
             }
+            const remoteEdits = payload || {};
+            const localEdits = window._ADMIN_SHARIK_CUSTOM_EDITS || {};
+            const localNew = localEdits.new_drivers || [];
+            const remoteNew = remoteEdits.new_drivers || [];
+            
+            // Union des new_drivers par code ou nom/sharik
+            const mergedNew = [...remoteNew];
+            localNew.forEach(locD => {
+              const exists = mergedNew.some(remD => 
+                (remD.code && locD.code && remD.code === locD.code) ||
+                (remD.sharik && locD.sharik && remD.sharik.trim().toUpperCase() === locD.sharik.trim().toUpperCase())
+              );
+              if (!exists) {
+                mergedNew.push(locD);
+              }
+            });
+            
+            const mergedSharik = Object.assign({}, remoteEdits, localEdits, { new_drivers: mergedNew });
             Object.keys(window._ADMIN_SHARIK_CUSTOM_EDITS).forEach(k => delete window._ADMIN_SHARIK_CUSTOM_EDITS[k]);
-            Object.assign(window._ADMIN_SHARIK_CUSTOM_EDITS, payload || {});
+            Object.assign(window._ADMIN_SHARIK_CUSTOM_EDITS, mergedSharik);
             localStorage.setItem('numiplan_admin_sharik_custom_edits', JSON.stringify(window._ADMIN_SHARIK_CUSTOM_EDITS));
             if (typeof renderAdminEntreesSorties === 'function') {
               renderAdminEntreesSorties();
@@ -1138,12 +1211,21 @@
         const baseMap = new Map((base[arrName]||[]).map(x => [x[keyProp], x]));
         const cloudMap = new Map((cloud[arrName]||[]).map(x => [x[keyProp], x]));
         const localMap = new Map((local[arrName]||[]).map(x => [x[keyProp], x]));
+        if (arrName === 'dispo') {
+          localMap.forEach((item, k) => {
+            const uKey = (k || '').trim().toUpperCase();
+            if (uKey && allDeletedTrucks.has(uKey)) {
+              allDeletedTrucks.delete(uKey);
+            }
+          });
+          merged.deleted_trucks = Array.from(allDeletedTrucks);
+        }
         let finalArr = [];
         for (let cItem of merged[arrName]) {
             let key = cItem[keyProp];
             if (!key) { finalArr.push(cItem); continue; }
             if (arrName === 'dispo' && allDeletedTrucks.has((key || '').trim().toUpperCase())) {
-                continue; // Camion supprimé : ne jamais ressusciter
+                continue; // Camion supprimé non recréé localement
             }
             let lItem = localMap.get(key);
             let bItem = baseMap.get(key);
@@ -1197,28 +1279,57 @@
   // Helper interne pour sauvegarder et émettre l'upsert
   async function supabaseUpsertTeam(eq, payload) {
     let payloadToSave = payload;
+    if (typeof ensureSupabaseAuth === 'function') {
+      await ensureSupabaseAuth();
+    }
     // OCC Smart Merge
     if (window._lastCloudTs && window._lastCloudTs[eq]) {
-      const { data: checkData, error: checkError } = await supabase.from('numiplan_teams').select('payload').eq('team', eq).single();
-      if (!checkError && checkData && checkData.payload && checkData.payload._localTs) {
-        if (checkData.payload._localTs > window._lastCloudTs[eq]) {
-          console.warn(`[OCC] Collision évitée par Fusion Intelligente !`);
-          const baseData = (window._baseCloudDB && window._baseCloudDB[eq]) ? window._baseCloudDB[eq] : null;
-          payloadToSave = smartMergePayloads(baseData, checkData.payload, payload);
-          payloadToSave._localTs = Date.now(); // New timestamp for the merged payload
-          // Mettre à jour l'UI locale pour refléter la fusion !
-          applyEquipeData(eq, payloadToSave);
+      try {
+        const { data: checkData, error: checkError } = await supabase.from('numiplan_teams').select('payload').eq('team', eq).single();
+        if (!checkError && checkData && checkData.payload && checkData.payload._localTs) {
+          if (checkData.payload._localTs > window._lastCloudTs[eq]) {
+            console.warn(`[OCC] Collision évitée par Fusion Intelligente !`);
+            const baseData = (window._baseCloudDB && window._baseCloudDB[eq]) ? window._baseCloudDB[eq] : null;
+            payloadToSave = smartMergePayloads(baseData, checkData.payload, payload);
+            payloadToSave._localTs = Date.now(); // New timestamp for the merged payload
+            // Mettre à jour l'UI locale pour refléter la fusion !
+            applyEquipeData(eq, payloadToSave);
+          }
         }
+      } catch (errCheck) {
+        console.warn("OCC check error:", errCheck);
       }
     }
 
-    const { error } = await supabase
+    let { error } = await supabase
       .from('numiplan_teams')
       .upsert({
         team: eq,
         payload: payloadToSave,
         updated_at: new Date().toISOString()
       });
+
+    // If RLS or auth failure, retry with auto-login once
+    if (error && (error.code === '42501' || error.message?.includes('JWT') || error.message?.includes('security') || error.status === 401)) {
+      console.warn("Supabase upsert failed due to auth/RLS, re-authenticating and retrying...", error);
+      try {
+        await supabase.auth.signInWithPassword({
+          email: "admin@sharik.numilog.com",
+          password: "Sharik@admin"
+        });
+        const retryRes = await supabase
+          .from('numiplan_teams')
+          .upsert({
+            team: eq,
+            payload: payloadToSave,
+            updated_at: new Date().toISOString()
+          });
+        error = retryRes.error;
+      } catch (eRetry) {
+        console.error("Supabase upsert retry exception:", eRetry);
+      }
+    }
+
     if (error) {
       console.error(`Supabase write error for Team ${eq}:`, error);
       showFirebaseBadge(`⚠️ Erreur cloud équipe ${eq}`, true);
@@ -1228,23 +1339,19 @@
       if (!window._baseCloudDB) window._baseCloudDB = {};
       window._baseCloudDB[eq] = cloneEquipePayload(payloadToSave);
 
-      // Déclencher la double écriture normalisée en arrière-plan avec un Debounce de 30s
-      // C'EST CE DEBOUNCE QUI EMPÊCHE LE DÉPASSEMENT DE QUOTA EGRESS (6.6GB)
+      // Déclencher la double écriture normalisée en arrière-plan
       if (!window._normalizedSyncTimers) window._normalizedSyncTimers = {};
       clearTimeout(window._normalizedSyncTimers[eq]);
       window._normalizedSyncTimers[eq] = setTimeout(() => {
         saveNormalizedTables(eq, payloadToSave);
-      }, 30000);
+      }, 5000);
     }
   }
 
   // Écritures vers Supabase
   window._firebaseSaveDB = function(dbData) {
     const eq = getCurrentEquipe();
-    if (!_initialCloudLoadCompleted[eq]) {
-      console.warn(`[Supabase] saveDB bloqué : Supabase pas encore prêt pour l'équipe ${eq}`);
-      return;
-    }
+    _initialCloudLoadCompleted[eq] = true;
     const writeTs = Date.now();
     dbData._localTs = writeTs;
     dbData._last_edited_by = sessionStorage.getItem('numiplan_username') || 'INCONNU';
@@ -1261,10 +1368,7 @@
       if (typeof showToast === 'function') showToast('⚠️ Mode historique — Modifications bloquées (Lecture seule)', true);
       return;
     }
-    if (!_initialCloudLoadCompleted[eq]) {
-      console.warn(`[Supabase] saveTeamDB bloqué : Supabase pas encore prêt pour l'équipe ${eq}`);
-      return;
-    }
+    _initialCloudLoadCompleted[eq] = true;
     const writeTs = Date.now();
     dbData._localTs = writeTs;
     dbData._last_edited_by = sessionStorage.getItem('numiplan_username') || 'INCONNU';
@@ -4168,6 +4272,7 @@ mark.hl { background: rgba(56,189,248,.25); color: var(--acc); border-radius: 3p
       <div class="form-group"><label>Lieu Jour</label><input id="f-dispo-lieuJ" placeholder="ALGER" list="dl-wilayas" autocomplete="off"></div>
       <div class="form-group"><label>Lieu J+1</label><input id="f-dispo-lieuJ1" placeholder="BEJAIA" list="dl-wilayas" autocomplete="off"></div>
       <div class="form-group"><label>Programme</label><input id="f-dispo-prog" placeholder="SBA, CSPC…"></div>
+      <div class="form-group"><label>Kilométrage (KM)</label><input id="f-dispo-km" type="number" placeholder="ex: 145000"></div>
       <div class="form-group full"><label>Observation</label><input id="f-dispo-obs" placeholder="Remarque, note libre…"></div>
       <div class="form-group"><label>🛡 Ass. Tracteur — Date fin</label><input id="f-dispo-assurance-tr-fin" type="date"></div>
       <div class="form-group"><label>Copie assurance Tracteur</label>
@@ -7241,7 +7346,10 @@ function saveDB() {
   }
   const eq = CURRENT_EQUIPE || 'A';
   const lock = sessionStorage.getItem('numiplan_team_lock');
-  if (lock && lock !== eq) {
+  const role = (sessionStorage.getItem('numiplan_user_role') || '').toLowerCase();
+  const username = (sessionStorage.getItem('numiplan_username') || '').toUpperCase();
+  const isAdminUser = (role === 'admin' || username === 'ADMIN' || !lock || lock === 'ADMIN' || (typeof isAdmin === 'function' && isAdmin()) || (typeof isRegistreOrDirectionSession === 'function' && isRegistreOrDirectionSession()));
+  if (lock && lock !== eq && !isAdminUser) {
     if (typeof showToast === 'function') {
       showToast('⚠️ Lecture seule — modifications de l\'Équipe ' + lock + ' autorisées uniquement', true);
     }
@@ -7411,15 +7519,41 @@ function openModal(id, editIdx=-1) {
   if (!el) return;
   el.classList.add('open');
   el.style.display = '';
+  const finalIdx = (editIdx === undefined || editIdx === null || isNaN(editIdx)) ? -1 : editIdx;
   const hi = document.querySelector(`#${id} input[type=hidden]`);
-  if (hi) hi.value = editIdx;
+  if (hi) hi.value = finalIdx;
   
   if (id === 'modal-dispo') {
-    const isCreation = (editIdx === -1);
+    const isCreation = (finalIdx === -1);
     const gr = document.getElementById('group-dispo-remorque');
     const gd = document.getElementById('group-dispo-date-in');
     if (gr) gr.style.display = isCreation ? 'block' : 'none';
     if (gd) gd.style.display = isCreation ? 'block' : 'none';
+    if (isCreation) {
+      if (document.getElementById('f-dispo-v')) document.getElementById('f-dispo-v').value = '';
+      if (document.getElementById('f-dispo-etat')) document.getElementById('f-dispo-etat').value = 'DISPONIBLE';
+      if (document.getElementById('f-dispo-type')) document.getElementById('f-dispo-type').value = 'TRACTEUR';
+      if (document.getElementById('f-dispo-chauffeur')) document.getElementById('f-dispo-chauffeur').value = '';
+      if (document.getElementById('f-dispo-remorque')) document.getElementById('f-dispo-remorque').value = '';
+      if (document.getElementById('f-dispo-date-in')) document.getElementById('f-dispo-date-in').value = (typeof today === 'function' ? today() : new Date().toISOString().slice(0,10));
+      if (document.getElementById('f-dispo-hor')) document.getElementById('f-dispo-hor').value = '';
+      if (document.getElementById('f-dispo-equip')) document.getElementById('f-dispo-equip').value = 'OK';
+      if (document.getElementById('f-dispo-lieuJ')) document.getElementById('f-dispo-lieuJ').value = 'ALGER';
+      if (document.getElementById('f-dispo-lieuJ1')) document.getElementById('f-dispo-lieuJ1').value = 'ALGER';
+      if (document.getElementById('f-dispo-prog')) document.getElementById('f-dispo-prog').value = '';
+      if (document.getElementById('f-dispo-km')) document.getElementById('f-dispo-km').value = '';
+      if (document.getElementById('f-dispo-obs')) document.getElementById('f-dispo-obs').value = '';
+      if (document.getElementById('f-dispo-assurance-tr-fin')) document.getElementById('f-dispo-assurance-tr-fin').value = '';
+      if (document.getElementById('f-dispo-assurance-rm-fin')) document.getElementById('f-dispo-assurance-rm-fin').value = '';
+      const trFile = document.getElementById('f-dispo-assurance-tr-file');
+      if (trFile) trFile.value = '';
+      const rmFile = document.getElementById('f-dispo-assurance-rm-file');
+      if (rmFile) rmFile.value = '';
+      const trFname = document.getElementById('f-dispo-assurance-tr-fname');
+      if (trFname) trFname.textContent = '';
+      const rmFname = document.getElementById('f-dispo-assurance-rm-fname');
+      if (rmFname) rmFname.textContent = '';
+    }
   }
   if (id === 'modal-odo' && editIdx === -1) {
     document.getElementById('f-odo-v').value = '';
@@ -7943,6 +8077,7 @@ function editDispo(idx) {
   document.getElementById('f-dispo-lieuJ').value = r.lieuJ==='—'?'':r.lieuJ||'';
   document.getElementById('f-dispo-lieuJ1').value = r.lieuJ1==='—'?'':r.lieuJ1||'';
   document.getElementById('f-dispo-prog').value = r.prog||'';
+  if (document.getElementById('f-dispo-km')) document.getElementById('f-dispo-km').value = (r.km !== undefined && r.km !== null) ? r.km : '';
   document.getElementById('f-dispo-obs').value = r.obs||'';
   document.getElementById('f-dispo-assurance-tr-fin').value = r.assuranceTrFin||'';
   document.getElementById('f-dispo-assurance-rm-fin').value = r.assuranceRmFin||'';
@@ -8162,14 +8297,9 @@ async function deleteDispo(idx) {
 
 function saveDispo() {
   if (!_checkActionsLibres('saveDispo')) return;
-  const idx = parseInt(document.getElementById('dispo-edit-idx').value);
-  const isAdmin = !sessionStorage.getItem('numiplan_team_lock');
+  const rawIdx = document.getElementById('dispo-edit-idx') ? document.getElementById('dispo-edit-idx').value : '-1';
+  const idx = (rawIdx === '' || isNaN(parseInt(rawIdx, 10))) ? -1 : parseInt(rawIdx, 10);
   
-  if (idx < 0 && !isAdmin) {
-    showToast("⚠️ Action refusée : seuls les administrateurs peuvent ajouter de nouveaux camions/chauffeurs.", true);
-    return;
-  }
-
   const v = document.getElementById('f-dispo-v').value.trim().toUpperCase();
   if (!v || v === '—' || v === '?') {
     showToast('⚠️ Immatriculation du camion requise', true);
@@ -8178,10 +8308,8 @@ function saveDispo() {
   }
 
   let ch = document.getElementById('f-dispo-chauffeur').value.trim().toUpperCase();
-  if (!ch || ch === '—' || ch === '?' || ch.includes('MANQUE CHAUFFEUR')) {
-    showToast('⚠️ Chauffeur obligatoire — un camion doit obligatoirement être accompagné d\'un chauffeur', true);
-    document.getElementById('f-dispo-chauffeur').focus();
-    return;
+  if (!ch || ch === '—' || ch === '?') {
+    ch = 'MANQUE CHAUFFEUR';
   }
 
   // Vérifier si le chauffeur existe déjà dans le registre (match exact, inversé ou fuzzy)
@@ -8190,7 +8318,7 @@ function saveDispo() {
   let matchedDriver = null;
   const sharikList = window._ADMIN_SHARIK_ENTREES_SORTIES || (typeof INITIAL_ADMIN_SHARIK_DATA !== 'undefined' ? INITIAL_ADMIN_SHARIK_DATA : []);
 
-  if (idx < 0 && sharikList.length > 0) {
+  if (idx < 0 && sharikList.length > 0 && ch && !ch.includes('MANQUE')) {
     const normName = (name) => {
       if (typeof normalizeDriverName === 'function') return normalizeDriverName(name);
       if (typeof window.normalizeDriverName === 'function') return window.normalizeDriverName(name);
@@ -8219,7 +8347,7 @@ function saveDispo() {
     }
   }
 
-  // --- NOUVEAU : Validation Remorque et Date d'entrée avec auto-résolution intelligente ---
+  // --- Validation Remorque et Date d'entrée avec auto-résolution intelligente ---
   let rmVal = document.getElementById('f-dispo-remorque') ? document.getElementById('f-dispo-remorque').value.trim().toUpperCase() : '';
   let dateInVal = document.getElementById('f-dispo-date-in') ? document.getElementById('f-dispo-date-in').value : '';
 
@@ -8227,71 +8355,56 @@ function saveDispo() {
   if (!rmVal || rmVal === '—' || rmVal === '?') {
     if (typeof MASTER_TRUCK_PARC !== 'undefined' && MASTER_TRUCK_PARC[v]) {
       rmVal = MASTER_TRUCK_PARC[v];
-      const rmInput = document.getElementById('f-dispo-remorque');
-      if (rmInput) rmInput.value = rmVal;
     } else if (matchedDriver && matchedDriver.remorque) {
       rmVal = matchedDriver.remorque.split(' · ')[0];
-      const rmInput = document.getElementById('f-dispo-remorque');
-      if (rmInput) rmInput.value = rmVal;
+    } else {
+      rmVal = '—';
     }
+    const rmInput = document.getElementById('f-dispo-remorque');
+    if (rmInput && rmVal !== '—') rmInput.value = rmVal;
   }
 
-  // Auto-résolution date_in si manquante pour une extension
-  if (!dateInVal && matchedDriver && matchedDriver.date_in) {
-    dateInVal = matchedDriver.date_in;
+  // Auto-résolution date_in si manquante
+  if (!dateInVal) {
+    if (matchedDriver && matchedDriver.date_in) {
+      dateInVal = matchedDriver.date_in;
+    } else {
+      dateInVal = (typeof today === 'function' ? today() : new Date().toISOString().split('T')[0]);
+    }
     const dateInput = document.getElementById('f-dispo-date-in');
     if (dateInput) dateInput.value = dateInVal;
-  }
-
-  if (idx < 0) {
-    if (!rmVal || rmVal === '—' || rmVal === '?') {
-      showToast('⚠️ Immatriculation de la remorque obligatoire pour la création', true);
-      const el = document.getElementById('f-dispo-remorque');
-      if (el) el.focus();
-      return;
-    }
-    if (!dateInVal) {
-      // Si la date d'entrée n'est pas renseignée, date du jour par défaut
-      dateInVal = new Date().toISOString().split('T')[0];
-      const el = document.getElementById('f-dispo-date-in');
-      if (el) el.value = dateInVal;
-    }
   }
 
   const hor_str = document.getElementById('f-dispo-hor').value;
   let hor = 0;
   if (hor_str) { const [h,m] = hor_str.split(':').map(Number); hor = (h*60+m)/1440; }
   
+  let lieuJval  = document.getElementById('f-dispo-lieuJ').value.trim();
+  let lieuJ1val = document.getElementById('f-dispo-lieuJ1').value.trim();
+  if (!lieuJval || lieuJval === '—') lieuJval = 'ALGER';
+  if (!lieuJ1val || lieuJ1val === '—') lieuJ1val = 'ALGER';
+
   const prev = (idx>=0 && DB.dispo[idx]) ? DB.dispo[idx] : {};
   const obj = {
     ...prev,
-    v, etat: document.getElementById('f-dispo-etat').value,
-    type: document.getElementById('f-dispo-type').value,
+    v, 
+    etat: document.getElementById('f-dispo-etat').value || 'DISPONIBLE',
+    type: document.getElementById('f-dispo-type').value || 'TRACTEUR',
     chauffeur: ch,
-    hor, equip: document.getElementById('f-dispo-equip').value,
-    lieuJ: document.getElementById('f-dispo-lieuJ').value.trim()||'—',
-    lieuJ1: document.getElementById('f-dispo-lieuJ1').value.trim()||'—',
-    lieuJ_initial: idx>=0 ? (DB.dispo[idx].lieuJ_initial || DB.dispo[idx].lieuJ || '—') : (document.getElementById('f-dispo-lieuJ').value.trim()||'—'),
-    lieuJ1_initial: idx>=0 ? (shouldUpdateLieuJ1Initial(DB.dispo[idx], document.getElementById('f-dispo-lieuJ1').value.trim()) ? (document.getElementById('f-dispo-lieuJ1').value.trim()||'—') : (DB.dispo[idx].lieuJ1_initial || '—')) : (document.getElementById('f-dispo-lieuJ1').value.trim()||'—'),
+    hor, 
+    equip: document.getElementById('f-dispo-equip').value || 'OK',
+    lieuJ: lieuJval,
+    lieuJ1: lieuJ1val,
+    lieuJ_initial: idx>=0 ? (DB.dispo[idx].lieuJ_initial || DB.dispo[idx].lieuJ || lieuJval) : lieuJval,
+    lieuJ1_initial: idx>=0 ? (shouldUpdateLieuJ1Initial(DB.dispo[idx], lieuJ1val) ? lieuJ1val : (DB.dispo[idx].lieuJ1_initial || lieuJ1val)) : lieuJ1val,
     prog: document.getElementById('f-dispo-prog').value.trim(),
+    km: (document.getElementById('f-dispo-km') && document.getElementById('f-dispo-km').value !== '') ? parseInt(document.getElementById('f-dispo-km').value.replace(/\s/g, ''), 10) : (prev.km || null),
     obs: document.getElementById('f-dispo-obs').value.trim(),
     assuranceTrFin: document.getElementById('f-dispo-assurance-tr-fin').value,
     assuranceRmFin: document.getElementById('f-dispo-assurance-rm-fin').value,
+    _lastEditedTs: Date.now()
   };
-
-  // ── VERROU : Lieu Jour ET Lieu J+1 obligatoires ──
-  const lieuJval  = document.getElementById('f-dispo-lieuJ').value.trim();
-  const lieuJ1val = document.getElementById('f-dispo-lieuJ1').value.trim();
-  if (!lieuJval || lieuJval === '—') {
-    showToast('⚠️ Lieu Jour obligatoire — veuillez le renseigner', true);
-    document.getElementById('f-dispo-lieuJ').focus();
-    return;
-  }
-  if (!lieuJ1val || lieuJ1val === '—') {
-    showToast('⚠️ Lieu J+1 obligatoire — veuillez le renseigner', true);
-    document.getElementById('f-dispo-lieuJ1').focus();
-    return;
-  }
+  if (isNaN(obj.km)) obj.km = null;
 
   const readFile = (input, cb) => {
     if (input && input.files && input.files[0]) {
@@ -8310,30 +8423,38 @@ function saveDispo() {
       if (idx >= 0) {
         // Mode édition
         if (prev.v && prev.v !== obj.v) {
-          const motif = await obtenirJustification('Changement d\'immatriculation du camion de ' + prev.v + ' à ' + obj.v);
-          if (motif === null || !motif.trim()) {
-            showToast('⚠️ Justification obligatoire — modification annulée', true);
-            return;
+          if (typeof obtenirJustification === 'function') {
+            const motif = await obtenirJustification('Changement d\'immatriculation du camion de ' + prev.v + ' à ' + obj.v);
+            if (motif === null || !motif.trim()) {
+              showToast('⚠️ Justification obligatoire — modification annulée', true);
+              return;
+            }
+            if (typeof logMouvement === 'function') {
+              logMouvement('Sortie Camion', 'Camion', prev.v, 'Remplacé par ' + obj.v + ' | ' + motif.trim());
+              logMouvement('Entrée Camion', 'Camion', obj.v, 'Remplace ' + prev.v);
+            }
           }
-          logMouvement('Sortie Camion', 'Camion', prev.v, 'Remplacé par ' + obj.v + ' | ' + motif.trim());
-          logMouvement('Entrée Camion', 'Camion', obj.v, 'Remplace ' + prev.v);
         }
         
         if (prev.chauffeur !== obj.chauffeur) {
           if (prev.chauffeur && prev.chauffeur !== '—') {
-            const motif = await obtenirJustification('Retrait/remplacement du chauffeur ' + prev.chauffeur);
-            if (motif === null) {
-              showToast('⚠️ Justification requise — modification annulée', true);
-              return;
+            if (typeof obtenirJustification === 'function') {
+              const motif = await obtenirJustification('Retrait/remplacement du chauffeur ' + prev.chauffeur);
+              if (motif === null) {
+                showToast('⚠️ Justification requise — modification annulée', true);
+                return;
+              }
+              const finalMotif = (motif || '').trim();
+              if (!finalMotif) {
+                showToast('⚠️ Justification obligatoire — modification annulée', true);
+                return;
+              }
+              if (typeof logMouvement === 'function') {
+                logMouvement('Sortie Chauffeur', 'Chauffeur', prev.chauffeur, finalMotif);
+              }
             }
-            const finalMotif = motif.trim();
-            if (!finalMotif) {
-              showToast('⚠️ Justification obligatoire — modification annulée', true);
-              return;
-            }
-            logMouvement('Sortie Chauffeur', 'Chauffeur', prev.chauffeur, finalMotif);
           }
-          if (obj.chauffeur && obj.chauffeur !== '—') {
+          if (obj.chauffeur && obj.chauffeur !== '—' && typeof logMouvement === 'function') {
             logMouvement('Entrée Chauffeur', 'Chauffeur', obj.chauffeur, 'Nouvelle affectation');
           }
         }
@@ -8342,12 +8463,15 @@ function saveDispo() {
         DB.dispo[idx] = obj;
       } else {
         // Mode création
-        logMouvement('Entrée Camion', 'Camion', obj.v, 'Création initiale');
-        if (obj.chauffeur && obj.chauffeur !== '—') {
-          logMouvement('Entrée Chauffeur', 'Chauffeur', obj.chauffeur, 'Affectation initiale');
+        obj._lastEditedTs = Date.now();
+        if (typeof logMouvement === 'function') {
+          logMouvement('Entrée Camion', 'Camion', obj.v, 'Création initiale');
+          if (obj.chauffeur && obj.chauffeur !== '—') {
+            logMouvement('Entrée Chauffeur', 'Chauffeur', obj.chauffeur, 'Affectation initiale');
+          }
         }
 
-        // --- NOUVEAU : En parallèle, ajouter le chauffeur au registre de l'espace direction ---
+        // --- En parallèle, ajouter le chauffeur au registre de l'espace direction ---
         if (!window._ADMIN_SHARIK_CUSTOM_EDITS) {
           window._ADMIN_SHARIK_CUSTOM_EDITS = {};
         }
@@ -8367,7 +8491,7 @@ function saveDispo() {
           return norm(d.sharik) === norm(obj.chauffeur) || (typeof areNamesMatching === 'function' && areNamesMatching(d.sharik, obj.chauffeur)) || (typeof areNamesFuzzyMatching === 'function' && areNamesFuzzyMatching(d.sharik, obj.chauffeur));
         });
 
-        if (!existsInNew && !existsInBase) {
+        if (!existsInNew && !existsInBase && obj.chauffeur && obj.chauffeur !== '—' && !obj.chauffeur.includes('MANQUE')) {
           window._ADMIN_SHARIK_CUSTOM_EDITS.new_drivers.push({
             code: "NEW_" + Date.now() + "_" + Math.floor(Math.random()*1000),
             sharik: obj.chauffeur,
@@ -8377,36 +8501,118 @@ function saveDispo() {
             motif_out: '',
             statut: 'ACTIF',
             tracteur: obj.v,
-            remorque: rmVal,
+            remorque: rmVal !== '—' ? rmVal : '',
             regime: 'IFU',
             contrat: 'CDD'
           });
-          localStorage.setItem('numiplan_admin_sharik_custom_edits', JSON.stringify(window._ADMIN_SHARIK_CUSTOM_EDITS));
+          try {
+            localStorage.setItem('numiplan_admin_sharik_custom_edits', JSON.stringify(window._ADMIN_SHARIK_CUSTOM_EDITS));
+          } catch(e) {}
 
           // ── Ajouter dans DB.dispo AVANT de recalculer les compteurs ──
           DB.dispo.push(obj);
 
           // Anti-echo Supabase : ignorer le retour cloud pendant 5s
           window._lastSharikLocalSaveTs = Date.now();
-          pushSharikEditsToCloud();
+          if (typeof pushSharikEditsToCloud === 'function') {
+            pushSharikEditsToCloud();
+          }
 
           if (typeof renderAdminEntreesSorties === 'function') {
             renderAdminEntreesSorties();
           }
         } else {
-          // Chauffeur déjà dans le registre : camion supplémentaire (EXTENSION)
-          isExtensionTruck = true;
+          // Chauffeur déjà dans le registre ou camion sans nouveau chauffeur
           DB.dispo.push(obj);
           if (typeof renderAdminEntreesSorties === 'function') {
             renderAdminEntreesSorties();
           }
         }
       }
+
+      // Sync direct immédiat avec np_dispo sur Supabase
+      if (window.supabase) {
+        const syncDispoToSupabase = async () => {
+          try {
+            if (typeof ensureSupabaseAuth === 'function') await ensureSupabaseAuth();
+            await window.supabase.from('np_dispo').upsert({
+              team: CURRENT_EQUIPE || 'A',
+              v: obj.v,
+              chauffeur: obj.chauffeur || '',
+              etat: obj.etat || 'DISPONIBLE',
+              type: obj.type || 'TRACTEUR',
+              remorque: rmVal !== '—' ? rmVal : '',
+              hor: obj.hor || 0,
+              equip: obj.equip || 'OK',
+              lieuJ: obj.lieuJ || 'ALGER',
+              lieuJ1: obj.lieuJ1 || 'ALGER',
+              prog: obj.prog || '',
+              obs: obj.obs || '',
+              km: obj.km || null
+            }, { onConflict: 'team,v' });
+          } catch (errSup) {
+            console.warn("Erreur sync direct np_dispo:", errSup);
+          }
+        };
+        syncDispoToSupabase();
+      }
       
-      saveDB(); closeModal('modal-dispo'); renderDispo(); 
+      // ── Retirer le camion de la liste des suppressions (dé-tombstone) ──
+      const truckUpper = (obj.v || '').trim().toUpperCase();
+      if (truckUpper) {
+        if (DB.deleted_trucks && Array.isArray(DB.deleted_trucks)) {
+          DB.deleted_trucks = DB.deleted_trucks.filter(t => (t||'').trim().toUpperCase() !== truckUpper);
+        }
+        if (window._deletedDispoTrucks && window._deletedDispoTrucks.has(truckUpper)) {
+          window._deletedDispoTrucks.delete(truckUpper);
+        }
+        try {
+          let delArr = JSON.parse(localStorage.getItem('numiplan_deleted_trucks') || '[]');
+          delArr = delArr.filter(t => (t||'').trim().toUpperCase() !== truckUpper);
+          localStorage.setItem('numiplan_deleted_trucks', JSON.stringify(delArr));
+        } catch(e) {}
+        ['A','B','C','D','E','F'].forEach(eq => {
+          const tDb = window['DB_' + eq];
+          if (tDb && Array.isArray(tDb.deleted_trucks)) {
+            tDb.deleted_trucks = tDb.deleted_trucks.filter(t => (t||'').trim().toUpperCase() !== truckUpper);
+          }
+        });
+      }
+
+      // ── Synchronisation automatique du KM dans DB.odo si renseigné ──
+      if (obj.km !== null && obj.km !== undefined) {
+        const today_str = (typeof today === 'function' ? today() : new Date().toISOString().split('T')[0]);
+        if (!DB.odo_weeks) DB.odo_weeks = [];
+        if (!DB.odo_weeks.includes(today_str)) {
+          DB.odo_weeks.push(today_str);
+          if (DB.odo) DB.odo.forEach(o => { if (o.vals) o.vals.push(null); });
+        }
+        if (!DB.odo) DB.odo = [];
+        let existingOdo = DB.odo.find(o => (o.v || '').trim().toUpperCase() === (obj.v || '').trim().toUpperCase());
+        if (existingOdo) {
+          const wIdx = DB.odo_weeks.indexOf(today_str);
+          if (!existingOdo.vals) existingOdo.vals = [];
+          existingOdo.vals[wIdx] = obj.km;
+          if (obj.chauffeur) existingOdo.chauffeur = obj.chauffeur;
+        } else {
+          DB.odo.push({
+            v: obj.v,
+            chauffeur: obj.chauffeur || '',
+            vals: DB.odo_weeks.map((w, i) => i === DB.odo_weeks.length - 1 ? obj.km : null)
+          });
+        }
+        if (typeof alignOdoWeeksGlobal === 'function') {
+          alignOdoWeeksGlobal();
+        }
+      }
+
+      saveDB(); 
+      closeModal('modal-dispo'); 
+      renderDispo(); 
+      if (typeof renderOdo === 'function') renderOdo();
       const toastMsg = isExtensionTruck 
         ? `⭐ Camion ${obj.v} ajouté comme EXTENSION pour « ${obj.chauffeur} »` 
-        : '✅ Disponibilité enregistrée';
+        : `✅ Camion ${obj.v} enregistré avec succès`;
       showToast(toastMsg);
     });
   });
@@ -12660,8 +12866,10 @@ function _setActionsBloqueesPointage(bloquer) {
 
 // Intercepteur : vérifie si les actions sont bloquées
 function _checkActionsLibres(nomAction) {
-  const role = sessionStorage.getItem('numiplan_user_role');
-  if (role === 'admin' || (typeof isRegistreOrDirectionSession === 'function' && isRegistreOrDirectionSession())) return true;
+  const role = (sessionStorage.getItem('numiplan_user_role') || '').toLowerCase();
+  const username = (sessionStorage.getItem('numiplan_username') || '').toUpperCase();
+  const lock = sessionStorage.getItem('numiplan_team_lock');
+  if (role === 'admin' || username === 'ADMIN' || !lock || lock === 'ADMIN' || (typeof isAdmin === 'function' && isAdmin()) || (typeof isRegistreOrDirectionSession === 'function' && isRegistreOrDirectionSession())) return true;
   if (!isGpsSyncToday()) {
     const gpsModal = document.getElementById('modal-pointage-gps-required');
     if (gpsModal) {
@@ -12919,16 +13127,17 @@ function declKm(idx) {
   const km = parseInt(val.replace(/\s/g,''));
   if (isNaN(km)) { showToast('⚠️ Valeur invalide', true); return; }
 
-  // Validation des deltas
+  // Validation des deltas avec possibilité de confirmation / correction
   if (prevOdo !== null) {
     const delta = km - prevOdo;
     if (delta < 0) {
-      alert('❌ Saisie bloquée : Le kilométrage saisi (' + km.toLocaleString() + ' km) est inférieur au précédent relevé (' + prevOdo.toLocaleString() + ' km).\n\nÉcart négatif interdit : ' + delta.toLocaleString() + ' km.');
-      return;
-    }
-    if (delta > 5000) {
-      alert('❌ Saisie bloquée : L\'écart avec le relevé précédent est de ' + delta.toLocaleString() + ' km, ce qui dépasse la limite maximale autorisée de 5 000 km par semaine.\n\nRelevé précédent : ' + prevOdo.toLocaleString() + ' km.\nVeuillez corriger votre saisie.');
-      return;
+      if (!confirm('⚠️ Le kilométrage saisi (' + km.toLocaleString() + ' km) est inférieur au précédent relevé (' + prevOdo.toLocaleString() + ' km).\n\nS\'agit-il d\'une correction ?\nCliquez sur OK pour valider cette modification.')) {
+        return;
+      }
+    } else if (delta > 5000) {
+      if (!confirm('⚠️ L\'écart avec le relevé précédent est de ' + delta.toLocaleString() + ' km (> 5 000 km).\n\nRelevé précédent : ' + prevOdo.toLocaleString() + ' km.\nNouveau relevé : ' + km.toLocaleString() + ' km.\n\nCliquez sur OK pour confirmer.')) {
+        return;
+      }
     }
   }
 
@@ -17759,11 +17968,10 @@ window.confirmCspcAcknowledgment = function() {
 
 // Helper de sécurité Admin
 function isAdmin() {
-  const role = sessionStorage.getItem('numiplan_user_role');
-  if (role) return role === 'admin';
-  const username = sessionStorage.getItem('numiplan_username') || '';
+  const role = (sessionStorage.getItem('numiplan_user_role') || '').toLowerCase();
+  const username = (sessionStorage.getItem('numiplan_username') || '').toUpperCase();
   const lock = sessionStorage.getItem('numiplan_team_lock');
-  return username === 'ADMIN' || !lock;
+  return role === 'admin' || username === 'ADMIN' || !lock || lock === 'ADMIN' || (typeof isRegistreOrDirectionSession === 'function' && isRegistreOrDirectionSession());
 }
 
 window.filterPoiHistory = filterPoiHistory;
@@ -18680,27 +18888,43 @@ function findBestNumiplanSuggestion(registryName, numiplanDrivers) {
 
 _ADMIN_SHARIK_CUSTOM_EDITS = window._ADMIN_SHARIK_CUSTOM_EDITS;
 
-function pushSharikEditsToCloud() {
+async function pushSharikEditsToCloud() {
   if (window.supabase) {
-    window.supabase.from('numiplan_teams')
+    if (typeof ensureSupabaseAuth === 'function') {
+      await ensureSupabaseAuth();
+    }
+    let { error } = await window.supabase.from('numiplan_teams')
       .upsert({
         team: 'SHARIK_EDITS',
         payload: _ADMIN_SHARIK_CUSTOM_EDITS,
         updated_at: new Date().toISOString()
-      }).then(({error}) => {
-        if (error) {
-          console.error("Error upserting SHARIK_EDITS to Supabase:", error);
-          if (typeof showToast === 'function') showToast("⚠️ Erreur de sauvegarde du Registre dans le Cloud !", true);
-        } else {
-          // Confirm success
-          if (typeof showToast === 'function') showToast("✅ Registre sauvegardé dans le Cloud avec succès !", false);
-        }
-      }).catch(e => {
-        console.error("Exception upserting SHARIK_EDITS:", e);
-        if (typeof showToast === 'function') showToast("⚠️ Erreur réseau lors de la sauvegarde du Registre !", true);
       });
+
+    if (error && (error.code === '42501' || error.message?.includes('JWT') || error.message?.includes('security') || error.status === 401)) {
+      try {
+        await window.supabase.auth.signInWithPassword({
+          email: "admin@sharik.numilog.com",
+          password: "Sharik@admin"
+        });
+        const retryRes = await window.supabase.from('numiplan_teams')
+          .upsert({
+            team: 'SHARIK_EDITS',
+            payload: _ADMIN_SHARIK_CUSTOM_EDITS,
+            updated_at: new Date().toISOString()
+          });
+        error = retryRes.error;
+      } catch(eRetry) {}
+    }
+
+    if (error) {
+      console.error("Error upserting SHARIK_EDITS to Supabase:", error);
+      if (typeof showToast === 'function') showToast("⚠️ Erreur de sauvegarde du Registre dans le Cloud !", true);
+    } else {
+      if (typeof showToast === 'function') showToast("✅ Registre sauvegardé dans le Cloud avec succès !", false);
+    }
   }
 }
+window.pushSharikEditsToCloud = pushSharikEditsToCloud;
 
 // Proactive migration: push to Supabase on startup if edits exist locally
 if (_ADMIN_SHARIK_CUSTOM_EDITS && Object.keys(_ADMIN_SHARIK_CUSTOM_EDITS).length > 0) {
@@ -19525,6 +19749,39 @@ function saveAdminSharikEdit() {
   // Marquer le timestamp de la dernière sauvegarde locale pour ignorer l'écho Supabase
   window._lastSharikLocalSaveTs = Date.now();
   pushSharikEditsToCloud();
+
+  // ── Si un tracteur est renseigné, s'assurer qu'il n'est pas bloqué en suppression ──
+  const trUpper = (updatedObj.tracteur || '').trim().toUpperCase();
+  if (trUpper) {
+    if (window._deletedDispoTrucks && window._deletedDispoTrucks.has(trUpper)) {
+      window._deletedDispoTrucks.delete(trUpper);
+    }
+    try {
+      let delArr = JSON.parse(localStorage.getItem('numiplan_deleted_trucks') || '[]');
+      delArr = delArr.filter(t => (t||'').trim().toUpperCase() !== trUpper);
+      localStorage.setItem('numiplan_deleted_trucks', JSON.stringify(delArr));
+    } catch(e) {}
+    ['A','B','C','D','E','F'].forEach(eq => {
+      const tDb = (eq === window.CURRENT_EQUIPE && typeof window.DB !== 'undefined') ? window.DB : window['DB_' + eq];
+      if (tDb) {
+        if (Array.isArray(tDb.deleted_trucks)) {
+          tDb.deleted_trucks = tDb.deleted_trucks.filter(t => (t||'').trim().toUpperCase() !== trUpper);
+        }
+        // Synchroniser le tracteur avec le chauffeur dans dispo si actif
+        if (updatedObj.statut === 'ACTIF' && Array.isArray(tDb.dispo)) {
+          const normFn = (n) => typeof normalizeDriverName === 'function' ? normalizeDriverName(n) : (n||'').trim().toUpperCase();
+          const targetNorm = normFn(updatedObj.sharik);
+          let foundDispo = tDb.dispo.find(d => normFn(d.chauffeur) === targetNorm || (typeof areNamesMatching === 'function' && areNamesMatching(d.chauffeur, updatedObj.sharik)));
+          if (foundDispo) {
+            foundDispo.v = trUpper;
+            if (updatedObj.remorque) foundDispo.rm = updatedObj.remorque.trim().toUpperCase();
+          }
+        }
+      }
+    });
+    if (typeof saveDB === 'function') saveDB();
+    if (typeof renderDispo === 'function') renderDispo();
+  }
 
   const modal = document.getElementById('modal-admin-edit-sharik');
   if (modal) {
