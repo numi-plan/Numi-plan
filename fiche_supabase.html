@@ -414,9 +414,12 @@
     }
 
     // Si c'est le tout premier chargement de cette équipe (démarrage/F5)
+    const localTs = localDb ? (localDb._localTs || 0) : 0;
+    const cloudTs = src ? (src._localTs || 0) : 0;
+
     if (isFirstLoad) {
       let dataToApply = cleanSrc;
-      if (localDb && localDb.dispo && Array.isArray(localDb.dispo) && localDb.dispo.length > 0) {
+      if (localDb && localDb.dispo && Array.isArray(localDb.dispo) && localDb.dispo.length > 0 && localTs > cloudTs && (Date.now() - localTs) < 30000) {
         dataToApply = mergeTeamData(localDb, cleanSrc);
       }
       window['DB_' + eq] = cloneEquipePayload(dataToApply);
@@ -428,6 +431,13 @@
         }
         safeRenderActiveTeam(eq);
       }
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify({
+          version: 3,
+          active: currentEq,
+          teams: { A: window.DB_A, B: window.DB_B, C: window.DB_C, D: window.DB_D, E: window.DB_E, F: window.DB_F }
+        }));
+      } catch(e) {}
       if (typeof updateHeaderRAC === 'function') {
         updateHeaderRAC();
       }
@@ -436,10 +446,19 @@
 
     if (eq !== currentEq) {
       const existingLocal = window['DB_' + eq];
-      const mergedForEq = (existingLocal && existingLocal.dispo && existingLocal.dispo.length > 0)
-        ? mergeTeamData(existingLocal, cleanSrc)
-        : cleanSrc;
+      const exLocalTs = existingLocal ? (existingLocal._localTs || 0) : 0;
+      let mergedForEq = cleanSrc;
+      if (existingLocal && existingLocal.dispo && existingLocal.dispo.length > 0 && exLocalTs > cloudTs && (Date.now() - exLocalTs) < 30000) {
+        mergedForEq = mergeTeamData(existingLocal, cleanSrc);
+      }
       window['DB_' + eq] = cloneEquipePayload(mergedForEq);
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify({
+          version: 3,
+          active: currentEq,
+          teams: { A: window.DB_A, B: window.DB_B, C: window.DB_C, D: window.DB_D, E: window.DB_E, F: window.DB_F }
+        }));
+      } catch(e) {}
       if (typeof updateHeaderRAC === 'function') {
         updateHeaderRAC();
       }
@@ -447,7 +466,11 @@
     }
 
     if (typeof window.DB !== 'undefined') {
-      const merged = mergeTeamData(window.DB, cleanSrc);
+      let merged = cleanSrc;
+      if (localTs > cloudTs && (Date.now() - localTs) < 30000) {
+        merged = mergeTeamData(window.DB, cleanSrc);
+      }
+      Object.keys(window.DB).forEach(k => delete window.DB[k]);
       Object.assign(window.DB, merged);
       window['DB_' + eq] = cloneEquipePayload(merged);
 
@@ -455,6 +478,13 @@
         alignOdoWeeksGlobal();
       }
       safeRenderActiveTeam(eq);
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify({
+          version: 3,
+          active: currentEq,
+          teams: { A: window.DB_A, B: window.DB_B, C: window.DB_C, D: window.DB_D, E: window.DB_E, F: window.DB_F }
+        }));
+      } catch(e) {}
     }
 
     if (typeof updateHeaderRAC === 'function') {
@@ -673,7 +703,7 @@
               }
             });
             
-            const mergedSharik = Object.assign({}, remoteEdits, localEdits, { new_drivers: mergedNew });
+            const mergedSharik = Object.assign({}, localEdits, remoteEdits, { new_drivers: mergedNew });
             Object.keys(window._ADMIN_SHARIK_CUSTOM_EDITS).forEach(k => delete window._ADMIN_SHARIK_CUSTOM_EDITS[k]);
             Object.assign(window._ADMIN_SHARIK_CUSTOM_EDITS, mergedSharik);
             localStorage.setItem('numiplan_admin_sharik_custom_edits', JSON.stringify(window._ADMIN_SHARIK_CUSTOM_EDITS));
@@ -4878,7 +4908,7 @@ mark.hl { background: rgba(56,189,248,.25); color: var(--acc); border-radius: 3p
 // ═══════════════════════════════════════════════════════════════
 // DATA (pré-chargé depuis le fichier original)
 // ═══════════════════════════════════════════════════════════════
-const STORAGE_KEY = 'numiplan_data_v2';
+const STORAGE_KEY = 'numiplan_data_v4';
 const ARCHIVE_KEY = 'numiplan_archives_v2';
 
 
@@ -5603,12 +5633,12 @@ function cloneTeamData(src, fallback = emptyTeamData()) {
 window.cloneTeamData = cloneTeamData;
 
 function ensureTeamCaches() {
-  window.DB_A = cloneTeamData(window.DB_A, INITIAL_DATA);
+  window.DB_A = cloneTeamData(window.DB_A, emptyTeamData());
   window.DB_B = cloneTeamData(window.DB_B, emptyTeamData());
   window.DB_C = cloneTeamData(window.DB_C, emptyTeamData());
   window.DB_D = cloneTeamData(window.DB_D, emptyTeamData());
-  window.DB_E = cloneTeamData(window.DB_E, INITIAL_DATA_E);
-  window.DB_F = cloneTeamData(window.DB_F, INITIAL_DATA_F);
+  window.DB_E = cloneTeamData(window.DB_E, emptyTeamData());
+  window.DB_F = cloneTeamData(window.DB_F, emptyTeamData());
 }
 
 function restaurerDonneesInitialesDispo() {
@@ -7265,7 +7295,7 @@ function loadDB() {
       if (parsed && parsed.teams && typeof parsed.teams === 'object') {
         ['A', 'B', 'C', 'D', 'E', 'F'].forEach(eq => {
           if (parsed.teams[eq] && parsed.teams[eq].dispo) {
-            window['DB_' + eq] = cloneTeamData(parsed.teams[eq], eq === 'A' ? INITIAL_DATA : emptyTeamData());
+            window['DB_' + eq] = cloneTeamData(parsed.teams[eq], emptyTeamData());
           }
         });
         if (parsed.active && ['A', 'B', 'C', 'D', 'E', 'F'].includes(parsed.active)) active = parsed.active;
@@ -7273,24 +7303,16 @@ function loadDB() {
         // Ancien format (1 seul blob) : en pratique = dernière équipe sauvegardée (souvent D)
         const legacyEq = (parsed._savedEquipe && ['A', 'B', 'C', 'D', 'E', 'F'].includes(parsed._savedEquipe))
           ? parsed._savedEquipe : 'D';
-        window['DB_' + legacyEq] = cloneTeamData(parsed, legacyEq === 'A' ? INITIAL_DATA : emptyTeamData());
+        window['DB_' + legacyEq] = cloneTeamData(parsed, emptyTeamData());
         active = 'A'; // au démarrage on affiche toujours l'équipe A
       }
     }
   } catch (e) {
     console.warn('loadDB', e);
   }
-  if (!window.DB_A.dispo || !window.DB_A.dispo.length) {
-    window.DB_A = cloneTeamData(INITIAL_DATA, INITIAL_DATA);
-  }
-  if (!window.DB_A.bl || !window.DB_A.bl.length) {
-    window.DB_A.bl = cloneTeamData(INITIAL_DATA, INITIAL_DATA).bl;
-  }
   ['A', 'B', 'C', 'D', 'E', 'F'].forEach(eq => {
-    window['DB_' + eq] = cloneTeamData(window['DB_' + eq], eq === 'A' ? INITIAL_DATA : emptyTeamData());
+    window['DB_' + eq] = cloneTeamData(window['DB_' + eq], emptyTeamData());
   });
-  // RÈGLE 3 : Réinitialiser le timestamp local à 0 au démarrage pour forcer l'alignement sur le cloud Firestore au premier Snapshot
-    // RÉGLE 3 : Suppression du reset de timestamp pour permettre la conservation et la poussée des modifications hors-ligne vers le cloud
   
   if (typeof alignOdoWeeksGlobal === 'function') {
     alignOdoWeeksGlobal();
@@ -7301,7 +7323,7 @@ function loadDB() {
     window.CURRENT_EQUIPE = active;
   }
   
-  const targetData = cloneTeamData(window['DB_' + active] || window.DB_A, active === 'A' ? INITIAL_DATA : emptyTeamData());
+  const targetData = cloneTeamData(window['DB_' + active] || emptyTeamData(), emptyTeamData());
   Object.keys(DB).forEach(k => delete DB[k]);
   Object.assign(DB, targetData);
 
