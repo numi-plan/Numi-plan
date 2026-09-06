@@ -97,57 +97,17 @@
     const mergedWeeks = Array.from(new Set([...localWeeks, ...remoteWeeks])).sort();
     merged.odo_weeks = mergedWeeks;
 
+    const allDeletedTrucks = new Set([
+      ...(local.deleted_trucks || []),
+      ...(remote.deleted_trucks || []),
+      ...(window._deletedDispoTrucks || [])
+    ]);
+    merged.deleted_trucks = Array.from(allDeletedTrucks);
+
     function isRecordBeingEdited(key, listName) {
       if (listName === 'dispo' && document.getElementById('modal-dispo')?.classList.contains('open')) {
         const idx = parseInt(document.getElementById('dispo-edit-idx')?.value);
-        if (idx >= 0 && local.dispo[idx]) return local.dispo[idx].v === key;
-      }
-      if (listName === 'pannes' && document.getElementById('modal-panne')?.classList.contains('open')) {
-        const idx = parseInt(document.getElementById('panne-edit-idx')?.value);
-        if (idx >= 0 && local.pannes[idx]) {
-          const r = local.pannes[idx];
-          return (r.immat + '|' + r.date + '|' + r.desc) === key;
-        }
-      }
-      if (listName === 'nc' && document.getElementById('modal-nc')?.classList.contains('open')) {
-        const idx = parseInt(document.getElementById('nc-edit-idx')?.value);
-        if (idx >= 0 && local.nc[idx]) return local.nc[idx].n === key;
-      }
-      if (listName === 'gasoil' && document.getElementById('modal-gasoil')?.classList.contains('open')) {
-        const idx = parseInt(document.getElementById('gasoil-edit-idx')?.value);
-        if (idx >= 0 && local.gasoil[idx]) {
-          const r = local.gasoil[idx];
-          return (r.vehicule + '|' + r.date + '|' + r.operation) === key;
-        }
-      }
-      if (listName === 'equip' && document.getElementById('modal-equip')?.classList.contains('open')) {
-        const idx = parseInt(document.getElementById('equip-edit-idx')?.value);
-        if (idx >= 0 && local.equip[idx]) return local.equip[idx].tr === key;
-      }
-      if (listName === 'activite' && document.getElementById('modal-activite')?.classList.contains('open')) {
-        const idx = parseInt(document.getElementById('activite-edit-idx')?.value);
-        if (idx >= 0 && local.activite[idx]) return local.activite[idx].tr === key;
-      }
-      if (listName === 'bl' && document.getElementById('modal-bl')?.classList.contains('open')) {
-        const idx = parseInt(document.getElementById('bl-edit-idx')?.value);
-        if (idx >= 0 && local.bl[idx]) return local.bl[idx].chauffeur === key;
-      }
-      if (listName === 'odo' && document.getElementById('modal-odo')?.classList.contains('open')) {
-        const modalV = (document.getElementById('f-odo-v')?.value || '').trim().toUpperCase();
-        if (modalV && modalV === key) return true;
-        const idx = parseInt(document.getElementById('odo-edit-idx')?.value);
-        if (idx >= 0 && local.odo && local.odo[idx]) return local.odo[idx].v === key;
-      }
-      if (listName === 'cspc' && document.getElementById('modal-cspc')?.classList.contains('open')) {
-        const idx = parseInt(document.getElementById('cspc-edit-idx')?.value);
-        if (idx >= 0 && local.cspc[idx]) return local.cspc[idx].v === key;
-      }
-      if (listName === 'blacklist' && document.getElementById('modal-blacklist')?.classList.contains('open')) {
-        const idx = parseInt(document.getElementById('blacklist-edit-idx')?.value);
-        if (idx >= 0 && local.blacklist[idx]) {
-          const r = local.blacklist[idx];
-          return (r.chauffeur + '|' + r.destination) === key;
-        }
+        if (idx >= 0 && local.dispo && local.dispo[idx]) return local.dispo[idx].v === key;
       }
       return false;
     }
@@ -173,21 +133,6 @@
         if (k) remoteMap.set(k, item);
       });
 
-      const allDeletedTrucks = new Set([
-        ...(local.deleted_trucks || []),
-        ...(remote.deleted_trucks || []),
-        ...(window._deletedDispoTrucks || [])
-      ]);
-      if (listName === 'dispo') {
-        localMap.forEach((item, k) => {
-          const uKey = (k || '').trim().toUpperCase();
-          if (uKey && allDeletedTrucks.has(uKey)) {
-            allDeletedTrucks.delete(uKey);
-          }
-        });
-      }
-      merged.deleted_trucks = Array.from(allDeletedTrucks);
-
       const allKeys = new Set([...localMap.keys(), ...remoteMap.keys()]);
       const mergedList = [];
       const localGlobalTs = local._localTs || 0;
@@ -195,7 +140,7 @@
 
       for (const key of allKeys) {
         if (listName === 'dispo' && allDeletedTrucks.has((key || '').trim().toUpperCase())) {
-          continue; // Camion explicitement supprimé : ignoré s'il n'est pas recréé localement
+          continue; // Camion explicitement supprimé : NE JAMAIS RESSUSCITER
         }
         const localItem = localMap.get(key);
         const remoteItem = remoteMap.get(key);
@@ -209,7 +154,6 @@
             const isRecentlyEditedLocally = (Date.now() - itemLocalTs) < 30000;
 
             let mergedItem;
-            // Protection anti-rollback : si l'élément local a été édité il y a moins de 30s ou est plus récent, LOCAL GAGNE !
             if (isRecentlyEditedLocally || itemLocalTs >= itemRemoteTs) {
               mergedItem = Object.assign({}, remoteItem, localItem);
             } else {
@@ -220,102 +164,34 @@
               const localVals = localItem.vals || [];
               const remoteVals = remoteItem.vals || [];
               const mergedVals = [];
-              mergedWeeks.forEach(w => {
-                const lIdx = localWeeks.indexOf(w);
-                const rIdx = remoteWeeks.indexOf(w);
-                const lVal = lIdx >= 0 ? localVals[lIdx] : null;
-                const rVal = rIdx >= 0 ? remoteVals[rIdx] : null;
-                mergedVals.push((lVal !== null && lVal !== undefined) ? lVal : rVal);
-              });
-              mergedItem.vals = mergedVals;
-
-              const localFact = localItem.kmFactures || [];
-              const remoteFact = remoteItem.kmFactures || [];
-              const isLocalNewer = (itemLocalTs >= itemRemoteTs) || isRecentlyEditedLocally || ((Date.now() - localGlobalTs) < 600000);
-              const mergedFact = [];
-              mergedWeeks.forEach(w => {
-                const lIdx = localWeeks.indexOf(w);
-                const rIdx = remoteWeeks.indexOf(w);
-                const lVal = lIdx >= 0 ? localFact[lIdx] : null;
-                const rVal = rIdx >= 0 ? remoteFact[rIdx] : null;
-                if (isLocalNewer) {
-                  mergedFact.push((lVal !== null && lVal !== undefined) ? lVal : (rVal !== null && rVal !== undefined ? rVal : null));
-                } else {
-                  mergedFact.push((rVal !== null && rVal !== undefined) ? rVal : lVal);
-                }
-              });
-              mergedItem.kmFactures = mergedFact;
-              if (isLocalNewer && (localItem.kmFacture !== undefined && localItem.kmFacture !== null)) {
-                mergedItem.kmFacture = localItem.kmFacture;
+              const maxLen = Math.max(localVals.length, remoteVals.length);
+              for (let i = 0; i < maxLen; i++) {
+                mergedVals[i] = localVals[i] !== undefined && localVals[i] !== null ? localVals[i] : remoteVals[i];
               }
+              mergedItem.vals = mergedVals;
             }
             mergedList.push(mergedItem);
           }
         } else if (localItem) {
-          if (listName === 'odo') {
-            const localVals = localItem.vals || [];
-            const mergedVals = mergedWeeks.map(w => {
-              const lIdx = localWeeks.indexOf(w);
-              return lIdx >= 0 ? localVals[lIdx] : null;
-            });
-            localItem.vals = mergedVals;
-
-            const localFact = localItem.kmFactures || [];
-            const mergedFact = mergedWeeks.map(w => {
-              const lIdx = localWeeks.indexOf(w);
-              return lIdx >= 0 ? localFact[lIdx] : null;
-            });
-            localItem.kmFactures = mergedFact;
-          }
           mergedList.push(localItem);
         } else if (remoteItem) {
-          if (listName === 'dispo' && allDeletedTrucks.has((key || '').trim().toUpperCase())) {
-            continue;
-          }
-          if (listName === 'odo') {
-            const remoteVals = remoteItem.vals || [];
-            const mergedVals = mergedWeeks.map(w => {
-              const rIdx = remoteWeeks.indexOf(w);
-              return rIdx >= 0 ? remoteVals[rIdx] : null;
-            });
-            remoteItem.vals = mergedVals;
-
-            const remoteFact = remoteItem.kmFactures || [];
-            const mergedFact = mergedWeeks.map(w => {
-              const rIdx = remoteWeeks.indexOf(w);
-              return rIdx >= 0 ? remoteFact[rIdx] : null;
-            });
-            remoteItem.kmFactures = mergedFact;
-          }
           mergedList.push(remoteItem);
         }
       }
       merged[listName] = mergedList;
     }
 
-    mergeList('dispo',     item => item.v);
-    mergeList('pannes',    item => item.immat && item.date ? `${item.immat}|${item.date}|${item.desc||''}` : null);
-    mergeList('nc',        item => item.n);
-    mergeList('gasoil',    item => item.vehicule && item.date ? `${item.vehicule}|${item.date}|${item.operation||''}` : null);
-    mergeList('equip',     item => item.tr);
-    mergeList('activite',  item => item.tr);
-    mergeList('bl',        item => item.chauffeur);
-    mergeList('odo',       item => item.v);
-    mergeList('cspc',      item => item.v);
-    mergeList('cspc_archives', item => item.v && item.date ? `${item.v}|${item.date}` : null);
-    mergeList('blacklist', item => item.chauffeur && item.destination ? `${item.chauffeur}|${item.destination}` : null);
-    mergeList('tracabilite', item => item.timestamp && item.type ? `${item.timestamp}|${item.type}|${item.target||''}` : null);
-    mergeList('flashInfos', item => item.id);
-    mergeList('clientModifs', item => item.timestamp && item.v ? `${item.timestamp}|${item.v}` : null);
-    mergeList('incidents', item => item.timestamp && item.chauffeur ? `${item.timestamp}|${item.chauffeur}` : null);
-    // ── FIX: incidentsLivraison merged by unique id (never dropped) ──────────
-    mergeList('incidentsLivraison', item => item.id || null);
-    // ── FIX: anomaliesPointees is a map — merge key-by-key (union, local wins) ─
-    const _localAnom  = local.anomaliesPointees  || {};
-    const _remoteAnom = remote.anomaliesPointees || {};
-    merged.anomaliesPointees = Object.assign({}, _remoteAnom, _localAnom);
+    mergeList('dispo', r => r.v);
+    mergeList('pannes', r => (r.immat + '|' + r.date + '|' + r.desc));
+    mergeList('nc', r => r.n);
+    mergeList('gasoil', r => (r.vehicule + '|' + r.date + '|' + r.operation));
+    mergeList('equip', r => r.tr);
+    mergeList('activite', r => r.tr);
+    mergeList('bl', r => r.chauffeur);
+    mergeList('odo', r => r.v);
+    mergeList('cspc', r => r.v);
+    mergeList('blacklist', r => (r.chauffeur + '|' + r.destination));
 
-    merged._localTs = Math.max(local._localTs || 0, remote._localTs || 0);
     return merged;
   }
 
@@ -350,7 +226,6 @@
 
   function applyEquipeData(eq, src) {
     if (!src || !src.dispo) return;
-    const isFirstLoad = !_initialCloudLoadCompleted[eq];
     _initialCloudLoadCompleted[eq] = true;
 
     if (!window._lastCloudTs) window._lastCloudTs = {};
@@ -367,128 +242,33 @@
       });
     }
 
-    // Filtrer immédiatement les camions supprimés (en protégeant les camions actifs en local)
-    try {
-      const delArr = JSON.parse(localStorage.getItem('numiplan_deleted_trucks') || '[]');
-      window._deletedDispoTrucks = window._deletedDispoTrucks || new Set(delArr);
-    } catch(e) {}
-    
-    const currentEq = getCurrentEquipe();
-    const localDb = window['DB_' + eq] || (eq === currentEq && typeof window.DB !== 'undefined' ? window.DB : null);
-    if (localDb && Array.isArray(localDb.dispo)) {
-      localDb.dispo.forEach(d => {
-        const u = (d.v || '').trim().toUpperCase();
-        if (u) {
-          window._deletedDispoTrucks.delete(u);
-          if (src && src.deleted_trucks && Array.isArray(src.deleted_trucks)) {
-            src.deleted_trucks = src.deleted_trucks.filter(t => (t||'').trim().toUpperCase() !== u);
-          }
-        }
-      });
-    }
-
-    if (src && src.deleted_trucks && Array.isArray(src.deleted_trucks)) {
-      src.deleted_trucks.forEach(t => {
-        const u = (t || '').trim().toUpperCase();
-        if (u && (!localDb || !localDb.dispo || !localDb.dispo.some(d => (d.v||'').trim().toUpperCase() === u))) {
-          window._deletedDispoTrucks.add(t);
-        }
-      });
-    }
-    if (src && src.dispo && window._deletedDispoTrucks && window._deletedDispoTrucks.size > 0) {
-      src.dispo = src.dispo.filter(d => !window._deletedDispoTrucks.has((d.v||'').trim().toUpperCase()));
-    }
+    // Le Cloud Supabase fait strictement autorité (évite la réinjection d'anciens camions locaux)
     const cleanSrc = window.cloneTeamData ? window.cloneTeamData(src, eq === 'A' ? window.INITIAL_DATA : undefined) : src;
-    if (cleanSrc && cleanSrc.dispo && window._deletedDispoTrucks && window._deletedDispoTrucks.size > 0) {
-      cleanSrc.dispo = cleanSrc.dispo.filter(d => !window._deletedDispoTrucks.has((d.v||'').trim().toUpperCase()));
-    }
+    const currentEq = getCurrentEquipe();
 
-    if (eq === 'A') {
-      if (!cleanSrc.dispo || !cleanSrc.dispo.length) {
-        cleanSrc.dispo = cloneEquipePayload(window.INITIAL_DATA ? window.INITIAL_DATA.dispo : []);
-      }
-    }
-
-    if (eq === 'A' && (!cleanSrc.bl || !cleanSrc.bl.length)) {
-      cleanSrc.bl = cloneEquipePayload(window.INITIAL_DATA ? window.INITIAL_DATA.bl : []);
-    }
-
-    // Si c'est le tout premier chargement de cette équipe (démarrage/F5)
-    const localTs = localDb ? (localDb._localTs || 0) : 0;
-    const cloudTs = src ? (src._localTs || 0) : 0;
-
-    if (isFirstLoad) {
-      let dataToApply = cleanSrc;
-      if (localDb && localDb.dispo && Array.isArray(localDb.dispo) && localDb.dispo.length > 0 && localTs > cloudTs && (Date.now() - localTs) < 30000) {
-        dataToApply = mergeTeamData(localDb, cleanSrc);
-      }
-      window['DB_' + eq] = cloneEquipePayload(dataToApply);
-      if (eq === currentEq && typeof window.DB !== 'undefined') {
-        Object.keys(window.DB).forEach(k => delete window.DB[k]);
-        Object.assign(window.DB, dataToApply);
-        if (typeof alignOdoWeeksGlobal === 'function') {
-          alignOdoWeeksGlobal();
-        }
-        safeRenderActiveTeam(eq);
-      }
-      try {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify({
-          version: 3,
-          active: currentEq,
-          teams: { A: window.DB_A, B: window.DB_B, C: window.DB_C, D: window.DB_D, E: window.DB_E, F: window.DB_F }
-        }));
-      } catch(e) {}
-      if (typeof updateHeaderRAC === 'function') {
-        updateHeaderRAC();
-      }
-      return;
-    }
-
-    if (eq !== currentEq) {
-      const existingLocal = window['DB_' + eq];
-      const exLocalTs = existingLocal ? (existingLocal._localTs || 0) : 0;
-      let mergedForEq = cleanSrc;
-      if (existingLocal && existingLocal.dispo && existingLocal.dispo.length > 0 && exLocalTs > cloudTs && (Date.now() - exLocalTs) < 30000) {
-        mergedForEq = mergeTeamData(existingLocal, cleanSrc);
-      }
-      window['DB_' + eq] = cloneEquipePayload(mergedForEq);
-      try {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify({
-          version: 3,
-          active: currentEq,
-          teams: { A: window.DB_A, B: window.DB_B, C: window.DB_C, D: window.DB_D, E: window.DB_E, F: window.DB_F }
-        }));
-      } catch(e) {}
-      if (typeof updateHeaderRAC === 'function') {
-        updateHeaderRAC();
-      }
-      return;
-    }
-
-    if (typeof window.DB !== 'undefined') {
-      let merged = cleanSrc;
-      if (localTs > cloudTs && (Date.now() - localTs) < 30000) {
-        merged = mergeTeamData(window.DB, cleanSrc);
-      }
+    window['DB_' + eq] = cloneEquipePayload(cleanSrc);
+    if (eq === currentEq && typeof window.DB !== 'undefined') {
       Object.keys(window.DB).forEach(k => delete window.DB[k]);
-      Object.assign(window.DB, merged);
-      window['DB_' + eq] = cloneEquipePayload(merged);
-
+      Object.assign(window.DB, cleanSrc);
       if (typeof alignOdoWeeksGlobal === 'function') {
         alignOdoWeeksGlobal();
       }
       safeRenderActiveTeam(eq);
-      try {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify({
-          version: 3,
-          active: currentEq,
-          teams: { A: window.DB_A, B: window.DB_B, C: window.DB_C, D: window.DB_D, E: window.DB_E, F: window.DB_F }
-        }));
-      } catch(e) {}
     }
+
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({
+        version: 4,
+        active: currentEq,
+        teams: { A: window.DB_A, B: window.DB_B, C: window.DB_C, D: window.DB_D, E: window.DB_E, F: window.DB_F }
+      }));
+    } catch(e) {}
 
     if (typeof updateHeaderRAC === 'function') {
       updateHeaderRAC();
+    }
+    if (typeof renderAdminEntreesSorties === 'function') {
+      renderAdminEntreesSorties();
     }
   }
 
@@ -1225,37 +1005,33 @@
   window.saveNormalizedTables = saveNormalizedTables;
 
   function smartMergePayloads(base, cloud, local) {
-    if (!base) return local;
+    if (!cloud) return local;
+    if (!local) return cloud;
+    const safeBase = base || {};
     let merged = JSON.parse(JSON.stringify(cloud));
     const allDeletedTrucks = new Set([
       ...(local.deleted_trucks || []),
       ...(cloud.deleted_trucks || []),
-      ...(base ? (base.deleted_trucks || []) : []),
+      ...(safeBase.deleted_trucks || []),
       ...(window._deletedDispoTrucks || [])
     ]);
     merged.deleted_trucks = Array.from(allDeletedTrucks);
 
     const mergeArray = (arrName, keyProp) => {
-        if (!local[arrName]) return;
+        if (!local[arrName] && !merged[arrName]) return;
         if (!merged[arrName]) merged[arrName] = [];
-        const baseMap = new Map((base[arrName]||[]).map(x => [x[keyProp], x]));
+        const baseMap = new Map((safeBase[arrName]||[]).map(x => [x[keyProp], x]));
         const cloudMap = new Map((cloud[arrName]||[]).map(x => [x[keyProp], x]));
         const localMap = new Map((local[arrName]||[]).map(x => [x[keyProp], x]));
-        if (arrName === 'dispo') {
-          localMap.forEach((item, k) => {
-            const uKey = (k || '').trim().toUpperCase();
-            if (uKey && allDeletedTrucks.has(uKey)) {
-              allDeletedTrucks.delete(uKey);
-            }
-          });
-          merged.deleted_trucks = Array.from(allDeletedTrucks);
-        }
+        
         let finalArr = [];
-        for (let cItem of merged[arrName]) {
+        // 1. Process all items from Cloud
+        for (let cItem of (cloud[arrName] || [])) {
             let key = cItem[keyProp];
             if (!key) { finalArr.push(cItem); continue; }
-            if (arrName === 'dispo' && allDeletedTrucks.has((key || '').trim().toUpperCase())) {
-                continue; // Camion supprimé non recréé localement
+            const uKey = (key || '').trim().toUpperCase();
+            if (arrName === 'dispo' && allDeletedTrucks.has(uKey)) {
+                continue; // Camion supprimé : NE JAMAIS RESSUSCITER
             }
             let lItem = localMap.get(key);
             let bItem = baseMap.get(key);
@@ -1270,11 +1046,15 @@
                 localMap.delete(key);
             } else if (!bItem) {
                 finalArr.push(cItem);
+            } else {
+                finalArr.push(cItem);
             }
         }
+        // 2. Process newly added items in Local that were not in Cloud
         for (let [key, lItem] of localMap.entries()) {
             if (key) {
-                if (arrName === 'dispo' && allDeletedTrucks.has(key.trim().toUpperCase())) continue;
+                const uKey = key.trim().toUpperCase();
+                if (arrName === 'dispo' && allDeletedTrucks.has(uKey)) continue;
                 finalArr.push(lItem);
             }
         }
@@ -1283,12 +1063,17 @@
     mergeArray("dispo", "v");
     mergeArray("activite", "v");
     mergeArray("equip", "tr");
+    mergeArray("pannes", "immat");
+    mergeArray("odo", "v");
+    mergeArray("cspc", "v");
+    mergeArray("bl", "chauffeur");
+    
     const appendOnly = (arrName) => {
         if (!local[arrName]) return;
         if (!merged[arrName]) merged[arrName] = [];
-        let baseStr = (base[arrName]||[]).map(x=>JSON.stringify(x));
+        let cloudStr = (cloud[arrName]||[]).map(x=>JSON.stringify(x));
         for (let lItem of local[arrName]) {
-            if (!baseStr.includes(JSON.stringify(lItem))) {
+            if (!cloudStr.includes(JSON.stringify(lItem))) {
                 merged[arrName].push(lItem);
             }
         }
@@ -1296,9 +1081,9 @@
     appendOnly("nc");
     appendOnly("tracabilite");
     for (let k in local) {
-        if (["dispo", "activite", "nc", "tracabilite", "equip"].includes(k)) continue;
+        if (["dispo", "activite", "nc", "tracabilite", "equip", "pannes", "odo", "cspc", "bl", "deleted_trucks"].includes(k)) continue;
         if (typeof local[k] !== "object") {
-            if (!base || base[k] !== local[k]) {
+            if (!safeBase || safeBase[k] !== local[k]) {
                 merged[k] = local[k];
             }
         }
@@ -1411,7 +1196,7 @@
     }
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify({
-        version: 3,
+        version: 4,
         active: getCurrentEquipe(),
         teams: { A: window.DB_A, B: window.DB_B, C: window.DB_C, D: window.DB_D, E: window.DB_E, F: window.DB_F }
       }));
@@ -6302,7 +6087,7 @@ function saveTeamDB(eq, dbData) {
   dbData._localTs = Date.now();
   window['DB_' + eq] = cloneTeamData(dbData, eq === 'A' ? INITIAL_DATA : emptyTeamData());
   localStorage.setItem(STORAGE_KEY, JSON.stringify({
-    version: 3,
+    version: 4,
     active: CURRENT_EQUIPE || 'A',
     teams: { A: window.DB_A, B: window.DB_B, C: window.DB_C, D: window.DB_D, E: window.DB_E, F: window.DB_F }
   }));
@@ -7383,7 +7168,7 @@ function saveDB() {
   window['DB_' + eq] = cloneTeamData(DB, eq === 'A' ? INITIAL_DATA : emptyTeamData());
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify({
-      version: 3,
+      version: 4,
       active: eq,
       teams: { A: window.DB_A, B: window.DB_B, C: window.DB_C, D: window.DB_D, E: window.DB_E, F: window.DB_F }
     }));
@@ -8256,7 +8041,7 @@ async function deleteDispo(idx) {
   window['DB_' + eq] = payloadCloud;
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify({
-      version: 3,
+      version: 4,
       active: eq,
       teams: { A: window.DB_A, B: window.DB_B, C: window.DB_C, D: window.DB_D, E: window.DB_E, F: window.DB_F }
     }));
@@ -11069,7 +10854,7 @@ function importKmFacture(input) {
 
         try {
           localStorage.setItem(STORAGE_KEY, JSON.stringify({
-            version: 3,
+            version: 4,
             active: CURRENT_EQUIPE,
             teams: {
               A: window.DB_A,
