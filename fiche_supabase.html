@@ -73,6 +73,48 @@
   let _fbLoaded     = {};
   let _initialCloudLoadCompleted = {};
   const EQUIPES = ['A', 'B', 'C', 'D', 'E', 'F'];
+  const STORAGE_KEY = 'numiplan_data_v4';
+
+  let _localStorageSaveTimer = null;
+  function scheduleLocalStorageSave(delay = 1000) {
+    if (_localStorageSaveTimer) clearTimeout(_localStorageSaveTimer);
+    _localStorageSaveTimer = setTimeout(() => {
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify({
+          version: 4,
+          active: getCurrentEquipe(),
+          teams: {
+            A: window.DB_A,
+            B: window.DB_B,
+            C: window.DB_C,
+            D: window.DB_D,
+            E: window.DB_E,
+            F: window.DB_F
+          }
+        }));
+      } catch(e) {
+        console.warn('LocalStorage save error (likely quota exceeded):', e);
+      }
+    }, delay);
+  }
+  window.scheduleLocalStorageSave = scheduleLocalStorageSave;
+
+  window.addEventListener('beforeunload', () => {
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({
+        version: 4,
+        active: getCurrentEquipe(),
+        teams: {
+          A: window.DB_A,
+          B: window.DB_B,
+          C: window.DB_C,
+          D: window.DB_D,
+          E: window.DB_E,
+          F: window.DB_F
+        }
+      }));
+    } catch(e) {}
+  });
 
   function getCurrentEquipe() {
     return (typeof window.CURRENT_EQUIPE !== 'undefined') ? window.CURRENT_EQUIPE : 'A';
@@ -256,13 +298,9 @@
       safeRenderActiveTeam(eq);
     }
 
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify({
-        version: 4,
-        active: currentEq,
-        teams: { A: window.DB_A, B: window.DB_B, C: window.DB_C, D: window.DB_D, E: window.DB_E, F: window.DB_F }
-      }));
-    } catch(e) {}
+    if (typeof scheduleLocalStorageSave === 'function') {
+      scheduleLocalStorageSave(1000);
+    }
 
     if (typeof updateHeaderRAC === 'function') {
       updateHeaderRAC();
@@ -272,30 +310,76 @@
     }
   }
 
-  function _doRender(eq) {
-    const _prevPerfTs = DB.perfImportTs || null;
+  function getActiveTabName() {
+    const activePage = document.querySelector('.page.active');
+    if (activePage && activePage.id && activePage.id.startsWith('page-')) {
+      return activePage.id.replace('page-', '');
+    }
+    return 'dispo';
+  }
+  window.getActiveTabName = getActiveTabName;
+
+  function _doRender(eq, forceAll = false) {
+    const _prevPerfTs = (typeof DB !== 'undefined' && DB.perfImportTs) ? DB.perfImportTs : null;
+    const activeTab = getActiveTabName();
     try {
-      if (typeof renderDispo     === 'function') renderDispo();
-      if (typeof renderPannes    === 'function') renderPannes();
-      if (typeof renderNC        === 'function') renderNC();
-      if (typeof renderGasoil    === 'function') renderGasoil();
-      if (typeof renderEquip     === 'function') renderEquip();
-      if (typeof renderActivite  === 'function') renderActivite();
-      if (typeof renderBL        === 'function') renderBL();
-      if (typeof renderOdo       === 'function') renderOdo();
-      if (typeof renderCSPC      === 'function') renderCSPC();
-      if (typeof renderBlacklist === 'function') renderBlacklist();
-      if (typeof renderBLAlerts  === 'function') renderBLAlerts();
-      if (typeof renderTracabilite === 'function') renderTracabilite();
-      if (typeof renderFlashInfos  === 'function') renderFlashInfos();
+      if (activeTab === 'dispo' || forceAll) {
+        if (typeof renderDispo === 'function') renderDispo();
+      }
+      if (activeTab === 'pannes' || forceAll) {
+        if (typeof renderPannes === 'function') renderPannes();
+      }
+      if (activeTab === 'nc' || forceAll) {
+        if (typeof renderNC === 'function') renderNC();
+      }
+      if (activeTab === 'gasoil' || forceAll) {
+        if (typeof renderGasoil === 'function') renderGasoil();
+      }
+      if (activeTab === 'equip' || forceAll) {
+        if (typeof renderEquip === 'function') renderEquip();
+        if (typeof renderActivite === 'function') renderActivite();
+      }
+      if (activeTab === 'bl' || forceAll) {
+        if (typeof renderBL === 'function') renderBL();
+      }
+      if (activeTab === 'odo' || forceAll) {
+        if (typeof renderOdo === 'function') renderOdo();
+      }
+      if (activeTab === 'cspc' || forceAll) {
+        if (typeof renderCSPC === 'function') renderCSPC();
+      }
+      if (activeTab === 'blacklist' || forceAll) {
+        if (typeof renderBlacklist === 'function') renderBlacklist();
+      }
+      if (activeTab === 'tracabilite' || forceAll) {
+        if (typeof renderTracabilite === 'function') renderTracabilite();
+      }
+      if (activeTab === 'flashinfo' || forceAll) {
+        if (typeof renderAdminFlashList === 'function') renderAdminFlashList();
+      }
+      if (activeTab === 'incidents-livraison' || forceAll) {
+        if (typeof renderIncidentsLivraisonPage === 'function') renderIncidentsLivraisonPage();
+      }
+      if (activeTab === 'analytics' || forceAll) {
+        if (typeof renderAnalytics === 'function') renderAnalytics();
+      }
+      if (activeTab === 'poi' || forceAll) {
+        if (typeof renderPoiPage === 'function') renderPoiPage();
+      }
+      if (activeTab === 'admin-direction' || forceAll) {
+        if (typeof renderAdminEntreesSorties === 'function') renderAdminEntreesSorties();
+      }
+
+      // Shared lightweight notifications and widgets
+      if (typeof renderBLAlerts === 'function') renderBLAlerts();
+      if (typeof renderFlashInfos === 'function') renderFlashInfos();
       if (typeof updateDataLists === 'function') updateDataLists();
-  if (typeof window.setupBlacklistListeners === 'function') window.setupBlacklistListeners();
-      if (typeof renderIncidentsLivraisonPage === 'function') renderIncidentsLivraisonPage();
-      if (typeof renderAnalytics === 'function') renderAnalytics();
-      if (DB.perfRaw && DB.perfRaw.length && DB.perfImportTs !== _prevPerfTs) {
+      if (typeof window.setupBlacklistListeners === 'function') window.setupBlacklistListeners();
+
+      if (typeof DB !== 'undefined' && DB.perfRaw && DB.perfRaw.length && DB.perfImportTs !== _prevPerfTs) {
         PERF_RAW = DB.perfRaw.map(r => ({ ...r, date: r.date ? new Date(r.date) : null }));
         if (typeof populatePerfWeeks === 'function') populatePerfWeeks();
-        if (typeof buildPerfRows     === 'function') buildPerfRows();
+        if (typeof buildPerfRows === 'function') buildPerfRows();
         showFirebaseBadge('⚡ Import Perf Camions mis à jour par un collaborateur');
       } else {
         showFirebaseBadge('⚡ Mis à jour depuis Supabase');
@@ -303,7 +387,7 @@
     } catch(e) { console.warn('Supabase render error', e); }
 
     if (typeof window.applyTeamLockUI === 'function') {
-      window.applyTeamLockUI(eq);
+      window.applyTeamLockUI(eq || getCurrentEquipe());
     }
     if (typeof window.checkPointageRequired === 'function') {
       window.checkPointageRequired();
@@ -436,9 +520,11 @@
   }
 
   // Chargement Initial depuis Supabase (Toutes les équipes sont synchronisées pour TOUS les utilisateurs)
+  let _isLoadingInitialTeams = false;
   async function loadInitialTeams() {
+    if (_isLoadingInitialTeams) return;
+    _isLoadingInitialTeams = true;
     try {
-      // Auto-connexion Supabase universelle : garantit que CHAQUE PC (collègues & direction) dispose d'un token RLS valide
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) {
         console.log("Session Supabase absente, connexion automatique au Cloud pour synchronisation...");
@@ -457,60 +543,66 @@
       if (error) throw error;
       
       if (data) {
+        const currentEq = getCurrentEquipe();
         data.forEach(row => {
           const eq = row.team;
           const payload = row.payload;
           if (eq === 'SHARIK_EDITS') {
             const timeSinceLocalSave = Date.now() - (window._lastSharikLocalSaveTs || 0);
-            if (timeSinceLocalSave < 5000) {
-              console.log('[SHARIK_EDITS] Chargement initial ignoré (sauvegarde locale récente:', timeSinceLocalSave, 'ms)');
-              return;
-            }
+            if (timeSinceLocalSave < 5000) return;
             const remoteEdits = payload || {};
             const localEdits = window._ADMIN_SHARIK_CUSTOM_EDITS || {};
             const localNew = localEdits.new_drivers || [];
             const remoteNew = remoteEdits.new_drivers || [];
             
-            // Union des new_drivers par code ou nom/sharik
             const mergedNew = [...remoteNew];
             localNew.forEach(locD => {
               const exists = mergedNew.some(remD => 
                 (remD.code && locD.code && remD.code === locD.code) ||
                 (remD.sharik && locD.sharik && remD.sharik.trim().toUpperCase() === locD.sharik.trim().toUpperCase())
               );
-              if (!exists) {
-                mergedNew.push(locD);
-              }
+              if (!exists) mergedNew.push(locD);
             });
             
             const mergedSharik = Object.assign({}, localEdits, remoteEdits, { new_drivers: mergedNew });
             Object.keys(window._ADMIN_SHARIK_CUSTOM_EDITS).forEach(k => delete window._ADMIN_SHARIK_CUSTOM_EDITS[k]);
             Object.assign(window._ADMIN_SHARIK_CUSTOM_EDITS, mergedSharik);
             localStorage.setItem('numiplan_admin_sharik_custom_edits', JSON.stringify(window._ADMIN_SHARIK_CUSTOM_EDITS));
-            if (typeof renderAdminEntreesSorties === 'function') {
-              renderAdminEntreesSorties();
-            } else {
-              window._pendingSharikRender = true;
-            }
             return;
           }
           _fbLoaded[eq] = true;
-          const currentEq = getCurrentEquipe();
-          if (eq === currentEq) {
-            _fbReady = true;
-          }
-          applyEquipeData(eq, payload);
+          _initialCloudLoadCompleted[eq] = true;
+          if (!window._lastCloudTs) window._lastCloudTs = {};
+          window._lastCloudTs[eq] = (payload && payload._localTs) || Date.now();
+          if (!window._baseCloudDB) window._baseCloudDB = {};
+          window._baseCloudDB[eq] = cloneEquipePayload(payload);
+
+          const cleanSrc = window.cloneTeamData ? window.cloneTeamData(payload, eq === 'A' ? window.INITIAL_DATA : undefined) : payload;
+          window['DB_' + eq] = cloneEquipePayload(cleanSrc);
         });
+
+        // Charger l'équipe active en mémoire et afficher
+        const activeSrc = window['DB_' + currentEq];
+        if (activeSrc && typeof window.DB !== 'undefined') {
+          _fbReady = true;
+          Object.keys(window.DB).forEach(k => delete window.DB[k]);
+          Object.assign(window.DB, activeSrc);
+        }
+
+        if (typeof scheduleLocalStorageSave === 'function') {
+          scheduleLocalStorageSave(500);
+        }
+
         if (typeof populateLoginUserDropdown === 'function') populateLoginUserDropdown();
         loadGlobalDispoForExtensions();
         if (typeof alignOdoWeeksGlobal === 'function') alignOdoWeeksGlobal();
         if (typeof updateHeaderRAC === 'function') updateHeaderRAC();
         
-        // Charger le statut de synchronisation GPS
+        safeRenderActiveTeam(currentEq);
+
         await loadInitialGpsSyncStatus();
         if (typeof checkPointageRequired === 'function') checkPointageRequired();
 
-        // Rendu immédiat et automatique du Registre après synchronisation de toutes les équipes
         if (typeof renderAdminEntreesSorties === 'function') {
           renderAdminEntreesSorties();
         } else {
@@ -520,6 +612,8 @@
     } catch (e) {
       console.error("Error loading initial teams:", e);
       showFirebaseBadge("⚠️ Erreur chargement initial", true);
+    } finally {
+      _isLoadingInitialTeams = false;
     }
   }
   
@@ -1163,7 +1257,9 @@
     }
   }
 
-  // Écritures vers Supabase
+  // Écritures vers Supabase avec anti-engorgement (debounce)
+  if (!window._teamSaveTimers) window._teamSaveTimers = {};
+
   window._firebaseSaveDB = function(dbData) {
     const eq = getCurrentEquipe();
     _initialCloudLoadCompleted[eq] = true;
@@ -1175,7 +1271,10 @@
     payload._localTs = writeTs;
     window['DB_' + eq] = payload;
     
-    supabaseUpsertTeam(eq, payload);
+    clearTimeout(window._teamSaveTimers[eq]);
+    window._teamSaveTimers[eq] = setTimeout(() => {
+      supabaseUpsertTeam(eq, payload);
+    }, 250);
   };
 
   window.saveTeamDB = function(eq, dbData) {
@@ -1194,13 +1293,9 @@
     if (eq === getCurrentEquipe()) {
       Object.assign(window.DB, payload);
     }
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify({
-        version: 4,
-        active: getCurrentEquipe(),
-        teams: { A: window.DB_A, B: window.DB_B, C: window.DB_C, D: window.DB_D, E: window.DB_E, F: window.DB_F }
-      }));
-    } catch(e) { console.warn('LocalStorage save team error', e); }
+    if (typeof scheduleLocalStorageSave === 'function') {
+      scheduleLocalStorageSave(1000);
+    }
 
     const FILE_KEYS = ['assuranceTrFile','assuranceRmFile','assuranceTrFileType','assuranceRmFileType'];
     const stripFiles = (arr) => (arr || []).map(item => {
@@ -1213,7 +1308,10 @@
       activite: stripFiles(payload.activite),
     });
 
-    supabaseUpsertTeam(eq, dbCloud);
+    clearTimeout(window._teamSaveTimers[eq]);
+    window._teamSaveTimers[eq] = setTimeout(() => {
+      supabaseUpsertTeam(eq, dbCloud);
+    }, 250);
   };
 
   window._firebaseSaveArchives = async function(eq, snapData) {
@@ -6086,11 +6184,17 @@ window.showBLAlertPopover = showBLAlertPopover;
 function saveTeamDB(eq, dbData) {
   dbData._localTs = Date.now();
   window['DB_' + eq] = cloneTeamData(dbData, eq === 'A' ? INITIAL_DATA : emptyTeamData());
-  localStorage.setItem(STORAGE_KEY, JSON.stringify({
-    version: 4,
-    active: CURRENT_EQUIPE || 'A',
-    teams: { A: window.DB_A, B: window.DB_B, C: window.DB_C, D: window.DB_D, E: window.DB_E, F: window.DB_F }
-  }));
+  if (typeof scheduleLocalStorageSave === 'function') {
+    scheduleLocalStorageSave(1000);
+  } else {
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({
+        version: 4,
+        active: CURRENT_EQUIPE || 'A',
+        teams: { A: window.DB_A, B: window.DB_B, C: window.DB_C, D: window.DB_D, E: window.DB_E, F: window.DB_F }
+      }));
+    } catch(e) {}
+  }
 
   if (typeof window._firebaseSaveDB === 'function') {
     const FILE_KEYS = ['assuranceTrFile','assuranceRmFile','assuranceTrFileType','assuranceRmFileType'];
@@ -7163,17 +7267,21 @@ function saveDB() {
     return;
   }
 
-  // 1. Sauvegarde locale par équipe (évite qu'un F5 sur A affiche les données de D)
+  // 1. Sauvegarde locale en mémoire + persist asynchrone non-bloquante
   DB._localTs = Date.now();
   window['DB_' + eq] = cloneTeamData(DB, eq === 'A' ? INITIAL_DATA : emptyTeamData());
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify({
-      version: 4,
-      active: eq,
-      teams: { A: window.DB_A, B: window.DB_B, C: window.DB_C, D: window.DB_D, E: window.DB_E, F: window.DB_F }
-    }));
-  } catch(e) {
-    console.warn('LocalStorage save error (likely quota exceeded):', e);
+  if (typeof scheduleLocalStorageSave === 'function') {
+    scheduleLocalStorageSave(1000);
+  } else {
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({
+        version: 4,
+        active: eq,
+        teams: { A: window.DB_A, B: window.DB_B, C: window.DB_C, D: window.DB_D, E: window.DB_E, F: window.DB_F }
+      }));
+    } catch(e) {
+      console.warn('LocalStorage save error (likely quota exceeded):', e);
+    }
   }
   // 2. Sauvegarde cloud Firebase — on RETIRE les fichiers base64 (trop volumineux)
   //    Firestore limite les documents à 1 Mo. Les PDF/images d'assurance restent en local uniquement.
@@ -7462,13 +7570,28 @@ function switchTab(name, btn) {
 
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
   document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
-  document.getElementById('page-'+name).classList.add('active');
+  const targetPage = document.getElementById('page-'+name);
+  if (targetPage) targetPage.classList.add('active');
   if (btn) btn.classList.add('active');
   else document.querySelector(`[onclick*="switchTab('${name}')"]`)?.classList.add('active');
-  if (name==='odo') renderOdo();
-  if (name==='cspc') renderCSPC();
-  if (name==='analytics') switchAnalyticsSubTab('performance');
-  if (name==='archives') {
+
+  // Rendu à la demande au clic de l'onglet
+  if (name === 'dispo' && typeof renderDispo === 'function') renderDispo();
+  if (name === 'pannes' && typeof renderPannes === 'function') renderPannes();
+  if (name === 'nc' && typeof renderNC === 'function') renderNC();
+  if (name === 'gasoil' && typeof renderGasoil === 'function') renderGasoil();
+  if (name === 'equip') {
+    if (typeof renderEquip === 'function') renderEquip();
+    if (typeof renderActivite === 'function') renderActivite();
+  }
+  if (name === 'bl' && typeof renderBL === 'function') renderBL();
+  if (name === 'odo' && typeof renderOdo === 'function') renderOdo();
+  if (name === 'cspc' && typeof renderCSPC === 'function') renderCSPC();
+  if (name === 'analytics') {
+    if (typeof switchAnalyticsSubTab === 'function') switchAnalyticsSubTab('performance');
+    else if (typeof renderAnalytics === 'function') renderAnalytics();
+  }
+  if (name === 'archives') {
     if (!window._archivesLoaded) {
       window._archivesLoaded = true;
       if (typeof window._reloadArchives === 'function') {
@@ -7480,14 +7603,14 @@ function switchTab(name, btn) {
       renderArchives();
     }
   }
-  if (name==='vehicule') updateDataLists();
+  if (name === 'vehicule' && typeof updateDataLists === 'function') updateDataLists();
   if (typeof window.setupBlacklistListeners === 'function') window.setupBlacklistListeners();
-  if (name==='blacklist') renderBlacklist();
-  if (name==='tracabilite') renderTracabilite();
-  if (name==='flashinfo') renderAdminFlashList();
+  if (name === 'blacklist' && typeof renderBlacklist === 'function') renderBlacklist();
+  if (name === 'tracabilite' && typeof renderTracabilite === 'function') renderTracabilite();
+  if (name === 'flashinfo' && typeof renderAdminFlashList === 'function') renderAdminFlashList();
   
-  if (name === 'incidents-livraison') renderIncidentsLivraisonPage();
-  if (name === 'poi') renderPoiPage();
+  if (name === 'incidents-livraison' && typeof renderIncidentsLivraisonPage === 'function') renderIncidentsLivraisonPage();
+  if (name === 'poi' && typeof renderPoiPage === 'function') renderPoiPage();
   checkBascule();
 }
 
@@ -7751,10 +7874,12 @@ function renderDispo() {
     return; 
   }
   const isDraggable = !sessionStorage.getItem('numiplan_team_lock');
+  const immoMap = new Map((DB.incidentsLivraison || []).filter(im => im.type === 'Immobilisation chez le client' && !im.fin).map(im => [im.v, im]));
+  const equipMap = new Map((DB.equip || []).map(e => [e.tr, e]));
   body.innerHTML = data.map((r,i) => {
     const realIdx = DB.dispo.indexOf(r);
     const isSurveille = !!r.surveillance;
-    const activeImmo = (DB.incidentsLivraison || []).find(im => im.v === r.v && im.type === 'Immobilisation chez le client' && !im.fin);
+    const activeImmo = immoMap.get(r.v);
     
     let worstStatus = '';
     let tooltipText = '';
@@ -7838,8 +7963,8 @@ function renderDispo() {
       <td class="mono" style="white-space:nowrap"><span class="cell-edit" contenteditable="true" data-field="hor" data-idx="${realIdx}" onblur="saveInline(this)" onkeydown="if(event.key==='Enter'){event.preventDefault();this.blur()}">${horaire(r.hor)||'—'}</span></td>
       <td style="white-space:nowrap;min-width:90px"><input class="cell-input" list="dl-wilayas" autocomplete="off" data-field="lieuJ" data-idx="${realIdx}" value="${r.lieuJ==='—'||!r.lieuJ?'':r.lieuJ}" placeholder="Lieu Jour" onchange="saveInlineInput(this)" style="background:transparent;border:none;border-bottom:1px solid ${(!r.lieuJ||r.lieuJ==='—')?'#f87171':'transparent'};color:inherit;width:100%;font-size:inherit;padding:2px 4px;outline:none;cursor:pointer"></td>
       <td style="white-space:nowrap;min-width:90px"><input class="cell-input" list="dl-wilayas" autocomplete="off" data-field="lieuJ1" data-idx="${realIdx}" value="${r.lieuJ1==='—'||!r.lieuJ1?'':r.lieuJ1}" placeholder="Lieu J+1" onchange="saveInlineInput(this)" style="background:transparent;border:none;border-bottom:1px solid ${(!r.lieuJ1||r.lieuJ1==='—')?'#f87171':'transparent'};color:inherit;width:100%;font-size:inherit;padding:2px 4px;outline:none;cursor:pointer"></td>
-      <td>${(()=>{ const e=DB.equip.find(x=>x.tr===r.v); return e ? equipBadge(e.barre) : equipBadge(r.equip); })()}</td>
-      <td>${(()=>{ const e=DB.equip.find(x=>x.tr===r.v); return e ? equipBadge(e.cable) : '<span class="no-data">—</span>'; })()}</td>
+      <td>${(()=>{ const e=equipMap.get(r.v); return e ? equipBadge(e.barre) : equipBadge(r.equip); })()}</td>
+      <td>${(()=>{ const e=equipMap.get(r.v); return e ? equipBadge(e.cable) : '<span class="no-data">—</span>'; })()}</td>
       <td style="text-align:center">${(()=>{
         const pv = r.affecte;
         if (pv === 'OUI') return `<button onclick="toggleAffecte(${realIdx})" style="background:rgba(34,197,94,.18);color:#22c55e;border:1px solid rgba(34,197,94,.4);border-radius:6px;padding:3px 12px;font-size:11px;font-weight:700;cursor:pointer;transition:all .2s" title="Cliquer → NON">✅ OUI</button>`;
@@ -17020,12 +17145,14 @@ function showPoiWarningModal(v) {
 }
 
 window.addEventListener('DOMContentLoaded', () => {
-  window.poiAlertsInterval = setInterval(checkPoiAlerts, 15000); // 15s (Filet de sécurité ultra-réactif)
+  window.poiAlertsInterval = setInterval(checkPoiAlerts, 60000); // 60s
   setTimeout(checkPoiAlerts, 3000);   // 3s
   
-  // Horloge en temps réel pour l'encours du temps d'attente
+  // Horloge en temps réel pour l'encours du temps d'attente (uniquement si l'onglet POI est affiché)
   if (window.poiWaitTimeInterval) clearInterval(window.poiWaitTimeInterval);
   window.poiWaitTimeInterval = setInterval(() => {
+    const poiPage = document.getElementById('page-poi');
+    if (!poiPage || !poiPage.classList.contains('active')) return;
     document.querySelectorAll('.poi-wait-time-td').forEach(el => {
       const arrivedStr = el.getAttribute('data-arrived');
       if (!arrivedStr) return;
