@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="fr">
 <head>
 <meta charset="UTF-8">
@@ -1470,6 +1470,7 @@
 .blink-kpi-card {
   animation: blink-kpi 1.2s infinite alternate ease-in-out !important;
 }
+.col-assurance, #tab-gasoil { display: none !important; }
 :root {
   --bg: #0a0e1a; --bg2: #111827; --bg3: #1a2236; --surf: #243050;
   --border: #2d3f65; --txt: #e2e8f0; --txt2: #94a3b8; --txt3: #475569;
@@ -2712,7 +2713,7 @@ mark.hl { background: rgba(56,189,248,.25); color: var(--acc); border-radius: 3p
   </button>
   <button class="tab-btn" onclick="switchTab('pannes',this)">🔧 Pannes <span class="tab-count red" id="cnt-pannes" style="display:none;">—</span></button>
   <button class="tab-btn" onclick="switchTab('nc',this)">⚠️ Non-conformités <span class="tab-count" id="cnt-nc" style="display:none;">—</span></button>
-  <button class="tab-btn" onclick="switchTab('gasoil',this)">⛽ Gasoil <span class="tab-count" id="cnt-gasoil" style="display:none;">—</span></button>
+  <button class="tab-btn" id="tab-gasoil" onclick="switchTab('gasoil',this)" style="display:none !important;">⛽ Gasoil <span class="tab-count" id="cnt-gasoil" style="display:none;">—</span></button>
   <button class="tab-btn" onclick="switchTab('equip',this)">🔩 Équipements <span class="tab-count" id="cnt-equip">—</span></button>
   <button class="tab-btn" onclick="switchTab('bl',this)">📄 Suivi BL</button>
   <button class="tab-btn" id="tab-odo" onclick="switchTab('odo',this)">🛣️ Odomètre <span class="tab-count" id="cnt-odo" style="display:none;">—</span></button>
@@ -3125,7 +3126,7 @@ mark.hl { background: rgba(56,189,248,.25); color: var(--acc); border-radius: 3p
     </select>
     <button class="btn btn-reset" onclick="resetFilters('dispo-search','dispo-etat','dispo-region','dispo-region-j');renderDispo()">↺ Reset</button>
     <button class="btn btn-add" onclick="openModal('modal-dispo')">＋ Ajouter</button>
-    <label style="display:inline-flex; align-items:center; gap:6px; cursor:pointer; font-size:12px; margin-left:auto; color:var(--txt2); white-space:nowrap" title="Afficher/Masquer les colonnes d'Assurances TR et RM">
+    <label style="display:none !important; align-items:center; gap:6px; cursor:pointer; font-size:12px; margin-left:auto; color:var(--txt2); white-space:nowrap" title="Afficher/Masquer les colonnes d'Assurances TR et RM">
       <input type="checkbox" id="dispo-show-insurance" onchange="toggleDispoInsurance(this)" style="width:auto; cursor:pointer"> 🛡️ Assurances
     </label>
 
@@ -3136,7 +3137,7 @@ mark.hl { background: rgba(56,189,248,.25); color: var(--acc); border-radius: 3p
     <div class="sec-title">État du parc véhicules</div>
     <div class="table-wrap">
       <table>
-        <thead><tr><th>Véhicule</th><th>État</th><th>Chauffeur</th><th>Horaire</th><th>Lieu Jour</th><th>Lieu J+1</th><th>Barre</th><th>Câble</th><th>Affecté</th><th>KM</th><th style="color:#ef4444;white-space:nowrap">⚡ Excès de vitesse</th><th>Observation</th><th class="col-assurance" style="color:var(--grn)">🛡 Ass. TR</th><th class="col-assurance" style="color:var(--acc)">🛡 Ass. RM</th><th>Actions</th></tr></thead>
+        <thead><tr><th>Véhicule</th><th>État</th><th>Chauffeur</th><th>Horaire</th><th>Lieu Jour</th><th>Lieu J+1</th><th>Barre</th><th>Câble</th><th>Affecté</th><th>KM</th><th style="color:#ef4444;white-space:nowrap">⚡ Excès de vitesse</th><th>Observation</th><th class="col-assurance" style="display:none !important;color:var(--grn)">🛡 Ass. TR</th><th class="col-assurance" style="display:none !important;color:var(--acc)">🛡 Ass. RM</th><th>Actions</th></tr></thead>
         <tbody id="dispo-body"></tbody>
       </table>
     </div>
@@ -7678,7 +7679,7 @@ function renderDispo() {
   if (cbShowIns) cbShowIns.checked = showInsurance;
   const shouldHide = lock && !showInsurance;
   if (!data.length) { 
-    body.innerHTML = `<tr><td colspan="${shouldHide ? 15 : 17}"><div class="empty-state"><div class="icon">🔍</div>Aucun résultat</div></td></tr>`; 
+    body.innerHTML = `<tr><td colspan="15"><div class="empty-state"><div class="icon">🔍</div>Aucun résultat</div></td></tr>`; 
     document.querySelectorAll('.col-assurance').forEach(el => {
       el.style.display = 'none';
     });
@@ -7787,8 +7788,8 @@ function renderDispo() {
       </td>
       <td>${buildSpeedExcessCell(r.v, r.chauffeur)}</td>
       <td style="max-width:150px;font-size:11px"><span class="cell-edit" contenteditable="true" data-field="obs" data-idx="${realIdx}" onblur="saveInline(this)" onkeydown="if(event.key==='Enter'){event.preventDefault();this.blur()}" style="color:var(--txt2);font-style:${r.obs?'normal':'italic'}">${r.obs||'—'}</span></td>
-      <td class="col-assurance">${buildAssuranceCell(r, realIdx, 'dispo', 'tr')}</td>
-      <td class="col-assurance">${buildAssuranceCell(r, realIdx, 'dispo', 'rm')}</td>
+      <td class="col-assurance" style="display:none !important;">${buildAssuranceCell(r, realIdx, 'dispo', 'tr')}</td>
+      <td class="col-assurance" style="display:none !important;">${buildAssuranceCell(r, realIdx, 'dispo', 'rm')}</td>
       <td style="white-space:nowrap">
         ${r.cspc ? '<button class=\"del-btn\" style=\"color:var(--pur);font-size:10px;padding:1px 6px;border:1px solid rgba(167,139,250,.5);border-radius:4px;background:rgba(167,139,250,.15)\" onclick=\"undeclCSPC('+realIdx+')\" title=\"Retirer du programme CSPC\">🔷 CSPC ✕</button>' : '<button class=\"del-btn\" style=\"color:var(--pur);font-size:10px;padding:1px 5px;border:1px solid rgba(167,139,250,.3);border-radius:4px\" onclick=\"declCSPC('+realIdx+')\" title=\"Déclarer CSPC\">🔷</button>'}
         <button class="del-btn" style="color:var(--grn)" onclick="setEtat(${realIdx},'DISPONIBLE')" title="Disponible">✅</button>
@@ -7796,16 +7797,15 @@ function renderDispo() {
         <button class="del-btn" style="color:#ef4444" onclick="openIncidentLivraisonModal(${realIdx})" title="Incident de livraison">🚨</button>
         <button class="del-btn" style="color:var(--red)" onclick="declPanne(${realIdx})" title="Panne">🔧</button>
         <button class="del-btn" style="color:var(--org)" onclick="declNC(${realIdx})" title="Non-conformité">⚠️</button>
-        <button class="del-btn" style="color:var(--yel)" onclick="declGasoil(${realIdx})" title="Gasoil">⛽</button>
         <button class="del-btn" style="color:var(--txt2)" onclick="editDispo(${realIdx})" title="Modifier">✏️</button>
         <button class="del-btn" style="color:var(--red)" onclick="deleteDispo(${realIdx})" title="Supprimer">🗑</button>
       </td>
     </tr>`;
   }).join('');
   
-  // Appliquer le masquage dynamique des colonnes assurances pour les équipes
+  // Appliquer le masquage des colonnes assurances pour tous les utilisateurs
   document.querySelectorAll('.col-assurance').forEach(el => {
-    el.style.display = shouldHide ? 'none' : '';
+    el.style.display = 'none';
   });
 }
 
@@ -13824,18 +13824,9 @@ function declNC(idx) {
 }
 
 function declGasoil(idx) {
-  if (!_checkActionsLibres('declGasoil')) return;
-  const r = DB.dispo[idx];
-  switchTab('gasoil', null);
-  document.getElementById('f-gasoil-date').value = today();
-  document.getElementById('f-gasoil-vehicule').value = r.v || '';
-  document.getElementById('f-gasoil-chauffeur').value = r.chauffeur || '';
-  document.getElementById('f-gasoil-station').value = '';
-  document.getElementById('f-gasoil-type').value = 'Interne';
-  document.getElementById('f-gasoil-operation').value = 'PLEIN';
-  document.getElementById('f-gasoil-resp').value = sessionStorage.getItem('numiplan_username') || '';
-  openModal('modal-gasoil', -1);
-  showToast('⛽ Gasoil pré-rempli pour ' + r.v);
+  if (typeof showToast === 'function') {
+    showToast('⚠️ La dotation gasoil est actuellement suspendue.', true);
+  }
 }
 
 function declBL(idx) {
