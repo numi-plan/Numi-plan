@@ -255,13 +255,15 @@
           if (isRecordBeingEdited(key, listName)) {
             mergedList.push(localItem);
           } else {
-            const itemLocalTs = localItem._lastEditedTs || localGlobalTs || 0;
-            const itemRemoteTs = remoteItem._lastEditedTs || remoteGlobalTs || 0;
-            const isRecentlyEditedLocally = (Date.now() - itemLocalTs) < 30000;
+            const itemLocalTs = localItem._lastEditedTs || 0;
+            const itemRemoteTs = remoteItem._lastEditedTs || 0;
+            const isRecentlyEditedLocally = itemLocalTs > 0 && (Date.now() - itemLocalTs) < 60000 && itemLocalTs > itemRemoteTs;
 
             let mergedItem;
-            if (isRecentlyEditedLocally || itemLocalTs >= itemRemoteTs) {
+            if (isRecentlyEditedLocally) {
               mergedItem = Object.assign({}, remoteItem, localItem);
+            } else if (itemRemoteTs >= itemLocalTs) {
+              mergedItem = Object.assign({}, localItem, remoteItem);
             } else {
               mergedItem = Object.assign({}, localItem, remoteItem);
             }
@@ -1194,16 +1196,26 @@
             let lItem = localMap.get(key);
             let bItem = baseMap.get(key);
             if (lItem) {
-                let mergedItem = Object.assign({}, cItem);
-                for (let k in lItem) {
-                    if (!bItem || JSON.stringify(bItem[k]) !== JSON.stringify(lItem[k])) {
-                        mergedItem[k] = lItem[k];
+                if (arrName === 'dispo') {
+                    const cTs = cItem._lastEditedTs || 0;
+                    const lTs = lItem._lastEditedTs || 0;
+                    if (cTs >= lTs) {
+                        finalArr.push(cItem);
+                    } else if (lTs > cTs && (Date.now() - lTs) < 120000) {
+                        finalArr.push(lItem);
+                    } else {
+                        finalArr.push(cItem);
                     }
+                } else {
+                    let mergedItem = Object.assign({}, cItem);
+                    for (let k in lItem) {
+                        if (bItem && JSON.stringify(bItem[k]) !== JSON.stringify(lItem[k])) {
+                            mergedItem[k] = lItem[k];
+                        }
+                    }
+                    finalArr.push(mergedItem);
                 }
-                finalArr.push(mergedItem);
                 localMap.delete(key);
-            } else if (!bItem) {
-                finalArr.push(cItem);
             } else {
                 finalArr.push(cItem);
             }
