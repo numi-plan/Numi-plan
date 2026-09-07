@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="fr">
 <head>
 <meta charset="UTF-8">
@@ -25,7 +25,39 @@
   function getCurrentEquipe() {
     return (typeof window.CURRENT_EQUIPE !== 'undefined') ? window.CURRENT_EQUIPE : 'A';
   }
-  window.getCurrentEquipe = getCurrentEquipe;
+    window.getCurrentEquipe = getCurrentEquipe;
+
+  function emptyTeamData() {
+    return {
+      dispo: [], pannes: [], nc: [], gasoil: [], equip: [], activite: [],
+      bl: [], odo: [], odo_weeks: [], cspc_archives: [],
+      cspc: [], blacklist: [],
+      tracabilite: [], flashInfos: [], anomaliesPointees: {},
+      clientModifs: [], incidents: [], incidentsLivraison: []
+    };
+  }
+  window.emptyTeamData = emptyTeamData;
+
+  function cloneTeamData(src, fallback = emptyTeamData()) {
+    const base = JSON.parse(JSON.stringify(fallback || emptyTeamData()));
+    if (src) {
+      const merged = Object.assign({}, base, src);
+      Object.keys(base).forEach(k => {
+        if (k === 'anomaliesPointees') {
+          if (!merged[k] || typeof merged[k] !== 'object') {
+            merged[k] = {};
+          }
+        } else {
+          if (!merged[k] || !Array.isArray(merged[k])) {
+            merged[k] = [];
+          }
+        }
+      });
+      return JSON.parse(JSON.stringify(merged));
+    }
+    return JSON.parse(JSON.stringify(base));
+  }
+  window.cloneTeamData = cloneTeamData;
 </script>
 
 
@@ -119,7 +151,39 @@
   function getCurrentEquipe() {
     return (typeof window.CURRENT_EQUIPE !== 'undefined') ? window.CURRENT_EQUIPE : 'A';
   }
-  window.getCurrentEquipe = getCurrentEquipe;
+    window.getCurrentEquipe = getCurrentEquipe;
+
+  function emptyTeamData() {
+    return {
+      dispo: [], pannes: [], nc: [], gasoil: [], equip: [], activite: [],
+      bl: [], odo: [], odo_weeks: [], cspc_archives: [],
+      cspc: [], blacklist: [],
+      tracabilite: [], flashInfos: [], anomaliesPointees: {},
+      clientModifs: [], incidents: [], incidentsLivraison: []
+    };
+  }
+  window.emptyTeamData = emptyTeamData;
+
+  function cloneTeamData(src, fallback = emptyTeamData()) {
+    const base = JSON.parse(JSON.stringify(fallback || emptyTeamData()));
+    if (src) {
+      const merged = Object.assign({}, base, src);
+      Object.keys(base).forEach(k => {
+        if (k === 'anomaliesPointees') {
+          if (!merged[k] || typeof merged[k] !== 'object') {
+            merged[k] = {};
+          }
+        } else {
+          if (!merged[k] || !Array.isArray(merged[k])) {
+            merged[k] = [];
+          }
+        }
+      });
+      return JSON.parse(JSON.stringify(merged));
+    }
+    return JSON.parse(JSON.stringify(base));
+  }
+  window.cloneTeamData = cloneTeamData;
 
   function cloneEquipePayload(src) {
     return JSON.parse(JSON.stringify(src));
@@ -285,7 +349,7 @@
     }
 
     // Le Cloud Supabase fait strictement autorité (évite la réinjection d'anciens camions locaux)
-    const cleanSrc = window.cloneTeamData ? window.cloneTeamData(src, eq === 'A' ? window.INITIAL_DATA : undefined) : src;
+    const cleanSrc = window.cloneTeamData ? window.cloneTeamData(src, emptyTeamData()) : src;
     const currentEq = getCurrentEquipe();
 
     window['DB_' + eq] = cloneEquipePayload(cleanSrc);
@@ -577,7 +641,7 @@
           if (!window._baseCloudDB) window._baseCloudDB = {};
           window._baseCloudDB[eq] = cloneEquipePayload(payload);
 
-          const cleanSrc = window.cloneTeamData ? window.cloneTeamData(payload, eq === 'A' ? window.INITIAL_DATA : undefined) : payload;
+          const cleanSrc = window.cloneTeamData ? window.cloneTeamData(payload, emptyTeamData()) : payload;
           window['DB_' + eq] = cloneEquipePayload(cleanSrc);
         });
 
@@ -4796,279 +4860,14 @@ const ARCHIVE_KEY = 'numiplan_archives_v2';
 
 
 // ── RÉPARTITION INITIALE DE L'ÉQUIPE E ──
-const INITIAL_DATA_E = {
-  blacklist: [], incidentsLivraison: [],
-  dispo: [
-    {v:'000264-516-16',etat:'En mission',type:'TRACTEUR',chauffeur:'SALHI BRAHIM',hor:0.5,lieuJ:'—',lieuJ1:'—',equip:'OK',prog:''},
-    {v:'000952-514-16',etat:'DISPONIBLE',type:'TRACTEUR',chauffeur:'RABIA MESSAOUD',hor:0.5,lieuJ:'—',lieuJ1:'—',equip:'OK',prog:''},
-    {v:'001145-514-16',etat:'DISPONIBLE',type:'TRACTEUR',chauffeur:'OUBERNINE ABDELGHANI',hor:0.5,lieuJ:'—',lieuJ1:'—',equip:'OK',prog:''},
-    {v:'000894-514-16',etat:'DISPONIBLE',type:'TRACTEUR',chauffeur:'NASRI ABDESSALAM',hor:0.5,lieuJ:'—',lieuJ1:'—',equip:'OK',prog:''},
-    {v:'001000-514-16',etat:'En mission',type:'TRACTEUR',chauffeur:'MOUZAOUI MOURAD',hor:0.5,lieuJ:'—',lieuJ1:'—',equip:'OK',prog:''},
-    {v:'000912-514-16',etat:'DISPONIBLE',type:'TRACTEUR',chauffeur:'MOUSSAOUI HAKIM',hor:0.5,lieuJ:'—',lieuJ1:'—',equip:'OK',prog:''},
-    {v:'000863-514-16',etat:'DISPONIBLE',type:'TRACTEUR',chauffeur:'MEKKID LYES',hor:0.5,lieuJ:'—',lieuJ1:'—',equip:'OK',prog:''},
-    {v:'001058-514-16',etat:'En mission',type:'TRACTEUR',chauffeur:'LEFSIHANE MOHAMED',hor:0.5,lieuJ:'—',lieuJ1:'—',equip:'OK',prog:''},
-    {v:'000493-523-16',etat:'DISPONIBLE',type:'CELLULE',chauffeur:'LEFSIHANE MOHAMED',hor:0.5,lieuJ:'—',lieuJ1:'—',equip:'OK',prog:''},
-    {v:'000370-516-16',etat:'DISPONIBLE',type:'TRACTEUR',chauffeur:'LEFSIHANE MOHAMED',hor:0.5,lieuJ:'—',lieuJ1:'—',equip:'OK',prog:''}
-  ],
-  pannes: [], nc: [], gasoil: [], equip: [], activite: [],
-  bl: [], odo: [], odo_weeks: [], cspc_archives: [], cspc: [],
-  tracabilite: [], flashInfos: [], anomaliesPointees: {},
-  clientModifs: [], incidents: []
-};
-
-// ── RÉPARTITION INITIALE DE L'ÉQUIPE F ──
-const INITIAL_DATA_F = {
-  blacklist: [], incidentsLivraison: [],
-  dispo: [
-    {v:'001054-514-16',etat:'En panne',type:'TRACTEUR',chauffeur:'LAGAB RABAH',hor:0.5,lieuJ:'—',lieuJ1:'—',equip:'OK',prog:''},
-    {v:'000322-516-16',etat:'DISPONIBLE',type:'TRACTEUR',chauffeur:'LACHTER NABIL',hor:0.5,lieuJ:'—',lieuJ1:'—',equip:'OK',prog:''},
-    {v:'000876-514-16',etat:'DISPONIBLE',type:'TRACTEUR',chauffeur:'KHEBAT FARES',hor:0.5,lieuJ:'—',lieuJ1:'—',equip:'OK',prog:''},
-    {v:'000984-514-16',etat:'En panne',type:'TRACTEUR',chauffeur:'IHAMOUCHENE HILAL',hor:0.5,lieuJ:'—',lieuJ1:'—',equip:'OK',prog:''},
-    {v:'001143-514-16',etat:'DISPONIBLE',type:'TRACTEUR',chauffeur:'IHAMOUCHENE HILAL',hor:0.5,lieuJ:'—',lieuJ1:'—',equip:'OK',prog:''},
-    {v:'000956-514-16',etat:'DISPONIBLE',type:'TRACTEUR',chauffeur:'IHAMOUCHENE HILAL',hor:0.5,lieuJ:'—',lieuJ1:'—',equip:'OK',prog:''},
-    {v:'000926-514-16',etat:'DISPONIBLE',type:'TRACTEUR',chauffeur:'HEMICHE DJAMEL',hor:0.5,lieuJ:'—',lieuJ1:'—',equip:'OK',prog:''},
-    {v:'000916-514-16',etat:'DISPONIBLE',type:'TRACTEUR',chauffeur:'HEMICHE DJAMEL',hor:0.5,lieuJ:'—',lieuJ1:'—',equip:'OK',prog:''},
-    {v:'000968-514-16',etat:'En mission',type:'TRACTEUR',chauffeur:'GUENNOUCHE MD CHRIF',hor:0.5,lieuJ:'—',lieuJ1:'—',equip:'OK',prog:''},
-    {v:'000992-514-16',etat:'DISPONIBLE',type:'TRACTEUR',chauffeur:'GOUFI SLIMANE',hor:0.5,lieuJ:'—',lieuJ1:'—',equip:'OK',prog:''},
-    {v:'000151-515-16',etat:'DISPONIBLE',type:'TRACTEUR',chauffeur:'DEGHDICHE AMAR',hor:0.5,lieuJ:'—',lieuJ1:'—',equip:'OK',prog:''},
-    {v:'000980-514-16',etat:'DISPONIBLE',type:'TRACTEUR',chauffeur:'CHEBBOUT MOHAMED',hor:0.5,lieuJ:'—',lieuJ1:'—',equip:'OK',prog:''},
-    {v:'001205-514-16',etat:'DISPONIBLE',type:'TRACTEUR',chauffeur:'BOUKHENFIR LYAZID',hor:0.5,lieuJ:'—',lieuJ1:'—',equip:'OK',prog:''},
-    {v:'001062-514-16',etat:'En mission',type:'TRACTEUR',chauffeur:'BILAL IKKEN',hor:0.5,lieuJ:'—',lieuJ1:'—',equip:'OK',prog:''},
-    {v:'000161-515-16',etat:'DISPONIBLE',type:'TRACTEUR',chauffeur:'BELHADI MOURAD',hor:0.5,lieuJ:'—',lieuJ1:'—',equip:'OK',prog:''},
-    {v:'000779-515-16',etat:'En panne',type:'TRACTEUR',chauffeur:'BANOUH BOUALEM',hor:0.5,lieuJ:'—',lieuJ1:'—',equip:'OK',prog:''},
-    {v:'000320-516-16',etat:'En panne',type:'TRACTEUR',chauffeur:'AMAR ABBAS',hor:0.5,lieuJ:'—',lieuJ1:'—',equip:'OK',prog:''},
-    {v:'500158-514-16',etat:'DISPONIBLE',type:'TRACTEUR',chauffeur:'AKKOUCHE LARBI',hor:0.5,lieuJ:'—',lieuJ1:'—',equip:'OK',prog:''},
-    {v:'000910-514-16',etat:'DISPONIBLE',type:'TRACTEUR',chauffeur:'AIT TOUATI NADJIM',hor:0.5,lieuJ:'—',lieuJ1:'—',equip:'OK',prog:''}
-  ],
-  pannes: [], nc: [], gasoil: [], equip: [], activite: [],
-  bl: [], odo: [], odo_weeks: [], cspc_archives: [], cspc: [],
-  tracabilite: [], flashInfos: [], anomaliesPointees: {},
-  clientModifs: [], incidents: []
-};
-
-const INITIAL_DATA = {
-  blacklist: [],
-  incidentsLivraison: [],
-  dispo: [{"v":"500181-514-16","km":1286678,"hor":0.4166666666666667,"lat":null,"lng":null,"obs":"ing","cspc":false,"etat":"En mission","prog":"","type":"TRACTEUR","equip":"OK","lieuJ":"ORAN","repos":"","agence":"","geoloc":"OFF","lieuJ1":"BLIDA","affecte":"OUI","progFige":false,"chauffeur":"BELSKEM MOUHAMED","geolocDate":"2026-08-26","progDepart":"","geoloc_date":"2026-08-11","_lastEditedTs":1788182965956,"lieuJ_initial":"ORAN","assuranceRmFin":"","assuranceTrFin":"","lieuJ1_initial":"BLIDA","assuranceRmFileName":null,"assuranceTrFileName":null},{"v":"001006-514-16","km":1153484,"hor":0.8333333333333334,"lat":36.0742,"lng":1.1756,"obs":"knauf","cspc":false,"etat":"DISPONIBLE","prog":"","type":"TRACTEUR","equip":"OK","lieuJ":"ORAN","repos":"","agence":"","geoloc":"ON","lieuJ1":"JIJEL","affecte":"OUI","progFige":false,"chauffeur":"BENMASSAOUD ADEL","geolocDate":"2026-08-31T12:38:48.000Z","progDepart":"","geoloc_date":"2026-08-16","_lastEditedTs":1788184246474,"lieuJ_initial":"BLIDA","lieuJ1_initial":"BORDJ BOU ARRERIDJ"},{"v":"000772-515-16","km":1167747,"hor":0.5,"lat":34.6339,"lng":3.24247,"obs":"OUED TLELAT/ changement de destination","cspc":false,"etat":"DISPONIBLE","prog":"","type":"TRACTEUR","equip":"OK","lieuJ":"DJELFA","repos":"","agence":"","geoloc":"ON","lieuJ1":"BOUIRA","affecte":"OUI","progFige":false,"chauffeur":"HADJ MOUSSA","geolocDate":"2026-08-31T12:32:12.000Z","progDepart":"","geoloc_date":"2026-08-16","_lastEditedTs":1788185816110,"lieuJ_initial":"DJELFA","lieuJ1_initial":"BLIDA"},{"v":"000890-514-16","km":null,"hor":0.4166666666666667,"lat":36.2021,"lng":1.25189,"obs":"hassi ameur hamoud","cspc":false,"etat":"DISPONIBLE","prog":"","type":"TRACTEUR","equip":"OK","lieuJ":"ORAN","repos":"","agence":"","geoloc":"ON","lieuJ1":"TIARET","affecte":"OUI","progFige":false,"chauffeur":"RACHID KHELLIF","geolocDate":"2026-08-31T09:14:28.000Z","progDepart":"","geoloc_date":"2026-08-16","_lastEditedTs":1788186235975,"lieuJ_initial":"ORAN","lieuJ1_initial":"TIARET"},{"v":"000774-515-16","km":null,"hor":0.9166666666666666,"lat":null,"lng":null,"obs":"BOUIRA RELIZANE PAS ENCORE CHARGER +maintenance","cspc":false,"etat":"DISPONIBLE","prog":"","type":"TRACTEUR","equip":"","lieuJ":"BOUIRA","repos":"","agence":"","geoloc":"OFF","lieuJ1":"RELIZANE","affecte":"OUI","progFige":false,"chauffeur":"ROUABHIA KHALED","geolocDate":"2026-03-04T13:48:15.000Z","progDepart":"","geoloc_date":"2026-08-16","_lastEditedTs":1788186441311,"lieuJ_initial":"BOUIRA","lieuJ1_initial":"RELIZANE"},{"v":"001079-514-16","km":null,"hor":0.5,"lat":36.7119,"lng":5.0531,"obs":"pas encore","cspc":false,"etat":"En mission","prog":"","type":"TRACTEUR","equip":"OK","lieuJ":"BEJAIA","repos":"","agence":"","geoloc":"ON","lieuJ1":"BEJAIA","affecte":"OUI","progFige":false,"chauffeur":"TABLI CHAFIK","geolocDate":"2026-08-31T12:29:03.000Z","progDepart":"","geoloc_date":"2026-08-16","_lastEditedTs":1788186340967,"lieuJ_initial":"—","lieuJ1_initial":"BEJA"},{"v":"000916-523-16","km":null,"hor":0.75,"lat":36.4715,"lng":3.74194,"obs":"—","cspc":false,"etat":"En panne","prog":"","type":"TRACTEUR","equip":"OK","lieuJ":"—","repos":"","agence":"","geoloc":"ON","lieuJ1":"—","affecte":"OUI","progFige":false,"chauffeur":"TABLI CHAFIK","geolocDate":"2026-08-31T06:07:54.000Z","progDepart":"","geoloc_date":"2026-08-16","_lastEditedTs":1787326447303,"lieuJ_initial":"—","lieuJ1_initial":"—"},{"v":"000920-523-16","km":null,"hor":0.4166666666666667,"lat":36.35,"lng":3.83558,"obs":"ORIENTER","cspc":false,"etat":"En mission","prog":"","type":"TRACTEUR","equip":"OK","lieuJ":"JIJEL","repos":"","agence":"","geoloc":"ON","lieuJ1":"BEJAIA","affecte":"OUI","progFige":false,"chauffeur":"TABLI CHAFIK","geolocDate":"2026-08-31T06:07:43.000Z","progDepart":"","geoloc_date":"2026-08-16","_lastEditedTs":1788186316391,"lieuJ_initial":"ALGER","lieuJ1_initial":"BEJAIA"},{"v":"001047-524-16","km":null,"hor":0.5,"lat":36.6436,"lng":3.29789,"obs":"puma","cspc":false,"etat":"DISPONIBLE","prog":"","type":"TRACTEUR","equip":"OK","lieuJ":"CONSTANTINE","repos":"","agence":"","geoloc":"ON","lieuJ1":"BEJAIA","affecte":"OUI","progFige":false,"chauffeur":"TABLI CHAFIK","geolocDate":"2026-08-30T06:23:10.147Z","progDepart":"","geoloc_date":"2026-08-14T19:17:59.936Z","_lastEditedTs":1788123989195,"lieuJ_initial":"EL TARF","lieuJ1_initial":"BEJAIA"},{"v":"001045-524-16","km":null,"hor":0.5,"lat":36.5736,"lng":6.74944,"obs":"E A P I BOUS3ADA","cspc":false,"etat":"DISPONIBLE","prog":"","type":"TRACTEUR","equip":"OK","lieuJ":"ANNABA","repos":"","agence":"","geoloc":"ON","lieuJ1":"MSILA","affecte":"OUI","progFige":false,"chauffeur":"TABLI CHAFIK","geolocDate":"2026-08-31T12:39:50.552Z","progDepart":"","geoloc_date":"2026-08-16","_lastEditedTs":1788186353383,"lieuJ_initial":"ANNABA","assuranceRmFin":"2026-07-01","assuranceTrFin":"2026-07-01","lieuJ1_initial":"MSILA","assuranceRmFileName":null,"assuranceTrFileName":null},{"v":"000363-516-16","km":1110142,"hor":0.75,"lat":null,"lng":null,"obs":"ORIENTER VERS COMPTOIR","cspc":false,"etat":"En mission","prog":"","type":"TRACTEUR","equip":"OK","lieuJ":"TIZI OUZOU","repos":"","agence":"","geoloc":"OFF","lieuJ1":"BEJAIA","affecte":"OUI","progFige":false,"chauffeur":"YAHIAOUI DJAMEL","geolocDate":"2026-07-09T07:17:41.000Z","progDepart":"","geoloc_date":"2026-08-16","_lastEditedTs":1788173768084,"lieuJ_initial":"TIZI OUZOU","assuranceRmFin":"2026-05-24","assuranceTrFin":"2026-05-24","lieuJ1_initial":"BEJAIA","assuranceRmFileName":null,"assuranceTrFileName":null},{"v":"000980-514-16","km":1212035,"hor":0.7916666666666666,"lat":35.5365,"lng":-0.448266,"obs":"ORINETER BEJAIA","cspc":false,"etat":"En mission","prog":"","type":"TRACTEUR","equip":"OK","lieuJ":"TIZI OUZOU","geoloc":"ON","lieuJ1":"BEJAIA","affecte":"OUI","chauffeur":"CHEBBOUT MOHAMED","geolocDate":"2026-08-30T23:20:05.000Z","geoloc_date":"2026-08-16","_lastEditedTs":1788173724452,"lieuJ_initial":"TIZI OUZOU","lieuJ1_initial":"BEJAIA"},{"v":"001184-514-16","km":null,"hor":0.5,"lat":36.7257,"lng":5.05896,"obs":"Sucre 1 klg","etat":"En mission","prog":"","type":"TRACTEUR","equip":"OK","lieuJ":"BEJAIA","geoloc":"ON","lieuJ1":"ORAN","affecte":"OUI","chauffeur":"YAHIAOUI DJAMEL","geolocDate":"2026-08-31T05:33:06.000Z","geoloc_date":"2026-08-16","_lastEditedTs":1788186666058,"lieuJ_initial":"BEJAIA","assuranceRmFin":"2026-08-04","assuranceTrFin":"2026-08-04","lieuJ1_initial":"ORAN","assuranceRmFileName":null,"assuranceTrFileName":null},{"v":"001117-514-16","km":null,"hor":0.625,"lat":36.4343,"lng":6.28401,"obs":"CHANGEMENT DE REMOQUE","etat":"En panne","prog":"","type":"TRACTEUR","equip":"OK","lieuJ":"—","geoloc":"ON","lieuJ1":"—","affecte":"OUI","chauffeur":"MUSTAPHA  DJENNADI","geolocDate":"2026-08-31T06:10:59.000Z","geoloc_date":"2026-08-16","_lastEditedTs":1788009797073,"lieuJ_initial":"—","assuranceRmFin":"2026-08-12","assuranceTrFin":"2026-08-12","lieuJ1_initial":"—","assuranceRmFileName":null,"assuranceTrFileName":null},{"v":"500158-514-16","km":null,"hor":0,"lat":36.3316,"lng":4.30919,"obs":"transfert de part bejaia vers part A","etat":"En panne","prog":"","type":"TRACTEUR","equip":"OK","lieuJ":"—","geoloc":"ON","lieuJ1":"—","affecte":"OUI","chauffeur":"AKKOUCHE LARBI","geolocDate":"2026-08-31T06:12:06.000Z","lieuJ_initial":"—","assuranceRmFin":"2026-08-23","assuranceTrFin":"2026-08-23","lieuJ1_initial":"—","assuranceRmFileName":null,"assuranceTrFileName":null},{"v":"000968-514-16","km":null,"hor":0.4166666666666667,"lat":36.667,"lng":3.25981,"obs":"Bouira/Bejaia","cspc":false,"etat":"DISPONIBLE","prog":"","type":"TRACTEUR","equip":"OK","lieuJ":"ALGER","geoloc":"ON","lieuJ1":"BOUMERDES","affecte":"OUI","chauffeur":"GUENNOUCHE MD CHRIF","geolocDate":"2026-08-31T12:38:52.000Z","_lastEditedTs":1788187077100,"lieuJ_initial":"SETIF","assuranceRmFin":"2026-08-24","assuranceTrFin":"2026-08-24","lieuJ1_initial":"NAAMA","assuranceRmFileName":null,"assuranceTrFileName":null},{"v":"000880-514-16","km":null,"hor":0,"lat":36.7366,"lng":5.05905,"obs":"","etat":"En panne","prog":"","type":"TRACTEUR","equip":"OK","lieuJ":"—","geoloc":"ON","lieuJ1":"—","affecte":"OUI","chauffeur":"LARBI LYES","geolocDate":"2026-08-31T12:23:05.000Z","lieuJ_initial":"—","assuranceRmFin":"2026-08-26","assuranceTrFin":"2026-08-26","lieuJ1_initial":"—","assuranceRmFileName":null,"assuranceTrFileName":null},{"v":"000908-514-16","km":1175634,"hor":0.625,"lat":36.3184,"lng":4.01947,"obs":"REMPLACEMENT DES BON 781","cspc":false,"etat":"En panne","prog":"","type":"TRACTEUR","equip":"","lieuJ":"—","repos":"","agence":"","geoloc":"ON","lieuJ1":"—","affecte":"OUI","progFige":false,"chauffeur":"BADREDDINE SEGHIR","geolocDate":"2026-08-31T12:38:24.000Z","progDepart":"","geoloc_date":"2026-08-16T19:00:45.000Z","_lastEditedTs":1788176529836,"lieuJ_initial":"—","assuranceRmFin":"2026-05-24","assuranceTrFin":"2026-05-24","lieuJ1_initial":"—","assuranceRmFileName":"000775.pdf","assuranceTrFileName":"000908.pdf"},{"v":"000149-515-16","km":921274,"hor":0.75,"lat":36.6533,"lng":3.59261,"obs":"—","cspc":false,"etat":"DISPONIBLE","prog":"","type":"","equip":"","lieuJ":"BEJAIA","repos":"","agence":"","geoloc":"ON","lieuJ1":"LAGHOUAT","affecte":"OUI","progFige":false,"chauffeur":"BADREDDINE SEGHIR","geolocDate":"2026-08-31T12:36:52.000Z","progDepart":"","geoloc_date":"2026-08-16T15:53:01.000Z","_lastEditedTs":1788184229480,"lieuJ_initial":"TIZI OUZOU","lieuJ1_initial":"LAGHOUAT"},{"v":"000781-523-16","km":282880,"hor":0.75,"lat":35.7103,"lng":-0.488306,"obs":"—","cspc":false,"etat":"DISPONIBLE","prog":"","type":"TRACTEUR","equip":"OK","lieuJ":"ORAN","repos":"","agence":"","geoloc":"ON","lieuJ1":"ALGER","affecte":"OUI","progFige":false,"chauffeur":"BADREDDINE SEGHIR","geolocDate":"2026-08-31T12:37:17.000Z","progDepart":"","geoloc_date":"2026-08-16T18:30:17.000Z","_lastEditedTs":1788184220159,"lieuJ_initial":"ORAN","assuranceRmFin":"2026-07-15","assuranceTrFin":"2026-07-15","lieuJ1_initial":"ALGER","assuranceRmFileName":null,"assuranceTrFileName":null},{"v":"001174-514-16","km":null,"hor":0.5833333333333334,"lat":36.3669,"lng":3.8471,"obs":"CONTACT ING","cspc":false,"etat":"En panne","prog":"","type":"TRACTEUR","equip":"OK","lieuJ":"BOUIRA","repos":"","agence":"","geoloc":"ON","lieuJ1":"ORAN","affecte":"OUI","progFige":false,"chauffeur":"AIOUADJ HICHAM","geolocDate":"2026-08-31T13:00:11.000Z","progDepart":"","geoloc_date":"2026-08-16T18:04:41.000Z","_lastEditedTs":1788124547994,"lieuJ_initial":"BOUIRA","lieuJ1_initial":"ORAN"},{"v":"001071-514-16","km":null,"hor":0.5416666666666666,"lat":36.2597,"lng":2.30597,"obs":"—","cspc":false,"etat":"DISPONIBLE","prog":"","type":"TRACTEUR","equip":"OK","lieuJ":"ORAN","repos":"","agence":"","geoloc":"ON","lieuJ1":"ALGER","affecte":"OUI","progFige":false,"chauffeur":"SKANDAR HAMIMI","geolocDate":"2026-08-31T12:18:16.000Z","progDepart":"","geoloc_date":"2026-08-16T18:32:29.000Z","_lastEditedTs":1788124517074,"lieuJ_initial":"ORAN","assuranceRmFin":"2026-07-03","assuranceTrFin":"2026-07-03","lieuJ1_initial":"ALGER","assuranceRmFileName":null,"assuranceTrFileName":null},{"v":"000732-514-16","km":1398525,"hor":0.5416666666666666,"lat":35.6456,"lng":-0.587986,"obs":"—","cspc":false,"etat":"DISPONIBLE","prog":"","type":"TRACTEUR","equip":"OK","lieuJ":"CHLEF","repos":"","agence":"","geoloc":"ON","lieuJ1":"SKIKDA","affecte":"OUI","progFige":false,"chauffeur":"MAAMAR IDIR","geolocDate":"2026-08-31T12:39:26.000Z","progDepart":"","geoloc_date":"2026-08-16T18:32:11.000Z","_lastEditedTs":1788124504659,"lieuJ_initial":"CHLEF","assuranceRmFin":"2026-07-03","assuranceTrFin":"2026-07-03","lieuJ1_initial":"SKIKDA","assuranceRmFileName":null,"assuranceTrFileName":null},{"v":"000799-523-16","km":338598,"hor":0.4583333333333333,"lat":36.3659,"lng":3.84481,"obs":"—","cspc":false,"etat":"DISPONIBLE","prog":"","type":"TRACTEUR","equip":"OK","lieuJ":"BOUIRA","geoloc":"ON","lieuJ1":"EL BAYADH","affecte":"OUI","chauffeur":"ZEROUALI MOHAMED AMINE","geolocDate":"2026-08-31T12:38:16.000Z","_lastEditedTs":1788122475289,"lieuJ_initial":"BOUIRA","assuranceRmFin":"2026-08-19","assuranceTrFin":"2026-08-19","lieuJ1_initial":"EL BAYADH","assuranceRmFileName":null,"assuranceTrFileName":null},{"v":"000943-523-16","hor":0,"lat":null,"lng":null,"obs":"","etat":"En mission","prog":"","type":"TRACTEUR","equip":"OK","lieuJ":"TLEMCEN","geoloc":"OFF","lieuJ1":"CONSTANTINE","chauffeur":"AMROUCHE ABDELGHANI","geolocDate":null,"lieuJ_initial":"TLEMCEN","assuranceRmFin":"2026-08-31","assuranceTrFin":"2026-08-31","lieuJ1_initial":"CONSTANTINE","assuranceRmFileName":null,"assuranceTrFileName":null},{"v":"001083-514-16","km":1345300,"hor":0.4166666666666667,"lat":36.7362,"lng":5.0598,"obs":"—","cspc":false,"etat":"En panne","prog":"","type":"","equip":"","lieuJ":"BEJAIA","repos":"","agence":"PARTENAIRE_C","geoloc":"ON","lieuJ1":"BOUIRA","affecte":"OUI","progFige":false,"chauffeur":"AMROUCHE ABDELGHANI","geolocDate":"2026-08-31T12:34:47.000Z","progDepart":"","geoloc_date":"2026-08-15","_lastEditedTs":1788183766433,"lieuJ_initial":"BEJAIA","assuranceRmFin":"","assuranceTrFin":"","lieuJ1_initial":"BOUIRA","assuranceRmFileName":null,"assuranceTrFileName":null},{"v":"001154-514-16","km":1225886,"hor":0.375,"lat":35.3852,"lng":-1.09186,"obs":"943 / 3ANDO MANSOURA CONSTANTINE","cspc":false,"etat":"En mission","prog":"","type":"MARAICHER","equip":"","lieuJ":"TLEMCEN","repos":"","agence":"PARTENAIRE_C","geoloc":"ON","lieuJ1":"ANNABA","affecte":"OUI","progFige":false,"chauffeur":"AMROUCHE ABDELGHANI","geolocDate":"2026-08-31T12:39:50.552Z","progDepart":"","geoloc_date":"2026-08-14T19:17:59.936Z","_lastEditedTs":1788185607368,"lieuJ_initial":"NAAMA","lieuJ1_initial":"ANNABA"},{"v":"000473-523-16","km":304303,"hor":0.6666666666666666,"lat":36.865,"lng":7.77488,"obs":"HABATO L ALGER","cspc":false,"etat":"DISPONIBLE","prog":"","type":"TRACTEUR","equip":"","lieuJ":"CONSTANTINE","repos":"","agence":"PARTENAIRE_C","geoloc":"ON","lieuJ1":"BEJAIA","affecte":"OUI","progFige":false,"chauffeur":"AMROUCHE ABDELGHANI","geolocDate":"2026-08-31T12:16:48.000Z","progDepart":"","geoloc_date":"2026-08-15","_lastEditedTs":1788186636899,"lieuJ_initial":"BEJAIA","assuranceRmFin":"2026-07-04","assuranceTrFin":"2026-06-16","lieuJ1_initial":"BEJAIA","assuranceRmFileName":null,"assuranceTrFileName":null},{"v":"000938-514-16","km":1257900,"hor":0.3333333333333333,"lat":36.3658,"lng":3.84657,"obs":"— a con chargment a  bouira","cspc":false,"etat":"En mission","prog":"","type":"","equip":"","lieuJ":"BOUIRA","repos":"","agence":"PARTENAIRE_D","geoloc":"ON","lieuJ1":"RELIZANE","affecte":"OUI","progFige":false,"chauffeur":"BENMEHDIA A/KADER","geolocDate":"2026-08-31T12:37:31.000Z","progDepart":"","geoloc_date":"2026-08-16","_lastEditedTs":1788185489811,"lieuJ_initial":"BEJAIA","assuranceRmFin":"","assuranceTrFin":"","lieuJ1_initial":"BOUIRA","assuranceRmFileName":null,"assuranceTrFileName":null},{"v":"001063-524-16","km":224100,"hor":0,"lat":36.18,"lng":5.46184,"obs":"—","cspc":false,"etat":"DISPONIBLE","prog":"","type":"MARAICHER","equip":"","lieuJ":"SETIF","repos":"","agence":"PARTENAIRE_D","geoloc":"ON","lieuJ1":"SETIF","affecte":"OUI","progFige":false,"chauffeur":"BENMEHDIA A/KADER","geolocDate":"2026-08-31T12:39:50.552Z","progDepart":"","geoloc_date":"2026-08-16","_lastEditedTs":1788185091062,"lieuJ_initial":"ORAN","lieuJ1_initial":"CONSTANTINE"},{"v":"000924-514-16","km":null,"hor":0.4166666666666667,"lat":35.6907,"lng":-0.561498,"obs":"—","cspc":false,"etat":"En mission","prog":"","type":"TRACTEUR","equip":"","lieuJ":"ORAN","repos":"","agence":"","geoloc":"ON","lieuJ1":"BLIDA","affecte":"NON","progFige":false,"chauffeur":"ZIAT RACHID","geolocDate":"2026-08-31T12:38:18.000Z","progDepart":"","geoloc_date":"2026-08-16","_lastEditedTs":1788102621010,"lieuJ_initial":"ORAN","assuranceRmFin":"","assuranceTrFin":"","lieuJ1_initial":"BLIDA","assuranceRmFileName":null,"assuranceTrFileName":null},{"v":"001224-514-16","km":null,"hor":0.8333333333333334,"lat":null,"lng":null,"obs":"","etat":"En panne","prog":"","type":"TRACTEUR","equip":"OK","lieuJ":"BEJAIA","geoloc":"OFF","lieuJ1":"—","affecte":"NON","chauffeur":"DJOUAD ABDELHAFID","geolocDate":"2026-05-18T19:31:52.000Z","lieuJ_initial":"BEJAIA","assuranceRmFin":"2026-09-01","assuranceTrFin":"2026-09-01","lieuJ1_initial":"—","assuranceRmFileName":null,"assuranceTrFileName":null},{"v":"000988-514-16","km":null,"hor":0.8333333333333334,"lat":36.6909,"lng":4.9271,"obs":"","etat":"En panne","prog":"","type":"TRACTEUR","equip":"OK","lieuJ":"BEJAIA","geoloc":"ON","lieuJ1":"—","affecte":"NON","chauffeur":"DJOUAD ABDELHAFID","geolocDate":"2026-09-02T13:01:50.000Z","lieuJ_initial":"BEJAIA","assuranceRmFin":"2026-09-01","assuranceTrFin":"2026-09-01","lieuJ1_initial":"—","assuranceRmFileName":null,"assuranceTrFileName":null}],
-  pannes: [
-    {date:'2026-04-08',chauffeur:'KEBIR DANI SAID',immat:'000321-516-16',type:'TRACTEUR',di:'DI2604003168',desc:"LES VAGUES TRIE TRACTEUR (remplacement d'un camion si c'est possible)",cet:'ABDO .D',rex:'SIDALI.D'},
-    {date:'2026-04-08',chauffeur:'FEROUDJ NABIL',immat:'001273-514-16',type:'TRACTEUR',di:'DI2603001390',desc:"façade avant (Doté d'un camion de remplacement 000372)",cet:'ABDO .D',rex:'SIDALI.D'},
-    {date:'2026-04-08',chauffeur:'DJOUAD ABDELHAFID',immat:'001397-813-16',type:'REMORQUE',di:'DI2604004518',desc:'vérification essieu',cet:'ABDO .D',rex:'SIDALI.D'},
-    {date:'2026-04-08',chauffeur:'BOUDRISSA RABAH',immat:'000900-514-16',type:'TRACTEUR',di:'DI2605005059',desc:"vérification fuite d'huile + vérification manque de pression",cet:'ABDO .D',rex:'SIDALI.D'},
-    {date:'2026-04-09',chauffeur:'YAHIAOUI DJAMEL',immat:'001234-514-16',type:'TRACTEUR',di:'DI2605005142',desc:"changement de 4 disc de frein + changement de plaque de frein + dotation de 2 batterie + changement de flexible d'huile",cet:'ABDO .D',rex:'SIDALI.D'},
-    {date:'2026-04-09',chauffeur:'TABLI CHAFIK',immat:'000091-823-16',type:'REMORQUE',di:'DI2605005143',desc:'vérification remorque inclinée + vérification ballon soir',cet:'ABDO .D',rex:'SIDALI.D'},
-  ],
-  nc: [
-    {n:1,sharik:'DJOUAD ABDELHAFID',fausse:'',chgt:'LES EUCALIPTUS-BBA',refus:'',date:'2026-02-22',mise:'',commission:''},
-    {n:2,sharik:'BEMASSAOUD ADEL',fausse:'',chgt:'BECHAR-HASSI MESSAOUD',refus:'',date:'2026-02-23',mise:'',commission:''},
-    {n:3,sharik:'FEROUDJ NABIL',fausse:'',chgt:'ORAN- MANSOURA',refus:'',date:'2026-02-27',mise:'',commission:''},
-    {n:4,sharik:'RAHAL YAHIA',fausse:'',chgt:'TEBESSA- SAIDA',refus:'',date:'2026-02-28',mise:'',commission:''},
-    {n:5,sharik:'HADJ MOUSSA NOURDDINE',fausse:'',chgt:'MANSOURA-ORAN',refus:'',date:'2026-03-01',mise:'',commission:''},
-    {n:6,sharik:'DJOUAD ABDELHAFID',fausse:'',chgt:'LAGHOUAT-ORAN',refus:'',date:'2026-02-28',mise:'',commission:''},
-    {n:7,sharik:'BEMASSAOUD ADEL',fausse:'',chgt:'',refus:'départ de LLK',date:'2024-12-28',mise:'',commission:''},
-    {n:8,sharik:'BELAHDJAR TOUFIK',fausse:'',chgt:'SAIDA-ALGER',refus:'',date:'2026-03-02',mise:'',commission:''},
-    {n:9,sharik:'DJOUAD ABDELHAFID',fausse:'',chgt:'',refus:'ORAN-TIARET',date:'2026-03-01',mise:'',commission:''},
-    {n:10,sharik:'RAHAL YAHIA',fausse:'',chgt:'FRUITAL-SAIDA',refus:'',date:'2026-03-05',mise:'',commission:''},
-    {n:11,sharik:'TABLI CHAFIK',fausse:'',chgt:'NAAMA - ALGER',refus:'',date:'2026-04-14',mise:'',commission:''},
-    {n:12,sharik:'DJOUAD ABDELHAFID',fausse:'',chgt:'LAFHOUAT - ALGER',refus:'',date:'2026-03-08',mise:'',commission:''},
-    {n:13,sharik:'DJOUAD ABDELHAFID',fausse:'',chgt:'EL BAYADH - ALGER',refus:'',date:'2026-03-08',mise:'',commission:''},
-    {n:14,sharik:'RAHAL YAHIA',fausse:'',chgt:'CONSTANTINE - DJELFA',refus:'',date:'2026-03-09',mise:'',commission:''},
-    {n:15,sharik:'NEGHZA AMAR',fausse:'',chgt:'DJELFA - BBA',refus:'',date:'2026-03-09',mise:'',commission:''},
-    {n:16,sharik:'NEGHZA AMAR',fausse:'',chgt:'BBA-RELIZANE',refus:'',date:'2026-04-17',mise:'',commission:''},
-    {n:17,sharik:'BELASKEM MOUHAMED',fausse:'',chgt:'ORAN-SETIF',refus:'',date:'2026-03-11',mise:'',commission:''},
-    {n:18,sharik:'FEROUDJ NABIL',fausse:'',chgt:'ORAN - HASSI MESSAOUD',refus:'',date:'2026-03-12',mise:'',commission:''},
-    {n:19,sharik:'KHELIF RACHID',fausse:'',chgt:'ORAN - AIN TEMOUCHENT',refus:'',date:'2026-03-12',mise:'',commission:''},
-    {n:20,sharik:'YAHIAOUI DJAMEL',fausse:'',chgt:'RELIZANE-KHEMIS EL KHECHNA',refus:'',date:'2026-03-14',mise:'',commission:''},
-    {n:21,sharik:'DJOUAD ABDELHAFID',fausse:'',chgt:'ADRAR-RELIZAN',refus:'',date:'2026-03-14',mise:'',commission:''},
-    {n:22,sharik:'NEGHZA AMAR',fausse:'',chgt:'MAGHNIA-BATNA',refus:'',date:'2026-03-15',mise:'',commission:''},
-    {n:23,sharik:'BELAHDJAR TOUFIK',fausse:'',chgt:'CONSTANTINE-SAIDA',refus:'',date:'2026-03-21',mise:'',commission:''},
-    {n:24,sharik:'BOUDRISSA RABAH',fausse:'',chgt:'DJELFA - ORAN',refus:'',date:'2026-03-21',mise:'',commission:''},
-    {n:25,sharik:'NEGHZA AMAR',fausse:'',chgt:'SETIF-CHLEF',refus:'',date:'2026-03-21',mise:'',commission:''},
-    {n:26,sharik:'DJOUAD ABDELHAFID',fausse:'',chgt:'LAGHOUAT-ORAN',refus:'',date:'2026-04-22',mise:'',commission:''},
-    {n:27,sharik:'TABLI CHAFIK',fausse:'',chgt:'ORAN - ALGER',refus:'',date:'2026-03-25',mise:'',commission:''},
-    {n:28,sharik:'TABLI CHAFIK',fausse:'',chgt:'MOSTAGANEM-BOUIRA',refus:'',date:'2026-03-25',mise:'',commission:''},
-    {n:29,sharik:'DJOUAD ABDELHAFID',fausse:'',chgt:'TLEMCEN-MOSTAGANEM',refus:'',date:'2026-03-25',mise:'',commission:''},
-    {n:30,sharik:'DJOUAD ABDELHAFID',fausse:'',chgt:'',refus:'départ de HASSI-AMEUR',date:'2026-03-25',mise:'',commission:''},
-    {n:31,sharik:'DJOUAD ABDELHAFID',fausse:'',chgt:'ORAN-BEJAIA',refus:'',date:'2026-03-26',mise:'',commission:''},
-    {n:32,sharik:'RAHAL YAHIA',fausse:'',chgt:'ORAN-BOUIRA',refus:'',date:'2026-04-08',mise:'',commission:''},
-  ],
-  gasoil: [
-    {date:'2026-04-09',vehicule:'001079-514-16',station:'PARTNER ALGER',chauffeur:'TABLI CHAFIK',type:'Interne',operation:'PLEIN',resp:'DAHOUMANE ABDESLEM'},
-    {date:'2026-04-09',vehicule:'000920-523-16',station:'PARTNER ALGER',chauffeur:'TABLI CHAFIK',type:'Interne',operation:'PLEIN',resp:'DAHOUMANE ABDESLEM'},
-    {date:'2026-04-09',vehicule:'001047-524-16',station:'PARTNER ALGER',chauffeur:'TABLI CHAFIK',type:'Interne',operation:'PLEIN',resp:'DAHOUMANE ABDESLEM'},
-    {date:'2026-04-09',vehicule:'000379-516-16',station:'PARTNER ALGER',chauffeur:'LABDI HABIB',type:'Interne',operation:'PLEIN',resp:'DAHOUMANE ABDESLEM'},
-    {date:'2026-04-09',vehicule:'001075-514-16',station:'PARTNER ALGER',chauffeur:'LABDI HABIB',type:'Interne',operation:'PLEIN',resp:'DAHOUMANE ABDESLEM'},
-    {date:'2026-04-09',vehicule:'000816-524-16',station:'PARTNER ALGER',chauffeur:'DECHIR MUSTAPHA',type:'Interne',operation:'PLEIN',resp:'DAHOUMANE ABDESLEM'},
-  ],
-  equip: [
-    {n:1,sharik:'BELAHDJER TOUFIK',tr:'000791-524-16',rm:'000551-824-16',barre:'OUI',cable:'OUI',tel:'770309257'},
-    {n:2,sharik:'BELAHDJER TOUFIK',tr:'000914-514-16',rm:'000256-816-16',barre:'OUI',cable:'OUI',tel:'770309257'},
-    {n:3,sharik:'BELAHDJER TOUFIK',tr:'000848-514-16',rm:'000731-814-16',barre:'OUI',cable:'OUI',tel:'770309257'},
-    {n:4,sharik:'BELSKEM MOUHAMED',tr:'001060-514-16',rm:'000469-816-16',barre:'OUI',cable:'NON',tel:'782399030'},
-    {n:5,sharik:'BENMASSAOUD ADEL',tr:'001006-514-16',rm:'000351-816-16',barre:'OUI',cable:'OUI',tel:'770143524'},
-    {n:6,sharik:'BOUDRISSA RABAH',tr:'000692-524-16',rm:'000655-824-16',barre:'NON',cable:'OUI',tel:'770999163'},
-    {n:7,sharik:'BOUDRISSA RABAH',tr:'001076-524-16',rm:'000633-824-16',barre:'NON',cable:'OUI',tel:'770999163'},
-    {n:8,sharik:'BOUDRISSA RABAH',tr:'000313-516-16',rm:'000377-816-16',barre:'NON',cable:'OUI',tel:'770999163'},
-    {n:9,sharik:'BOUDRISSA RABAH',tr:'000900-514-16',rm:'000488-814-16',barre:'NON',cable:'OUI',tel:'770999163'},
-    {n:10,sharik:'BOUDRISSA RABAH',tr:'000422-523-16',rm:'000777-823-16',barre:'NON',cable:'NON',tel:'780806418'},
-    {n:11,sharik:'BOUDRISSA RABAH',tr:'000870-523-16',rm:'000790-823-16',barre:'NON',cable:'NON',tel:'780806418'},
-    {n:12,sharik:'DACHIR MUSTAPHA',tr:'001417-513-16',rm:'001642-813-16',barre:'OUI',cable:'OUI',tel:'780806418'},
-    {n:13,sharik:'DACHIR MUSTAPHA',tr:'000974-514-16',rm:'000708-814-16',barre:'NON',cable:'OUI',tel:'780806418'},
-    {n:14,sharik:'DACHIR MUSTAPHA',tr:'000816-524-16',rm:'000697-824-16',barre:'OUI',cable:'OUI',tel:'782203059'},
-    {n:15,sharik:'DACHIR MUSTAPHA',tr:'001059-524-16',rm:'000668-824-16',barre:'OUI',cable:'OUI',tel:'782203059'},
-    {n:16,sharik:'DECHIR MUSTAPHA',tr:'001032-523-16',rm:'000378-823-16',barre:'NON',cable:'NON',tel:'782203059'},
-    {n:17,sharik:'DJOUAD ABDELHAFID',tr:'000718-524-16',rm:'000587-824-16',barre:'OUI',cable:'OUI',tel:'770140663'},
-    {n:18,sharik:'DJOUAD ABDELHAFID',tr:'001224-514-16',rm:'001397-813-16',barre:'OUI',cable:'OUI',tel:'770140663'},
-    {n:19,sharik:'DJOUAD ABDELHAFID',tr:'000988-514-16',rm:'000795-814-16',barre:'OUI',cable:'OUI',tel:'782547991'},
-    {n:20,sharik:'FEROUDJ NABIL',tr:'001273-514-16',rm:'',barre:'NON',cable:'NON',tel:'770142867'},
-    {n:21,sharik:'FERROUDJ NABIL',tr:'000372-516-16',rm:'000656-814-16',barre:'OUI',cable:'OUI',tel:'770141236'},
-    {n:22,sharik:'KEBIR DANI SAID',tr:'000321-516-16',rm:'000287-816-16',barre:'NON',cable:'NON',tel:'770141236'},
-    {n:23,sharik:'LAAMARA REDHA',tr:'001127-514-16',rm:'001259-814-16',barre:'NON',cable:'NON',tel:'656201321'},
-    {n:24,sharik:'LABDI HABIB 2',tr:'001075-514-16',rm:'000388-816-16',barre:'OUI',cable:'OUI',tel:'656201321'},
-    {n:25,sharik:'LABDI HABIB 2',tr:'000379-516-16',rm:'000783-814-16',barre:'OUI',cable:'OUI',tel:'656201321'},
-    {n:26,sharik:'MAAMAR IDIR',tr:'001228-514-16',rm:'000718-814-16',barre:'NON',cable:'NON',tel:'662290097'},
-    {n:27,sharik:'NAGHZA AMAR',tr:'000788-524-16',rm:'000553-824-16',barre:'NON',cable:'OUI',tel:'780806414'},
-    {n:28,sharik:'NAGHZA AMAR',tr:'000364-516-16',rm:'000565-814-16',barre:'OUI',cable:'OUI',tel:'770429581'},
-    {n:29,sharik:'NAGHZA AMAR',tr:'001125-514-16',rm:'000658-814-16',barre:'NON',cable:'NON',tel:'770429581'},
-    {n:41,sharik:'NAGHZA AMAR',tr:'000939-523-16',rm:'000382-823-16',barre:'NON',cable:'NON',tel:'770429581'},
-    {n:42,sharik:'NAGHZA AMAR',tr:'000945-523-16',rm:'000819-823-16',barre:'NON',cable:'NON',tel:'770437136'},
-    {n:30,sharik:'NOURREDINE HADJ MOUSSA',tr:'000772-515-16',rm:'000660-814-16',barre:'NON',cable:'NON',tel:'770437136'},
-    {n:31,sharik:'RACHID KHELLIF',tr:'000890-514-16',rm:'000531-814-16',barre:'NON',cable:'NON',tel:'770747191'},
-    {n:32,sharik:'RAHAL YAHIA',tr:'000423-516-16',rm:'000216-816-16',barre:'OUI',cable:'OUI',tel:'770813925'},
-    {n:33,sharik:'RHOUI HABIB',tr:'000926-514-16',rm:'001261-814-16',barre:'NON',cable:'NON',tel:'782203133'},
-    {n:34,sharik:'ROUABHIA KHALED',tr:'000774-515-16',rm:'000340-816-16',barre:'NON',cable:'NON',tel:'696964682'},
-    {n:35,sharik:'TABLI CHAFIK',tr:'001079-514-16',rm:'000525-814-16',barre:'NON',cable:'OUI',tel:'770143705'},
-    {n:'',sharik:'TABLI CHAFIK',tr:'000916-523-16',rm:'000086-823-16',barre:'NON',cable:'NON',tel:'770429581'},
-    {n:'',sharik:'TABLI CHAFIK',tr:'000920-523-16',rm:'000091-823-16',barre:'NON',cable:'NON',tel:'770429581'},
-    {n:36,sharik:'TABLI CHAFIK',tr:'001047-524-16',rm:'000642-824-16',barre:'NON',cable:'OUI',tel:'770429581'},
-    {n:37,sharik:'TABLI CHAFIK',tr:'001045-524-16',rm:'000647-824-16',barre:'NON',cable:'OUI',tel:'770429581'},
-    {n:38,sharik:'TOUMI NACER',tr:'001044-514-16',rm:'000215-816-16',barre:'NON',cable:'NON',tel:'770429581'},
-    {n:39,sharik:'YAHIAOUI DJAMEL',tr:'001234-514-16',rm:'000773-814-16',barre:'OUI',cable:'OUI',tel:'799240954'},
-    {n:40,sharik:'YAHIAOUI DJAMEL',tr:'000363-516-16',rm:'000627-814-16',barre:'OUI',cable:'OUI',tel:'799240954'},
-  ],
-  activite: [
-    {sharik:'BELAHDJER TOUFIK',tr:'000848-514-16',rm:'000256-816-16',debut:'2025-08-02',fin:'',ext:'EXTENSION',site:'BEJAIA',etatTR:'opérationnel',actif:'actif',obs:''},
-    {sharik:'BELAHDJER TOUFIK',tr:'000791-524-16',rm:'000551-824-16',debut:'2025-08-24',fin:'',ext:'',site:'BEJAIA',etatTR:'opérationnel',actif:'actif',obs:''},
-    {sharik:'BELAHDJER TOUFIK',tr:'000914-514-16',rm:'000731-814-16',debut:'',fin:'',ext:'',site:'BEJAIA',etatTR:'opérationnel',actif:'actif',obs:''},
-    {sharik:'BELESKAM MOHAMED',tr:'001060-514-16',rm:'000469-816-16',debut:'',fin:'',ext:'',site:'BOUIRA',etatTR:'opérationnel',actif:'actif',obs:''},
-    {sharik:'BELKACEMI MED',tr:'',rm:'',debut:'2026-01-12',fin:'2026-04-26',ext:'',site:'BEJAIA',etatTR:'',actif:'actif',obs:''},
-    {sharik:'BEN MESSAOUD ADEL',tr:'001066-514-16',rm:'000666-814-16',debut:'',fin:'',ext:'',site:'BEJAIA',etatTR:'opérationnel',actif:'actif',obs:''},
-    {sharik:'BOUDRISSA RABAH',tr:'001076-524-16',rm:'000655-824-16',debut:'2025-05-06',fin:'',ext:'EXTENSION',site:'BEJAIA',etatTR:'opérationnel',actif:'actif',obs:''},
-    {sharik:'BOUDRISSA RABAH',tr:'000900-514-16',rm:'000488-814-16',debut:'',fin:'',ext:'',site:'BEJAIA',etatTR:'opérationnel',actif:'actif',obs:''},
-    {sharik:'BOUDRISSA RABAH',tr:'000692-524-16',rm:'000633-824-16',debut:'2025-08-21',fin:'',ext:'',site:'BEJAIA',etatTR:'opérationnel',actif:'actif',obs:''},
-    {sharik:'BOUDRISSA RABAH',tr:'000313-516-16',rm:'000377-816-16',debut:'2026-04-05',fin:'',ext:'',site:'BEJAIA',etatTR:'opérationnel',actif:'actif',obs:''},
-    {sharik:'BOUKHEDIMI MOHAMED',tr:'000890-514-16',rm:'000531-814-16',debut:'',fin:'',ext:'',site:'SETIF',etatTR:'opérationnel',actif:'actif',obs:''},
-    {sharik:'DECHIR MUSTAPHA',tr:'001417-513-16',rm:'001642-813-16',debut:'2025-08-22',fin:'',ext:'EXTENSION',site:'BEJAIA',etatTR:'opérationnel',actif:'actif',obs:''},
-    {sharik:'DECHIR MUSTAPHA',tr:'000974-514-16',rm:'000708-814-16',debut:'',fin:'',ext:'',site:'BEJAIA',etatTR:'opérationnel',actif:'actif',obs:''},
-    {sharik:'DECHIR MUSTAPHA',tr:'001059-524-16',rm:'000688-824-16',debut:'2025-05-06',fin:'',ext:'',site:'BEJAIA',etatTR:'opérationnel',actif:'actif',obs:''},
-    {sharik:'DECHIR MUSTAPHA',tr:'000816-524-16',rm:'000697-824-16',debut:'2025-10-07',fin:'',ext:'',site:'BEJAIA',etatTR:'opérationnel',actif:'actif',obs:''},
-    {sharik:'DJOUAD ABDELHAFID',tr:'001224-514-16',rm:'001397-813-16',debut:'2025-08-20',fin:'',ext:'EXTENSION',site:'BOUIRA',etatTR:'opérationnel',actif:'actif',obs:''},
-    {sharik:'DJOUAD ABDELHAFID',tr:'000718-524-16',rm:'000587-824-16',debut:'2025-08-30',fin:'',ext:'',site:'BOUIRA',etatTR:'opérationnel',actif:'actif',obs:''},
-    {sharik:'DJOUAD ABDELHAFID',tr:'000988-514-16',rm:'000795-814-16',debut:'',fin:'',ext:'',site:'BOUIRA',etatTR:'opérationnel',actif:'actif',obs:''},
-    {sharik:'FERROUDJ NABIL',tr:'000772-516-16',rm:'',debut:'2026-02-19',fin:'',ext:'',site:'BEJAIA',etatTR:'opérationnel',actif:'actif',obs:''},
-    {sharik:'HADJ MOUSSA NOURREDINE',tr:'000772-516-16',rm:'000467-816-16',debut:'',fin:'',ext:'',site:'',etatTR:'opérationnel',actif:'actif',obs:''},
-    {sharik:'LABDI HABIB',tr:'000379-516-16',rm:'000388-816-16',debut:'2025-11-25',fin:'',ext:'EXTENSION',site:'BOUIRA',etatTR:'opérationnel',actif:'actif',obs:''},
-    {sharik:'LABDI HABIB',tr:'001075-514-16',rm:'000783-814-16',debut:'',fin:'',ext:'',site:'BOUIRA',etatTR:'opérationnel',actif:'actif',obs:''},
-    {sharik:'NEGHZA AMAR',tr:'000788-524-16',rm:'000553-824-16',debut:'2025-08-21',fin:'',ext:'EXTENSION',site:'SETIF',etatTR:'opérationnel',actif:'actif',obs:''},
-    {sharik:'NEGHZA AMAR',tr:'000364-516-16',rm:'000565-814-16',debut:'2025-09-19',fin:'',ext:'',site:'SETIF',etatTR:'opérationnel',actif:'actif',obs:''},
-    {sharik:'NEGHZA AMAR',tr:'001125-514-16',rm:'000658-814-16',debut:'',fin:'',ext:'',site:'SETIF',etatTR:'opérationnel',actif:'actif',obs:''},
-    {sharik:'RAHAL YAHIA',tr:'000423-516-16',rm:'000216-816-16',debut:'2025-12-29',fin:'',ext:'',site:'BOUIRA',etatTR:'opérationnel',actif:'actif',obs:''},
-    {sharik:'TABLI CHAFIK',tr:'001079-514-16',rm:'000525-814-16',debut:'2026-01-12',fin:'',ext:'EXTENSION',site:'BEJAIA',etatTR:'opérationnel',actif:'actif',obs:''},
-    {sharik:'TABLI CHAFIK',tr:'001045-524-16',rm:'000647-824-16',debut:'2025-05-06',fin:'',ext:'',site:'BEJAIA',etatTR:'opérationnel',actif:'actif',obs:''},
-    {sharik:'TABLI CHAFIK',tr:'001047-524-16',rm:'000642-824-16',debut:'2026-01-12',fin:'',ext:'',site:'BEJAIA',etatTR:'opérationnel',actif:'actif',obs:''},
-    {sharik:'DANI KEBIR SAID',tr:'000321-516-16',rm:'001259-814-16',debut:'2026-02-08',fin:'',ext:'',site:'BOUIRA',etatTR:'opérationnel',actif:'',obs:''},
-    {sharik:'YAHIAOUI DJAMAL',tr:'000363-516-16',rm:'000226-816-16',debut:'2025-11-18',fin:'',ext:'EXTENSION',site:'BOUIRA',etatTR:'opérationnel',actif:'actif',obs:''},
-    {sharik:'YAHIAOUI DJAMAL',tr:'001234-514-16',rm:'000627-814-16',debut:'',fin:'',ext:'',site:'BOUIRA',etatTR:'opérationnel',actif:'actif',obs:''},
-    {sharik:'TOUMI NACER',tr:'001044-514-16',rm:'000215-816-16',debut:'',fin:'',ext:'Réintégration',site:'SETIF',etatTR:'opérationnel',actif:'affecté à la flotte propre',obs:''},
-    {sharik:'',tr:'001228-514-16',rm:'',debut:'',fin:'',ext:'',site:'',etatTR:'opérationnel',actif:'',obs:''},
-    {sharik:'RHOUI HABIB',tr:'000926-514-16',rm:'001261-814-16',debut:'',fin:'',ext:'Réintégration',site:'',etatTR:'opérationnel',actif:'',obs:''},
-    {sharik:'LAMARA REDHA',tr:'001127-514-16',rm:'001259-814-16',debut:'',fin:'',ext:'extension',site:'',etatTR:'opérationnel',actif:'',obs:''},
-  ],
-  bl: [
-    {chauffeur:'BELAHDJER TOUFIK',mars:'',avril:'déposer',mai:'',juin:'',juil:'',aout:'',sep:'',oct:'',nov:'',dec:''},
-    {chauffeur:'BOUKHDEMMI',mars:'',avril:'',mai:'',juin:'',juil:'',aout:'',sep:'',oct:'',nov:'',dec:''},
-    {chauffeur:'BENMASSAOUD ADEL',mars:'',avril:'déposer',mai:'',juin:'',juil:'',aout:'',sep:'',oct:'',nov:'',dec:''},
-    {chauffeur:'BOUDRISSA',mars:'',avril:'déposer',mai:'',juin:'',juil:'',aout:'',sep:'',oct:'',nov:'',dec:''},
-    {chauffeur:'DACHIR MUSTAPHA',mars:'',avril:'déposer',mai:'',juin:'',juil:'',aout:'',sep:'',oct:'',nov:'',dec:''},
-    {chauffeur:'DJOUAD ABDELHAFID',mars:'',avril:'déposer',mai:'',juin:'',juil:'',aout:'',sep:'',oct:'',nov:'',dec:''},
-    {chauffeur:'HADJ MOUSSA',mars:'',avril:'déposer',mai:'',juin:'',juil:'',aout:'',sep:'',oct:'',nov:'',dec:''},
-    {chauffeur:'KEBIR DANI SAID',mars:'',avril:'camion en panne',mai:'',juin:'',juil:'',aout:'',sep:'',oct:'',nov:'',dec:''},
-    {chauffeur:'KHALIF RASHID',mars:'',avril:'déposer',mai:'',juin:'',juil:'',aout:'',sep:'',oct:'',nov:'',dec:''},
-    {chauffeur:'MOHAMED BELESKAM',mars:'',avril:'',mai:'',juin:'',juil:'',aout:'',sep:'',oct:'',nov:'',dec:''},
-    {chauffeur:'NAGHZA AMAR',mars:'',avril:'déposer',mai:'',juin:'',juil:'',aout:'',sep:'',oct:'',nov:'',dec:''},
-    {chauffeur:'TABLI',mars:'',avril:'déposer',mai:'',juin:'',juil:'',aout:'',sep:'',oct:'',nov:'',dec:''},
-    {chauffeur:'LABDI HABIB 2',mars:'',avril:'déposer',mai:'',juin:'',juil:'',aout:'',sep:'',oct:'',nov:'',dec:''},
-    {chauffeur:'YAHIAOUI DJAMEL',mars:'',avril:'déposer',mai:'',juin:'',juil:'',aout:'',sep:'',oct:'',nov:'',dec:''},
-    {chauffeur:'RAHAL YAHIA',mars:'',avril:'déposer',mai:'',juin:'',juil:'',aout:'',sep:'',oct:'',nov:'',dec:''},
-    {chauffeur:'FERROUDJ NABIL',mars:'',avril:'déposer',mai:'',juin:'',juil:'',aout:'',sep:'',oct:'',nov:'',dec:''},
-    {chauffeur:'LAAMARA REDHA',mars:'',avril:'',mai:'',juin:'',juil:'',aout:'',sep:'',oct:'',nov:'',dec:''},
-    {chauffeur:'MAAMAR IDIR',mars:'',avril:'',mai:'',juin:'',juil:'',aout:'',sep:'',oct:'',nov:'',dec:''},
-    {chauffeur:'RHOUI HABIB',mars:'',avril:'',mai:'',juin:'',juil:'',aout:'',sep:'',oct:'',nov:'',dec:''},
-    {chauffeur:'ROUABHIA KHALED',mars:'',avril:'',mai:'',juin:'',juil:'',aout:'',sep:'',oct:'',nov:'',dec:''},
-    {chauffeur:'TOUMI NACER',mars:'',avril:'',mai:'',juin:'',juil:'',aout:'',sep:'',oct:'',nov:'',dec:''},
-  ],
-  odo_weeks: ['2026-01-21','2026-01-31','2026-02-07','2026-02-14','2026-02-19','2026-02-28','2026-03-07','2026-03-14','2026-03-22'],
-  odo: [
-    {v:'000791-524-16',chauffeur:'BELAHDJER TOUFIK',vals:[175229,181313,184627,187762,190594,194270,null,null,null]},
-    {v:'000914-514-16',chauffeur:'BELAHDJER TOUFIK',vals:[1242816,1247712,1250385,1252328,1254429,1256199,null,null,null]},
-    {v:'000848-514-16',chauffeur:'BELAHDJER TOUFIK',vals:[995718,1000602,1003733,1006044,1009103,1012529,null,null,null]},
-    {v:'001006-514-16',chauffeur:'BENMASSAOUD ADEL',vals:[1099945,1105340,1107354,1107354,1108416,1111545,null,null,null]},
-    {v:'000692-524-16',chauffeur:'BOUDRISSA',vals:[161361,166644,168555,171168,174662,177579,null,null,null]},
-    {v:'001076-524-16',chauffeur:'BOUDRISSA',vals:[164249,169282,172951,176500,179947,182948,null,null,null]},
-    {v:'000313-516-16',chauffeur:'BOUDRISSA',vals:[1005508,1009026,1011692,1014760,1017837,1021280,null,null,null]},
-    {v:'000900-514-16',chauffeur:'BOUDRISSA',vals:[1280289,1281639,1282515,1284782,1288131,1290512,null,null,null]},
-    {v:'000422-523-16',chauffeur:'BOUDRISSA',vals:[null,null,null,null,247000,249864,null,null,null]},
-    {v:'000870-523-16',chauffeur:'BOUDRISSA',vals:[null,null,null,null,261000,263453,null,null,null]},
-    {v:'000890-514-16',chauffeur:'RASHID KHELIF',vals:[1198252,1198494,1199147,1200428,1202580,1205012,null,null,null]},
-    {v:'001417-513-16',chauffeur:'DACHIR',vals:[1111176,1116893,1119617,1123528,1126559,1129689,null,null,null]},
-    {v:'000974-514-16',chauffeur:'DACHIR',vals:[1274048,1280101,1283790,1284827,1288215,1291926,null,null,null]},
-    {v:'000816-524-16',chauffeur:'DACHIR',vals:[168882,174436,177423,180973,183770,187558,null,null,null]},
-    {v:'001059-524-16',chauffeur:'DACHIR',vals:[163183,168693,171244,173919,176633,179283,null,null,null]},
-    {v:'001032-523-16',chauffeur:'DACHIR',vals:[null,null,null,null,236104,238006,null,null,null]},
-    {v:'000718-524-16',chauffeur:'DJOUAD ABDELHAFID',vals:[201025,209729,212770,217668,219409,223365,null,null,null]},
-    {v:'001224-514-16',chauffeur:'DJOUAD ABDELHAFID',vals:[932601,937671,940368,945276,946639,944974,null,null,null]},
-    {v:'000988-514-16',chauffeur:'DJOUAD ABDELHAFID',vals:[857696,857696,857696,857676,857696,957696,null,null,null]},
-    {v:'000372-516-16',chauffeur:'FEROUDJ NABIL',vals:[1112847,1117487,1117642,null,1123709,1129670,null,null,null]},
-    {v:'000772-515-16',chauffeur:'HADJ MOUSSA',vals:[1107513,1112581,1114816,1116291,1118441,1122077,null,null,null]},
-    {v:'000321-516-16',chauffeur:'KEBIR DANI SAID',vals:[1079105,1081435,1081435,1081434,1081435,1081435,null,null,null]},
-    {v:'001044-514-16',chauffeur:'TOUMI NACER',vals:[0,null,null,1137831,1137925,1140214,null,null,null]},
-    {v:'001075-514-16',chauffeur:'LABDI HABIB 2',vals:[1268459,1261301,1272525,1275255,1277093,1280396,null,null,null]},
-    {v:'000379-516-16',chauffeur:'LABDI HABIB 2',vals:[971119,975929,977752,979006,981789,985442,null,null,null]},
-    {v:'001060-514-16',chauffeur:'MOHAMED BELESKAM',vals:[1239151,1241580,1244667,1247330,1249300,1251784,null,null,null]},
-    {v:'000788-524-16',chauffeur:'NAGHZA AMAR',vals:[168323,173327,null,null,180947,184824,null,null,null]},
-    {v:'000364-516-16',chauffeur:'NAGHZA AMAR',vals:[1055073,1057497,null,1063897,1065959,1069264,null,null,null]},
-    {v:'001125-514-16',chauffeur:'NAGHZA AMAR',vals:[0,null,null,0,0,null,null,null,null]},
-    {v:'000939-523-16',chauffeur:'NAGHZA AMAR',vals:[null,null,null,null,220148,223089,null,null,null]},
-    {v:'000945-523-16',chauffeur:'NAGHZA AMAR',vals:[null,null,null,null,250484,252752,null,null,null]},
-    {v:'000423-516-16',chauffeur:'RAHAL YAHIA',vals:[1067085,1073373,1076239,1078494,1081643,1085357,null,null,null]},
-    {v:'001047-524-16',chauffeur:'TABLI',vals:[137280,143218,146128,146128,148894,152680,null,null,null]},
-    {v:'001045-524-16',chauffeur:'TABLI',vals:[167568,172762,174804,177450,181604,183237,null,null,null]},
-    {v:'001079-514-16',chauffeur:'TABLI',vals:[1428038,1433318,1437982,1439748,1443228,1446789,null,null,null]},
-    {v:'000916-523-16',chauffeur:'TABLI',vals:[0,null,null,null,258639,259384,null,null,null]},
-    {v:'000920-523-16',chauffeur:'TABLI',vals:[0,null,null,null,247626,250097,null,null,null]},
-    {v:'000774-515-16',chauffeur:'YAHIAOUI DJAMEL',vals:[1198700,null,null,1202698,1202698,0,null,null,null]},
-    {v:'000363-516-16',chauffeur:'YAHIAOUI DJAMEL 2',vals:[1038657,1011374,1011374,1051406,1053692,1059741,null,null,null]},
-    {v:'001234-514-16',chauffeur:'YAHIAOUI DJAMEL 3',vals:[1234217,1149234,1149234,1234217,1235244,1237518,null,null,null]},
-    {v:'001273-514-16',chauffeur:'',vals:[0,null,null,1184070,1184070,0,null,null,null]},
-    {v:'001228-514-16',chauffeur:'MAAMAR IDIR',vals:[0,null,null,0,0,0,null,null,null]},
-    {v:'000926-514-16',chauffeur:'RHOUI HABIB',vals:[0,null,null,0,0,0,null,null,null]},
-    {v:'001127-514-16',chauffeur:'LAAMARA REDHA',vals:[0,null,null,0,0,0,null,null,null]},
-  ],
-  cspc: [
-    {v:'000422-523-16',etat:'DISPONIBLE',chauffeur:'BOUDRISSA RABAH',hor:0.458,lieuJ:'TIZI OUZOU',lieuJ1:'TLEMCEN',equip:'OK',prog:'CSPC'},
-    {v:'000816-524-16',etat:'DISPONIBLE',chauffeur:'DACHIR MUSTAPHA',hor:0.458,lieuJ:'BOUIRA',lieuJ1:'MAGHNIA',equip:'OK',prog:'CSPC'},
-    {v:'001032-523-16',etat:'DISPONIBLE',chauffeur:'DACHIR MUSTAPHA',hor:0.542,lieuJ:'TIZI OUZOU',lieuJ1:'ORAN',equip:'OK',prog:'CSPC'},
-    {v:'000364-516-16',etat:'DISPONIBLE',chauffeur:'NAGHZA AMAR',hor:0.75,lieuJ:'BOUIRA',lieuJ1:'GUELMA',equip:'OK',prog:'CSPC'},
-    {v:'000945-523-16',etat:'DISPONIBLE',chauffeur:'NAGHZA AMAR',hor:0.5,lieuJ:'BORDJ BOU ARRERIDJ',lieuJ1:'SKIKDA',equip:'OK',prog:'CSPC'},
-  ],
-};
+const INITIAL_DATA_E = emptyTeamData();
+const INITIAL_DATA_F = emptyTeamData();
+const INITIAL_DATA = emptyTeamData();
 window.INITIAL_DATA = INITIAL_DATA;
 
-
-
-// ═══════════════════════════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 // STATE
-// ═══════════════════════════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 window.INITIAL_DATA = INITIAL_DATA;
 let DB = {};
 let ARCHIVES = {};
@@ -5527,9 +5326,9 @@ function ensureTeamCaches() {
 function restaurerDonneesInitialesDispo() {
   const eq = (typeof window.CURRENT_EQUIPE !== 'undefined') ? window.CURRENT_EQUIPE : 'A';
   if (confirm(`Voulez-vous restaurer la liste par défaut des camions/chauffeurs pour l'Équipe ${eq} ?\nCette opération remplacera la liste de disponibilité actuelle par la liste initiale, mais conservera toutes vos autres données (pannes, non-conformités, odomètres, etc.).`)) {
-    const initData = eq === 'A' ? INITIAL_DATA : emptyTeamData() || INITIAL_DATA_A; DB.dispo = JSON.parse(JSON.stringify(initData.dispo));
+    const initData = emptyTeamData() || INITIAL_DATA_A; DB.dispo = JSON.parse(JSON.stringify(initData.dispo));
     if (window['DB_' + eq]) {
-      const initData = eq === 'A' ? INITIAL_DATA : emptyTeamData() || INITIAL_DATA_A; window['DB_' + eq].dispo = JSON.parse(JSON.stringify(initData.dispo));
+      const initData = emptyTeamData() || INITIAL_DATA_A; window['DB_' + eq].dispo = JSON.parse(JSON.stringify(initData.dispo));
     }
     saveDB();
     renderDispo();
@@ -6183,7 +5982,7 @@ window.showBLAlertPopover = showBLAlertPopover;
 
 function saveTeamDB(eq, dbData) {
   dbData._localTs = Date.now();
-  window['DB_' + eq] = cloneTeamData(dbData, eq === 'A' ? INITIAL_DATA : emptyTeamData());
+  window['DB_' + eq] = cloneTeamData(dbData, emptyTeamData());
   if (typeof scheduleLocalStorageSave === 'function') {
     scheduleLocalStorageSave(1000);
   } else {
@@ -7269,7 +7068,7 @@ function saveDB() {
 
   // 1. Sauvegarde locale en mémoire + persist asynchrone non-bloquante
   DB._localTs = Date.now();
-  window['DB_' + eq] = cloneTeamData(DB, eq === 'A' ? INITIAL_DATA : emptyTeamData());
+  window['DB_' + eq] = cloneTeamData(DB, emptyTeamData());
   if (typeof scheduleLocalStorageSave === 'function') {
     scheduleLocalStorageSave(1000);
   } else {
@@ -14055,7 +13854,7 @@ const _origSavePanne = savePanne;
 // DONNÉES PAR ÉQUIPE (caches locaux)
 // ════════════════════════════════════════════════════════════
 const DB_B = emptyTeamData();
-const DB_A = cloneTeamData(INITIAL_DATA);
+const DB_A = emptyTeamData();
 window.DB_A = DB_A;
 const DB_C = emptyTeamData();
 const DB_D = emptyTeamData();
@@ -14084,13 +13883,13 @@ function switchEquipe(eq) {
   // Sauvegarder le cache de l'équipe quittée (évite perte au changement A↔B↔C↔D)
   const prev = CURRENT_EQUIPE;
   if (prev && typeof DB !== 'undefined') {
-    window['DB_' + prev] = cloneTeamData(DB, prev === 'A' ? INITIAL_DATA : emptyTeamData());
+    window['DB_' + prev] = cloneTeamData(DB, emptyTeamData());
   }
   CURRENT_EQUIPE = eq;
   window.CURRENT_EQUIPE = eq;
   // Swap DB — cache cloud (window.DB_X) ou données locales par défaut
   const rawSrc = window['DB_' + eq] || (eq==='B' ? DB_B : eq==='C' ? DB_C : eq==='D' ? DB_D : eq==='E' ? DB_E : eq==='F' ? DB_F : DB_A);
-  const src = cloneTeamData(rawSrc, eq === 'A' ? INITIAL_DATA : emptyTeamData());
+  const src = cloneTeamData(rawSrc, emptyTeamData());
   
   // Vider les anciennes clés de DB pour éviter de garder des restes d'autres équipes
   Object.keys(DB).forEach(k => delete DB[k]);
@@ -16994,16 +16793,16 @@ async function checkPoiAlerts() {
       const isBlacklisted = blacklistPois.has(v.poi_name);
 
       if (isBlacklisted) {
-        // Mode harcelement : on reset l'alerte locale si elle date de plus de 30 minutes
-        let lastAlertedTime = parseInt(sessionStorage.getItem(`blacklist_time_${v.id}`) || '0');
-        if (Date.now() - lastAlertedTime > 30 * 60 * 1000) {
-          clientAlertedSet.delete(v.id);
-        }
+        // Mode harcèlement Blacklist : relance automatique garantie toutes les 30 minutes
+        const nowMs = Date.now();
+        const lastAlertedTime = parseInt(localStorage.getItem(`blacklist_time_${v.id}`) || sessionStorage.getItem(`blacklist_time_${v.id}`) || '0');
+        const isTimeForRepeat = (nowMs - lastAlertedTime) >= 30 * 60 * 1000;
 
-        if (!clientAlertedSet.has(v.id)) {
+        if (isTimeForRepeat || !clientAlertedSet.has(v.id)) {
           clientAlertedSet.add(v.id);
           sessionStorage.setItem('client_alerted_blacklist_ids', JSON.stringify([...clientAlertedSet]));
-          sessionStorage.setItem(`blacklist_time_${v.id}`, Date.now().toString());
+          sessionStorage.setItem(`blacklist_time_${v.id}`, nowMs.toString());
+          localStorage.setItem(`blacklist_time_${v.id}`, nowMs.toString());
 
           const timeStr = new Date(v.arrived_at).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
 
@@ -17066,11 +16865,13 @@ async function checkPoiAlerts() {
       } else if (v.duration_hours >= 2.0) {
         const activeTeam = typeof window.CURRENT_EQUIPE !== 'undefined' ? window.CURRENT_EQUIPE : 'A';
         if (!v.team || v.team === activeTeam) {
-          // Mode harcelement pour immobilisation > 2h (toutes les 30 minutes)
-          let lastPoiWarningTime = parseInt(sessionStorage.getItem(`poi_warning_time_${v.id}`) || '0');
-          if (Date.now() - lastPoiWarningTime > 30 * 60 * 1000) {
+          // Mode harcèlement pour immobilisation > 2h (toutes les 30 minutes)
+          const nowPoiMs = Date.now();
+          let lastPoiWarningTime = parseInt(localStorage.getItem(`poi_warning_time_${v.id}`) || sessionStorage.getItem(`poi_warning_time_${v.id}`) || '0');
+          if (nowPoiMs - lastPoiWarningTime >= 30 * 60 * 1000) {
             showPoiWarningModal(v);
-            sessionStorage.setItem(`poi_warning_time_${v.id}`, Date.now().toString());
+            sessionStorage.setItem(`poi_warning_time_${v.id}`, nowPoiMs.toString());
+            localStorage.setItem(`poi_warning_time_${v.id}`, nowPoiMs.toString());
             if (!v.notified) {
               await poiSupabaseFetch(`np_poi_visits?id=eq.${v.id}`, "PATCH", { notified: true });
             }
@@ -17119,23 +16920,27 @@ function showPoiWarningModal(v) {
   if (_uRole === 'direction_only' || _uRole === 'readonly' || _uName === 'REGISTRE' || _uName.includes('REGISTRE')) {
     return;
   }
-  const driver = window.DB && window.DB.dispo ? (window.DB.dispo.find(x => (x.v || "").trim().toUpperCase() === (alertRow.v || "").trim().toUpperCase())?.chauffeur || "non renseigné") : "non renseigné";
-  const hours = Math.floor(alertRow.duration_hours);
-  const minutes = Math.round((alertRow.duration_hours - hours) * 60);
+  const dur = parseFloat(v.duration_hours || 0);
+  const hours = Math.floor(dur);
+  const minutes = Math.round((dur - hours) * 60);
   const durationStr = `${hours}h ${minutes}m`;
+  const driver = v.chauffeur || (window.DB && window.DB.dispo ? (window.DB.dispo.find(x => (x.v || "").trim().toUpperCase() === (v.v || "").trim().toUpperCase())?.chauffeur || "non renseigné") : "non renseigné");
+
+  const existingModal = document.getElementById(`modal-poi-alert-${v.id}`);
+  if (existingModal) existingModal.remove();
 
   const modalHtml = `
-    <div id="modal-poi-alert-${alertRow.id}" class="modal-backdrop" style="position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.6);backdrop-filter:blur(4px);z-index:9999;display:flex;align-items:center;justify-content:center">
+    <div id="modal-poi-alert-${v.id}" class="modal-backdrop" style="position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.6);backdrop-filter:blur(4px);z-index:9999;display:flex;align-items:center;justify-content:center">
       <div style="background:var(--bg2);border:1px solid #ef4444;border-radius:12px;width:90%;max-width:450px;padding:24px;box-shadow:0 20px 25px -5px rgba(0,0,0,0.3);text-align:center;animation:scale-in 0.3s ease-out">
         <div style="font-size:48px;margin-bottom:12px;animation:pulse-eye 0.8s ease-in-out infinite alternate">🚨</div>
         <h3 style="color:#ef4444;font-size:18px;font-weight:700;margin-bottom:8px">Alerte Attente Client</h3>
         <p style="font-size:14px;color:var(--txt2);margin-bottom:16px;line-height:1.5">
-          Le camion <strong style="color:var(--acc);font-family:monospace">${alertRow.v}</strong> (${driver}) est immobilisé chez le client <strong style="color:var(--txt1)">${alertRow.poi_name}</strong> depuis plus de 2 heures.
+          Le camion <strong style="color:var(--acc);font-family:monospace">${v.v}</strong> (${driver}) est immobilisé chez le client <strong style="color:var(--txt1)">${v.poi_name}</strong> depuis plus de 2 heures.
         </p>
         <div style="background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.2);border-radius:8px;padding:12px;margin-bottom:20px">
           <span style="font-size:13px;color:#ef4444;font-weight:600">Durée d'attente : ${durationStr}</span>
         </div>
-        <button onclick="document.getElementById('modal-poi-alert-${alertRow.id}').remove()" style="background:#ef4444;color:#fff;border:none;border-radius:8px;padding:10px 24px;font-size:13px;font-weight:700;cursor:pointer;transition:background 0.2s">
+        <button onclick="document.getElementById('modal-poi-alert-${v.id}').remove()" style="background:#ef4444;color:#fff;border:none;border-radius:8px;padding:10px 24px;font-size:13px;font-weight:700;cursor:pointer;transition:background 0.2s">
           Prendre note ✅
         </button>
       </div>
@@ -17229,19 +17034,8 @@ document.addEventListener('visibilitychange', () => {
 function pauseSession() {
   if (isPageIdle) return;
   isPageIdle = true;
-  console.log("⏳ Session suspendue (inactivité ou arrière-plan).");
-  if (window.realtimeChannel && window.supabase) {
-    window.supabase.removeChannel(window.realtimeChannel);
-    window.realtimeChannel = null;
-  }
-  if (window.poiAlertsInterval) {
-    clearInterval(window.poiAlertsInterval);
-    window.poiAlertsInterval = null;
-  }
-  if (window.loadedPanneInterval) {
-    clearInterval(window.loadedPanneInterval);
-    window.loadedPanneInterval = null;
-  }
+  console.log("⏳ Session en veille visuelle (la surveillance des alertes de sécurité reste 100% active).");
+  // IMPORTANT : On ne coupe JAMAIS poiAlertsInterval pour que les relances et sirènes retentissent toujours toutes les 30 min !
   showIdleOverlay();
 }
 
