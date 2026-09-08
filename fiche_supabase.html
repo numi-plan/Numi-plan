@@ -586,6 +586,7 @@
   }
 
   // Chargement Initial depuis Supabase (Toutes les équipes sont synchronisées pour TOUS les utilisateurs)
+  window._cloudSyncReady = false;
   let _isLoadingInitialTeams = false;
   async function loadInitialTeams() {
     if (_isLoadingInitialTeams) return;
@@ -668,6 +669,8 @@
 
         await loadInitialGpsSyncStatus();
         if (typeof checkPointageRequired === 'function') checkPointageRequired();
+
+        window._cloudSyncReady = true;
 
         if (typeof renderAdminEntreesSorties === 'function') {
           renderAdminEntreesSorties();
@@ -1199,9 +1202,7 @@
                 if (arrName === 'dispo') {
                     const cTs = cItem._lastEditedTs || 0;
                     const lTs = lItem._lastEditedTs || 0;
-                    if (cTs >= lTs) {
-                        finalArr.push(cItem);
-                    } else if (lTs > cTs && (Date.now() - lTs) < 120000) {
+                    if (lTs > cTs) {
                         finalArr.push(lItem);
                     } else {
                         finalArr.push(cItem);
@@ -1263,6 +1264,10 @@
 
   // Helper interne pour sauvegarder et émettre l'upsert
   async function supabaseUpsertTeam(eq, payload) {
+    if (window._cloudSyncReady === false) {
+      console.warn(`[Sync Guard] supabaseUpsertTeam bloqué pour l'équipe ${eq} : attente du chargement cloud initial.`);
+      return;
+    }
     let payloadToSave = payload;
     if (typeof ensureSupabaseAuth === 'function') {
       await ensureSupabaseAuth();
@@ -1354,6 +1359,10 @@
   };
 
   window.saveTeamDB = function(eq, dbData) {
+    if (window._cloudSyncReady === false) {
+      console.warn(`[Sync Guard] saveTeamDB bloqué pour l'équipe ${eq} : attente du chargement cloud initial.`);
+      return;
+    }
     if (typeof HISTORY_MODE !== 'undefined' && HISTORY_MODE) {
       if (typeof showToast === 'function') showToast('⚠️ Mode historique — Modifications bloquées (Lecture seule)', true);
       return;
@@ -7065,6 +7074,10 @@ window._syncArchives = function(data) {
 function saveDB() {
   if (typeof HISTORY_MODE !== 'undefined' && HISTORY_MODE) {
     if (typeof showToast === 'function') showToast('⚠️ Mode historique — Modifications bloquées (Lecture seule)', true);
+    return;
+  }
+  if (window._cloudSyncReady === false) {
+    console.warn('[Sync Guard] saveDB bloqué : attente du chargement cloud initial.');
     return;
   }
   const eq = CURRENT_EQUIPE || 'A';
@@ -13640,11 +13653,14 @@ function checkBascule() {
   const eq = typeof window.CURRENT_EQUIPE !== 'undefined' ? window.CURRENT_EQUIPE : 'A';
   const basculeKey = 'numiplan_last_bascule_' + eq;
   const lastDate = localStorage.getItem(basculeKey);
-  // Aussi vérifier DB (partagé via Firebase) pour ne pas proposer si déjà fait par un autre
-  const dbLastBascule = DB.last_bascule;
+  const dbLastBascule = (DB && DB.last_bascule) || (window['DB_' + eq] && window['DB_' + eq].last_bascule);
   const todayStr = today();
   const alreadyDone = (lastDate === todayStr) || (dbLastBascule === todayStr);
-  if (!alreadyDone && lastDate) {
+  if (alreadyDone) {
+    localStorage.setItem(basculeKey, todayStr);
+    return;
+  }
+  if (!alreadyDone) {
     setTimeout(() => {
       const banner = document.createElement('div');
       banner.id = 'bascule-banner-' + eq;
