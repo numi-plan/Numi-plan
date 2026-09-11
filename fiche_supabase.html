@@ -149,9 +149,16 @@
   });
 
   function getCurrentEquipe() {
-    return (typeof window.CURRENT_EQUIPE !== 'undefined') ? window.CURRENT_EQUIPE : 'A';
+    if (typeof window.CURRENT_EQUIPE !== 'undefined' && window.CURRENT_EQUIPE) {
+      return window.CURRENT_EQUIPE;
+    }
+    const lock = sessionStorage.getItem('numiplan_team_lock');
+    if (lock && ['A', 'B', 'C', 'D', 'E', 'F'].includes(lock)) {
+      return lock;
+    }
+    return 'A';
   }
-    window.getCurrentEquipe = getCurrentEquipe;
+  window.getCurrentEquipe = getCurrentEquipe;
 
   function emptyTeamData() {
     return {
@@ -1167,6 +1174,16 @@
   }
   window.saveNormalizedTables = saveNormalizedTables;
 
+  function sameVehicule(v1, v2) {
+    if (!v1 || !v2) return false;
+    const s1 = String(v1).replace(/\s+/g, '').toUpperCase();
+    const s2 = String(v2).replace(/\s+/g, '').toUpperCase();
+    if (s1 === s2) return true;
+    const norm = s => s.replace(/^0+/, '').replace(/-0+/g, '-');
+    return norm(s1) === norm(s2);
+  }
+  window.sameVehicule = sameVehicule;
+
   function smartMergePayloads(base, cloud, local) {
     if (!cloud) return local;
     if (!local) return cloud;
@@ -1179,6 +1196,14 @@
       ...(window._deletedDispoTrucks || [])
     ]);
     merged.deleted_trucks = Array.from(allDeletedTrucks);
+
+    const allDeletedCspc = new Set([
+      ...(local.deleted_cspc || []),
+      ...(cloud.deleted_cspc || []),
+      ...(safeBase.deleted_cspc || []),
+      ...(window._deletedCspc || [])
+    ]);
+    merged.deleted_cspc = Array.from(allDeletedCspc);
 
     const mergeArray = (arrName, keyProp) => {
         if (!local[arrName] && !merged[arrName]) return;
@@ -1195,6 +1220,9 @@
             const uKey = (key || '').trim().toUpperCase();
             if (arrName === 'dispo' && allDeletedTrucks.has(uKey)) {
                 continue; // Camion supprimé : NE JAMAIS RESSUSCITER
+            }
+            if (arrName === 'cspc' && (allDeletedCspc.has(uKey) || Array.from(allDeletedCspc).some(d => sameVehicule(d, uKey)))) {
+                continue; // CSPC supprimé : NE JAMAIS RESSUSCITER
             }
             let lItem = localMap.get(key);
             let bItem = baseMap.get(key);
@@ -1218,6 +1246,11 @@
                 }
                 localMap.delete(key);
             } else {
+                // Si l'élément existait dans base (bItem) et a été supprimé en local (!lItem) :
+                // NE PAS RESSUSCITER l'élément supprimé !
+                if (bItem) {
+                    continue;
+                }
                 finalArr.push(cItem);
             }
         }
@@ -1226,6 +1259,7 @@
             if (key) {
                 const uKey = key.trim().toUpperCase();
                 if (arrName === 'dispo' && allDeletedTrucks.has(uKey)) continue;
+                if (arrName === 'cspc' && (allDeletedCspc.has(uKey) || Array.from(allDeletedCspc).some(d => sameVehicule(d, uKey)))) continue;
                 finalArr.push(lItem);
             }
         }
@@ -1342,6 +1376,10 @@
   if (!window._teamSaveTimers) window._teamSaveTimers = {};
 
   window._firebaseSaveDB = function(dbData) {
+    if (window._cloudSyncReady === false || !_initialCloudLoadCompleted[getCurrentEquipe()]) {
+      console.warn(`[Sync Guard] _firebaseSaveDB bloqué pour l'équipe ${getCurrentEquipe()} : attente du chargement cloud initial.`);
+      return;
+    }
     const eq = getCurrentEquipe();
     _initialCloudLoadCompleted[eq] = true;
     const writeTs = Date.now();
@@ -4045,11 +4083,18 @@ mark.hl { background: rgba(56,189,248,.25); color: var(--acc); border-radius: 3p
       Pour débloquer la saisie et garantir le suivi des temps d'attente chez les clients, la synchronisation des balises GPS est obligatoire.
     </div>
 
-    <div style="background:rgba(255,255,255,0.03);border:1px dashed rgba(255,255,255,0.15);border-radius:10px;padding:14px 18px;margin-bottom:24px;text-align:left;font-size:12px;color:#94a3b8;width:100%;box-sizing:border-box">
+    <div style="background:rgba(255,255,255,0.03);border:1px dashed rgba(255,255,255,0.15);border-radius:10px;padding:14px 18px;margin-bottom:16px;text-align:left;font-size:12px;color:#94a3b8;width:100%;box-sizing:border-box">
       <div style="font-weight:700;color:#f8fafc;margin-bottom:6px">📋 Procédure rapide :</div>
-      1. Ouvrez <b>IDEGPS</b> via le bouton ci-dessous.<br>
-      2. Cliquez sur votre favori <b>« NumiPlan - Suivi Camions »</b>.<br>
+      1. Glissez le bouton orange ci-dessous vers votre barre de favoris Chrome.<br>
+      2. Ouvrez <b>IDEGPS</b> via le bouton bleu et cliquez sur le favori.<br>
       3. Cliquez ensuite sur <b>« J'ai synchronisé »</b> pour débloquer.
+    </div>
+
+    <div style="background:rgba(245,158,11,0.08);border:1px solid rgba(245,158,11,0.3);border-radius:10px;padding:12px 16px;margin-bottom:20px;text-align:center;width:100%;box-sizing:border-box">
+      <div style="font-size:11px;font-weight:700;color:#f59e0b;margin-bottom:8px">⭐ GLISSEZ CE BOUTON DANS VOTRE BARRE DE FAVORIS :</div>
+      <a href="javascript:(async()=> {const SUPABASE_URL='https://mfljrozyxyfkymzlnsmt.supabase.co';const SUPABASE_KEY='sb_publishable_sMb9uHOr4gpyqmZGrkY-YQ_z90TgNAB';const today=new Date().toISOString().split('T')[0];const parseGpsDateToIso=(s)=>{if(typeof s!=='string'||s.length<10)return new Date().toISOString();if(s.length===10)return s;const p=s.split(/[^0-9]/).filter(Boolean);if(p.length<5)return new Date().toISOString();const base=Date.UTC(parseInt(p[0],10),parseInt(p[1],10)-1,parseInt(p[2],10),parseInt(p[3],10),parseInt(p[4],10),parseInt(p[5]||0,10));const now=Date.now();let best=base,minD=Infinity;[0,60,120].forEach(off=>{const t=base-off*60000;const d=Math.abs(now-t);if(d<minD){minD=d;best=t;}});return new Date(best).toISOString();};try{const isIdeGps=window.location.hostname.includes('idegps.com');const isGeolocDz=window.location.hostname.includes('geoloc.dz');if(!(isIdeGps||isGeolocDz)){alert('❌ Veuillez ouvrir idegps.com/map ou web3.geoloc.dz');return;}let token=sessionStorage.getItem('numiplan_sb_token');let tokenExpiry=sessionStorage.getItem('numiplan_sb_token_expiry');if(!token||!tokenExpiry||Date.now()>parseInt(tokenExpiry)){console.log('🔑 Auth Supabase...');const loginRes=await fetch(SUPABASE_URL+'/auth/v1/token?grant_type=password',{method:'POST',headers:{'apikey':SUPABASE_KEY,'Content-Type':'application/json'},body:JSON.stringify({email:'admin@sharik.numilog.com',password:'Sharik@admin'})});if(!loginRes.ok){const errText=await loginRes.text();if(loginRes.status===429||errText.includes('rate_limit')){throw new Error('Limite de connexions Supabase atteinte (Rate Limit). Veuillez patienter 5 minutes.');}throw new Error('Auth Supabase echouee: '+errText);}const loginData=await loginRes.json();token=loginData.access_token;sessionStorage.setItem('numiplan_sb_token',token);sessionStorage.setItem('numiplan_sb_token_expiry',(Date.now()+3500000).toString());}const supabaseHeaders={'apikey':SUPABASE_KEY,'Authorization':'Bearer '+token,'Content-Type':'application/json'};let fleet=[];let providerName='';if(isIdeGps){providerName='IdeGPS';const params=new URLSearchParams();params.append('driver','1');params.append('user_name',window.mData?.user_name||'K.LAHOUEL');params.append('gps_ids',Object.keys(window.mData?.cars||{}).join(','));const gpsRes=await fetch('https://idegps.com/api/map/position',{method:'POST',body:params});if(!gpsRes.ok)throw new Error('Votre session IdeGPS a expiree. Veuillez vous reconnecter sur le site.');const gpsText=await gpsRes.text();if(gpsText.trim().startsWith('<'))throw new Error('Votre session IdeGPS a expiree.');const result=JSON.parse(gpsText);fleet=(result.fleet||[]).map(car=>{const p=car.position||{};const rawDate=p.DATE||p.date||p.time||p.gpstime||p.dt_pos||car.date||car.time||car.last_com||today;const cleanDate=parseGpsDateToIso(rawDate);const gpsTime=new Date(rawDate).getTime();const isStale=isNaN(gpsTime)||(Date.now()-gpsTime>12*60*60*1000);return{immat:(car.gps_alias||'').trim().toUpperCase(),lat:isStale?null:(p.LAT||p.latitude||p.lat||null),lng:isStale?null:(p.LNG||p.longitude||p.lng||p.LON||p.lon||null),gps_date:cleanDate};});if(window.mData?window.mData.pois:false){console.log('💾 Synchro POI IdeGPS...');const poisRaw=Object.values(window.mData.pois);const poiList=poisRaw.map(poi=>{if(poi.points?poi.points.length>=2:false){let sumLat=0,sumLng=0,count=0;for(let i=0;poi.points.length>i;i+=2){sumLng+=poi.points[i];sumLat+=poi.points[i+1];count++;}if(count>0){return{name:(poi.name||poi.description||'').trim(),lat:sumLat/count,lng:sumLng/count,radius:Math.max(poi.buffer?parseFloat(poi.buffer):300,200)};}}return null;}).filter(Boolean);const uniquePois=Object.values(poiList.reduce((acc,poi)=>{if(poi.name)acc[poi.name]=poi;return acc;},{}));if(uniquePois.length>0){const resPoi=await fetch(SUPABASE_URL+'/rest/v1/np_pois?on_conflict=name',{method:'POST',headers:{...supabaseHeaders,Prefer:'resolution=merge-duplicates'},body:JSON.stringify(uniquePois)});if(!resPoi.ok){const errText=await resPoi.text();throw new Error('Synchro POI echouee: '+errText);}} } } else if(isGeolocDz){providerName='Geoloc.dz';const apiToken=localStorage.getItem('api_token')||sessionStorage.getItem('api_token')||'';const authHeader=apiToken.startsWith('Bearer ')?apiToken:'Bearer '+apiToken;const xsrfCookie=document.cookie.split('; ').find(row=>row.startsWith('XSRF-TOKEN='));const xsrfToken=xsrfCookie?decodeURIComponent(xsrfCookie.split('=')[1]):'';const res=await fetch('/geoBackend/api/floot/getFloot',{method:'POST',headers:{'Content-Type':'application/json','Authorization':authHeader,'X-XSRF-TOKEN':xsrfToken,'X-Requested-With':'XMLHttpRequest'},body:JSON.stringify({groupes:'[902,924,905]',recherche:'',details:0})});if(!res.ok)throw new Error('Votre session Geoloc.dz a expiree.');const resText=await res.text();if(resText.trim().startsWith('<'))throw new Error('Votre session Geoloc.dz a expiree.');const result=JSON.parse(resText);fleet=(result.data||[]).map(car=>({immat:(car.matricule||'').trim().toUpperCase(),lat:car.latitude?parseFloat(car.latitude):null,lng:car.longitude?parseFloat(car.longitude):null,gps_date:parseGpsDateToIso(car.date_pos)}));try{const poiRes=await fetch('/geoBackend/api/point/getInterestingPoints',{method:'POST',headers:{'Content-Type':'application/json','Authorization':authHeader,'X-XSRF-TOKEN':xsrfToken,'X-Requested-With':'XMLHttpRequest'},body:JSON.stringify({recherche:'',details:1})});if(poiRes.ok){const poiText=await poiRes.text();if(!poiText.trim().startsWith('<')){const poiResult=JSON.parse(poiText);const poiData=poiResult.data?poiResult.data:poiData;const poiList=poiData.map(poi=>{if(poi.point_latitude!==null?poi.point_longitude!==null:false){return{name:(poi.point_designation||'').trim(),lat:parseFloat(poi.point_latitude),lng:parseFloat(poi.point_longitude),radius:Math.max(poi.point_radius?parseFloat(poi.point_radius):300,200)};}return null;}).filter(Boolean);const uniquePois=Object.values(poiList.reduce((acc,poi)=>{if(poi.name)acc[poi.name]=poi;return acc;},{}));if(uniquePois.length>0){await fetch(SUPABASE_URL+'/rest/v1/np_pois?on_conflict=name',{method:'POST',headers:{...supabaseHeaders,Prefer:'resolution=merge-duplicates'},body:JSON.stringify(uniquePois)});}}}}catch(e){console.error(e);}}console.log('Reçu '+fleet.length+' camions.');const dispoRes=await fetch(SUPABASE_URL+'/rest/v1/np_dispo?select=v',{headers:supabaseHeaders});if(!dispoRes.ok)throw new Error('Impossible de lire la liste des camions Numiplan');const dbDispos=await dispoRes.json();const activeTrucks={};dbDispos.forEach(row=>{const vPlate=(row.v||'').trim().toUpperCase();if(vPlate)activeTrucks[vPlate]=true;});let updatedCount=0;for(const car of fleet){if(!car.immat||!activeTrucks[car.immat])continue;const hasGPSData=!(car.lat===null||car.lng===null);updatedCount++;const resDispo=await fetch(SUPABASE_URL+'/rest/v1/np_dispo?v=eq.'+encodeURIComponent(car.immat),{method:'PATCH',headers:supabaseHeaders,body:JSON.stringify({geoloc:hasGPSData?'ON':'OFF',geoloc_date:car.gps_date||today,lat:car.lat,lng:car.lng})});if(!resDispo.ok){const errText=await resDispo.text();throw new Error('Synchro np_dispo '+car.immat+' echouee: '+errText);}}try{const teams=['A','B','C','D','E','F'];const logs=teams.map(t=>({team:t,timestamp:String(Date.now()),type:'GPS_SYNC',target:providerName,user_login:'bookmarklet',detail:{provider:providerName,updated_count:updatedCount}}));await fetch(SUPABASE_URL+'/rest/v1/np_tracabilite',{method:'POST',headers:supabaseHeaders,body:JSON.stringify(logs)});}catch(eLog){console.error(eLog);}const timeStr=new Date().toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'});updateBanner('Synchro Active (Dernière : '+timeStr+')');if(isInitial) alert('✅ Synchronisation '+providerName+' réussie ! '+updatedCount+' camions actifs mis à jour.');}catch(err){alert('❌ ' + err.message);}})();" class="btn" style="background:#f59e0b;color:#000;font-weight:900;padding:10px 20px;border-radius:8px;text-decoration:none;display:inline-flex;align-items:center;gap:8px;font-size:13px;cursor:grab;box-shadow:0 4px 15px rgba(245,158,11,0.4)" title="Glissez ce bouton vers votre barre de favoris Chrome">
+        🌟 Favori GPS (Glissez-moi)
+      </a>
     </div>
 
     <div style="display:flex;gap:12px;width:100%;justify-content:center">
@@ -6002,44 +6047,6 @@ function showBLAlertPopover(event, chauffeur) {
 }
 window.showBLAlertPopover = showBLAlertPopover;
 
-function saveTeamDB(eq, dbData) {
-  dbData._localTs = Date.now();
-  window['DB_' + eq] = cloneTeamData(dbData, emptyTeamData());
-  if (typeof scheduleLocalStorageSave === 'function') {
-    scheduleLocalStorageSave(1000);
-  } else {
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify({
-        version: 4,
-        active: CURRENT_EQUIPE || 'A',
-        teams: { A: window.DB_A, B: window.DB_B, C: window.DB_C, D: window.DB_D, E: window.DB_E, F: window.DB_F }
-      }));
-    } catch(e) {}
-  }
-
-  if (typeof window._firebaseSaveDB === 'function') {
-    const FILE_KEYS = ['assuranceTrFile','assuranceRmFile','assuranceTrFileType','assuranceRmFileType'];
-    const stripFiles = (arr) => (arr || []).map(item => {
-      const clean = Object.assign({}, item);
-      FILE_KEYS.forEach(k => delete clean[k]);
-      return clean;
-    });
-    const dbCloud = Object.assign({}, dbData, {
-      dispo:    stripFiles(dbData.dispo),
-      activite: stripFiles(dbData.activite),
-    });
-    
-    const prevEq = window.CURRENT_EQUIPE;
-    window.CURRENT_EQUIPE = eq;
-    try {
-      window._firebaseSaveDB(dbCloud);
-    } catch(e) {
-      console.error("Firebase write error for team", eq, e);
-    }
-    window.CURRENT_EQUIPE = prevEq;
-  }
-}
-window.saveTeamDB = saveTeamDB;
 
 function validerBLRapideGlobal(chauffeur, month, team, action) {
   const db = window['DB_' + team];
@@ -11160,10 +11167,17 @@ function deleteCSPC(idx) {
   if (!_checkActionsLibres('deleteCSPC')) return;
   if (!confirm('Supprimer ?')) return;
   const v = DB.cspc[idx] ? DB.cspc[idx].v : null;
-  DB.cspc.splice(idx, 1);
-  // Sync → retirer flag cspc dans Disponibilité
   if (v) {
-    const dispoR = DB.dispo.find(d => d.v === v);
+    if (!DB.deleted_cspc) DB.deleted_cspc = [];
+    const vClean = v.trim().toUpperCase();
+    if (!DB.deleted_cspc.includes(vClean)) DB.deleted_cspc.push(vClean);
+    if (!window._deletedCspc) window._deletedCspc = [];
+    if (!window._deletedCspc.includes(vClean)) window._deletedCspc.push(vClean);
+  }
+  DB.cspc.splice(idx, 1);
+  // Sync → retirer flag cspc dans Disponibilité (avec comparaison souple d'immatriculation)
+  if (v) {
+    const dispoR = DB.dispo.find(d => (typeof sameVehicule === 'function' ? sameVehicule(d.v, v) : d.v === v));
     if (dispoR) { dispoR.cspc = false; dispoR.prog = ''; }
   }
   saveDB(); renderCSPC();
@@ -11186,6 +11200,12 @@ function saveCSPC() {
     equip: document.getElementById('f-cspc-equip').value,
     prog: document.getElementById('f-cspc-prog').value.trim()
   };
+  if (DB.deleted_cspc && v) {
+    DB.deleted_cspc = DB.deleted_cspc.filter(delV => !(typeof sameVehicule === 'function' ? sameVehicule(delV, v) : delV === v));
+  }
+  if (window._deletedCspc && v) {
+    window._deletedCspc = window._deletedCspc.filter(delV => !(typeof sameVehicule === 'function' ? sameVehicule(delV, v) : delV === v));
+  }
   const idx = parseInt(document.getElementById('cspc-edit-idx').value);
   if (idx >= 0) {
     obj.cet = DB.cspc[idx].cet || sessionStorage.getItem('numiplan_username') || '';
@@ -12587,11 +12607,18 @@ function updateGpsModalUI() {
       </div>
     </div>
 
-    <div style="background:rgba(255,255,255,0.03);border:1px dashed rgba(255,255,255,0.15);border-radius:10px;padding:14px 18px;margin-bottom:24px;text-align:left;font-size:12px;color:#94a3b8;width:100%;box-sizing:border-box">
+    <div style="background:rgba(255,255,255,0.03);border:1px dashed rgba(255,255,255,0.15);border-radius:10px;padding:14px 18px;margin-bottom:16px;text-align:left;font-size:12px;color:#94a3b8;width:100%;box-sizing:border-box">
       <div style="font-weight:700;color:#f8fafc;margin-bottom:6px">📋 Procédure rapide :</div>
-      1. Cliquez sur les boutons ci-dessous pour ouvrir les plateformes.<br>
-      2. Cliquez sur votre favori <b>« 🛰️ Favori GPS »</b> sur chacune d'elles.<br>
+      1. Glissez le bouton orange ci-dessous vers votre barre de favoris Chrome.<br>
+      2. Cliquez sur les boutons pour ouvrir les plateformes et cliquez sur votre favori.<br>
       3. Cliquez ensuite sur <b>« J'ai synchronisé »</b> ci-dessous.
+    </div>
+
+    <div style="background:rgba(245,158,11,0.08);border:1px solid rgba(245,158,11,0.3);border-radius:10px;padding:12px 16px;margin-bottom:16px;text-align:center;width:100%;box-sizing:border-box">
+      <div style="font-size:11px;font-weight:700;color:#f59e0b;margin-bottom:8px">⭐ GLISSEZ CE BOUTON DANS VOTRE BARRE DE FAVORIS :</div>
+      <a href="javascript:(async()=> {const SUPABASE_URL='https://mfljrozyxyfkymzlnsmt.supabase.co';const SUPABASE_KEY='sb_publishable_sMb9uHOr4gpyqmZGrkY-YQ_z90TgNAB';const today=new Date().toISOString().split('T')[0];const parseGpsDateToIso=(s)=>{if(typeof s!=='string'||s.length<10)return new Date().toISOString();if(s.length===10)return s;const p=s.split(/[^0-9]/).filter(Boolean);if(p.length<5)return new Date().toISOString();const base=Date.UTC(parseInt(p[0],10),parseInt(p[1],10)-1,parseInt(p[2],10),parseInt(p[3],10),parseInt(p[4],10),parseInt(p[5]||0,10));const now=Date.now();let best=base,minD=Infinity;[0,60,120].forEach(off=>{const t=base-off*60000;const d=Math.abs(now-t);if(d<minD){minD=d;best=t;}});return new Date(best).toISOString();};try{const isIdeGps=window.location.hostname.includes('idegps.com');const isGeolocDz=window.location.hostname.includes('geoloc.dz');if(!(isIdeGps||isGeolocDz)){alert('❌ Veuillez ouvrir idegps.com/map ou web3.geoloc.dz');return;}let token=sessionStorage.getItem('numiplan_sb_token');let tokenExpiry=sessionStorage.getItem('numiplan_sb_token_expiry');if(!token||!tokenExpiry||Date.now()>parseInt(tokenExpiry)){console.log('🔑 Auth Supabase...');const loginRes=await fetch(SUPABASE_URL+'/auth/v1/token?grant_type=password',{method:'POST',headers:{'apikey':SUPABASE_KEY,'Content-Type':'application/json'},body:JSON.stringify({email:'admin@sharik.numilog.com',password:'Sharik@admin'})});if(!loginRes.ok){const errText=await loginRes.text();if(loginRes.status===429||errText.includes('rate_limit')){throw new Error('Limite de connexions Supabase atteinte (Rate Limit). Veuillez patienter 5 minutes.');}throw new Error('Auth Supabase echouee: '+errText);}const loginData=await loginRes.json();token=loginData.access_token;sessionStorage.setItem('numiplan_sb_token',token);sessionStorage.setItem('numiplan_sb_token_expiry',(Date.now()+3500000).toString());}const supabaseHeaders={'apikey':SUPABASE_KEY,'Authorization':'Bearer '+token,'Content-Type':'application/json'};let fleet=[];let providerName='';if(isIdeGps){providerName='IdeGPS';const params=new URLSearchParams();params.append('driver','1');params.append('user_name',window.mData?.user_name||'K.LAHOUEL');params.append('gps_ids',Object.keys(window.mData?.cars||{}).join(','));const gpsRes=await fetch('https://idegps.com/api/map/position',{method:'POST',body:params});if(!gpsRes.ok)throw new Error('Votre session IdeGPS a expiree. Veuillez vous reconnecter sur le site.');const gpsText=await gpsRes.text();if(gpsText.trim().startsWith('<'))throw new Error('Votre session IdeGPS a expiree.');const result=JSON.parse(gpsText);fleet=(result.fleet||[]).map(car=>{const p=car.position||{};const rawDate=p.DATE||p.date||p.time||p.gpstime||p.dt_pos||car.date||car.time||car.last_com||today;const cleanDate=parseGpsDateToIso(rawDate);const gpsTime=new Date(rawDate).getTime();const isStale=isNaN(gpsTime)||(Date.now()-gpsTime>12*60*60*1000);return{immat:(car.gps_alias||'').trim().toUpperCase(),lat:isStale?null:(p.LAT||p.latitude||p.lat||null),lng:isStale?null:(p.LNG||p.longitude||p.lng||p.LON||p.lon||null),gps_date:cleanDate};});if(window.mData?window.mData.pois:false){console.log('💾 Synchro POI IdeGPS...');const poisRaw=Object.values(window.mData.pois);const poiList=poisRaw.map(poi=>{if(poi.points?poi.points.length>=2:false){let sumLat=0,sumLng=0,count=0;for(let i=0;poi.points.length>i;i+=2){sumLng+=poi.points[i];sumLat+=poi.points[i+1];count++;}if(count>0){return{name:(poi.name||poi.description||'').trim(),lat:sumLat/count,lng:sumLng/count,radius:Math.max(poi.buffer?parseFloat(poi.buffer):300,200)};}}return null;}).filter(Boolean);const uniquePois=Object.values(poiList.reduce((acc,poi)=>{if(poi.name)acc[poi.name]=poi;return acc;},{}));if(uniquePois.length>0){const resPoi=await fetch(SUPABASE_URL+'/rest/v1/np_pois?on_conflict=name',{method:'POST',headers:{...supabaseHeaders,Prefer:'resolution=merge-duplicates'},body:JSON.stringify(uniquePois)});if(!resPoi.ok){const errText=await resPoi.text();throw new Error('Synchro POI echouee: '+errText);}} } } else if(isGeolocDz){providerName='Geoloc.dz';const apiToken=localStorage.getItem('api_token')||sessionStorage.getItem('api_token')||'';const authHeader=apiToken.startsWith('Bearer ')?apiToken:'Bearer '+apiToken;const xsrfCookie=document.cookie.split('; ').find(row=>row.startsWith('XSRF-TOKEN='));const xsrfToken=xsrfCookie?decodeURIComponent(xsrfCookie.split('=')[1]):'';const res=await fetch('/geoBackend/api/floot/getFloot',{method:'POST',headers:{'Content-Type':'application/json','Authorization':authHeader,'X-XSRF-TOKEN':xsrfToken,'X-Requested-With':'XMLHttpRequest'},body:JSON.stringify({groupes:'[902,924,905]',recherche:'',details:0})});if(!res.ok)throw new Error('Votre session Geoloc.dz a expiree.');const resText=await res.text();if(resText.trim().startsWith('<'))throw new Error('Votre session Geoloc.dz a expiree.');const result=JSON.parse(resText);fleet=(result.data||[]).map(car=>({immat:(car.matricule||'').trim().toUpperCase(),lat:car.latitude?parseFloat(car.latitude):null,lng:car.longitude?parseFloat(car.longitude):null,gps_date:parseGpsDateToIso(car.date_pos)}));try{const poiRes=await fetch('/geoBackend/api/point/getInterestingPoints',{method:'POST',headers:{'Content-Type':'application/json','Authorization':authHeader,'X-XSRF-TOKEN':xsrfToken,'X-Requested-With':'XMLHttpRequest'},body:JSON.stringify({recherche:'',details:1})});if(poiRes.ok){const poiText=await poiRes.text();if(!poiText.trim().startsWith('<')){const poiResult=JSON.parse(poiText);const poiData=poiResult.data?poiResult.data:poiData;const poiList=poiData.map(poi=>{if(poi.point_latitude!==null?poi.point_longitude!==null:false){return{name:(poi.point_designation||'').trim(),lat:parseFloat(poi.point_latitude),lng:parseFloat(poi.point_longitude),radius:Math.max(poi.point_radius?parseFloat(poi.point_radius):300,200)};}return null;}).filter(Boolean);const uniquePois=Object.values(poiList.reduce((acc,poi)=>{if(poi.name)acc[poi.name]=poi;return acc;},{}));if(uniquePois.length>0){await fetch(SUPABASE_URL+'/rest/v1/np_pois?on_conflict=name',{method:'POST',headers:{...supabaseHeaders,Prefer:'resolution=merge-duplicates'},body:JSON.stringify(uniquePois)});}}}}catch(e){console.error(e);}}console.log('Reçu '+fleet.length+' camions.');const dispoRes=await fetch(SUPABASE_URL+'/rest/v1/np_dispo?select=v',{headers:supabaseHeaders});if(!dispoRes.ok)throw new Error('Impossible de lire la liste des camions Numiplan');const dbDispos=await dispoRes.json();const activeTrucks={};dbDispos.forEach(row=>{const vPlate=(row.v||'').trim().toUpperCase();if(vPlate)activeTrucks[vPlate]=true;});let updatedCount=0;for(const car of fleet){if(!car.immat||!activeTrucks[car.immat])continue;const hasGPSData=!(car.lat===null||car.lng===null);updatedCount++;const resDispo=await fetch(SUPABASE_URL+'/rest/v1/np_dispo?v=eq.'+encodeURIComponent(car.immat),{method:'PATCH',headers:supabaseHeaders,body:JSON.stringify({geoloc:hasGPSData?'ON':'OFF',geoloc_date:car.gps_date||today,lat:car.lat,lng:car.lng})});if(!resDispo.ok){const errText=await resDispo.text();throw new Error('Synchro np_dispo '+car.immat+' echouee: '+errText);}}try{const teams=['A','B','C','D','E','F'];const logs=teams.map(t=>({team:t,timestamp:String(Date.now()),type:'GPS_SYNC',target:providerName,user_login:'bookmarklet',detail:{provider:providerName,updated_count:updatedCount}}));await fetch(SUPABASE_URL+'/rest/v1/np_tracabilite',{method:'POST',headers:supabaseHeaders,body:JSON.stringify(logs)});}catch(eLog){console.error(eLog);}const timeStr=new Date().toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'});updateBanner('Synchro Active (Dernière : '+timeStr+')');if(isInitial) alert('✅ Synchronisation '+providerName+' réussie ! '+updatedCount+' camions actifs mis à jour.');}catch(err){alert('❌ ' + err.message);}})();" class="btn" style="background:#f59e0b;color:#000;font-weight:900;padding:10px 20px;border-radius:8px;text-decoration:none;display:inline-flex;align-items:center;gap:8px;font-size:13px;cursor:grab;box-shadow:0 4px 15px rgba(245,158,11,0.4)" title="Glissez ce bouton vers votre barre de favoris Chrome">
+        🌟 Favori GPS (Glissez-moi)
+      </a>
     </div>
 
     <div style="display:flex;flex-direction:column;gap:10px;width:100%;">
@@ -12953,8 +12980,15 @@ function undeclCSPC(idx) {
   if (!confirm('Retirer ' + r.v + ' du programme CSPC ?')) return;
   DB.dispo[idx].cspc = false;
   DB.dispo[idx].prog = '';
-  // Sync → supprimer du menu CSPC
-  const cspcIdx = DB.cspc.findIndex(c => c.v === r.v);
+  if (r.v) {
+    if (!DB.deleted_cspc) DB.deleted_cspc = [];
+    const vClean = r.v.trim().toUpperCase();
+    if (!DB.deleted_cspc.includes(vClean)) DB.deleted_cspc.push(vClean);
+    if (!window._deletedCspc) window._deletedCspc = [];
+    if (!window._deletedCspc.includes(vClean)) window._deletedCspc.push(vClean);
+  }
+  // Sync → supprimer du menu CSPC (avec comparaison souple d'immatriculation)
+  const cspcIdx = DB.cspc.findIndex(c => (typeof sameVehicule === 'function' ? sameVehicule(c.v, r.v) : c.v === r.v));
   if (cspcIdx !== -1) DB.cspc.splice(cspcIdx, 1);
   saveDB(); renderDispo();
   if (typeof renderCSPC === 'function') renderCSPC();
@@ -13655,17 +13689,19 @@ function checkBascule() {
   const lastDate = localStorage.getItem(basculeKey);
   const dbLastBascule = (DB && DB.last_bascule) || (window['DB_' + eq] && window['DB_' + eq].last_bascule);
   const todayStr = today();
-  const alreadyDone = (lastDate === todayStr) || (dbLastBascule === todayStr);
+  const alreadyDone = (lastDate === todayStr) || (dbLastBascule === todayStr) || (sessionStorage.getItem('dismiss_bascule_' + eq) === todayStr);
   if (alreadyDone) {
-    localStorage.setItem(basculeKey, todayStr);
+    if (dbLastBascule === todayStr) localStorage.setItem(basculeKey, todayStr);
     return;
   }
   if (!alreadyDone) {
     setTimeout(() => {
+      const existing = document.getElementById('bascule-banner-' + eq);
+      if (existing) existing.remove();
       const banner = document.createElement('div');
       banner.id = 'bascule-banner-' + eq;
       banner.style.cssText = 'position:fixed;top:60px;left:50%;transform:translateX(-50%);background:#1e3a5f;border:1px solid var(--acc);border-radius:10px;padding:12px 20px;z-index:500;display:flex;align-items:center;gap:12px;box-shadow:0 8px 32px rgba(0,0,0,.5)';
-      banner.innerHTML = `<span style="font-size:13px;color:var(--txt)">📅 Nouvelle journée — Équipe ${eq}</span><button class="btn btn-save btn-global" onclick="basculerJournee();this.parentElement.remove()" style="font-size:11px;padding:5px 12px">⏭ Basculer J+1 → Jour</button><button class="del-btn" onclick="this.parentElement.remove()" style="font-size:16px">✕</button>`;
+      banner.innerHTML = `<span style="font-size:13px;color:var(--txt)">📅 Nouvelle journée — Équipe ${eq}</span><button class="btn btn-save btn-global" onclick="basculerJournee();this.parentElement.remove()" style="font-size:11px;padding:5px 12px">⏭ Basculer J+1 → Jour</button><button class="del-btn" onclick="sessionStorage.setItem('dismiss_bascule_${eq}','${todayStr}');this.parentElement.remove()" style="font-size:16px">✕</button>`;
       document.body.appendChild(banner);
     }, 1000);
   }
