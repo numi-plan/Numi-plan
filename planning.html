@@ -1,0 +1,699 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Planning Présence — Chefs d'Équipe</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#F2F4F3;
+    --surface:#FFFFFF;
+    --surface-2:#F8F9F8;
+    --ink:#171B1F;
+    --ink-soft:#5B6470;
+    --ink-faint:#8A93A0;
+    --border:#DFE3E6;
+    --border-strong:#C6CBD1;
+    --accent:#1F5B52;
+    --accent-soft:#E4EFEC;
+
+    --c-travail:#2E6B49;      --c-travail-bg:#E5F1EA;
+    --c-repos:#6B7684;        --c-repos-bg:#EBEDF0;
+    --c-weekend:#B5651D;      --c-weekend-bg:#FBEEE1;
+    --c-recup:#2A5F8A;        --c-recup-bg:#E6EEF5;
+    --c-conge:#7A4FA0;        --c-conge-bg:#F1E9F7;
+    --c-absence:#B0333E;      --c-absence-bg:#F9E7E9;
+
+    --radius:8px;
+    --shadow:0 1px 2px rgba(20,24,28,.06), 0 1px 8px rgba(20,24,28,.04);
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --bg:#14171A; --surface:#1B1F23; --surface-2:#20252A;
+      --ink:#EDEFF1; --ink-soft:#A7AEB6; --ink-faint:#77808A;
+      --border:#2C3238; --border-strong:#3A4148;
+      --accent:#6FBFA9; --accent-soft:#213330;
+      --c-travail:#7BC499;  --c-travail-bg:#1E2E24;
+      --c-repos:#9AA4AF;    --c-repos-bg:#252A2F;
+      --c-weekend:#E1A05C;  --c-weekend-bg:#332A1C;
+      --c-recup:#7FB1DD;    --c-recup-bg:#1E2A34;
+      --c-conge:#C09FE0;    --c-conge-bg:#2C2333;
+      --c-absence:#E1808A;  --c-absence-bg:#332025;
+    }
+  }
+  :root[data-theme="dark"]{
+    --bg:#14171A; --surface:#1B1F23; --surface-2:#20252A;
+    --ink:#EDEFF1; --ink-soft:#A7AEB6; --ink-faint:#77808A;
+    --border:#2C3238; --border-strong:#3A4148;
+    --accent:#6FBFA9; --accent-soft:#213330;
+    --c-travail:#7BC499;  --c-travail-bg:#1E2E24;
+    --c-repos:#9AA4AF;    --c-repos-bg:#252A2F;
+    --c-weekend:#E1A05C;  --c-weekend-bg:#332A1C;
+    --c-recup:#7FB1DD;    --c-recup-bg:#1E2A34;
+    --c-conge:#C09FE0;    --c-conge-bg:#2C2333;
+    --c-absence:#E1808A;  --c-absence-bg:#332025;
+  }
+
+  *{box-sizing:border-box;}
+  body{
+    margin:0; background:var(--bg); color:var(--ink);
+    font-family:'Inter',system-ui,-apple-system,'Segoe UI',sans-serif;
+    -webkit-font-smoothing:antialiased;
+  }
+  .mono{ font-family:'IBM Plex Mono',ui-monospace,Menlo,monospace; }
+
+  .wrap{ max-width:1400px; margin:0 auto; padding:28px 24px 60px; }
+
+  header.page{ margin-bottom:20px; }
+  header.page h1{ font-size:22px; font-weight:700; margin:0 0 4px; letter-spacing:-.01em; }
+  header.page p{ margin:0; color:var(--ink-soft); font-size:14px; max-width:70ch; line-height:1.5; }
+
+  .panel{
+    background:var(--surface); border:1px solid var(--border); border-radius:var(--radius);
+    box-shadow:var(--shadow); padding:16px 18px; margin-bottom:16px;
+  }
+  .panel h2{ font-size:13px; font-weight:600; margin:0 0 12px; color:var(--ink-soft); }
+
+  .controls{ display:flex; flex-wrap:wrap; gap:16px 24px; align-items:flex-end; }
+  .field{ display:flex; flex-direction:column; gap:5px; }
+  .field label{ font-size:12px; color:var(--ink-soft); font-weight:500; }
+  .field input[type="date"], .field input[type="number"]{
+    border:1px solid var(--border-strong); border-radius:6px; padding:7px 9px;
+    font-size:13px; background:var(--surface); color:var(--ink); font-family:inherit; width:150px;
+  }
+  .field input[type="number"]{ width:80px; }
+
+  button{
+    font-family:inherit; font-size:13px; font-weight:600; cursor:pointer;
+    border-radius:6px; border:1px solid var(--border-strong); background:var(--surface);
+    color:var(--ink); padding:8px 13px; transition:background .12s, border-color .12s;
+  }
+  button:hover{ background:var(--surface-2); border-color:var(--ink-faint); }
+  button.primary{ background:var(--accent); border-color:var(--accent); color:#fff; }
+  button.primary:hover{ filter:brightness(1.07); }
+  button.ghost{ border-color:transparent; background:transparent; color:var(--ink-soft); padding:6px 8px; }
+  button.ghost:hover{ background:var(--surface-2); color:var(--ink); }
+  button.small{ padding:5px 9px; font-size:12px; }
+
+  .spacer{ flex:1 1 auto; }
+
+  /* Teams panel */
+  .teams-row{ display:flex; flex-wrap:wrap; gap:10px; }
+  .team-card{
+    display:flex; align-items:center; gap:9px; border:1px solid var(--border);
+    border-radius:7px; padding:7px 8px 7px 10px; background:var(--surface-2);
+    border-left:4px solid var(--tc,#888);
+  }
+  .team-card input[type="text"]{
+    border:none; background:transparent; font-size:13px; font-weight:600; color:var(--ink);
+    width:108px; font-family:inherit; padding:2px 0;
+  }
+  .team-card input[type="text"]:focus{ outline:none; border-bottom:1px solid var(--border-strong); }
+  .team-count{ font-size:11px; color:var(--ink-faint); font-family:'IBM Plex Mono',monospace; }
+
+  /* Legend */
+  .legend{ display:flex; flex-wrap:wrap; gap:8px 18px; }
+  .legend-item{ display:flex; align-items:center; gap:7px; font-size:12.5px; color:var(--ink-soft); }
+  .swatch{ width:12px; height:12px; border-radius:3px; flex:none; }
+
+  /* Rotation summary */
+  .rotation-strip{ display:flex; flex-wrap:wrap; gap:6px 14px; font-size:12.5px; color:var(--ink-soft); }
+  .rotation-strip b{ color:var(--ink); font-weight:600; }
+
+  /* Table */
+  .table-scroll{
+    overflow-x:auto; border:1px solid var(--border); border-radius:var(--radius);
+    background:var(--surface); box-shadow:var(--shadow);
+  }
+  table{ border-collapse:separate; border-spacing:0; width:max-content; }
+  thead th{
+    position:sticky; top:0; background:var(--surface-2); z-index:3;
+    border-bottom:1px solid var(--border-strong); padding:0;
+  }
+  th.week-hdr{
+    font-size:11.5px; font-weight:600; color:var(--ink-soft); text-align:center;
+    padding:7px 4px; border-left:2px solid var(--border-strong); white-space:nowrap;
+  }
+  th.day-hdr{
+    font-size:11px; font-weight:600; text-align:center; padding:5px 2px 7px;
+    color:var(--ink-faint); min-width:42px; border-bottom:1px solid var(--border);
+  }
+  th.day-hdr .dow{ display:block; text-transform:uppercase; letter-spacing:.03em; font-size:10px; }
+  th.day-hdr .dnum{ display:block; font-family:'IBM Plex Mono',monospace; font-size:12px; color:var(--ink-soft); margin-top:1px; }
+  th.day-hdr.we{ color:var(--c-weekend); }
+  th.day-hdr.thu{ color:var(--c-recup); }
+  th.day-hdr.week-start{ border-left:2px solid var(--border-strong); }
+
+  th.sticky-col, td.sticky-col{
+    position:sticky; background:var(--surface); z-index:2;
+    border-right:1px solid var(--border);
+  }
+  th.col-name, td.col-name{ left:0; min-width:170px; z-index:4; }
+  th.col-team, td.col-team{ left:170px; min-width:126px; border-right:2px solid var(--border-strong); z-index:4; }
+  thead th.col-name, thead th.col-team{ z-index:5; }
+
+  tbody tr:nth-child(odd) td.col-name, tbody tr:nth-child(odd) td.col-team{ background:var(--surface); }
+  tbody tr:nth-child(even) td.col-name, tbody tr:nth-child(even) td.col-team{ background:var(--surface-2); }
+  tbody tr:nth-child(even) td.day{ background:rgba(0,0,0,0.012); }
+
+  td.col-name{ padding:6px 8px; }
+  td.col-name input{
+    width:100%; border:1px solid transparent; background:transparent; border-radius:5px;
+    padding:6px 6px; font-size:13px; font-weight:500; color:var(--ink); font-family:inherit;
+  }
+  td.col-name input::placeholder{ color:var(--ink-faint); font-weight:400; }
+  td.col-name input:hover{ border-color:var(--border); }
+  td.col-name input:focus{ outline:none; border-color:var(--accent); background:var(--surface); }
+
+  td.col-team{ padding:6px 8px; }
+  .team-select{
+    width:100%; border:1px solid var(--border); border-radius:5px; padding:5px 6px;
+    font-size:12.5px; font-weight:600; font-family:inherit; background:var(--surface); color:var(--ink);
+  }
+
+  td.day{
+    text-align:center; padding:0; border-bottom:1px solid var(--border);
+    border-left:1px solid rgba(0,0,0,0.02);
+  }
+  td.day.week-start{ border-left:2px solid var(--border-strong); }
+  .cell-btn{
+    width:100%; height:100%; min-height:34px; border:none; cursor:pointer;
+    font-family:'IBM Plex Mono',monospace; font-size:10.5px; font-weight:600;
+    display:flex; align-items:center; justify-content:center; padding:8px 2px;
+    border-radius:0; color:inherit;
+  }
+  .cell-btn:hover{ filter:brightness(0.94); }
+  :root[data-theme="dark"] .cell-btn:hover, @media (prefers-color-scheme:dark){ .cell-btn:hover{ filter:brightness(1.15);} }
+
+  .st-travail{ background:var(--c-travail-bg); color:var(--c-travail); }
+  .st-repos{ background:var(--c-repos-bg); color:var(--c-repos); }
+  .st-weekend{ background:var(--c-weekend-bg); color:var(--c-weekend); }
+  .st-recup{ background:var(--c-recup-bg); color:var(--c-recup); }
+  .st-conge{ background:var(--c-conge-bg); color:var(--c-conge); }
+  .st-absence{ background:var(--c-absence-bg); color:var(--c-absence); }
+
+  .row-remove{ width:22px; height:22px; padding:0; font-size:13px; line-height:1; border-radius:5px; }
+
+  td.col-remove, th.col-remove{ min-width:30px; text-align:center; }
+
+  /* Popover */
+  #popover{
+    position:absolute; display:none; z-index:50; background:var(--surface);
+    border:1px solid var(--border-strong); border-radius:8px; box-shadow:0 6px 24px rgba(0,0,0,.16);
+    padding:6px; min-width:190px;
+  }
+  #popover button{
+    display:flex; align-items:center; gap:8px; width:100%; text-align:left;
+    border:none; background:transparent; padding:7px 8px; border-radius:5px; font-size:12.5px; font-weight:500;
+  }
+  #popover button:hover{ background:var(--surface-2); }
+  #popover hr{ border:none; border-top:1px solid var(--border); margin:4px 2px; }
+  #popover .swatch{ width:10px; height:10px; border-radius:3px; }
+
+  footer.note{ margin-top:18px; font-size:12px; color:var(--ink-faint); line-height:1.6; }
+
+  @media (max-width: 640px){
+    .wrap{ padding:16px 12px 40px; }
+    .controls{ gap:12px 16px; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="page">
+    <h1>Planning Présence — Chefs d'Équipe</h1>
+    <p>Activité 7/7 · week-end travaillé le vendredi et le samedi par équipe tournante · récupération obligatoire le jeudi suivant. Modifiez les noms, les équipes et chaque case directement dans le tableau.</p>
+  </header>
+
+  <div class="panel">
+    <h2>Paramètres</h2>
+    <div class="controls">
+      <div class="field">
+        <label for="startDate">Début de la simulation (dimanche)</label>
+        <input type="date" id="startDate">
+      </div>
+      <div class="field">
+        <label for="numWeeks">Nombre de semaines</label>
+        <input type="number" id="numWeeks" min="1" max="16">
+      </div>
+      <button id="regenBtn" class="primary">Régénérer la simulation</button>
+      <div class="spacer"></div>
+      <button id="addStaffBtn">+ Chef d'équipe</button>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h2>Équipes de week-end (type)</h2>
+    <div class="teams-row" id="teamsRow"></div>
+    <div style="margin-top:10px;">
+      <button id="addTeamBtn" class="small">+ Nouvelle équipe</button>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h2>Rotation simulée</h2>
+    <div class="rotation-strip" id="rotationStrip"></div>
+  </div>
+
+  <div class="panel">
+    <h2>Légende</h2>
+    <div class="legend">
+      <div class="legend-item"><span class="swatch" style="background:var(--c-travail)"></span>Travail</div>
+      <div class="legend-item"><span class="swatch" style="background:var(--c-repos)"></span>Repos hebdomadaire</div>
+      <div class="legend-item"><span class="swatch" style="background:var(--c-weekend)"></span>Week-end travaillé</div>
+      <div class="legend-item"><span class="swatch" style="background:var(--c-recup)"></span>Récupération</div>
+      <div class="legend-item"><span class="swatch" style="background:var(--c-conge)"></span>Congé</div>
+      <div class="legend-item"><span class="swatch" style="background:var(--c-absence)"></span>Absence</div>
+    </div>
+  </div>
+
+  <div class="table-scroll">
+    <table id="planningTable"></table>
+  </div>
+
+  <footer class="note">
+    Cliquez sur une case du tableau pour lui donner un statut manuel (congé, absence…) ou revenir au calcul automatique. La rotation attribue le week-end (vendredi + samedi) à une équipe différente chaque semaine, dans l'ordre des équipes ci-dessus, et place la récupération le jeudi de la semaine suivante. « Régénérer » recalcule tout le planning et efface les statuts modifiés manuellement.
+  </footer>
+
+</div>
+
+<div id="popover"></div>
+
+<script>
+(function(){
+  "use strict";
+
+  var STORE_KEY = "planning-presence-chefs-v1";
+  var DOW_LABELS = ["Dim","Lun","Mar","Mer","Jeu","Ven","Sam"];
+  var TEAM_PALETTE = ["#4C6EF5","#12B886","#F76707","#AE3EC9","#E64980","#495057"];
+  var STATUS_DEFS = [
+    {id:"travail",  label:"Travail"},
+    {id:"repos",    label:"Repos hebdomadaire"},
+    {id:"weekend",  label:"Week-end travaillé"},
+    {id:"recup",    label:"Récupération"},
+    {id:"conge",    label:"Congé"},
+    {id:"absence",  label:"Absence"}
+  ];
+
+  var state = null;
+
+  function pad(n){ return n<10 ? "0"+n : ""+n; }
+  function isoDate(d){ return d.getFullYear()+"-"+pad(d.getMonth()+1)+"-"+pad(d.getDate()); }
+  function parseISO(s){ var p=s.split("-").map(Number); return new Date(p[0],p[1]-1,p[2]); }
+  function addDays(d,n){ var r=new Date(d); r.setDate(r.getDate()+n); return r; }
+  function toSunday(d){ return addDays(d, -d.getDay()); }
+  function fmtShort(d){ return pad(d.getDate())+"/"+pad(d.getMonth()+1); }
+
+  function nextSundayFromToday(){
+    var t = new Date();
+    var sunday = toSunday(t);
+    if (t.getDay() !== 0) sunday = addDays(sunday, 7);
+    return sunday;
+  }
+
+  function defaultState(){
+    var teams = [
+      {id:"t1", name:"Équipe A", color:TEAM_PALETTE[0]},
+      {id:"t2", name:"Équipe B", color:TEAM_PALETTE[1]},
+      {id:"t3", name:"Équipe C", color:TEAM_PALETTE[2]}
+    ];
+    var split = [6,6,4];
+    var staff = [];
+    var n = 1;
+    for (var ti=0; ti<teams.length; ti++){
+      for (var k=0; k<split[ti]; k++){
+        staff.push({id:"s"+n, name:"", teamId:teams[ti].id});
+        n++;
+      }
+    }
+    return {
+      startDate: isoDate(nextSundayFromToday()),
+      numWeeks: 6,
+      teams: teams,
+      staff: staff,
+      overrides: {},
+      nextTeamNum: 4,
+      nextStaffNum: 17
+    };
+  }
+
+  function load(){
+    try{
+      var raw = localStorage.getItem(STORE_KEY);
+      if (!raw) return defaultState();
+      var parsed = JSON.parse(raw);
+      if (!parsed || !parsed.teams || !parsed.staff) return defaultState();
+      return parsed;
+    }catch(e){
+      return defaultState();
+    }
+  }
+
+  function save(){
+    try{ localStorage.setItem(STORE_KEY, JSON.stringify(state)); }
+    catch(e){ /* storage unavailable — continue without persistence */ }
+  }
+
+  function teamById(id){
+    for (var i=0;i<state.teams.length;i++) if (state.teams[i].id===id) return state.teams[i];
+    return null;
+  }
+
+  function activeTeamForWeek(weekIndex){
+    if (state.teams.length===0) return null;
+    var idx = ((weekIndex % state.teams.length) + state.teams.length) % state.teams.length;
+    return state.teams[idx];
+  }
+
+  function computeStatus(staffMember, date, weekIndex){
+    var key = staffMember.id + "|" + isoDate(date);
+    if (state.overrides.hasOwnProperty(key)) return state.overrides[key];
+
+    var dow = date.getDay(); // 0 Dim ... 6 Sam
+    var activeTeam = activeTeamForWeek(weekIndex);
+    var isOnDuty = activeTeam && staffMember.teamId === activeTeam.id;
+
+    if (dow === 5 || dow === 6){ // Ven, Sam
+      return isOnDuty ? "weekend" : "repos";
+    }
+    if (dow === 4){ // Jeu
+      var prevTeam = activeTeamForWeek(weekIndex - 1);
+      var wasOnDutyPrevWeek = weekIndex > 0 && prevTeam && staffMember.teamId === prevTeam.id;
+      if (wasOnDutyPrevWeek) return "recup";
+      return "travail";
+    }
+    return "travail";
+  }
+
+  function buildWeeks(){
+    var weeks = [];
+    var start = toSunday(parseISO(state.startDate));
+    for (var w=0; w<state.numWeeks; w++){
+      var days = [];
+      for (var d=0; d<7; d++) days.push(addDays(start, w*7 + d));
+      weeks.push(days);
+    }
+    return weeks;
+  }
+
+  // ---------- Rendering ----------
+
+  function renderTeamsPanel(){
+    var row = document.getElementById("teamsRow");
+    row.innerHTML = "";
+    state.teams.forEach(function(team){
+      var count = state.staff.filter(function(s){ return s.teamId===team.id; }).length;
+      var card = document.createElement("div");
+      card.className = "team-card";
+      card.style.setProperty("--tc", team.color);
+
+      var input = document.createElement("input");
+      input.type = "text";
+      input.value = team.name;
+      input.addEventListener("change", function(){
+        team.name = input.value.trim() || team.name;
+        save(); renderRotationStrip(); renderTable();
+      });
+      card.appendChild(input);
+
+      var countEl = document.createElement("span");
+      countEl.className = "team-count mono";
+      countEl.textContent = count + " pers.";
+      card.appendChild(countEl);
+
+      if (state.teams.length > 1){
+        var del = document.createElement("button");
+        del.className = "ghost small"; del.textContent = "×"; del.title = "Supprimer l'équipe";
+        del.addEventListener("click", function(){
+          if (!confirm("Supprimer « " + team.name + " » ? Ses membres seront réassignés à la première équipe restante.")) return;
+          var fallback = state.teams.filter(function(t){ return t.id!==team.id; })[0];
+          state.staff.forEach(function(s){ if (s.teamId===team.id) s.teamId = fallback.id; });
+          state.teams = state.teams.filter(function(t){ return t.id!==team.id; });
+          save(); renderAll();
+        });
+        card.appendChild(del);
+      }
+      row.appendChild(card);
+    });
+  }
+
+  function renderRotationStrip(){
+    var el = document.getElementById("rotationStrip");
+    var weeks = buildWeeks();
+    var parts = [];
+    weeks.forEach(function(days, wi){
+      var team = activeTeamForWeek(wi);
+      var fri = days[5], sat = days[6];
+      var thuNext = addDays(days[4], 7);
+      parts.push("<span>Sem. " + (wi+1) + " (" + fmtShort(days[0]) + ") — <b>" + (team? team.name : "—") +
+        "</b> le " + fmtShort(fri) + "-" + fmtShort(sat) + ", récup. " + fmtShort(thuNext) + "</span>");
+    });
+    el.innerHTML = parts.join("");
+  }
+
+  function statusClass(status){ return "st-" + status; }
+  function statusLabel(status){
+    for (var i=0;i<STATUS_DEFS.length;i++) if (STATUS_DEFS[i].id===status) return STATUS_DEFS[i].label;
+    return status;
+  }
+
+  function renderTable(){
+    var table = document.getElementById("planningTable");
+    var weeks = buildWeeks();
+
+    var thead = document.createElement("thead");
+    var rowWeeks = document.createElement("tr");
+    var rowDays = document.createElement("tr");
+
+    var thName = document.createElement("th");
+    thName.className = "sticky-col col-name"; thName.rowSpan = 2; thName.textContent = "";
+    var thTeam = document.createElement("th");
+    thTeam.className = "sticky-col col-team"; thTeam.rowSpan = 2; thTeam.textContent = "";
+    var thRemove = document.createElement("th");
+    thRemove.className = "sticky-col col-remove"; thRemove.rowSpan = 2; thRemove.textContent = "";
+    rowWeeks.appendChild(thName);
+    rowWeeks.appendChild(thTeam);
+    rowWeeks.appendChild(thRemove);
+
+    weeks.forEach(function(days, wi){
+      var team = activeTeamForWeek(wi);
+      var th = document.createElement("th");
+      th.className = "week-hdr"; th.colSpan = 7;
+      th.innerHTML = "Sem. " + (wi+1) + " · " + fmtShort(days[0]) + "–" + fmtShort(days[6]) +
+        "<br><span style='color:" + (team?team.color:"#888") + "'>" + (team?team.name:"—") + " en week-end</span>";
+      rowWeeks.appendChild(th);
+
+      days.forEach(function(d, di){
+        var th2 = document.createElement("th");
+        th2.className = "day-hdr" + (di===0?" week-start":"") + ((di===5||di===6)?" we":"") + (di===4?" thu":"");
+        th2.innerHTML = "<span class='dow'>" + DOW_LABELS[di] + "</span><span class='dnum'>" + fmtShort(d) + "</span>";
+        rowDays.appendChild(th2);
+      });
+    });
+
+    thead.appendChild(rowWeeks);
+    thead.appendChild(rowDays);
+
+    var tbody = document.createElement("tbody");
+    state.staff.forEach(function(person){
+      var tr = document.createElement("tr");
+
+      var tdName = document.createElement("td");
+      tdName.className = "sticky-col col-name";
+      var inputName = document.createElement("input");
+      inputName.type = "text";
+      inputName.placeholder = "Nom du chauffeur";
+      inputName.value = person.name;
+      inputName.addEventListener("change", function(){
+        person.name = inputName.value; save();
+      });
+      tdName.appendChild(inputName);
+      tr.appendChild(tdName);
+
+      var tdTeam = document.createElement("td");
+      tdTeam.className = "sticky-col col-team";
+      var select = document.createElement("select");
+      select.className = "team-select";
+      state.teams.forEach(function(t){
+        var opt = document.createElement("option");
+        opt.value = t.id; opt.textContent = t.name;
+        if (t.id===person.teamId) opt.selected = true;
+        select.appendChild(opt);
+      });
+      select.style.color = teamById(person.teamId) ? teamById(person.teamId).color : "";
+      select.addEventListener("change", function(){
+        person.teamId = select.value; save(); renderTeamsPanel(); renderTable();
+      });
+      tdTeam.appendChild(select);
+      tr.appendChild(tdTeam);
+
+      var tdRemove = document.createElement("td");
+      tdRemove.className = "sticky-col col-remove";
+      var rm = document.createElement("button");
+      rm.className = "ghost row-remove"; rm.textContent = "×"; rm.title = "Retirer";
+      rm.addEventListener("click", function(){
+        if (!confirm("Retirer ce chef d'équipe du planning ?")) return;
+        state.staff = state.staff.filter(function(s){ return s.id !== person.id; });
+        save(); renderAll();
+      });
+      tdRemove.appendChild(rm);
+      tr.appendChild(tdRemove);
+
+      weeks.forEach(function(days, wi){
+        days.forEach(function(d, di){
+          var status = computeStatus(person, d, wi);
+          var td = document.createElement("td");
+          td.className = "day" + (di===0?" week-start":"");
+          var btn = document.createElement("button");
+          btn.className = "cell-btn " + statusClass(status);
+          btn.textContent = statusLabel(status).slice(0,3);
+          btn.title = statusLabel(status);
+          btn.addEventListener("click", function(ev){
+            openPopover(ev.currentTarget, person, d);
+          });
+          td.appendChild(btn);
+          tr.appendChild(td);
+        });
+      });
+
+      tbody.appendChild(tr);
+    });
+
+    table.innerHTML = "";
+    table.appendChild(thead);
+    table.appendChild(tbody);
+  }
+
+  function renderAll(){
+    renderTeamsPanel();
+    renderRotationStrip();
+    renderTable();
+  }
+
+  // ---------- Popover ----------
+
+  function openPopover(anchorEl, person, date){
+    var pop = document.getElementById("popover");
+    var key = person.id + "|" + isoDate(date);
+    pop.innerHTML = "";
+
+    STATUS_DEFS.forEach(function(sd){
+      var b = document.createElement("button");
+      var sw = document.createElement("span");
+      sw.className = "swatch " + statusClass(sd.id);
+      sw.style.background = "var(--c-" + sd.id + ")";
+      b.appendChild(sw);
+      b.appendChild(document.createTextNode(sd.label));
+      b.addEventListener("click", function(){
+        state.overrides[key] = sd.id;
+        save(); closePopover(); renderTable();
+      });
+      pop.appendChild(b);
+    });
+
+    if (state.overrides.hasOwnProperty(key)){
+      var hr = document.createElement("hr");
+      pop.appendChild(hr);
+      var auto = document.createElement("button");
+      auto.textContent = "↺ Revenir au calcul automatique";
+      auto.addEventListener("click", function(){
+        delete state.overrides[key];
+        save(); closePopover(); renderTable();
+      });
+      pop.appendChild(auto);
+    }
+
+    var rect = anchorEl.getBoundingClientRect();
+    pop.style.display = "block";
+    var top = rect.bottom + window.scrollY + 4;
+    var left = rect.left + window.scrollX;
+    var maxLeft = window.scrollX + document.documentElement.clientWidth - 210;
+    if (left > maxLeft) left = maxLeft;
+    pop.style.top = top + "px";
+    pop.style.left = left + "px";
+  }
+
+  function closePopover(){
+    document.getElementById("popover").style.display = "none";
+  }
+
+  document.addEventListener("click", function(ev){
+    var pop = document.getElementById("popover");
+    if (pop.style.display === "block" && !pop.contains(ev.target) && !ev.target.classList.contains("cell-btn")){
+      closePopover();
+    }
+  });
+
+  // ---------- Controls wiring ----------
+
+  function wireControls(){
+    var startInput = document.getElementById("startDate");
+    startInput.value = state.startDate;
+    startInput.addEventListener("change", function(){
+      if (!startInput.value) return;
+      var snapped = toSunday(parseISO(startInput.value));
+      state.startDate = isoDate(snapped);
+      startInput.value = state.startDate;
+      save(); renderRotationStrip(); renderTable();
+    });
+
+    var weeksInput = document.getElementById("numWeeks");
+    weeksInput.value = state.numWeeks;
+    weeksInput.addEventListener("change", function(){
+      var v = parseInt(weeksInput.value, 10);
+      if (isNaN(v)) v = state.numWeeks;
+      v = Math.max(1, Math.min(16, v));
+      weeksInput.value = v;
+      state.numWeeks = v;
+      save(); renderRotationStrip(); renderTable();
+    });
+
+    document.getElementById("regenBtn").addEventListener("click", function(){
+      if (Object.keys(state.overrides).length > 0){
+        if (!confirm("Régénérer va effacer les statuts modifiés manuellement. Continuer ?")) return;
+      }
+      state.overrides = {};
+      save(); renderAll();
+    });
+
+    document.getElementById("addStaffBtn").addEventListener("click", function(){
+      var teamId = state.teams.length ? state.teams[0].id : null;
+      state.staff.push({ id: "s" + state.nextStaffNum, name: "", teamId: teamId });
+      state.nextStaffNum++;
+      save(); renderAll();
+    });
+
+    document.getElementById("addTeamBtn").addEventListener("click", function(){
+      var letter = String.fromCharCode(64 + state.nextTeamNum - 3 + 1); // rough letter continuation
+      var color = TEAM_PALETTE[(state.teams.length) % TEAM_PALETTE.length];
+      var name = "Équipe " + nextTeamLetter();
+      state.teams.push({ id: "t" + state.nextTeamNum, name: name, color: color });
+      state.nextTeamNum++;
+      save(); renderAll();
+    });
+  }
+
+  function nextTeamLetter(){
+    var used = state.teams.map(function(t){ return t.name; });
+    var code = 65;
+    while (used.indexOf("Équipe " + String.fromCharCode(code)) !== -1 && code < 91) code++;
+    return String.fromCharCode(code);
+  }
+
+  // ---------- Init ----------
+
+  function init(){
+    state = load();
+    wireControls();
+    renderAll();
+  }
+
+  init();
+})();
+</script>
+</body>
+</html>
