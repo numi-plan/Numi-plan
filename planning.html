@@ -219,15 +219,41 @@
     .wrap{ padding:16px 12px 40px; }
     .controls{ gap:12px 16px; }
   }
+
+  .banner-readonly{
+    display:flex; align-items:center; gap:8px; background:var(--accent-soft); color:var(--accent);
+    border:1px solid var(--accent); border-radius:var(--radius); padding:10px 14px;
+    font-size:13px; font-weight:600; margin-bottom:16px;
+  }
+  .share-row{ display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+  .share-hint{ font-size:12px; color:var(--ink-faint); }
+
+  body.read-only input, body.read-only select{
+    pointer-events:none; background:transparent !important; border-color:transparent !important;
+    color:var(--ink) !important;
+  }
+  body.read-only td.col-remove, body.read-only th.col-remove{ display:none; }
+  body.read-only .team-card button.ghost{ display:none; }
+  body.read-only #regenBtn, body.read-only #addStaffBtn, body.read-only #addTeamBtn,
+  body.read-only #copyReadonlyLink{ display:none; }
+  body.read-only .cell-btn{ cursor:default; }
+  body.read-only .cell-btn:hover{ filter:none; }
 </style>
 </head>
 <body>
 <div class="wrap">
 
-  <header class="page">
-    <h1>Planning Présence — Chefs d'Équipe</h1>
-    <p>Activité 7/7 · week-end travaillé le vendredi et le samedi par équipe tournante · récupération obligatoire le jeudi suivant. Modifiez les noms, les équipes et chaque case directement dans le tableau.</p>
+  <header class="page" style="display:flex; align-items:flex-start; justify-content:space-between; gap:16px;">
+    <div>
+      <h1>Planning Présence — Chefs d'Équipe</h1>
+      <p>Activité 7/7 · week-end travaillé le vendredi et le samedi par équipe tournante · récupération obligatoire le jeudi suivant. Modifiez les noms, les équipes et chaque case directement dans le tableau.</p>
+    </div>
+    <button id="themeToggle" class="small" style="flex:none; white-space:nowrap;">☀️ Mode jour</button>
   </header>
+
+  <div id="readonlyBanner" class="banner-readonly" style="display:none;">
+    🔒 Mode lecture seule — vous consultez ce planning sans pouvoir le modifier.
+  </div>
 
   <div class="panel">
     <h2>Paramètres</h2>
@@ -243,6 +269,10 @@
       <button id="regenBtn" class="primary">Régénérer la simulation</button>
       <div class="spacer"></div>
       <button id="addStaffBtn">+ Chef d'équipe</button>
+    </div>
+    <div class="share-row" style="margin-top:14px; border-top:1px solid var(--border); padding-top:12px;">
+      <button id="copyReadonlyLink" class="small">🔗 Copier le lien lecture seule (pour l'équipe)</button>
+      <span class="share-hint" id="copyFeedback"></span>
     </div>
   </div>
 
@@ -300,6 +330,11 @@
   ];
 
   var state = null;
+  var READONLY = false;
+  try{
+    var qs = new URLSearchParams(window.location.search);
+    READONLY = qs.get("readonly") === "1" || qs.get("lecture") === "1";
+  }catch(e){ READONLY = false; }
 
   function pad(n){ return n<10 ? "0"+n : ""+n; }
   function isoDate(d){ return d.getFullYear()+"-"+pad(d.getMonth()+1)+"-"+pad(d.getDate()); }
@@ -414,10 +449,14 @@
       var input = document.createElement("input");
       input.type = "text";
       input.value = team.name;
-      input.addEventListener("change", function(){
-        team.name = input.value.trim() || team.name;
-        save(); renderRotationStrip(); renderTable();
-      });
+      if (READONLY){
+        input.disabled = true;
+      } else {
+        input.addEventListener("change", function(){
+          team.name = input.value.trim() || team.name;
+          save(); renderRotationStrip(); renderTable();
+        });
+      }
       card.appendChild(input);
 
       var countEl = document.createElement("span");
@@ -425,7 +464,7 @@
       countEl.textContent = count + " pers.";
       card.appendChild(countEl);
 
-      if (state.teams.length > 1){
+      if (!READONLY && state.teams.length > 1){
         var del = document.createElement("button");
         del.className = "ghost small"; del.textContent = "×"; del.title = "Supprimer l'équipe";
         del.addEventListener("click", function(){
@@ -473,11 +512,13 @@
     thName.className = "sticky-col col-name"; thName.rowSpan = 2; thName.textContent = "";
     var thTeam = document.createElement("th");
     thTeam.className = "sticky-col col-team"; thTeam.rowSpan = 2; thTeam.textContent = "";
-    var thRemove = document.createElement("th");
-    thRemove.className = "sticky-col col-remove"; thRemove.rowSpan = 2; thRemove.textContent = "";
     rowWeeks.appendChild(thName);
     rowWeeks.appendChild(thTeam);
-    rowWeeks.appendChild(thRemove);
+    if (!READONLY){
+      var thRemove = document.createElement("th");
+      thRemove.className = "sticky-col col-remove"; thRemove.rowSpan = 2; thRemove.textContent = "";
+      rowWeeks.appendChild(thRemove);
+    }
 
     weeks.forEach(function(days, wi){
       var team = activeTeamForWeek(wi);
@@ -508,9 +549,13 @@
       inputName.type = "text";
       inputName.placeholder = "Nom du chauffeur";
       inputName.value = person.name;
-      inputName.addEventListener("change", function(){
-        person.name = inputName.value; save();
-      });
+      if (READONLY){
+        inputName.disabled = true;
+      } else {
+        inputName.addEventListener("change", function(){
+          person.name = inputName.value; save();
+        });
+      }
       tdName.appendChild(inputName);
       tr.appendChild(tdName);
 
@@ -525,23 +570,29 @@
         select.appendChild(opt);
       });
       select.style.color = teamById(person.teamId) ? teamById(person.teamId).color : "";
-      select.addEventListener("change", function(){
-        person.teamId = select.value; save(); renderTeamsPanel(); renderTable();
-      });
+      if (READONLY){
+        select.disabled = true;
+      } else {
+        select.addEventListener("change", function(){
+          person.teamId = select.value; save(); renderTeamsPanel(); renderTable();
+        });
+      }
       tdTeam.appendChild(select);
       tr.appendChild(tdTeam);
 
-      var tdRemove = document.createElement("td");
-      tdRemove.className = "sticky-col col-remove";
-      var rm = document.createElement("button");
-      rm.className = "ghost row-remove"; rm.textContent = "×"; rm.title = "Retirer";
-      rm.addEventListener("click", function(){
-        if (!confirm("Retirer ce chef d'équipe du planning ?")) return;
-        state.staff = state.staff.filter(function(s){ return s.id !== person.id; });
-        save(); renderAll();
-      });
-      tdRemove.appendChild(rm);
-      tr.appendChild(tdRemove);
+      if (!READONLY){
+        var tdRemove = document.createElement("td");
+        tdRemove.className = "sticky-col col-remove";
+        var rm = document.createElement("button");
+        rm.className = "ghost row-remove"; rm.textContent = "×"; rm.title = "Retirer";
+        rm.addEventListener("click", function(){
+          if (!confirm("Retirer ce chef d'équipe du planning ?")) return;
+          state.staff = state.staff.filter(function(s){ return s.id !== person.id; });
+          save(); renderAll();
+        });
+        tdRemove.appendChild(rm);
+        tr.appendChild(tdRemove);
+      }
 
       weeks.forEach(function(days, wi){
         days.forEach(function(d, di){
@@ -552,9 +603,13 @@
           btn.className = "cell-btn " + statusClass(status);
           btn.textContent = statusLabel(status).slice(0,3);
           btn.title = statusLabel(status);
-          btn.addEventListener("click", function(ev){
-            openPopover(ev.currentTarget, person, d);
-          });
+          if (READONLY){
+            btn.disabled = true;
+          } else {
+            btn.addEventListener("click", function(ev){
+              openPopover(ev.currentTarget, person, d);
+            });
+          }
           td.appendChild(btn);
           tr.appendChild(td);
         });
@@ -631,8 +686,14 @@
   // ---------- Controls wiring ----------
 
   function wireControls(){
+    if (READONLY){
+      document.body.classList.add("read-only");
+      document.getElementById("readonlyBanner").style.display = "flex";
+    }
+
     var startInput = document.getElementById("startDate");
     startInput.value = state.startDate;
+    if (READONLY) startInput.disabled = true;
     startInput.addEventListener("change", function(){
       if (!startInput.value) return;
       var snapped = toSunday(parseISO(startInput.value));
@@ -643,6 +704,7 @@
 
     var weeksInput = document.getElementById("numWeeks");
     weeksInput.value = state.numWeeks;
+    if (READONLY) weeksInput.disabled = true;
     weeksInput.addEventListener("change", function(){
       var v = parseInt(weeksInput.value, 10);
       if (isNaN(v)) v = state.numWeeks;
@@ -651,6 +713,27 @@
       state.numWeeks = v;
       save(); renderRotationStrip(); renderTable();
     });
+
+    var copyBtn = document.getElementById("copyReadonlyLink");
+    if (copyBtn){
+      copyBtn.addEventListener("click", function(){
+        var url = window.location.origin + window.location.pathname + "?readonly=1";
+        var feedback = document.getElementById("copyFeedback");
+        function showFeedback(msg){
+          feedback.textContent = msg;
+          setTimeout(function(){ feedback.textContent = ""; }, 3500);
+        }
+        if (navigator.clipboard && navigator.clipboard.writeText){
+          navigator.clipboard.writeText(url).then(function(){
+            showFeedback("Lien copié : " + url);
+          }).catch(function(){
+            showFeedback(url);
+          });
+        } else {
+          showFeedback(url);
+        }
+      });
+    }
 
     document.getElementById("regenBtn").addEventListener("click", function(){
       if (Object.keys(state.overrides).length > 0){
@@ -686,9 +769,42 @@
 
   // ---------- Init ----------
 
+  function applyTheme(theme){
+    if (theme === "light" || theme === "dark"){
+      document.documentElement.setAttribute("data-theme", theme);
+    } else {
+      document.documentElement.removeAttribute("data-theme");
+    }
+    var btn = document.getElementById("themeToggle");
+    if (!btn) return;
+    var current = document.documentElement.getAttribute("data-theme");
+    if (current === "light"){
+      btn.textContent = "🌙 Mode nuit";
+    } else if (current === "dark"){
+      btn.textContent = "☀️ Mode jour";
+    } else {
+      // following system: offer to force light, since request was to leave dark mode
+      btn.textContent = "☀️ Mode jour";
+    }
+  }
+
+  function wireThemeToggle(){
+    var stored = null;
+    try{ stored = localStorage.getItem("planning-presence-theme"); }catch(e){}
+    applyTheme(stored || "light");
+
+    document.getElementById("themeToggle").addEventListener("click", function(){
+      var current = document.documentElement.getAttribute("data-theme");
+      var next = current === "dark" ? "light" : "dark";
+      applyTheme(next);
+      try{ localStorage.setItem("planning-presence-theme", next); }catch(e){}
+    });
+  }
+
   function init(){
     state = load();
     wireControls();
+    wireThemeToggle();
     renderAll();
   }
 
