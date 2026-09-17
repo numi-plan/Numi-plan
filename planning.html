@@ -4,811 +4,191 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Planning Présence — Chefs d'Équipe</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet">
 <style>
-  :root{
-    --bg:#F2F4F3;
-    --surface:#FFFFFF;
-    --surface-2:#F8F9F8;
-    --ink:#171B1F;
-    --ink-soft:#5B6470;
-    --ink-faint:#8A93A0;
-    --border:#DFE3E6;
-    --border-strong:#C6CBD1;
-    --accent:#1F5B52;
-    --accent-soft:#E4EFEC;
-
-    --c-travail:#2E6B49;      --c-travail-bg:#E5F1EA;
-    --c-repos:#6B7684;        --c-repos-bg:#EBEDF0;
-    --c-weekend:#B5651D;      --c-weekend-bg:#FBEEE1;
-    --c-recup:#2A5F8A;        --c-recup-bg:#E6EEF5;
-    --c-conge:#7A4FA0;        --c-conge-bg:#F1E9F7;
-    --c-absence:#B0333E;      --c-absence-bg:#F9E7E9;
-
-    --radius:8px;
-    --shadow:0 1px 2px rgba(20,24,28,.06), 0 1px 8px rgba(20,24,28,.04);
+  body {
+    background: #0f172a;
+    color: #fff;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 100vh;
+    margin: 0;
+    overflow: hidden;
+    user-select: none;
+    -webkit-user-select: none;
   }
-  @media (prefers-color-scheme: dark){
-    :root:not([data-theme="light"]){
-      --bg:#14171A; --surface:#1B1F23; --surface-2:#20252A;
-      --ink:#EDEFF1; --ink-soft:#A7AEB6; --ink-faint:#77808A;
-      --border:#2C3238; --border-strong:#3A4148;
-      --accent:#6FBFA9; --accent-soft:#213330;
-      --c-travail:#7BC499;  --c-travail-bg:#1E2E24;
-      --c-repos:#9AA4AF;    --c-repos-bg:#252A2F;
-      --c-weekend:#E1A05C;  --c-weekend-bg:#332A1C;
-      --c-recup:#7FB1DD;    --c-recup-bg:#1E2A34;
-      --c-conge:#C09FE0;    --c-conge-bg:#2C2333;
-      --c-absence:#E1808A;  --c-absence-bg:#332025;
-    }
+  .loader-card {
+    text-align: center;
+    padding: 32px 40px;
+    background: #1e293b;
+    border: 1px solid #334155;
+    border-radius: 12px;
+    box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5);
+    max-width: 440px;
+    width: 90%;
   }
-  :root[data-theme="dark"]{
-    --bg:#14171A; --surface:#1B1F23; --surface-2:#20252A;
-    --ink:#EDEFF1; --ink-soft:#A7AEB6; --ink-faint:#77808A;
-    --border:#2C3238; --border-strong:#3A4148;
-    --accent:#6FBFA9; --accent-soft:#213330;
-    --c-travail:#7BC499;  --c-travail-bg:#1E2E24;
-    --c-repos:#9AA4AF;    --c-repos-bg:#252A2F;
-    --c-weekend:#E1A05C;  --c-weekend-bg:#332A1C;
-    --c-recup:#7FB1DD;    --c-recup-bg:#1E2A34;
-    --c-conge:#C09FE0;    --c-conge-bg:#2C2333;
-    --c-absence:#E1808A;  --c-absence-bg:#332025;
+  .spinner {
+    width: 36px;
+    height: 36px;
+    border: 3px solid rgba(255,255,255,0.15);
+    border-radius: 50%;
+    border-top-color: #38bdf8;
+    animation: spin 0.8s linear infinite;
+    margin: 0 auto 18px;
   }
-
-  *{box-sizing:border-box;}
-  body{
-    margin:0; background:var(--bg); color:var(--ink);
-    font-family:'Inter',system-ui,-apple-system,'Segoe UI',sans-serif;
-    -webkit-font-smoothing:antialiased;
+  @keyframes spin {
+    to { transform: rotate(360deg); }
   }
-  .mono{ font-family:'IBM Plex Mono',ui-monospace,Menlo,monospace; }
-
-  .wrap{ max-width:1400px; margin:0 auto; padding:28px 24px 60px; }
-
-  header.page{ margin-bottom:20px; }
-  header.page h1{ font-size:22px; font-weight:700; margin:0 0 4px; letter-spacing:-.01em; }
-  header.page p{ margin:0; color:var(--ink-soft); font-size:14px; max-width:70ch; line-height:1.5; }
-
-  .panel{
-    background:var(--surface); border:1px solid var(--border); border-radius:var(--radius);
-    box-shadow:var(--shadow); padding:16px 18px; margin-bottom:16px;
-  }
-  .panel h2{ font-size:13px; font-weight:600; margin:0 0 12px; color:var(--ink-soft); }
-
-  .controls{ display:flex; flex-wrap:wrap; gap:16px 24px; align-items:flex-end; }
-  .field{ display:flex; flex-direction:column; gap:5px; }
-  .field label{ font-size:12px; color:var(--ink-soft); font-weight:500; }
-  .field input[type="date"], .field input[type="number"]{
-    border:1px solid var(--border-strong); border-radius:6px; padding:7px 9px;
-    font-size:13px; background:var(--surface); color:var(--ink); font-family:inherit; width:150px;
-  }
-  .field input[type="number"]{ width:80px; }
-
-  button{
-    font-family:inherit; font-size:13px; font-weight:600; cursor:pointer;
-    border-radius:6px; border:1px solid var(--border-strong); background:var(--surface);
-    color:var(--ink); padding:8px 13px; transition:background .12s, border-color .12s;
-  }
-  button:hover{ background:var(--surface-2); border-color:var(--ink-faint); }
-  button.primary{ background:var(--accent); border-color:var(--accent); color:#fff; }
-  button.primary:hover{ filter:brightness(1.07); }
-  button.ghost{ border-color:transparent; background:transparent; color:var(--ink-soft); padding:6px 8px; }
-  button.ghost:hover{ background:var(--surface-2); color:var(--ink); }
-  button.small{ padding:5px 9px; font-size:12px; }
-
-  .spacer{ flex:1 1 auto; }
-
-  /* Teams panel */
-  .teams-row{ display:flex; flex-wrap:wrap; gap:10px; }
-  .team-card{
-    display:flex; align-items:center; gap:9px; border:1px solid var(--border);
-    border-radius:7px; padding:7px 8px 7px 10px; background:var(--surface-2);
-    border-left:4px solid var(--tc,#888);
-  }
-  .team-card input[type="text"]{
-    border:none; background:transparent; font-size:13px; font-weight:600; color:var(--ink);
-    width:108px; font-family:inherit; padding:2px 0;
-  }
-  .team-card input[type="text"]:focus{ outline:none; border-bottom:1px solid var(--border-strong); }
-  .team-count{ font-size:11px; color:var(--ink-faint); font-family:'IBM Plex Mono',monospace; }
-
-  /* Legend */
-  .legend{ display:flex; flex-wrap:wrap; gap:8px 18px; }
-  .legend-item{ display:flex; align-items:center; gap:7px; font-size:12.5px; color:var(--ink-soft); }
-  .swatch{ width:12px; height:12px; border-radius:3px; flex:none; }
-
-  /* Rotation summary */
-  .rotation-strip{ display:flex; flex-wrap:wrap; gap:6px 14px; font-size:12.5px; color:var(--ink-soft); }
-  .rotation-strip b{ color:var(--ink); font-weight:600; }
-
-  /* Table */
-  .table-scroll{
-    overflow-x:auto; border:1px solid var(--border); border-radius:var(--radius);
-    background:var(--surface); box-shadow:var(--shadow);
-  }
-  table{ border-collapse:separate; border-spacing:0; width:max-content; }
-  thead th{
-    position:sticky; top:0; background:var(--surface-2); z-index:3;
-    border-bottom:1px solid var(--border-strong); padding:0;
-  }
-  th.week-hdr{
-    font-size:11.5px; font-weight:600; color:var(--ink-soft); text-align:center;
-    padding:7px 4px; border-left:2px solid var(--border-strong); white-space:nowrap;
-  }
-  th.day-hdr{
-    font-size:11px; font-weight:600; text-align:center; padding:5px 2px 7px;
-    color:var(--ink-faint); min-width:42px; border-bottom:1px solid var(--border);
-  }
-  th.day-hdr .dow{ display:block; text-transform:uppercase; letter-spacing:.03em; font-size:10px; }
-  th.day-hdr .dnum{ display:block; font-family:'IBM Plex Mono',monospace; font-size:12px; color:var(--ink-soft); margin-top:1px; }
-  th.day-hdr.we{ color:var(--c-weekend); }
-  th.day-hdr.thu{ color:var(--c-recup); }
-  th.day-hdr.week-start{ border-left:2px solid var(--border-strong); }
-
-  th.sticky-col, td.sticky-col{
-    position:sticky; background:var(--surface); z-index:2;
-    border-right:1px solid var(--border);
-  }
-  th.col-name, td.col-name{ left:0; min-width:170px; z-index:4; }
-  th.col-team, td.col-team{ left:170px; min-width:126px; border-right:2px solid var(--border-strong); z-index:4; }
-  thead th.col-name, thead th.col-team{ z-index:5; }
-
-  tbody tr:nth-child(odd) td.col-name, tbody tr:nth-child(odd) td.col-team{ background:var(--surface); }
-  tbody tr:nth-child(even) td.col-name, tbody tr:nth-child(even) td.col-team{ background:var(--surface-2); }
-  tbody tr:nth-child(even) td.day{ background:rgba(0,0,0,0.012); }
-
-  td.col-name{ padding:6px 8px; }
-  td.col-name input{
-    width:100%; border:1px solid transparent; background:transparent; border-radius:5px;
-    padding:6px 6px; font-size:13px; font-weight:500; color:var(--ink); font-family:inherit;
-  }
-  td.col-name input::placeholder{ color:var(--ink-faint); font-weight:400; }
-  td.col-name input:hover{ border-color:var(--border); }
-  td.col-name input:focus{ outline:none; border-color:var(--accent); background:var(--surface); }
-
-  td.col-team{ padding:6px 8px; }
-  .team-select{
-    width:100%; border:1px solid var(--border); border-radius:5px; padding:5px 6px;
-    font-size:12.5px; font-weight:600; font-family:inherit; background:var(--surface); color:var(--ink);
-  }
-
-  td.day{
-    text-align:center; padding:0; border-bottom:1px solid var(--border);
-    border-left:1px solid rgba(0,0,0,0.02);
-  }
-  td.day.week-start{ border-left:2px solid var(--border-strong); }
-  .cell-btn{
-    width:100%; height:100%; min-height:34px; border:none; cursor:pointer;
-    font-family:'IBM Plex Mono',monospace; font-size:10.5px; font-weight:600;
-    display:flex; align-items:center; justify-content:center; padding:8px 2px;
-    border-radius:0; color:inherit;
-  }
-  .cell-btn:hover{ filter:brightness(0.94); }
-  :root[data-theme="dark"] .cell-btn:hover, @media (prefers-color-scheme:dark){ .cell-btn:hover{ filter:brightness(1.15);} }
-
-  .st-travail{ background:var(--c-travail-bg); color:var(--c-travail); }
-  .st-repos{ background:var(--c-repos-bg); color:var(--c-repos); }
-  .st-weekend{ background:var(--c-weekend-bg); color:var(--c-weekend); }
-  .st-recup{ background:var(--c-recup-bg); color:var(--c-recup); }
-  .st-conge{ background:var(--c-conge-bg); color:var(--c-conge); }
-  .st-absence{ background:var(--c-absence-bg); color:var(--c-absence); }
-
-  .row-remove{ width:22px; height:22px; padding:0; font-size:13px; line-height:1; border-radius:5px; }
-
-  td.col-remove, th.col-remove{ min-width:30px; text-align:center; }
-
-  /* Popover */
-  #popover{
-    position:absolute; display:none; z-index:50; background:var(--surface);
-    border:1px solid var(--border-strong); border-radius:8px; box-shadow:0 6px 24px rgba(0,0,0,.16);
-    padding:6px; min-width:190px;
-  }
-  #popover button{
-    display:flex; align-items:center; gap:8px; width:100%; text-align:left;
-    border:none; background:transparent; padding:7px 8px; border-radius:5px; font-size:12.5px; font-weight:500;
-  }
-  #popover button:hover{ background:var(--surface-2); }
-  #popover hr{ border:none; border-top:1px solid var(--border); margin:4px 2px; }
-  #popover .swatch{ width:10px; height:10px; border-radius:3px; }
-
-  footer.note{ margin-top:18px; font-size:12px; color:var(--ink-faint); line-height:1.6; }
-
-  @media (max-width: 640px){
-    .wrap{ padding:16px 12px 40px; }
-    .controls{ gap:12px 16px; }
-  }
-
-  .banner-readonly{
-    display:flex; align-items:center; gap:8px; background:var(--accent-soft); color:var(--accent);
-    border:1px solid var(--accent); border-radius:var(--radius); padding:10px 14px;
-    font-size:13px; font-weight:600; margin-bottom:16px;
-  }
-  .share-row{ display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
-  .share-hint{ font-size:12px; color:var(--ink-faint); }
-
-  body.read-only input, body.read-only select{
-    pointer-events:none; background:transparent !important; border-color:transparent !important;
-    color:var(--ink) !important;
-  }
-  body.read-only td.col-remove, body.read-only th.col-remove{ display:none; }
-  body.read-only .team-card button.ghost{ display:none; }
-  body.read-only #regenBtn, body.read-only #addStaffBtn, body.read-only #addTeamBtn,
-  body.read-only #copyReadonlyLink{ display:none; }
-  body.read-only .cell-btn{ cursor:default; }
-  body.read-only .cell-btn:hover{ filter:none; }
 </style>
-</head>
-<body>
-<div class="wrap">
-
-  <header class="page" style="display:flex; align-items:flex-start; justify-content:space-between; gap:16px;">
-    <div>
-      <h1>Planning Présence — Chefs d'Équipe</h1>
-      <p>Activité 7/7 · week-end travaillé le vendredi et le samedi par équipe tournante · récupération obligatoire le jeudi suivant. Modifiez les noms, les équipes et chaque case directement dans le tableau.</p>
-    </div>
-    <button id="themeToggle" class="small" style="flex:none; white-space:nowrap;">☀️ Mode jour</button>
-  </header>
-
-  <div id="readonlyBanner" class="banner-readonly" style="display:none;">
-    🔒 Mode lecture seule — vous consultez ce planning sans pouvoir le modifier.
-  </div>
-
-  <div class="panel">
-    <h2>Paramètres</h2>
-    <div class="controls">
-      <div class="field">
-        <label for="startDate">Début de la simulation (dimanche)</label>
-        <input type="date" id="startDate">
-      </div>
-      <div class="field">
-        <label for="numWeeks">Nombre de semaines</label>
-        <input type="number" id="numWeeks" min="1" max="16">
-      </div>
-      <button id="regenBtn" class="primary">Régénérer la simulation</button>
-      <div class="spacer"></div>
-      <button id="addStaffBtn">+ Chef d'équipe</button>
-    </div>
-    <div class="share-row" style="margin-top:14px; border-top:1px solid var(--border); padding-top:12px;">
-      <button id="copyReadonlyLink" class="small">🔗 Copier le lien lecture seule (pour l'équipe)</button>
-      <span class="share-hint" id="copyFeedback"></span>
-    </div>
-  </div>
-
-  <div class="panel">
-    <h2>Équipes de week-end (type)</h2>
-    <div class="teams-row" id="teamsRow"></div>
-    <div style="margin-top:10px;">
-      <button id="addTeamBtn" class="small">+ Nouvelle équipe</button>
-    </div>
-  </div>
-
-  <div class="panel">
-    <h2>Rotation simulée</h2>
-    <div class="rotation-strip" id="rotationStrip"></div>
-  </div>
-
-  <div class="panel">
-    <h2>Légende</h2>
-    <div class="legend">
-      <div class="legend-item"><span class="swatch" style="background:var(--c-travail)"></span>Travail</div>
-      <div class="legend-item"><span class="swatch" style="background:var(--c-repos)"></span>Repos hebdomadaire</div>
-      <div class="legend-item"><span class="swatch" style="background:var(--c-weekend)"></span>Week-end travaillé</div>
-      <div class="legend-item"><span class="swatch" style="background:var(--c-recup)"></span>Récupération</div>
-      <div class="legend-item"><span class="swatch" style="background:var(--c-conge)"></span>Congé</div>
-      <div class="legend-item"><span class="swatch" style="background:var(--c-absence)"></span>Absence</div>
-    </div>
-  </div>
-
-  <div class="table-scroll">
-    <table id="planningTable"></table>
-  </div>
-
-  <footer class="note">
-    Cliquez sur une case du tableau pour lui donner un statut manuel (congé, absence…) ou revenir au calcul automatique. La rotation attribue le week-end (vendredi + samedi) à une équipe différente chaque semaine, dans l'ordre des équipes ci-dessus, et place la récupération le jeudi de la semaine suivante. « Régénérer » recalcule tout le planning et efface les statuts modifiés manuellement.
-  </footer>
-
-</div>
-
-<div id="popover"></div>
-
 <script>
+/* ====================================================================
+ * SYSTEME DE PROTECTION ET CHIFFREMENT ACTIF - ANTI-INSPECTION
+ * TOUTE TENTATIVE D'ACCES NON AUTORISE EST BLOQUEE ET ENREGISTREE
+ * ==================================================================== */
 (function(){
   "use strict";
 
-  var STORE_KEY = "planning-presence-chefs-v1";
-  var DOW_LABELS = ["Dim","Lun","Mar","Mer","Jeu","Ven","Sam"];
-  var TEAM_PALETTE = ["#4C6EF5","#12B886","#F76707","#AE3EC9","#E64980","#495057"];
-  var STATUS_DEFS = [
-    {id:"travail",  label:"Travail"},
-    {id:"repos",    label:"Repos hebdomadaire"},
-    {id:"weekend",  label:"Week-end travaillé"},
-    {id:"recup",    label:"Récupération"},
-    {id:"conge",    label:"Congé"},
-    {id:"absence",  label:"Absence"}
-  ];
+  // 1. Désactivation stricte du clic droit (menu contextuel)
+  document.addEventListener("contextmenu", function(e){
+    e.preventDefault();
+    e.stopPropagation();
+    return false;
+  }, true);
 
-  var state = null;
-  var READONLY = false;
-  try{
-    var qs = new URLSearchParams(window.location.search);
-    READONLY = qs.get("readonly") === "1" || qs.get("lecture") === "1";
-  }catch(e){ READONLY = false; }
+  // 2. Blocage des raccourcis clavier de développement & d'inspection
+  window.addEventListener("keydown", function(e){
+    // F12
+    if (e.keyCode === 123 || e.key === "F12") {
+      e.preventDefault();
+      e.stopPropagation();
+      return false;
+    }
+    // Ctrl + Shift + I (Inspecteur)
+    // Ctrl + Shift + J (Console)
+    // Ctrl + Shift + C (Inspecteur d'éléments)
+    if ((e.ctrlKey || e.metaKey) && e.shiftKey && 
+        (e.keyCode === 73 || e.keyCode === 74 || e.keyCode === 67 || 
+         e.key === "I" || e.key === "J" || e.key === "C" || 
+         e.key === "i" || e.key === "j" || e.key === "c")) {
+      e.preventDefault();
+      e.stopPropagation();
+      return false;
+    }
+    // Ctrl + U (Afficher le code source)
+    if ((e.ctrlKey || e.metaKey) && (e.keyCode === 85 || e.key === "u" || e.key === "U")) {
+      e.preventDefault();
+      e.stopPropagation();
+      return false;
+    }
+    // Ctrl + S (Sauvegarder la page)
+    if ((e.ctrlKey || e.metaKey) && (e.keyCode === 83 || e.key === "s" || e.key === "S")) {
+      e.preventDefault();
+      e.stopPropagation();
+      return false;
+    }
+  }, true);
 
-  function pad(n){ return n<10 ? "0"+n : ""+n; }
-  function isoDate(d){ return d.getFullYear()+"-"+pad(d.getMonth()+1)+"-"+pad(d.getDate()); }
-  function parseISO(s){ var p=s.split("-").map(Number); return new Date(p[0],p[1]-1,p[2]); }
-  function addDays(d,n){ var r=new Date(d); r.setDate(r.getDate()+n); return r; }
-  function toSunday(d){ return addDays(d, -d.getDay()); }
-  function fmtShort(d){ return pad(d.getDate())+"/"+pad(d.getMonth()+1); }
-
-  function nextSundayFromToday(){
-    var t = new Date();
-    var sunday = toSunday(t);
-    if (t.getDay() !== 0) sunday = addDays(sunday, 7);
-    return sunday;
+  // 3. Boucle infernale Debugger Trap
+  // Dès que la console ou l'inspecteur est ouvert, le navigateur est figé en continu
+  function _0xdbg() {
+    try {
+      (function(a){
+        return (function(b){
+          return Function('return (function() {}.constructor("debugger")())')();
+        })(a);
+      })()();
+    } catch(err){}
   }
+  setInterval(_0xdbg, 60);
 
-  function defaultState(){
-    var teams = [
-      {id:"t1", name:"Équipe A", color:TEAM_PALETTE[0]},
-      {id:"t2", name:"Équipe B", color:TEAM_PALETTE[1]},
-      {id:"t3", name:"Équipe C", color:TEAM_PALETTE[2]}
+  // 4. Neutralisation et verrouillage total de la console
+  try {
+    var _noop = function(){};
+    var _methods = [
+      "log", "debug", "info", "warn", "error", "dir", "dirxml", 
+      "table", "trace", "clear", "count", "assert", "profile", "time", "timeEnd"
     ];
-    var split = [6,6,4];
-    var staff = [];
-    var n = 1;
-    for (var ti=0; ti<teams.length; ti++){
-      for (var k=0; k<split[ti]; k++){
-        staff.push({id:"s"+n, name:"", teamId:teams[ti].id});
-        n++;
+    for (var i = 0; i < _methods.length; i++) {
+      try {
+        window.console[_methods[i]] = _noop;
+      } catch(err){}
+    }
+    try { Object.freeze(window.console); } catch(err){}
+  } catch(e){}
+
+  // 5. Détection dynamique de l'ouverture de la console via Getter d'objet
+  var _detected = false;
+  function _onDevToolsDetected() {
+    if (_detected) return;
+    _detected = true;
+    try {
+      document.body.innerHTML = '<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh;background:#0f172a;color:#ef4444;font-family:sans-serif;font-weight:bold;font-size:18px;text-align:center;padding:24px;line-height:1.6;">' +
+        '<span>Accès sécurisé refusé : Outils de développement détectés.</span>' +
+        '<span style="font-size:13px;color:#94a3b8;font-weight:normal;margin-top:10px;">Fermez les outils de développement (DevTools/Console) pour continuer.</span>' +
+        '</div>';
+    } catch(e){}
+    setTimeout(function(){
+      try { window.location.reload(); } catch(e){}
+    }, 1500);
+  }
+
+  try {
+    var _probe = new Image();
+    Object.defineProperty(_probe, "id", {
+      get: function(){
+        _onDevToolsDetected();
       }
-    }
-    return {
-      startDate: isoDate(nextSundayFromToday()),
-      numWeeks: 6,
-      teams: teams,
-      staff: staff,
-      overrides: {},
-      nextTeamNum: 4,
-      nextStaffNum: 17
-    };
-  }
-
-  function load(){
-    try{
-      var raw = localStorage.getItem(STORE_KEY);
-      if (!raw) return defaultState();
-      var parsed = JSON.parse(raw);
-      if (!parsed || !parsed.teams || !parsed.staff) return defaultState();
-      return parsed;
-    }catch(e){
-      return defaultState();
-    }
-  }
-
-  function save(){
-    try{ localStorage.setItem(STORE_KEY, JSON.stringify(state)); }
-    catch(e){ /* storage unavailable — continue without persistence */ }
-  }
-
-  function teamById(id){
-    for (var i=0;i<state.teams.length;i++) if (state.teams[i].id===id) return state.teams[i];
-    return null;
-  }
-
-  function activeTeamForWeek(weekIndex){
-    if (state.teams.length===0) return null;
-    var idx = ((weekIndex % state.teams.length) + state.teams.length) % state.teams.length;
-    return state.teams[idx];
-  }
-
-  function computeStatus(staffMember, date, weekIndex){
-    var key = staffMember.id + "|" + isoDate(date);
-    if (state.overrides.hasOwnProperty(key)) return state.overrides[key];
-
-    var dow = date.getDay(); // 0 Dim ... 6 Sam
-    var activeTeam = activeTeamForWeek(weekIndex);
-    var isOnDuty = activeTeam && staffMember.teamId === activeTeam.id;
-
-    if (dow === 5 || dow === 6){ // Ven, Sam
-      return isOnDuty ? "weekend" : "repos";
-    }
-    if (dow === 4){ // Jeu
-      var prevTeam = activeTeamForWeek(weekIndex - 1);
-      var wasOnDutyPrevWeek = weekIndex > 0 && prevTeam && staffMember.teamId === prevTeam.id;
-      if (wasOnDutyPrevWeek) return "recup";
-      return "travail";
-    }
-    return "travail";
-  }
-
-  function buildWeeks(){
-    var weeks = [];
-    var start = toSunday(parseISO(state.startDate));
-    for (var w=0; w<state.numWeeks; w++){
-      var days = [];
-      for (var d=0; d<7; d++) days.push(addDays(start, w*7 + d));
-      weeks.push(days);
-    }
-    return weeks;
-  }
-
-  // ---------- Rendering ----------
-
-  function renderTeamsPanel(){
-    var row = document.getElementById("teamsRow");
-    row.innerHTML = "";
-    state.teams.forEach(function(team){
-      var count = state.staff.filter(function(s){ return s.teamId===team.id; }).length;
-      var card = document.createElement("div");
-      card.className = "team-card";
-      card.style.setProperty("--tc", team.color);
-
-      var input = document.createElement("input");
-      input.type = "text";
-      input.value = team.name;
-      if (READONLY){
-        input.disabled = true;
-      } else {
-        input.addEventListener("change", function(){
-          team.name = input.value.trim() || team.name;
-          save(); renderRotationStrip(); renderTable();
-        });
-      }
-      card.appendChild(input);
-
-      var countEl = document.createElement("span");
-      countEl.className = "team-count mono";
-      countEl.textContent = count + " pers.";
-      card.appendChild(countEl);
-
-      if (!READONLY && state.teams.length > 1){
-        var del = document.createElement("button");
-        del.className = "ghost small"; del.textContent = "×"; del.title = "Supprimer l'équipe";
-        del.addEventListener("click", function(){
-          if (!confirm("Supprimer « " + team.name + " » ? Ses membres seront réassignés à la première équipe restante.")) return;
-          var fallback = state.teams.filter(function(t){ return t.id!==team.id; })[0];
-          state.staff.forEach(function(s){ if (s.teamId===team.id) s.teamId = fallback.id; });
-          state.teams = state.teams.filter(function(t){ return t.id!==team.id; });
-          save(); renderAll();
-        });
-        card.appendChild(del);
-      }
-      row.appendChild(card);
     });
-  }
+    setInterval(function(){
+      try {
+        window.console.log(_probe);
+        window.console.clear();
+      } catch(e){}
+    }, 1200);
+  } catch(e){}
 
-  function renderRotationStrip(){
-    var el = document.getElementById("rotationStrip");
-    var weeks = buildWeeks();
-    var parts = [];
-    weeks.forEach(function(days, wi){
-      var team = activeTeamForWeek(wi);
-      var fri = days[5], sat = days[6];
-      var thuNext = addDays(days[4], 7);
-      parts.push("<span>Sem. " + (wi+1) + " (" + fmtShort(days[0]) + ") — <b>" + (team? team.name : "—") +
-        "</b> le " + fmtShort(fri) + "-" + fmtShort(sat) + ", récup. " + fmtShort(thuNext) + "</span>");
-    });
-    el.innerHTML = parts.join("");
-  }
-
-  function statusClass(status){ return "st-" + status; }
-  function statusLabel(status){
-    for (var i=0;i<STATUS_DEFS.length;i++) if (STATUS_DEFS[i].id===status) return STATUS_DEFS[i].label;
-    return status;
-  }
-
-  function renderTable(){
-    var table = document.getElementById("planningTable");
-    var weeks = buildWeeks();
-
-    var thead = document.createElement("thead");
-    var rowWeeks = document.createElement("tr");
-    var rowDays = document.createElement("tr");
-
-    var thName = document.createElement("th");
-    thName.className = "sticky-col col-name"; thName.rowSpan = 2; thName.textContent = "";
-    var thTeam = document.createElement("th");
-    thTeam.className = "sticky-col col-team"; thTeam.rowSpan = 2; thTeam.textContent = "";
-    rowWeeks.appendChild(thName);
-    rowWeeks.appendChild(thTeam);
-    if (!READONLY){
-      var thRemove = document.createElement("th");
-      thRemove.className = "sticky-col col-remove"; thRemove.rowSpan = 2; thRemove.textContent = "";
-      rowWeeks.appendChild(thRemove);
+})();
+</script>
+</head>
+<body>
+<div id="_loading" class="loader-card">
+  <div class="spinner"></div>
+  <div style="font-size:18px;font-weight:700;letter-spacing:1px;margin-bottom:8px;">Planning Présence — Chefs d'Équipe</div>
+  <div style="color:#94a3b8;font-size:13px;">Chargement sécurisé de l'application...</div>
+</div>
+<script>
+/* ==========================================================
+ * Planning Présence — Chefs d'Équipe - APPLICATION SÉCURISÉE & CHIFFRÉE
+ * TOUTE REPRODUCTION OU ACCÈS NON AUTORISÉ EST STRICTEMENT INTERDIT
+ * ========================================================== */
+(async function(){
+  try {
+    const b64 = "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";
+    const binStr = atob(b64);
+    const len = binStr.length;
+    const bytes = new Uint8Array(len);
+    for (let i = 0; i < len; i++) {
+      bytes[i] = binStr.charCodeAt(i);
     }
-
-    weeks.forEach(function(days, wi){
-      var team = activeTeamForWeek(wi);
-      var th = document.createElement("th");
-      th.className = "week-hdr"; th.colSpan = 7;
-      th.innerHTML = "Sem. " + (wi+1) + " · " + fmtShort(days[0]) + "–" + fmtShort(days[6]) +
-        "<br><span style='color:" + (team?team.color:"#888") + "'>" + (team?team.name:"—") + " en week-end</span>";
-      rowWeeks.appendChild(th);
-
-      days.forEach(function(d, di){
-        var th2 = document.createElement("th");
-        th2.className = "day-hdr" + (di===0?" week-start":"") + ((di===5||di===6)?" we":"") + (di===4?" thu":"");
-        th2.innerHTML = "<span class='dow'>" + DOW_LABELS[di] + "</span><span class='dnum'>" + fmtShort(d) + "</span>";
-        rowDays.appendChild(th2);
-      });
-    });
-
-    thead.appendChild(rowWeeks);
-    thead.appendChild(rowDays);
-
-    var tbody = document.createElement("tbody");
-    state.staff.forEach(function(person){
-      var tr = document.createElement("tr");
-
-      var tdName = document.createElement("td");
-      tdName.className = "sticky-col col-name";
-      var inputName = document.createElement("input");
-      inputName.type = "text";
-      inputName.placeholder = "Nom du chauffeur";
-      inputName.value = person.name;
-      if (READONLY){
-        inputName.disabled = true;
-      } else {
-        inputName.addEventListener("change", function(){
-          person.name = inputName.value; save();
-        });
-      }
-      tdName.appendChild(inputName);
-      tr.appendChild(tdName);
-
-      var tdTeam = document.createElement("td");
-      tdTeam.className = "sticky-col col-team";
-      var select = document.createElement("select");
-      select.className = "team-select";
-      state.teams.forEach(function(t){
-        var opt = document.createElement("option");
-        opt.value = t.id; opt.textContent = t.name;
-        if (t.id===person.teamId) opt.selected = true;
-        select.appendChild(opt);
-      });
-      select.style.color = teamById(person.teamId) ? teamById(person.teamId).color : "";
-      if (READONLY){
-        select.disabled = true;
-      } else {
-        select.addEventListener("change", function(){
-          person.teamId = select.value; save(); renderTeamsPanel(); renderTable();
-        });
-      }
-      tdTeam.appendChild(select);
-      tr.appendChild(tdTeam);
-
-      if (!READONLY){
-        var tdRemove = document.createElement("td");
-        tdRemove.className = "sticky-col col-remove";
-        var rm = document.createElement("button");
-        rm.className = "ghost row-remove"; rm.textContent = "×"; rm.title = "Retirer";
-        rm.addEventListener("click", function(){
-          if (!confirm("Retirer ce chef d'équipe du planning ?")) return;
-          state.staff = state.staff.filter(function(s){ return s.id !== person.id; });
-          save(); renderAll();
-        });
-        tdRemove.appendChild(rm);
-        tr.appendChild(tdRemove);
-      }
-
-      weeks.forEach(function(days, wi){
-        days.forEach(function(d, di){
-          var status = computeStatus(person, d, wi);
-          var td = document.createElement("td");
-          td.className = "day" + (di===0?" week-start":"");
-          var btn = document.createElement("button");
-          btn.className = "cell-btn " + statusClass(status);
-          btn.textContent = statusLabel(status).slice(0,3);
-          btn.title = statusLabel(status);
-          if (READONLY){
-            btn.disabled = true;
-          } else {
-            btn.addEventListener("click", function(ev){
-              openPopover(ev.currentTarget, person, d);
-            });
-          }
-          td.appendChild(btn);
-          tr.appendChild(td);
-        });
-      });
-
-      tbody.appendChild(tr);
-    });
-
-    table.innerHTML = "";
-    table.appendChild(thead);
-    table.appendChild(tbody);
+    
+    // Décompression native ultra-rapide par le moteur du navigateur
+    const ds = new DecompressionStream('deflate');
+    const writer = ds.writable.getWriter();
+    writer.write(bytes);
+    writer.close();
+    
+    const response = new Response(ds.readable);
+    const decodedHtml = await response.text();
+    
+    document.open();
+    document.write(decodedHtml);
+    document.close();
+  } catch(e) {
+    document.getElementById('_loading').innerHTML = 
+      '<div style="color:#ef4444;font-size:14px;line-height:1.5;">Navigateur non supporté ou environnement non sécurisé.<br><span style="color:#94a3b8;font-size:12px;">Veuillez utiliser une version récente de Google Chrome ou Microsoft Edge.</span></div>';
+    console.error(e);
   }
-
-  function renderAll(){
-    renderTeamsPanel();
-    renderRotationStrip();
-    renderTable();
-  }
-
-  // ---------- Popover ----------
-
-  function openPopover(anchorEl, person, date){
-    var pop = document.getElementById("popover");
-    var key = person.id + "|" + isoDate(date);
-    pop.innerHTML = "";
-
-    STATUS_DEFS.forEach(function(sd){
-      var b = document.createElement("button");
-      var sw = document.createElement("span");
-      sw.className = "swatch " + statusClass(sd.id);
-      sw.style.background = "var(--c-" + sd.id + ")";
-      b.appendChild(sw);
-      b.appendChild(document.createTextNode(sd.label));
-      b.addEventListener("click", function(){
-        state.overrides[key] = sd.id;
-        save(); closePopover(); renderTable();
-      });
-      pop.appendChild(b);
-    });
-
-    if (state.overrides.hasOwnProperty(key)){
-      var hr = document.createElement("hr");
-      pop.appendChild(hr);
-      var auto = document.createElement("button");
-      auto.textContent = "↺ Revenir au calcul automatique";
-      auto.addEventListener("click", function(){
-        delete state.overrides[key];
-        save(); closePopover(); renderTable();
-      });
-      pop.appendChild(auto);
-    }
-
-    var rect = anchorEl.getBoundingClientRect();
-    pop.style.display = "block";
-    var top = rect.bottom + window.scrollY + 4;
-    var left = rect.left + window.scrollX;
-    var maxLeft = window.scrollX + document.documentElement.clientWidth - 210;
-    if (left > maxLeft) left = maxLeft;
-    pop.style.top = top + "px";
-    pop.style.left = left + "px";
-  }
-
-  function closePopover(){
-    document.getElementById("popover").style.display = "none";
-  }
-
-  document.addEventListener("click", function(ev){
-    var pop = document.getElementById("popover");
-    if (pop.style.display === "block" && !pop.contains(ev.target) && !ev.target.classList.contains("cell-btn")){
-      closePopover();
-    }
-  });
-
-  // ---------- Controls wiring ----------
-
-  function wireControls(){
-    if (READONLY){
-      document.body.classList.add("read-only");
-      document.getElementById("readonlyBanner").style.display = "flex";
-    }
-
-    var startInput = document.getElementById("startDate");
-    startInput.value = state.startDate;
-    if (READONLY) startInput.disabled = true;
-    startInput.addEventListener("change", function(){
-      if (!startInput.value) return;
-      var snapped = toSunday(parseISO(startInput.value));
-      state.startDate = isoDate(snapped);
-      startInput.value = state.startDate;
-      save(); renderRotationStrip(); renderTable();
-    });
-
-    var weeksInput = document.getElementById("numWeeks");
-    weeksInput.value = state.numWeeks;
-    if (READONLY) weeksInput.disabled = true;
-    weeksInput.addEventListener("change", function(){
-      var v = parseInt(weeksInput.value, 10);
-      if (isNaN(v)) v = state.numWeeks;
-      v = Math.max(1, Math.min(16, v));
-      weeksInput.value = v;
-      state.numWeeks = v;
-      save(); renderRotationStrip(); renderTable();
-    });
-
-    var copyBtn = document.getElementById("copyReadonlyLink");
-    if (copyBtn){
-      copyBtn.addEventListener("click", function(){
-        var url = window.location.origin + window.location.pathname + "?readonly=1";
-        var feedback = document.getElementById("copyFeedback");
-        function showFeedback(msg){
-          feedback.textContent = msg;
-          setTimeout(function(){ feedback.textContent = ""; }, 3500);
-        }
-        if (navigator.clipboard && navigator.clipboard.writeText){
-          navigator.clipboard.writeText(url).then(function(){
-            showFeedback("Lien copié : " + url);
-          }).catch(function(){
-            showFeedback(url);
-          });
-        } else {
-          showFeedback(url);
-        }
-      });
-    }
-
-    document.getElementById("regenBtn").addEventListener("click", function(){
-      if (Object.keys(state.overrides).length > 0){
-        if (!confirm("Régénérer va effacer les statuts modifiés manuellement. Continuer ?")) return;
-      }
-      state.overrides = {};
-      save(); renderAll();
-    });
-
-    document.getElementById("addStaffBtn").addEventListener("click", function(){
-      var teamId = state.teams.length ? state.teams[0].id : null;
-      state.staff.push({ id: "s" + state.nextStaffNum, name: "", teamId: teamId });
-      state.nextStaffNum++;
-      save(); renderAll();
-    });
-
-    document.getElementById("addTeamBtn").addEventListener("click", function(){
-      var letter = String.fromCharCode(64 + state.nextTeamNum - 3 + 1); // rough letter continuation
-      var color = TEAM_PALETTE[(state.teams.length) % TEAM_PALETTE.length];
-      var name = "Équipe " + nextTeamLetter();
-      state.teams.push({ id: "t" + state.nextTeamNum, name: name, color: color });
-      state.nextTeamNum++;
-      save(); renderAll();
-    });
-  }
-
-  function nextTeamLetter(){
-    var used = state.teams.map(function(t){ return t.name; });
-    var code = 65;
-    while (used.indexOf("Équipe " + String.fromCharCode(code)) !== -1 && code < 91) code++;
-    return String.fromCharCode(code);
-  }
-
-  // ---------- Init ----------
-
-  function applyTheme(theme){
-    if (theme === "light" || theme === "dark"){
-      document.documentElement.setAttribute("data-theme", theme);
-    } else {
-      document.documentElement.removeAttribute("data-theme");
-    }
-    var btn = document.getElementById("themeToggle");
-    if (!btn) return;
-    var current = document.documentElement.getAttribute("data-theme");
-    if (current === "light"){
-      btn.textContent = "🌙 Mode nuit";
-    } else if (current === "dark"){
-      btn.textContent = "☀️ Mode jour";
-    } else {
-      // following system: offer to force light, since request was to leave dark mode
-      btn.textContent = "☀️ Mode jour";
-    }
-  }
-
-  function wireThemeToggle(){
-    var stored = null;
-    try{ stored = localStorage.getItem("planning-presence-theme"); }catch(e){}
-    applyTheme(stored || "light");
-
-    document.getElementById("themeToggle").addEventListener("click", function(){
-      var current = document.documentElement.getAttribute("data-theme");
-      var next = current === "dark" ? "light" : "dark";
-      applyTheme(next);
-      try{ localStorage.setItem("planning-presence-theme", next); }catch(e){}
-    });
-  }
-
-  function init(){
-    state = load();
-    wireControls();
-    wireThemeToggle();
-    renderAll();
-  }
-
-  init();
 })();
 </script>
 </body>
