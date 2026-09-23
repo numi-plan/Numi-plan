@@ -310,7 +310,7 @@
     return {
       dispo: [], pannes: [], nc: [], gasoil: [], equip: [], activite: [],
       bl: [], odo: [], odo_weeks: [], cspc_archives: [],
-      cspc: [], blacklist: [],
+      cspc: [], blacklist: [], deleted_trucks: [], deleted_cspc: [], deleted_gasoil: [],
       tracabilite: [], flashInfos: [], anomaliesPointees: {},
       clientModifs: [], incidents: [], incidentsLivraison: []
     };
@@ -362,6 +362,14 @@
       ...(window._deletedDispoTrucks || [])
     ]);
     merged.deleted_trucks = Array.from(allDeletedTrucks);
+
+    if (!window._deletedGasoil) window._deletedGasoil = new Set();
+    const allDeletedGasoil = new Set([
+      ...(local.deleted_gasoil || []),
+      ...(remote.deleted_gasoil || []),
+      ...(window._deletedGasoil || [])
+    ]);
+    merged.deleted_gasoil = Array.from(allDeletedGasoil);
 
     function isRecordBeingEdited(key, listName) {
       if (listName === 'dispo' && document.getElementById('modal-dispo')?.classList.contains('open')) {
@@ -442,10 +450,92 @@
       merged[listName] = mergedList;
     }
 
+    function mergeGasoilList() {
+      const localList = local.gasoil || [];
+      const remoteList = remote.gasoil || [];
+
+      const isDotationDelOrRes = (v, date) => {
+        const vClean = (v || '').trim().toUpperCase();
+        if (allDeletedGasoil.has(`DOTATION|${vClean}`) || allDeletedGasoil.has(`${vClean}|DOTATION`)) return true;
+        if (date && (allDeletedGasoil.has(`${vClean}|${date}|BESOIN DOTATION`) || allDeletedGasoil.has(`${vClean}|${date}`))) return true;
+        return false;
+      };
+
+      const localServedVehicules = new Set();
+      (local.dispo || []).forEach(d => {
+        if (d && d.gasoil === false && (d._lastEditedTs || 0) > 0) {
+          localServedVehicules.add((d.v || '').trim().toUpperCase());
+        }
+      });
+      localList.forEach(g => {
+        const v = (g.vehicule || '').trim().toUpperCase();
+        const op = (g.operation || '').toUpperCase();
+        if (op === 'PLEIN' || op === 'PARTIEL' || op === 'VIDANGE') {
+          if ((g._lastEditedTs || 0) > 0 || (g.date === today() || g.date >= '2026-09-22')) {
+            localServedVehicules.add(v);
+          }
+        }
+      });
+
+      const getGKey = (g) => {
+        if (!g) return '';
+        if (g.id) return String(g.id);
+        const v = (g.vehicule || '').trim().toUpperCase();
+        const d = (g.date || '').trim();
+        const isB = (g.operation || '').toUpperCase().includes('DOTATION');
+        if (isB) return `DOTATION|${v}`;
+        return `${v}|${d}|${(g.operation||'').toUpperCase()}|${(g.station||'').toUpperCase()}`;
+      };
+
+      const localMap = new Map();
+      localList.forEach(g => { const k = getGKey(g); if (k) localMap.set(k, g); });
+
+      const remoteMap = new Map();
+      remoteList.forEach(g => { const k = getGKey(g); if (k) remoteMap.set(k, g); });
+
+      const allKeys = new Set([...localMap.keys(), ...remoteMap.keys()]);
+      const mergedGasoil = [];
+
+      for (const key of allKeys) {
+        const localItem = localMap.get(key);
+        const remoteItem = remoteMap.get(key);
+        const isDotation = key.startsWith('DOTATION|');
+
+        if (isDotation) {
+          const vClean = key.replace('DOTATION|', '');
+          const dotDate = (localItem && localItem.date) || (remoteItem && remoteItem.date);
+          if (isDotationDelOrRes(vClean, dotDate) || localServedVehicules.has(vClean)) {
+            continue;
+          }
+        }
+
+        if (localItem && remoteItem) {
+          const itemLocalTs = localItem._lastEditedTs || 0;
+          const itemRemoteTs = remoteItem._lastEditedTs || 0;
+          if (itemLocalTs >= itemRemoteTs) {
+            mergedGasoil.push(Object.assign({}, remoteItem, localItem));
+          } else {
+            mergedGasoil.push(Object.assign({}, localItem, remoteItem));
+          }
+        } else if (localItem) {
+          mergedGasoil.push(localItem);
+        } else if (remoteItem) {
+          if (isDotation) {
+            const vClean = key.replace('DOTATION|', '');
+            if (isDotationDelOrRes(vClean, remoteItem.date) || localServedVehicules.has(vClean)) {
+              continue;
+            }
+          }
+          mergedGasoil.push(remoteItem);
+        }
+      }
+      merged.gasoil = mergedGasoil;
+    }
+
     mergeList('dispo', r => r.v);
     mergeList('pannes', r => (r.immat + '|' + r.date + '|' + r.desc));
     mergeList('nc', r => r.n);
-    mergeList('gasoil', r => (r.vehicule + '|' + r.date + '|' + r.operation));
+    mergeGasoilList();
     mergeList('equip', r => r.tr);
     mergeList('activite', r => r.tr);
     mergeList('bl', r => r.chauffeur);
@@ -1350,6 +1440,15 @@
     ]);
     merged.deleted_cspc = Array.from(allDeletedCspc);
 
+    if (!window._deletedGasoil) window._deletedGasoil = new Set();
+    const allDeletedGasoil = new Set([
+      ...(local.deleted_gasoil || []),
+      ...(cloud.deleted_gasoil || []),
+      ...(safeBase.deleted_gasoil || []),
+      ...(window._deletedGasoil || [])
+    ]);
+    merged.deleted_gasoil = Array.from(allDeletedGasoil);
+
     // 1. Fusionner odo_weeks chronologiquement (union unique normalisée)
     const localWeeks = Array.isArray(local.odo_weeks) ? local.odo_weeks : [];
     const cloudWeeks = Array.isArray(cloud.odo_weeks) ? cloud.odo_weeks : [];
@@ -1396,12 +1495,15 @@
                         if (lItem.chauffeur && lItem.chauffeur !== '—' && (!cItem.chauffeur || cItem.chauffeur === '—')) mergedItem.chauffeur = lItem.chauffeur;
                         if (lItem.obs && !cItem.obs) mergedItem.obs = lItem.obs;
                         if (bItem) {
-                            ['etat', 'lieuJ', 'lieuJ1', 'prog', 'obs', 'chauffeur', 'km'].forEach(f => {
+                            ['etat', 'lieuJ', 'lieuJ1', 'prog', 'obs', 'chauffeur', 'km', 'gasoil', 'geoloc', 'geolocDate'].forEach(f => {
                                 if (lItem[f] !== undefined && bItem[f] !== undefined && JSON.stringify(lItem[f]) !== JSON.stringify(bItem[f])) {
                                     mergedItem[f] = lItem[f];
                                 }
                             });
                         }
+                    }
+                    if (allDeletedGasoil.has(`DOTATION|${uKey}`) || allDeletedGasoil.has(`${uKey}|DOTATION`)) {
+                        mergedItem.gasoil = false;
                     }
                     mergedItem._lastEditedTs = Math.max(cTs, lTs, Date.now());
                     finalArr.push(mergedItem);
