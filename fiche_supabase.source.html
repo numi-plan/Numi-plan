@@ -167,13 +167,10 @@
     { login: "mohamed.s", nom: "MOHAMED.S" },
     { login: "nabil.t", nom: "NABIL.T" },
     { login: "rayane.a", nom: "RAYANE.A" },
-    { login: "ADJOUJ", nom: "ADJOUJ" },
     { login: "houssam.a", nom: "HOUSSAM.A" },
-    { login: "oussama.a", nom: "OUSSAMA.A" },
     { login: "kheirdine.c", nom: "KHEIRDINE CHERGUI" },
-    { login: "MADDI", nom: "MADDI" },
+    { login: "oussama.a", nom: "OUSSAMA.A" },
     { login: "walid.m", nom: "WALID.M" },
-    { login: "atmane.s", nom: "ATMANE.S" },
     { login: "younes.g", nom: "YOUNES.G" },
     { login: "b.oussama", nom: "B.OUSSAMA" }
   ];
@@ -186,13 +183,12 @@
     const currentSelected = dropdown.value;
     let userMap = {};
 
-    // 1. Source prioritaire : Utilisateurs chargés depuis Supabase np_users
-    if (window._SUPABASE_USERS && Array.isArray(window._SUPABASE_USERS)) {
+    // 1. SOURCE UNIQUE ET STRICTE DEPUIS SUPABASE np_users
+    if (window._SUPABASE_USERS && Array.isArray(window._SUPABASE_USERS) && window._SUPABASE_USERS.length > 0) {
       window._SUPABASE_USERS.forEach(u => {
         if (!u.login) return;
         const key = u.login.toLowerCase();
         if (['admin', 'registre', 'blacklist'].includes(key)) return;
-        // Si kheirdine, afficher le nom unifié KHEIRDINE CHERGUI
         let displayName = u.nom || u.login.toUpperCase();
         if (key === 'kheirdine.c' || key === 'chergui') {
           displayName = 'KHEIRDINE CHERGUI';
@@ -202,18 +198,18 @@
           nom: displayName
         };
       });
+    } else {
+      // 2. Repli de secours UNIQUEMENT si Supabase est inaccessible / hors-ligne
+      DEFAULT_NUMIPLAN_USERS.forEach(u => {
+        const key = u.login.toLowerCase();
+        if (!['admin', 'registre', 'blacklist'].includes(key)) {
+          userMap[key] = {
+            login: u.login,
+            nom: u.nom || u.login.toUpperCase()
+          };
+        }
+      });
     }
-
-    // 2. Base locale par défaut pour garantir la présence de tous les chefs
-    DEFAULT_NUMIPLAN_USERS.forEach(u => {
-      const key = u.login.toLowerCase();
-      if (!userMap[key] && !['admin', 'registre', 'blacklist', 'chergui'].includes(key)) {
-        userMap[key] = {
-          login: u.login,
-          nom: u.nom || u.login.toUpperCase()
-        };
-      }
-    });
 
     // Reconstruire le menu déroulant
     dropdown.innerHTML = '<option value="">Sélectionnez votre identifiant...</option>';
@@ -235,7 +231,7 @@
     userList.forEach(u => {
       const opt = document.createElement('option');
       opt.value = u.login;
-      opt.textContent = u.nom; // SEULEMENT LE NOM (l'équipe n'apparaît pas ici, gérée 100% par Supabase)
+      opt.textContent = u.nom;
       dropdown.appendChild(opt);
     });
     
@@ -2269,12 +2265,9 @@ body.direction-isolated-view .table-wrap {
         <option value="mohamed.s">MOHAMED.S</option>
         <option value="nabil.t">NABIL.T</option>
         <option value="rayane.a">RAYANE.A</option>
-        <option value="ADJOUJ">ADJOUJ</option>
         <option value="houssam.a">HOUSSAM.A</option>
         <option value="kheirdine.c">KHEIRDINE CHERGUI</option>
         <option value="oussama.a">OUSSAMA.A</option>
-        <option value="atmane.s">ATMANE.S</option>
-        <option value="MADDI">MADDI</option>
         <option value="walid.m">WALID.M</option>
         <option value="younes.g">YOUNES.G</option>
         <option value="b.oussama">B.OUSSAMA</option>
@@ -2588,6 +2581,7 @@ function applyTeamLockUI(eq) {
       if (window.supabase) {
         let searchName = uName.trim().toLowerCase();
         if (searchName === 'chergui') searchName = 'kheirdine.c';
+        if (searchName === 'adjouj') searchName = 'houssam.a';
         const { data } = await window.supabase
           .from('np_users')
           .select('team, role, actif, nom, login')
@@ -2706,6 +2700,7 @@ function applyTeamLockUI(eq) {
       // Cas C : Chefs d'équipe & collaborateurs (contrôlés STRICTEMENT depuis Supabase np_users)
       let searchLogin = username.trim().toLowerCase();
       if (searchLogin === 'chergui') searchLogin = 'kheirdine.c';
+      if (searchLogin === 'adjouj') searchLogin = 'houssam.a';
 
       // 1. REQUÊTE DIRECTE SUR SUPABASE np_users (SOURCE DE VÉRITÉ ABSOLUE)
       let sbUser = null;
@@ -9182,6 +9177,8 @@ function toggleAffecte(idx) {
 }
 
 // ═══════════════════════════════════════════════════════════════
+const DI_ALERT_START_DATE = '2026-09-22';
+
 function isDiManquante(di) {
   if (di === undefined || di === null) return true;
   const s = String(di).trim();
@@ -9189,16 +9186,26 @@ function isDiManquante(di) {
   return false;
 }
 
+function isPanneSansDiAlerte(r) {
+  if (!r) return false;
+  // Ne comptabiliser et n'alerter QUE les pannes à partir d'aujourd'hui (2026-09-22)
+  const pDate = (r.date || '').trim();
+  if (pDate && pDate < DI_ALERT_START_DATE) {
+    return false; // Panne antérieure : pas d'alerte, pas de comptabilisation
+  }
+  return isDiManquante(r.di);
+}
+
 function updatePannesBadge() {
   const pannes = (typeof DB !== 'undefined' && DB && Array.isArray(DB.pannes)) ? DB.pannes : [];
-  const sansDiCount = pannes.filter(r => isDiManquante(r.di)).length;
+  const sansDiCount = pannes.filter(r => isPanneSansDiAlerte(r)).length;
   const cntEl = document.getElementById('cnt-pannes');
   if (cntEl) {
     if (sansDiCount > 0) {
       cntEl.textContent = sansDiCount;
       cntEl.style.display = 'inline-block';
       cntEl.className = 'tab-count red pulse-badge';
-      cntEl.title = `${sansDiCount} panne(s) sans N° DI non saisie`;
+      cntEl.title = `${sansDiCount} panne(s) sans N° DI (depuis le 22/09/2026)`;
     } else {
       cntEl.textContent = '0';
       cntEl.style.display = 'none';
@@ -9243,7 +9250,7 @@ function renderPannes() {
   });
 
   const kpiOui = DB.pannes.filter(r => (r.kpi||'').toUpperCase() === 'OUI').length;
-  const sansDiTotal = DB.pannes.filter(r => isDiManquante(r.di)).length;
+  const sansDiTotal = DB.pannes.filter(r => isPanneSansDiAlerte(r)).length;
 
   document.getElementById('pannes-stats').innerHTML = `
     <div class="stat-card red" onclick="resetFilters('panne-search','panne-date-from','panne-date-to');renderPannes()" title="Reset — Afficher tout" style="cursor:pointer"><div class="stat-num">${data.length}</div><div class="stat-lbl">Filtrées ↺</div></div>
@@ -9251,7 +9258,7 @@ function renderPannes() {
     <div class="stat-card org" onclick="document.getElementById('panne-search').value='REMORQUE';renderPannes()" title="Filtrer Remorques" style="cursor:pointer"><div class="stat-num">${rm}</div><div class="stat-lbl">Remorques</div></div>
     <div class="stat-card pur" style="border-left-color:var(--pur)" onclick="document.getElementById('panne-search').value='CELLULE';renderPannes()" title="Filtrer Cellules" style="cursor:pointer"><div class="stat-num" style="color:var(--pur)">${cell}</div><div class="stat-lbl">Cellules</div></div>
     <div class="stat-card red" onclick="resetFilters('panne-search','panne-date-from','panne-date-to');renderPannes()" title="Total — Reset filtres" style="cursor:pointer"><div class="stat-num">${DB.pannes.length}</div><div class="stat-lbl">Total ↺</div></div>
-    <div class="stat-card" style="border-left-color:#ef4444;cursor:pointer" onclick="document.getElementById('panne-search').value='__sans_di__';renderPannes()" title="Pannes dont le N° DI n'est pas renseigné"><div class="stat-num" style="color:#ef4444">${sansDiTotal}</div><div class="stat-lbl">⚠️ Sans DI</div></div>
+    <div class="stat-card" style="border-left-color:#ef4444;cursor:pointer" onclick="document.getElementById('panne-search').value='__sans_di__';renderPannes()" title="Pannes dont le N° DI n'est pas renseigné (depuis le 22/09/2026)"><div class="stat-num" style="color:#ef4444">${sansDiTotal}</div><div class="stat-lbl">⚠️ Sans DI</div></div>
     <div class="stat-card" style="border-left-color:#22c55e;cursor:pointer" title="Pannes avec KPI = OUI"><div class="stat-num" style="color:#22c55e">${kpiOui}</div><div class="stat-lbl">✅ KPI OUI</div></div>
     <div class="stat-card" style="border-left-color:#f43f5e;cursor:pointer" onclick="document.getElementById('panne-search').value='__consecutif__';renderPannes()" title="Véhicules en panne 3 jours consécutifs ou plus"><div class="stat-num" style="color:#f43f5e">${consecutifs.length}</div><div class="stat-lbl">🔴 3j+ consécutifs</div></div>
     <div class="stat-card" style="border-left-color:#a21caf;cursor:pointer" onclick="document.getElementById('panne-search').value='__recurrent__';renderPannes()" title="Véhicules avec 3 pannes ou plus"><div class="stat-num" style="color:#a21caf">${recurrents.length}</div><div class="stat-lbl">⚠ Récurrents (3+)</div></div>`;
@@ -9265,7 +9272,7 @@ function renderPannes() {
     alertHtml += `<div style="background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.4);border-radius:8px;padding:10px 14px;margin-bottom:10px;font-size:11px;display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap">
       <div>
         <span style="color:#ef4444;font-weight:800">⚠️ ALERTE N° DI NON SAISI (${sansDiTotal}) :</span>
-        <span style="color:var(--txt2);margin-left:6px">Il y a <b>${sansDiTotal}</b> panne(s) sans N° DI renseigné. Les lignes clignotent en rouge ci-dessous pour alerter qu'il n'a pas saisi la DI.</span>
+        <span style="color:var(--txt2);margin-left:6px">Il y a <b>${sansDiTotal}</b> panne(s) sans N° DI renseigné (depuis le 22/09/2026). Les lignes clignotent en rouge ci-dessous pour alerter qu'il n'a pas saisi la DI.</span>
       </div>
       <button class="btn" onclick="document.getElementById('panne-search').value='__sans_di__';renderPannes()" style="background:rgba(239,68,68,.2);border-color:#ef4444;color:#fca5a5;padding:4px 10px;font-size:11px;border-radius:6px;cursor:pointer">Filtrer sans DI ➔</button>
     </div>`;
@@ -9292,7 +9299,7 @@ function renderPannes() {
     const rSet = new Set(recurrents.map(([immat])=>immat));
     data = DB.pannes.filter(r=>rSet.has(r.immat));
   } else if (q === '__sans_di__') {
-    data = DB.pannes.filter(r => isDiManquante(r.di));
+    data = DB.pannes.filter(r => isPanneSansDiAlerte(r));
   }
 
   const isAdmin = !sessionStorage.getItem('numiplan_team_lock');
@@ -9305,12 +9312,17 @@ function renderPannes() {
     const realIdx = DB.pannes.indexOf(r);
     const recCount = countByImmat[r.immat] || 0;
     const isConsec = consecutifs.find(x=>x.immat===r.immat);
-    const isSansDi = isDiManquante(r.di);
+    const isSansDi = isPanneSansDiAlerte(r);
     const rowClass = isSansDi ? 'row-sans-di' : '';
     const rowStyle = !isSansDi ? (isConsec ? 'background:rgba(244,63,94,.05)' : recCount>=3 ? 'background:rgba(162,28,175,.04)' : '') : '';
-    const diDisplay = isSansDi
-      ? `<span class="badge-sans-di" onclick="editPanne(${realIdx})" title="N° DI non renseigné — Cliquer pour saisir la DI" style="display:inline-flex;align-items:center;gap:4px;background:rgba(239,68,68,0.22);color:#ef4444;border:1px solid rgba(239,68,68,0.55);border-radius:4px;padding:2px 7px;font-weight:800;font-size:10px;cursor:pointer;white-space:nowrap">⚠️ SANS DI</span>`
-      : `<span style="color:var(--acc);font-size:10px;">${r.di}</span>`;
+    let diDisplay = '';
+    if (isSansDi) {
+      diDisplay = `<span class="badge-sans-di" onclick="editPanne(${realIdx})" title="N° DI non renseigné — Cliquer pour saisir la DI" style="display:inline-flex;align-items:center;gap:4px;background:rgba(239,68,68,0.22);color:#ef4444;border:1px solid rgba(239,68,68,0.55);border-radius:4px;padding:2px 7px;font-weight:800;font-size:10px;cursor:pointer;white-space:nowrap">⚠️ SANS DI</span>`;
+    } else if (r.di && String(r.di).trim()) {
+      diDisplay = `<span style="color:var(--acc);font-size:10px;">${r.di}</span>`;
+    } else {
+      diDisplay = `<span style="color:var(--txt3);font-size:11px;" title="Panne antérieure à la mise en place du suivi DI">—</span>`;
+    }
 
     return `<tr class="${rowClass}" style="${rowStyle}">
       <td class="mono" style="color:var(--yel)">${fmtDate(r.date)}</td>
