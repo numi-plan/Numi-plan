@@ -1616,6 +1616,114 @@
     mergeArray("odo", "v");
     mergeArray("cspc", "v");
     mergeArray("bl", "chauffeur");
+
+    // Fusion intelligente du Gasoil
+    (() => {
+        if (!local.gasoil && !cloud.gasoil) return;
+        const localList = local.gasoil || [];
+        const cloudList = cloud.gasoil || [];
+        const baseList = safeBase.gasoil || [];
+
+        const isDotDelOrRes = (v, date) => {
+            const vClean = (v || '').trim().toUpperCase();
+            if (allDeletedGasoil.has(`DOTATION|${vClean}`) || allDeletedGasoil.has(`${vClean}|DOTATION`)) return true;
+            if (date && (allDeletedGasoil.has(`${vClean}|${date}|BESOIN DOTATION`) || allDeletedGasoil.has(`${vClean}|${date}`))) return true;
+            return false;
+        };
+
+        const localServedVehicules = new Set();
+        (local.dispo || []).forEach(d => {
+            if (d && d.gasoil === false && (d._lastEditedTs || 0) > 0) {
+                localServedVehicules.add((d.v || '').trim().toUpperCase());
+            }
+        });
+        localList.forEach(g => {
+            const v = (g.vehicule || '').trim().toUpperCase();
+            const op = (g.operation || '').toUpperCase();
+            if (op === 'PLEIN' || op === 'PARTIEL' || op === 'VIDANGE') {
+                if ((g._lastEditedTs || 0) > 0 || (g.date === today() || g.date >= '2026-09-22')) {
+                    localServedVehicules.add(v);
+                }
+            }
+        });
+
+        const getGKey = (g) => {
+            if (!g) return '';
+            if (g.id) return String(g.id);
+            const v = (g.vehicule || '').trim().toUpperCase();
+            const d = (g.date || '').trim();
+            const isB = (g.operation || '').toUpperCase().includes('DOTATION');
+            if (isB) return `DOTATION|${v}`;
+            return `${v}|${d}|${(g.operation||'').toUpperCase()}|${(g.station||'').toUpperCase()}`;
+        };
+
+        const localMap = new Map();
+        localList.forEach(g => { const k = getGKey(g); if (k) localMap.set(k, g); });
+
+        const cloudMap = new Map();
+        cloudList.forEach(g => { const k = getGKey(g); if (k) cloudMap.set(k, g); });
+
+        const baseMap = new Map();
+        baseList.forEach(g => { const k = getGKey(g); if (k) baseMap.set(k, g); });
+
+        const finalGasoil = [];
+        const processedKeys = new Set();
+
+        // 1. Process items from Cloud
+        for (let cItem of cloudList) {
+            const key = getGKey(cItem);
+            if (!key) { finalGasoil.push(cItem); continue; }
+            processedKeys.add(key);
+
+            const isDotation = key.startsWith('DOTATION|');
+            if (isDotation) {
+                const vClean = key.replace('DOTATION|', '');
+                if (isDotDelOrRes(vClean, cItem.date) || localServedVehicules.has(vClean)) {
+                    continue; // Skip cloud dotation if locally resolved or deleted!
+                }
+            }
+
+            const lItem = localMap.get(key);
+            const bItem = baseMap.get(key);
+
+            if (lItem) {
+                const cTs = cItem._lastEditedTs || 0;
+                const lTs = lItem._lastEditedTs || 0;
+                let mergedItem = Object.assign({}, cItem);
+                if (lTs >= cTs) {
+                    mergedItem = Object.assign({}, cItem, lItem);
+                } else {
+                    mergedItem = Object.assign({}, lItem, cItem);
+                }
+                mergedItem._lastEditedTs = Math.max(cTs, lTs, Date.now());
+                finalGasoil.push(mergedItem);
+            } else {
+                if (bItem) {
+                    continue; // Item was deleted locally from base
+                }
+                if (isDotation) {
+                    const vClean = key.replace('DOTATION|', '');
+                    if (isDotDelOrRes(vClean, cItem.date) || localServedVehicules.has(vClean)) {
+                        continue;
+                    }
+                }
+                finalGasoil.push(cItem);
+            }
+        }
+
+        // 2. Process newly added items in Local that were not in Cloud
+        for (let [key, lItem] of localMap.entries()) {
+            if (processedKeys.has(key)) continue;
+            const isDotation = key.startsWith('DOTATION|');
+            if (isDotation) {
+                const vClean = key.replace('DOTATION|', '');
+                if (isDotDelOrRes(vClean, lItem.date)) continue;
+            }
+            finalGasoil.push(lItem);
+        }
+
+        merged.gasoil = finalGasoil;
+    })();
     
     const appendOnly = (arrName) => {
         if (!local[arrName]) return;
@@ -1630,7 +1738,7 @@
     appendOnly("nc");
     appendOnly("tracabilite");
     for (let k in local) {
-        if (["dispo", "activite", "nc", "tracabilite", "equip", "pannes", "odo", "odo_weeks", "cspc", "bl", "deleted_trucks"].includes(k)) continue;
+        if (["dispo", "activite", "nc", "tracabilite", "equip", "pannes", "odo", "odo_weeks", "cspc", "bl", "deleted_trucks", "gasoil", "deleted_gasoil"].includes(k)) continue;
         if (typeof local[k] !== "object") {
             if (!safeBase || safeBase[k] !== local[k]) {
                 merged[k] = local[k];
@@ -2517,7 +2625,7 @@ body.direction-isolated-view .table-wrap {
     if (gsBar) gsBar.style.display = 'none';
 
     // Rendre les sous-onglets
-    if (typeof renderAdminEntreesSorties === 'function') renderAdminEntreesSorties();
+    if (typeof renderAdminEntreesSorties === 'function') renderAdminEntreesSorties(true);
     if (typeof renderAdminNcConsolidation === 'function') renderAdminNcConsolidation();
     if (typeof renderAdminSinistres === 'function') renderAdminSinistres();
     if (typeof renderAdminBalanceComptable === 'function') renderAdminBalanceComptable();
@@ -2778,7 +2886,7 @@ function applyTeamLockUI(eq) {
         document.getElementById('login-screen').style.display = 'none';
         if (typeof applyDirectionOnlyIsolation === 'function') applyDirectionOnlyIsolation();
         if (typeof loadInitialTeams === 'function') loadInitialTeams();
-        if (typeof renderAdminEntreesSorties === 'function') renderAdminEntreesSorties();
+        if (typeof renderAdminEntreesSorties === 'function') renderAdminEntreesSorties(true);
         return;
       }
 
@@ -9963,10 +10071,22 @@ function deleteGasoil(idx) {
   if (g && typeof tracerAction === 'function') {
     tracerAction('GASOIL', 'SUPPRESSION_GASOIL', g.vehicule || '—', `Suppression entrée gasoil du ${g.date} (${g.chauffeur || ''})`, window.CURRENT_EQUIPE);
   }
-  if (g && g.vehicule && DB.dispo) {
+  if (g && g.vehicule) {
     const vNorm = (g.vehicule || '').trim().toUpperCase();
-    const dItem = DB.dispo.find(d => (d.v||'').trim().toUpperCase() === vNorm);
-    if (dItem) { dItem.gasoil = false; dItem._lastEditedTs = Date.now(); }
+    if (DB.dispo) {
+      const dItem = DB.dispo.find(d => (d.v||'').trim().toUpperCase() === vNorm);
+      if (dItem) { dItem.gasoil = false; dItem._lastEditedTs = Date.now(); }
+    }
+    if (!DB.deleted_gasoil) DB.deleted_gasoil = [];
+    if (!window._deletedGasoil) window._deletedGasoil = new Set();
+    const t1 = `DOTATION|${vNorm}`;
+    const t2 = `${vNorm}|DOTATION`;
+    const t3 = `${vNorm}|${g.date}|BESOIN DOTATION`;
+    const t4 = `${vNorm}|${g.date}`;
+    [t1, t2, t3, t4].forEach(t => {
+      if (!DB.deleted_gasoil.includes(t)) DB.deleted_gasoil.push(t);
+      window._deletedGasoil.add(t);
+    });
   }
   DB.gasoil.splice(idx,1); saveDB(); renderGasoil(); renderDispo(); updateGasoilBadge(); showToast('✅ Supprimé');
 }
@@ -9981,7 +10101,8 @@ function saveGasoil() {
     station: document.getElementById('f-gasoil-station').value.trim(),
     type: document.getElementById('f-gasoil-type').value,
     operation: document.getElementById('f-gasoil-operation').value,
-    resp: document.getElementById('f-gasoil-resp').value.trim()
+    resp: document.getElementById('f-gasoil-resp').value.trim(),
+    _lastEditedTs: Date.now()
   };
   const idx = parseInt(document.getElementById('gasoil-edit-idx').value);
   if (idx >= 0) {
@@ -9998,6 +10119,27 @@ function saveGasoil() {
     const vNorm = vehicule.trim().toUpperCase();
     const dItem = DB.dispo.find(d => (d.v||'').trim().toUpperCase() === vNorm);
     if (dItem) { dItem.gasoil = false; dItem._lastEditedTs = Date.now(); }
+
+    // Purger tout éventuel résidu BESOIN DOTATION pour ce véhicule
+    if (DB.gasoil && Array.isArray(DB.gasoil)) {
+      DB.gasoil = DB.gasoil.filter(g => {
+        if (g === obj) return true;
+        const gV = (g.vehicule || '').trim().toUpperCase();
+        const isB = (g.operation || '').toUpperCase().includes('DOTATION');
+        return !(gV === vNorm && isB);
+      });
+    }
+
+    // Inscrire dans deleted_gasoil (tombstone anti-résurrection)
+    if (!DB.deleted_gasoil) DB.deleted_gasoil = [];
+    if (!window._deletedGasoil) window._deletedGasoil = new Set();
+    const t1 = `DOTATION|${vNorm}`;
+    const t2 = `${vNorm}|DOTATION`;
+    const t3 = `${vNorm}|${obj.date}|BESOIN DOTATION`;
+    [t1, t2, t3].forEach(t => {
+      if (!DB.deleted_gasoil.includes(t)) DB.deleted_gasoil.push(t);
+      window._deletedGasoil.add(t);
+    });
   }
   saveDB(); closeModal('modal-gasoil'); renderGasoil(); renderDispo(); updateGasoilBadge(); showToast('✅ Gasoil enregistré');
 }
@@ -15087,11 +15229,21 @@ function declGasoil(idx) {
   if (!r) return;
   if (!confirm('Déclarer le camion ' + r.v + ' en besoin de dotation gasoil ?')) return;
   
+  const vClean = (r.v || '').trim().toUpperCase();
+  
+  // Retirer des tombstones pour autoriser la nouvelle dotation
+  if (DB.deleted_gasoil && Array.isArray(DB.deleted_gasoil)) {
+    DB.deleted_gasoil = DB.deleted_gasoil.filter(t => t !== `DOTATION|${vClean}` && t !== `${vClean}|DOTATION`);
+  }
+  if (window._deletedGasoil && window._deletedGasoil.delete) {
+    window._deletedGasoil.delete(`DOTATION|${vClean}`);
+    window._deletedGasoil.delete(`${vClean}|DOTATION`);
+  }
+  
   DB.dispo[idx].gasoil = true;
   DB.dispo[idx]._lastEditedTs = Date.now();
   
   if (!DB.gasoil) DB.gasoil = [];
-  const vClean = (r.v || '').trim().toUpperCase();
   const existing = DB.gasoil.find(g => (g.vehicule || '').trim().toUpperCase() === vClean && (g.operation || '').includes('DOTATION'));
   if (!existing) {
     DB.gasoil.unshift({
@@ -15103,11 +15255,13 @@ function declGasoil(idx) {
       operation: 'BESOIN DOTATION',
       resp: sessionStorage.getItem('numiplan_username') || '',
       cet: r.cet || sessionStorage.getItem('numiplan_username') || '',
-      statut: 'EN_ATTENTE'
+      statut: 'EN_ATTENTE',
+      _lastEditedTs: Date.now()
     });
   } else {
     existing.date = today();
     existing.chauffeur = r.chauffeur || existing.chauffeur;
+    existing._lastEditedTs = Date.now();
   }
   
   if (typeof tracerAction === 'function') {
@@ -15130,8 +15284,18 @@ function undeclGasoil(idx) {
   DB.dispo[idx].gasoil = false;
   DB.dispo[idx]._lastEditedTs = Date.now();
   
+  const vClean = (r.v || '').trim().toUpperCase();
+  if (!DB.deleted_gasoil) DB.deleted_gasoil = [];
+  if (!window._deletedGasoil) window._deletedGasoil = new Set();
+  const t1 = `DOTATION|${vClean}`;
+  const t2 = `${vClean}|DOTATION`;
+  const t3 = `${vClean}|${today()}`;
+  [t1, t2, t3].forEach(t => {
+    if (!DB.deleted_gasoil.includes(t)) DB.deleted_gasoil.push(t);
+    window._deletedGasoil.add(t);
+  });
+  
   if (DB.gasoil) {
-    const vClean = (r.v || '').trim().toUpperCase();
     const gIdx = DB.gasoil.findIndex(g => (g.vehicule || '').trim().toUpperCase() === vClean && (g.operation || '').includes('DOTATION'));
     if (gIdx !== -1) {
       DB.gasoil.splice(gIdx, 1);
@@ -15153,15 +15317,79 @@ window.undeclGasoil = undeclGasoil;
 function validerDotationGasoil(idx) {
   const g = DB.gasoil[idx];
   if (!g) return;
-  document.getElementById('f-gasoil-date').value = today();
-  document.getElementById('f-gasoil-vehicule').value = g.vehicule || '';
-  document.getElementById('f-gasoil-chauffeur').value = g.chauffeur || '';
-  document.getElementById('f-gasoil-station').value = (g.station && g.station !== 'En attente') ? g.station : 'PARTNER ALGER';
-  document.getElementById('f-gasoil-type').value = g.type || 'Interne';
-  document.getElementById('f-gasoil-operation').value = 'PLEIN';
-  document.getElementById('f-gasoil-resp').value = sessionStorage.getItem('numiplan_username') || '';
-  document.getElementById('gasoil-edit-idx').value = idx;
-  openModal('modal-gasoil', idx);
+
+  const vClean = (g.vehicule || '').trim().toUpperCase();
+  const todayD = today();
+  const defStation = (g.station && g.station !== 'En attente') ? g.station : 'PARTNER ALGER';
+
+  // Proposer la validation directe (OK) ou personnalisée dans le formulaire (Annuler)
+  const direct = confirm(
+    `Valider la dotation gasoil (PLEIN) pour le véhicule :\n\n` +
+    `  Camion   : ${g.vehicule}\n` +
+    `  Chauffeur: ${g.chauffeur || '—'}\n` +
+    `  Station  : ${defStation}\n\n` +
+    `• Cliquez sur [OK] pour valider directement le PLEIN.\n` +
+    `• Cliquez sur [Annuler] pour ouvrir le formulaire et choisir une autre station.`
+  );
+
+  if (direct) {
+    // Validation directe et immédiate
+    g.date = todayD;
+    g.station = defStation;
+    g.operation = 'PLEIN';
+    g.statut = 'SERVI';
+    g.resp = sessionStorage.getItem('numiplan_username') || g.resp || '';
+    g.cet = g.cet || sessionStorage.getItem('numiplan_username') || '';
+    g._lastEditedTs = Date.now();
+
+    // Retirer le flag gasoil dans dispo
+    if (DB.dispo) {
+      const dItem = DB.dispo.find(d => (d.v||'').trim().toUpperCase() === vClean);
+      if (dItem) { dItem.gasoil = false; dItem._lastEditedTs = Date.now(); }
+    }
+
+    // Purger tout éventuel résidu BESOIN DOTATION pour ce véhicule
+    if (DB.gasoil && Array.isArray(DB.gasoil)) {
+      DB.gasoil = DB.gasoil.filter(item => {
+        if (item === g) return true;
+        const itemV = (item.vehicule || '').trim().toUpperCase();
+        const isB = (item.operation || '').toUpperCase().includes('DOTATION');
+        return !(itemV === vClean && isB);
+      });
+    }
+
+    // Inscrire dans deleted_gasoil (tombstone anti-résurrection)
+    if (!DB.deleted_gasoil) DB.deleted_gasoil = [];
+    if (!window._deletedGasoil) window._deletedGasoil = new Set();
+    const t1 = `DOTATION|${vClean}`;
+    const t2 = `${vClean}|DOTATION`;
+    const t3 = `${vClean}|${g.date}|BESOIN DOTATION`;
+    [t1, t2, t3].forEach(t => {
+      if (!DB.deleted_gasoil.includes(t)) DB.deleted_gasoil.push(t);
+      window._deletedGasoil.add(t);
+    });
+
+    if (typeof tracerAction === 'function') {
+      tracerAction('GASOIL', 'VALIDATION_DOTATION', g.vehicule, `Dotation validée (PLEIN) à ${g.station} par ${g.resp}`, window.CURRENT_EQUIPE);
+    }
+
+    saveDB();
+    if (typeof renderGasoil === 'function') renderGasoil();
+    if (typeof renderDispo === 'function') renderDispo();
+    updateGasoilBadge();
+    showToast(`✅ Dotation validée (PLEIN) pour ${g.vehicule}`);
+  } else {
+    // Ouvrir le formulaire pré-rempli
+    document.getElementById('f-gasoil-date').value = todayD;
+    document.getElementById('f-gasoil-vehicule').value = g.vehicule || '';
+    document.getElementById('f-gasoil-chauffeur').value = g.chauffeur || '';
+    document.getElementById('f-gasoil-station').value = defStation;
+    document.getElementById('f-gasoil-type').value = g.type || 'Interne';
+    document.getElementById('f-gasoil-operation').value = 'PLEIN';
+    document.getElementById('f-gasoil-resp').value = sessionStorage.getItem('numiplan_username') || '';
+    document.getElementById('gasoil-edit-idx').value = idx;
+    openModal('modal-gasoil', idx);
+  }
 }
 window.validerDotationGasoil = validerDotationGasoil;
 
@@ -19783,66 +20011,82 @@ function areNamesFuzzyMatching(nameA, nameB) {
 
   if (isResemblanceRejected(nameA, nameB)) return false;
 
-  if (levenshteinDistance(nA, nB) <= 2) return true;
-  if (levenshteinDistance(partsA, partsB) <= 2) return true;
+  if (Math.abs(nA.length - nB.length) <= 2 && levenshteinDistance(nA, nB, 2) <= 2) return true;
+  if (Math.abs(partsA.length - partsB.length) <= 2 && levenshteinDistance(partsA, partsB, 2) <= 2) return true;
   return false;
 }
 
-function levenshteinDistance(a, b) {
+const _levRow = new Int32Array(512);
+function levenshteinDistance(a, b, maxLimit = 999) {
+  if (a === b) return 0;
   const an = a ? a.length : 0;
   const bn = b ? b.length : 0;
   if (an === 0) return bn;
   if (bn === 0) return an;
-  const matrix = [];
-  for (let i = 0; i <= bn; i++) matrix[i] = [i];
-  for (let j = 0; j <= an; j++) matrix[0][j] = j;
-  for (let i = 1; i <= bn; i++) {
-    for (let j = 1; j <= an; j++) {
-      if (b.charAt(i - 1) === a.charAt(j - 1)) {
-        matrix[i][j] = matrix[i - 1][j - 1];
+  if (Math.abs(an - bn) > maxLimit) return maxLimit + 1;
+
+  let s1 = a, s2 = b, n = an, m = bn;
+  if (n > m) { s1 = b; s2 = a; n = bn; m = an; }
+  if (n + 1 > _levRow.length) return maxLimit + 1;
+
+  for (let j = 0; j <= n; j++) _levRow[j] = j;
+
+  for (let i = 1; i <= m; i++) {
+    const c2 = s2.charCodeAt(i - 1);
+    let prevDiag = _levRow[0];
+    _levRow[0] = i;
+    let minRow = _levRow[0];
+
+    for (let j = 1; j <= n; j++) {
+      const c1 = s1.charCodeAt(j - 1);
+      const temp = _levRow[j];
+      if (c1 === c2) {
+        _levRow[j] = prevDiag;
       } else {
-        matrix[i][j] = Math.min(
-          matrix[i - 1][j - 1] + 1,
-          matrix[i][j - 1] + 1,
-          matrix[i - 1][j] + 1
-        );
+        _levRow[j] = Math.min(prevDiag, _levRow[j - 1], _levRow[j]) + 1;
       }
+      prevDiag = temp;
+      if (_levRow[j] < minRow) minRow = _levRow[j];
     }
+    if (minRow > maxLimit) return maxLimit + 1;
   }
-  return matrix[bn][an];
+  return _levRow[n];
 }
 
-function findBestNumiplanSuggestion(registryName, numiplanDrivers) {
+function findBestNumiplanSuggestionPrepared(registryName, preparedNumiDrivers) {
   const normReg = normalizeDriverName(registryName);
   if (!normReg || normReg.length < 3) return null;
-  
+
   let best = null;
   let minDistance = 999;
-  
   const regParts = normReg.split(' ').sort().join(' ');
   const regWords = normReg.split(' ').filter(w => w.length > 2);
+  const regLen = normReg.length;
+  const maxAllowedDist = regLen > 8 ? 3 : 2;
+  let maxWordMatchDist = regLen > 20 ? 8 : (regLen > 15 ? 6 : 4);
+  const reversedReg = normReg.split(' ').reverse().join(' ');
 
-  for (const [nKey, nVal] of Object.entries(numiplanDrivers)) {
-    if (isResemblanceRejected(registryName, nKey)) {
+  for (let i = 0; i < preparedNumiDrivers.length; i++) {
+    const item = preparedNumiDrivers[i];
+    const nKey = item.key;
+    const nVal = item.val;
+    if (typeof isResemblanceRejected === 'function' && isResemblanceRejected(registryName, nKey)) {
       continue;
     }
-    const numiParts = nKey.split(' ').sort().join(' ');
-    const numiWords = nKey.split(' ').filter(w => w.length > 2);
+    const numiParts = item.parts;
+    const numiWords = item.words;
 
-    // 1. Distance Levenshtein sur les noms ordonnés
-    const dOrdered = levenshteinDistance(regParts, numiParts);
-    // 2. Distance directe
-    const dDirect = levenshteinDistance(normReg, nKey);
-    // 3. Distance inversée
-    const dReversed = levenshteinDistance(normReg.split(' ').reverse().join(' '), nKey);
-    
-    let dist = Math.min(dOrdered, dDirect, dReversed);
+    const dOrdered = levenshteinDistance(regParts, numiParts, maxWordMatchDist);
+    const dDirect = levenshteinDistance(normReg, nKey, maxWordMatchDist);
+    const dReversed = levenshteinDistance(reversedReg, nKey, maxWordMatchDist);
+    const dist = Math.min(dOrdered, dDirect, dReversed);
 
-    // 4. Vérifier si un mot clé principal matche avec 1 lettre d'écart
     let wordMatch = false;
-    for (const rw of regWords) {
-      for (const nw of numiWords) {
-        if (rw === nw || levenshteinDistance(rw, nw) <= 1) {
+    for (let rwi = 0; rwi < regWords.length; rwi++) {
+      const rw = regWords[rwi];
+      for (let nwi = 0; nwi < numiWords.length; nwi++) {
+        const nw = numiWords[nwi];
+        if (rw === nw || (Math.abs(rw.length - nw.length) <= 1 && levenshteinDistance(rw, nw, 1) <= 1)) {
           wordMatch = true;
           break;
         }
@@ -19850,12 +20094,6 @@ function findBestNumiplanSuggestion(registryName, numiplanDrivers) {
       if (wordMatch) break;
     }
 
-    const maxAllowedDist = normReg.length > 8 ? 3 : 2;
-    let maxWordMatchDist = 4;
-    if (normReg.length > 15) maxWordMatchDist = 6;
-    if (normReg.length > 20) maxWordMatchDist = 8;
-
-    // 5. Tolérance pour les abréviations (ex: MD pour MOHAMED)
     if ((dist <= maxAllowedDist || (wordMatch && dist <= maxWordMatchDist)) && dist < minDistance) {
       minDistance = dist;
       best = {
@@ -19868,6 +20106,23 @@ function findBestNumiplanSuggestion(registryName, numiplanDrivers) {
     }
   }
   return best;
+}
+
+function findBestNumiplanSuggestion(registryName, numiplanDrivers) {
+  const normReg = normalizeDriverName(registryName);
+  if (!normReg || normReg.length < 3) return null;
+  const prepared = [];
+  for (const [nKey, nVal] of Object.entries(numiplanDrivers)) {
+    const norm = normalizeDriverName(nKey);
+    prepared.push({
+      key: nKey,
+      val: nVal,
+      norm: norm,
+      parts: norm.split(' ').sort().join(' '),
+      words: norm.split(' ').filter(w => w.length > 2)
+    });
+  }
+  return findBestNumiplanSuggestionPrepared(registryName, prepared);
 }
 
 // Stockage des personnalisations et modifications administratives
@@ -19960,11 +20215,11 @@ function filterRegistreByCard(filterType) {
 }
 window.filterRegistreByCard = filterRegistreByCard;
 
-function renderAdminEntreesSorties() {
-  const q = (document.getElementById('admin-es-search')?.value || '').trim().toLowerCase();
-  const statusF = document.getElementById('admin-es-status-filter')?.value || '';
-  const contratF = document.getElementById('admin-es-contrat-filter')?.value || '';
+window._registreDataDirty = true;
+window._ADMIN_SHARIK_ENTREES_SORTIES_CACHE = null;
+window._ADMIN_SHARIK_STATS_CACHE = null;
 
+function buildConsolidatedRegistreData() {
   // 1. Base des 185 chauffeurs Sharik (Strictement préservée)
   let rawList = JSON.parse(JSON.stringify(INITIAL_ADMIN_SHARIK_DATA));
 
@@ -19994,67 +20249,101 @@ function renderAdminEntreesSorties() {
     try {
       const db = (eq === window.CURRENT_EQUIPE && typeof window.DB !== 'undefined') ? window.DB : window['DB_' + eq];
       if (db) {
-        // RÈGLE : seule la table 'dispo' détermine si un chauffeur est actif sur Numiplan
-        // Les tables 'equip' et 'activite' (pannes, incidents) ne comptent PAS comme présence active
-        ['dispo'].forEach(tableKey => {
-          if (Array.isArray(db[tableKey])) {
-            db[tableKey].forEach(row => {
-              const rawCh = row.chauffeur || row.sharik;
-              const rawV = row.v || row.tr || row.immat;
-              let realEntreeDate = '';
-              if (rawCh && db.tracabilite && Array.isArray(db.tracabilite)) {
-                const normName = normalizeDriverName(rawCh).replace(/\s+\d+$/, '').trim();
-                const traces = db.tracabilite.filter(t => 
-                  t && t.target && 
-                  (t.type === 'Entre Chauffeur' || t.type === 'Entrée Chauffeur') && 
-                  normalizeDriverName(t.target).replace(/\s+\d+$/, '').trim() === normName
-                );
-                if (traces.length > 0) {
-                  traces.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
-                  if (traces[0].date) {
-                    realEntreeDate = traces[0].date.split(' ')[0];
-                  }
-                }
+        // Pré-indexation linéaire ultra-rapide de tracabilite pour cette équipe (évite le scan quadratique)
+        const lastEntreeTraceMap = new Map();
+        if (Array.isArray(db.tracabilite)) {
+          for (let i = 0; i < db.tracabilite.length; i++) {
+            const t = db.tracabilite[i];
+            if (t && t.target && (t.type === 'Entre Chauffeur' || t.type === 'Entrée Chauffeur')) {
+              const k = normalizeDriverName(t.target).replace(/\s+\d+$/, '').trim();
+              const existing = lastEntreeTraceMap.get(k);
+              const ts = t.timestamp || 0;
+              if (!existing || ts > existing.ts) {
+                lastEntreeTraceMap.set(k, { ts, date: t.date ? t.date.split(' ')[0] : '' });
               }
-              const rawDebut = realEntreeDate || row.debut || (row.created_at ? row.created_at.split('T')[0] : '') || row.date_entree || row.date_in || row.date || '';
-              if (rawCh && !['AC/DC', '—', '-', 'DISPONIBLE', 'MANQUE CHAUFFEUR'].includes(rawCh.trim().toUpperCase())) {
-                const chKey = normalizeDriverName(rawCh);
-                const baseChKey = chKey.replace(/\s+\d+$/, '').trim();
-
-                if (!numiplanDriverTrucks[baseChKey]) {
-                  numiplanDriverTrucks[baseChKey] = new Set();
-                }
-                if (rawV && rawV !== '—' && rawV !== '-') {
-                  numiplanDriverTrucks[baseChKey].add(rawV.trim());
-                }
-
-                if (!numiplanActiveDrivers[baseChKey]) {
-                  numiplanActiveDrivers[baseChKey] = {
-                    rawName: rawCh.replace(/\s+\d+$/, '').trim(),
-                    team: eq,
-                    v: rawV || '',
-                    rm: row.rm || '',
-                    debut: rawDebut || '',
-                    etat: row.etat || 'En mission'
-                  };
-                } else {
-                  if (!numiplanActiveDrivers[baseChKey].rm && row.rm) numiplanActiveDrivers[baseChKey].rm = row.rm;
-                  if (!numiplanActiveDrivers[baseChKey].v && rawV) numiplanActiveDrivers[baseChKey].v = rawV;
-                  if (!numiplanActiveDrivers[baseChKey].debut && rawDebut) numiplanActiveDrivers[baseChKey].debut = rawDebut;
-                }
-              }
-            });
+            }
           }
-        });
+        }
+
+        // RÈGLE : seule la table 'dispo' détermine si un chauffeur est actif sur Numiplan
+        if (Array.isArray(db.dispo)) {
+          db.dispo.forEach(row => {
+            const rawCh = row.chauffeur || row.sharik;
+            const rawV = row.v || row.tr || row.immat;
+            if (!rawCh || ['AC/DC', '—', '-', 'DISPONIBLE', 'MANQUE CHAUFFEUR'].includes(rawCh.trim().toUpperCase())) {
+              return;
+            }
+
+            const chKey = normalizeDriverName(rawCh);
+            const baseChKey = chKey.replace(/\s+\d+$/, '').trim();
+
+            let realEntreeDate = '';
+            const traceItem = lastEntreeTraceMap.get(baseChKey);
+            if (traceItem && traceItem.date) {
+              realEntreeDate = traceItem.date;
+            }
+
+            const rawDebut = realEntreeDate || row.debut || (row.created_at ? row.created_at.split('T')[0] : '') || row.date_entree || row.date_in || row.date || '';
+
+            if (!numiplanDriverTrucks[baseChKey]) {
+              numiplanDriverTrucks[baseChKey] = new Set();
+            }
+            if (rawV && rawV !== '—' && rawV !== '-') {
+              numiplanDriverTrucks[baseChKey].add(rawV.trim());
+            }
+
+            if (!numiplanActiveDrivers[baseChKey]) {
+              numiplanActiveDrivers[baseChKey] = {
+                rawName: rawCh.replace(/\s+\d+$/, '').trim(),
+                team: eq,
+                v: rawV || '',
+                rm: row.rm || '',
+                debut: rawDebut || '',
+                etat: row.etat || 'En mission'
+              };
+            } else {
+              if (!numiplanActiveDrivers[baseChKey].rm && row.rm) numiplanActiveDrivers[baseChKey].rm = row.rm;
+              if (!numiplanActiveDrivers[baseChKey].v && rawV) numiplanActiveDrivers[baseChKey].v = rawV;
+              if (!numiplanActiveDrivers[baseChKey].debut && rawDebut) numiplanActiveDrivers[baseChKey].debut = rawDebut;
+            }
+          });
+        }
       }
     } catch(e) {}
   });
 
-  // 3.1 Consolidation stricte : 1 entrée unique par chauffeur physique (sans doublon)
+  // Indexation canonique O(1) de numiplanActiveDrivers pour éliminer les boucles imbriquées
+  const canonToNumiActive = new Map();
+  const preparedNumiDrivers = [];
   for (const [nKey, nVal] of Object.entries(numiplanActiveDrivers)) {
-    const existing = rawList.find(r => areNamesFuzzyMatching(r.sharik, nVal.rawName));
+    const cName = getCanonicalDriverName(nVal.rawName);
+    canonToNumiActive.set(cName, nVal);
+    const norm = normalizeDriverName(nKey);
+    canonToNumiActive.set(norm, nVal);
+
+    preparedNumiDrivers.push({
+      key: nKey,
+      val: nVal,
+      norm: norm,
+      parts: norm.split(' ').sort().join(' '),
+      words: norm.split(' ').filter(w => w.length > 2)
+    });
+  }
+
+  // 3.1 Consolidation stricte : 1 entrée unique par chauffeur physique (sans doublon)
+  const canonToRawDriver = new Map();
+  rawList.forEach(r => {
+    canonToRawDriver.set(getCanonicalDriverName(r.sharik), r);
+  });
+
+  for (const [nKey, nVal] of Object.entries(numiplanActiveDrivers)) {
+    const cName = getCanonicalDriverName(nVal.rawName);
+    let existing = canonToRawDriver.get(cName);
     if (!existing) {
-      rawList.push({
+      existing = rawList.find(r => areNamesFuzzyMatching(r.sharik, nVal.rawName));
+    }
+    if (!existing) {
+      const newEntry = {
         code: '',
         sharik: nVal.rawName,
         date_in: nVal.debut || '',
@@ -20072,7 +20361,9 @@ function renderAdminEntreesSorties() {
         is_extension: false,
         nb_camions: 1,
         _autoFromNumiplan: true
-      });
+      };
+      rawList.push(newEntry);
+      canonToRawDriver.set(cName, newEntry);
     } else {
       if (existing.statut !== 'INACTIF') {
         existing.statut = 'ACTIF';
@@ -20092,7 +20383,6 @@ function renderAdminEntreesSorties() {
       if (matchingKeptConflict(r, existing)) {
         dedupedList.push(r);
       } else {
-        // Fusionner intelligemment pour préserver le code officiel, le contrat et le camion Numiplan
         if (!existing.code && r.code) existing.code = r.code;
         if (!existing.contrat && r.contrat) existing.contrat = r.contrat;
         if (!existing.date_contrat_fin && r.date_contrat_fin) existing.date_contrat_fin = r.date_contrat_fin;
@@ -20112,18 +20402,35 @@ function renderAdminEntreesSorties() {
   }
   rawList = dedupedList;
 
+  // Pré-indexation Master Driver Parc
+  const canonMasterDriverParc = new Map();
+  for (const [dName, dInfo] of Object.entries(MASTER_DRIVER_PARC)) {
+    canonMasterDriverParc.set(getCanonicalDriverName(dName), dInfo);
+  }
+
+  // Pré-indexation camions Numiplan avec clés canoniques
+  const preparedDriverTrucks = Object.entries(numiplanDriverTrucks).map(([nKey, nTrucks]) => ({
+    nKey,
+    canonKey: getCanonicalDriverName(nKey),
+    trucks: nTrucks
+  }));
+
+  const _suggestionCache = new Map();
+
   // 4. Analyser les correspondances exactes, extensions et suggestions de ressemblance
   let countIncoherences = 0;
   rawList.forEach((r, idx) => {
     r._idx = idx;
     
-    // Trouver si le chauffeur tourne sur Numiplan (Match direct ou nom inversé)
-    let numiMatch = null;
-    let numiMatchIsInvertedOrder = false; // Match uniquement par tri alphabétique (nom inversé)
-    for (const [nKey, nVal] of Object.entries(numiplanActiveDrivers)) {
-      if (areNamesFuzzyMatching(r.sharik, nVal.rawName)) {
-        numiMatch = nVal;
-        break;
+    // Trouver si le chauffeur tourne sur Numiplan (Lookup Hash Map O(1) d'abord)
+    const rCanon = getCanonicalDriverName(r.sharik);
+    let numiMatch = canonToNumiActive.get(rCanon) || null;
+    if (!numiMatch) {
+      for (let i = 0; i < preparedNumiDrivers.length; i++) {
+        if (areNamesFuzzyMatching(r.sharik, preparedNumiDrivers[i].val.rawName)) {
+          numiMatch = preparedNumiDrivers[i].val;
+          break;
+        }
       }
     }
 
@@ -20133,17 +20440,13 @@ function renderAdminEntreesSorties() {
     r._suggestion = null;
 
     if (numiMatch) {
-      // Chauffeur trouvé avec correspondance directe Numiplan
       if (r.statut === 'INACTIF') {
         r._incoherence = true;
         r._incoherenceType = `🚨 Marqué Sorti au registre mais tourne sur ${numiMatch.v} (Éq. ${numiMatch.team})`;
         countIncoherences++;
       }
-      
-      // Si le chauffeur tourne en direct sur Numiplan, son statut opérationnel est ACTIF
       if (r.statut !== 'INACTIF') r.statut = 'ACTIF';
 
-      // Synchronisation directe du camion et de la remorque actifs
       if (numiMatch.v) {
         r.tracteur = numiMatch.v;
         r.tracteurs = [numiMatch.v];
@@ -20153,8 +20456,11 @@ function renderAdminEntreesSorties() {
         r.remorques = [numiMatch.rm];
       }
     } else {
-      // Aucun match direct, chercher ressemblance classique
-      let suggestion = findBestNumiplanSuggestion(r.sharik, numiplanActiveDrivers);
+      let suggestion = _suggestionCache.get(rCanon);
+      if (suggestion === undefined) {
+        suggestion = findBestNumiplanSuggestionPrepared(r.sharik, preparedNumiDrivers);
+        _suggestionCache.set(rCanon, suggestion);
+      }
       if (suggestion) {
         r._suggestion = suggestion;
         r._incoherence = true;
@@ -20167,18 +20473,15 @@ function renderAdminEntreesSorties() {
       }
     }
     
-    // 4.1 Agrégation dynamique de tous les tracteurs réels de ce chauffeur (Registre + Numiplan)
+    // 4.1 Agrégation dynamique des tracteurs
     const driverTrucksSet = new Set();
-    
-    // Tracteurs trouvés en direct dans Numiplan (Priorité Numiplan actif)
-    const baseNameKey = getCanonicalDriverName(r.sharik);
-    for (const [nKey, nTrucks] of Object.entries(numiplanDriverTrucks)) {
-      if (areNamesFuzzyMatching(baseNameKey, nKey)) {
-        nTrucks.forEach(t => driverTrucksSet.add(t));
+    for (let i = 0; i < preparedDriverTrucks.length; i++) {
+      const pdt = preparedDriverTrucks[i];
+      if (pdt.canonKey === rCanon || areNamesFuzzyMatching(rCanon, pdt.nKey)) {
+        pdt.trucks.forEach(t => driverTrucksSet.add(t));
       }
     }
 
-    // OBLIGATOIRE : Tracteurs stricts depuis Numiplan
     if (driverTrucksSet.size > 0) {
       r.tracteurs = Array.from(driverTrucksSet);
       r.tracteur = r.tracteurs.join(' · ');
@@ -20187,13 +20490,11 @@ function renderAdminEntreesSorties() {
       r.tracteur = '';
     }
 
-    // OBLIGATOIRE : Remorques strictes depuis Numiplan
     if (!numiMatch || !numiMatch.rm) {
       r.remorques = [];
       r.remorque = '';
     }
 
-    // Détection d'extension automatique : >= 2 camions réels
     if (r.tracteurs && r.tracteurs.length > 1) {
       r.is_extension = true;
       r.nb_camions = r.tracteurs.length;
@@ -20202,7 +20503,7 @@ function renderAdminEntreesSorties() {
       r.nb_camions = 1;
     }
 
-    // Résolution de remorque garantie à 100% via le Master Parc pour chaque tracteur
+    // Résolution de remorque via Master Parc
     const remorquesSet = new Set();
     if (r.tracteurs && r.tracteurs.length > 0) {
       r.tracteurs.forEach(t => {
@@ -20219,23 +20520,27 @@ function renderAdminEntreesSorties() {
       r.remorque = r.remorques.join(' · ');
     }
     if (!r.remorque && r.sharik) {
-      for (const [dName, dInfo] of Object.entries(MASTER_DRIVER_PARC)) {
-        if (areNamesFuzzyMatching(r.sharik, dName) && dInfo.rm) {
-          r.remorque = dInfo.rm;
-          break;
+      const dInfo = canonMasterDriverParc.get(rCanon);
+      if (dInfo && dInfo.rm) {
+        r.remorque = dInfo.rm;
+      } else {
+        for (const [dName, dI] of Object.entries(MASTER_DRIVER_PARC)) {
+          if (areNamesFuzzyMatching(r.sharik, dName) && dI.rm) {
+            r.remorque = dI.rm;
+            break;
+          }
         }
       }
     }
   });
 
-  // 5. Calcul EXACT et STRICT alignÃ© Ã  100% sur la somme des badges de DisponibilitÃ© Numiplan
+  // 5. Calcul EXACT et STRICT aligné à 100% sur la somme des badges Numiplan
   const allTeamDriverOccurrences = {};
   const teamsList = ['A', 'B', 'C', 'D'];
   const globalUniqueAllDrivers = new Set();
   const globalUniqueExtDrivers = new Set();
   let globalTotalCamions = 0;
 
-  // 1ère passe : compter les occurrences de chaque chauffeur physique dans toutes les équipes (avec dédoublonnage fuzzy)
   teamsList.forEach(eq => {
     try {
       const db = (eq === window.CURRENT_EQUIPE && typeof window.DB !== 'undefined') ? window.DB : window['DB_' + eq];
@@ -20246,22 +20551,24 @@ function renderAdminEntreesSorties() {
           if (ch && ch !== '—' && ch !== '-' && !ch.includes('MANQUE CHAUFFEUR') && !ch.includes('AC/DC') && !ch.includes('DISPONIBLE') && !ch.includes('EN PANNE') && !ch.includes('INDISPONIBLE')) {
             const canon = (typeof getCanonicalDriverName === 'function') ? getCanonicalDriverName(ch) : ch;
             let matchedCanon = null;
-            // Normalisation des variantes d'écriture pour la même personne physique
             let normCanon = canon;
             if (normCanon.includes('BELAHDJER')) normCanon = normCanon.replace(/BELAHDJER/g, 'BELAHDJAR');
             if (normCanon.includes('DADI')) normCanon = normCanon.replace(/\bDADI\b/g, 'DADDI');
 
-            for (const existingCanon of globalUniqueAllDrivers) {
-              // Protection stricte : SAHI et SALHI sont deux chauffeurs physiques distincts
-              if ((existingCanon.includes('SAHI') && normCanon.includes('SALHI')) || (existingCanon.includes('SALHI') && normCanon.includes('SAHI'))) continue;
-              if (existingCanon === normCanon) {
-                matchedCanon = existingCanon;
-                break;
-              }
-              if (typeof areNamesFuzzyMatching === 'function' && areNamesFuzzyMatching(existingCanon, normCanon)) {
-                if (typeof isResemblanceRejected === 'function' && isResemblanceRejected(existingCanon, normCanon)) continue;
-                matchedCanon = existingCanon;
-                break;
+            if (globalUniqueAllDrivers.has(normCanon)) {
+              matchedCanon = normCanon;
+            } else {
+              for (const existingCanon of globalUniqueAllDrivers) {
+                if ((existingCanon.includes('SAHI') && normCanon.includes('SALHI')) || (existingCanon.includes('SALHI') && normCanon.includes('SAHI'))) continue;
+                if (existingCanon === normCanon) {
+                  matchedCanon = existingCanon;
+                  break;
+                }
+                if (typeof areNamesFuzzyMatching === 'function' && areNamesFuzzyMatching(existingCanon, normCanon)) {
+                  if (typeof isResemblanceRejected === 'function' && isResemblanceRejected(existingCanon, normCanon)) continue;
+                  matchedCanon = existingCanon;
+                  break;
+                }
               }
             }
             const finalKey = matchedCanon || normCanon;
@@ -20273,18 +20580,54 @@ function renderAdminEntreesSorties() {
     } catch(e) {}
   });
 
-  // 2Ã¨me passe : dÃ©compte des extensions (>= 2 camions)
   for (const [canon, occ] of Object.entries(allTeamDriverOccurrences)) {
     if (occ >= 2) {
       globalUniqueExtDrivers.add(canon);
     }
   }
 
-  // Chauffeurs physiques actifs = Exactement tous les chauffeurs uniques sur Numiplan (planning de disponibilitÃ©)
   const totalActifs = (globalUniqueAllDrivers.size > 0) ? globalUniqueAllDrivers.size : 120;
   const totalExtensions = (globalUniqueExtDrivers.size > 0) ? globalUniqueExtDrivers.size : 35;
   const totalCamionsParc = (globalTotalCamions > 0) ? globalTotalCamions : 187;
   const totalInactifs = rawList.filter(r => r.statut === 'INACTIF').length;
+
+  window._ADMIN_SHARIK_ENTREES_SORTIES_CACHE = rawList;
+  window._ADMIN_SHARIK_STATS_CACHE = {
+    total: rawList.length,
+    actifs: totalActifs,
+    inactifs: totalInactifs,
+    camions: totalCamionsParc,
+    extensions: totalExtensions
+  };
+  window._registreDataDirty = false;
+  _ADMIN_SHARIK_ENTREES_SORTIES = rawList;
+  window._ADMIN_SHARIK_ENTREES_SORTIES = rawList;
+  return rawList;
+}
+
+function renderAdminEntreesSorties(forceRebuild = false) {
+  // Gating : si l'Espace Direction / Registre n'est pas actif/visible, ne pas calculer inutilement
+  const isDirVisible = (document.body && document.body.classList.contains('direction-isolated-view')) ||
+                       (document.getElementById('page-admin-direction')?.classList.contains('active')) ||
+                       (document.getElementById('page-admin-direction')?.style.display === 'block');
+
+  if (!isDirVisible) {
+    window._registreDataDirty = true;
+    return;
+  }
+
+  if (forceRebuild || window._registreDataDirty || !window._ADMIN_SHARIK_ENTREES_SORTIES_CACHE) {
+    buildConsolidatedRegistreData();
+  }
+
+  const rawList = window._ADMIN_SHARIK_ENTREES_SORTIES_CACHE || [];
+  const stats = window._ADMIN_SHARIK_STATS_CACHE || {
+    total: rawList.length,
+    actifs: 0,
+    inactifs: 0,
+    camions: 0,
+    extensions: 0
+  };
 
   const statTotalEl = document.getElementById('admin-es-stat-total');
   const statEntreesEl = document.getElementById('admin-es-stat-entrees');
@@ -20292,13 +20635,15 @@ function renderAdminEntreesSorties() {
   const statCamionsEl = document.getElementById('admin-es-stat-camions');
   const statExtensionsEl = document.getElementById('admin-es-stat-extensions');
 
-  if (statTotalEl) statTotalEl.textContent = rawList.length;
-  if (statEntreesEl) statEntreesEl.textContent = totalActifs;
-  if (statSortiesEl) statSortiesEl.textContent = totalInactifs;
-  if (statCamionsEl) statCamionsEl.textContent = totalCamionsParc;
-  if (statExtensionsEl) statExtensionsEl.textContent = totalExtensions;
+  if (statTotalEl) statTotalEl.textContent = stats.total;
+  if (statEntreesEl) statEntreesEl.textContent = stats.actifs;
+  if (statSortiesEl) statSortiesEl.textContent = stats.inactifs;
+  if (statCamionsEl) statCamionsEl.textContent = stats.camions;
+  if (statExtensionsEl) statExtensionsEl.textContent = stats.extensions;
 
-  _ADMIN_SHARIK_ENTREES_SORTIES = rawList;
+  const q = (document.getElementById('admin-es-search')?.value || '').trim().toLowerCase();
+  const statusF = document.getElementById('admin-es-status-filter')?.value || '';
+  const contratF = document.getElementById('admin-es-contrat-filter')?.value || '';
 
   let filtered = rawList.filter(r => {
     // Filtre direct par carte cliquée
@@ -20362,9 +20707,9 @@ function renderAdminEntreesSorties() {
     let incoherenceBadge = '';
     if (r._suggestion) {
       const editKey = r.code || r.sharik || String(r._idx);
-      const safeSugName = (r._suggestion.name || '').replace(/'/g, "\'");
-      const safeSugV = (r._suggestion.v || '').replace(/'/g, "\'");
-      const safeSugRm = (r._suggestion.rm || '').replace(/'/g, "\'");
+      const safeSugName = (r._suggestion.name || '').replace(/'/g, "\\'");
+      const safeSugV = (r._suggestion.v || '').replace(/'/g, "\\'");
+      const safeSugRm = (r._suggestion.rm || '').replace(/'/g, "\\'");
 
       incoherenceBadge = `
         <div style="font-size:11px;font-weight:700;color:#38bdf8;margin-top:4px;background:rgba(56,189,248,0.12);border:1px solid rgba(56,189,248,0.4);padding:6px 10px;border-radius:6px;text-align:left;display:flex;flex-direction:column;gap:6px">
@@ -20410,6 +20755,7 @@ function renderAdminEntreesSorties() {
     `;
   }).join('');
 }
+window.buildConsolidatedRegistreData = buildConsolidatedRegistreData;
 window.renderAdminEntreesSorties = renderAdminEntreesSorties;
 if (window._pendingSharikRender) {
   delete window._pendingSharikRender;
@@ -20478,7 +20824,8 @@ async function validerLiaisonSuggestion(editKey, targetName, targetV, targetRm) 
   window._lastSharikLocalSaveTs = Date.now();
   pushSharikEditsToCloud();
 
-  renderAdminEntreesSorties();
+  window._registreDataDirty = true;
+  renderAdminEntreesSorties(true);
   showToast(`✅ Liaison avec « ${targetName} » (TR: ${targetV || '—'} / RM: ${targetRm || '—'}) validée par la Direction`);
 }
 window.validerLiaisonSuggestion = validerLiaisonSuggestion;
@@ -20561,7 +20908,8 @@ async function refuserLiaisonSuggestion(registryName, numiplanName, targetV, tar
   window._lastSharikLocalSaveTs = Date.now();
   pushSharikEditsToCloud();
 
-  renderAdminEntreesSorties();
+  window._registreDataDirty = true;
+  renderAdminEntreesSorties(true);
   showToast(`✅ Correspondance rejetée. Le nouveau chauffeur « ${numiplanName} » a été ajouté au registre.`);
 }
 window.refuserLiaisonSuggestion = refuserLiaisonSuggestion;
@@ -20714,7 +21062,8 @@ async function deleteAdminSharikLine() {
   });
 
   closeModal('modal-admin-edit-sharik');
-  renderAdminEntreesSorties();
+  window._registreDataDirty = true;
+  renderAdminEntreesSorties(true);
   showToast(`🗑️ Chauffeur « ${driverName} » supprimé avec succès`);
 }
 window.deleteAdminSharikLine = deleteAdminSharikLine;
@@ -20785,7 +21134,8 @@ function saveAdminSharikEdit() {
     modal.style.display = 'none';
   }
 
-  renderAdminEntreesSorties();
+  window._registreDataDirty = true;
+  renderAdminEntreesSorties(true);
   showToast(`✅ Fiche de « ${updatedObj.sharik} » mise à jour dans le registre`);
 }
 window.saveAdminSharikEdit = saveAdminSharikEdit;
