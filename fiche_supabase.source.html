@@ -8833,6 +8833,47 @@ function editDispo(idx) {
   openModal('modal-dispo', idx);
 }
 
+function getDriverActiveTrucks(driverName, excludeTruck = '') {
+  if (!driverName || driverName === '—' || driverName === '-') return [];
+  const norm = (n) => typeof normalizeDriverName === 'function' ? normalizeDriverName(n) : (n||'').trim().toUpperCase();
+  const canonFn = (n) => {
+    let s = (typeof getCanonicalDriverName === 'function') ? getCanonicalDriverName(n) : norm(n);
+    return s.replace(/\s+\d+$/, '').trim();
+  };
+  const targetCanon = canonFn(driverName);
+  const targetNorm = norm(driverName).replace(/\s+\d+$/, '').trim();
+  const exNorm = (excludeTruck || '').trim().toUpperCase();
+  const trucksSet = new Set();
+
+  ['A', 'B', 'C', 'D'].forEach(eq => {
+    let db = (eq === window.CURRENT_EQUIPE && typeof window.DB !== 'undefined') ? window.DB : window['DB_' + eq];
+    if (!db && typeof window.cloneTeamData === 'function') {
+      try {
+        const cached = localStorage.getItem('numiplan_team_' + eq);
+        if (cached) db = JSON.parse(cached);
+      } catch(e) {}
+    }
+    if (db && Array.isArray(db.dispo)) {
+      db.dispo.forEach(row => {
+        const rowCh = row.chauffeur || row.sharik;
+        const rowV = (row.v || row.tr || row.immat || '').trim().toUpperCase();
+        if (rowCh && rowV && rowV !== '—' && rowV !== '-' && rowV !== exNorm) {
+          const rowCanon = canonFn(rowCh);
+          const rowNorm = norm(rowCh).replace(/\s+\d+$/, '').trim();
+          const match = rowCanon === targetCanon ||
+                        rowNorm === targetNorm ||
+                        (typeof areNamesFuzzyMatching === 'function' && areNamesFuzzyMatching(rowCh, driverName));
+          if (match) {
+            trucksSet.add(rowV);
+          }
+        }
+      });
+    }
+  });
+  return Array.from(trucksSet);
+}
+window.getDriverActiveTrucks = getDriverActiveTrucks;
+
 async function deleteDispo(idx) {
   if (!_checkActionsLibres('deleteDispo')) return;
   const r = DB.dispo[idx];
@@ -8854,107 +8895,8 @@ async function deleteDispo(idx) {
   }
   if (!confirm('✅ Mot de passe et motif saisis.\n\nConfirmer la suppression de :\n' + label + ' ?')) return;
 
-  // Log Sortie Camion
-  logMouvement('Sortie Camion', 'Camion', r.v, finalJustif);
-
-  // If a driver was assigned, log Sortie Chauffeur as well
-  if (r.chauffeur && r.chauffeur !== '—') {
-    logMouvement('Sortie Chauffeur', 'Chauffeur', r.chauffeur, 'Supprimé avec le camion | ' + finalJustif);
-
-    // ── SYNC AUTO → Espace Direction : passer le chauffeur en INACTIF avec date_out ──
-    const todayISO = new Date().toISOString().split('T')[0];
-    const normFn = (n) => typeof normalizeDriverName === 'function' ? normalizeDriverName(n) : (n||'').trim().toUpperCase();
-    const chNorm = normFn(r.chauffeur);
-
-    if (!window._ADMIN_SHARIK_CUSTOM_EDITS) window._ADMIN_SHARIK_CUSTOM_EDITS = {};
-
-    // Chercher le chauffeur dans le registre (INITIAL_ADMIN_SHARIK_DATA + new_drivers)
-    let foundEditKey = null;
-    let foundRecord = null;
-
-    // 1. Recherche dans INITIAL_ADMIN_SHARIK_DATA
-    if (typeof INITIAL_ADMIN_SHARIK_DATA !== 'undefined') {
-      INITIAL_ADMIN_SHARIK_DATA.forEach((rec, recIdx) => {
-        if (!foundEditKey) {
-          const recNorm = normFn(rec.sharik);
-          const fuzzyOk = typeof areNamesFuzzyMatching === 'function'
-            ? areNamesFuzzyMatching(rec.sharik, r.chauffeur)
-            : recNorm === chNorm;
-          if (fuzzyOk) {
-            foundEditKey = rec.code || rec.sharik || String(recIdx);
-            foundRecord = rec;
-          }
-        }
-      });
-    }
-
-    // 2. Recherche dans new_drivers si pas trouvé
-    if (!foundEditKey && Array.isArray(window._ADMIN_SHARIK_CUSTOM_EDITS.new_drivers)) {
-      window._ADMIN_SHARIK_CUSTOM_EDITS.new_drivers.forEach((nd, ndIdx) => {
-        if (!foundEditKey) {
-          const ndNorm = normFn(nd.sharik);
-          const fuzzyOk = typeof areNamesFuzzyMatching === 'function'
-            ? areNamesFuzzyMatching(nd.sharik, r.chauffeur)
-            : ndNorm === chNorm;
-          if (fuzzyOk) {
-            foundEditKey = nd.code || nd.sharik;
-            foundRecord = nd;
-          }
-        }
-      });
-    }
-
-    if (foundEditKey) {
-      // Mettre à jour l'édition existante ou créer une nouvelle
-      const existingEdit = window._ADMIN_SHARIK_CUSTOM_EDITS[foundEditKey] || {};
-      window._ADMIN_SHARIK_CUSTOM_EDITS[foundEditKey] = {
-        ...foundRecord,
-        ...existingEdit,
-        statut: 'INACTIF',
-        date_out: todayISO,
-        motif_out: finalJustif || 'Sorti de Numiplan'
-      };
-    } else {
-      // Chauffeur non trouvé dans le registre : créer une fiche INACTIF dans new_drivers
-      if (!Array.isArray(window._ADMIN_SHARIK_CUSTOM_EDITS.new_drivers)) {
-        window._ADMIN_SHARIK_CUSTOM_EDITS.new_drivers = [];
-      }
-      // Vérifier que ce driver n'est pas déjà dans new_drivers
-      const alreadyInNew = window._ADMIN_SHARIK_CUSTOM_EDITS.new_drivers.some(d =>
-        typeof areNamesFuzzyMatching === 'function'
-          ? areNamesFuzzyMatching(d.sharik, r.chauffeur)
-          : normFn(d.sharik) === chNorm
-      );
-      if (!alreadyInNew) {
-        window._ADMIN_SHARIK_CUSTOM_EDITS.new_drivers.push({
-          code: 'NEW_' + Date.now() + '_' + Math.floor(Math.random()*1000),
-          sharik: r.chauffeur,
-          tracteur: r.v,
-          remorque: '',
-          date_in: '',
-          date_out: todayISO,
-          date_contrat_fin: '',
-          motif_out: finalJustif || 'Sorti de Numiplan',
-          statut: 'INACTIF',
-          contrat: 'CDD',
-          regime: 'IFU'
-        });
-      }
-    }
-
-    // Sauvegarder et synchroniser
-    window._lastSharikLocalSaveTs = Date.now();
-    localStorage.setItem('numiplan_admin_sharik_custom_edits', JSON.stringify(window._ADMIN_SHARIK_CUSTOM_EDITS));
-    if (typeof pushSharikEditsToCloud === 'function') pushSharikEditsToCloud();
-    if (typeof renderAdminEntreesSorties === 'function') renderAdminEntreesSorties();
-    // ──────────────────────────────────────────────────────────────────────────────────
-  }
-
   const deletedTruckImmat = (r.v || '').trim().toUpperCase();
   const eq = (typeof CURRENT_EQUIPE !== 'undefined' ? CURRENT_EQUIPE : 'A');
-  
-  showToast('⏳ Suppression cloud en cours...');
-  DB.dispo.splice(idx, 1);
 
   // Marquer le camion comme supprimé de manière définitive (Tombstone)
   if (!DB.deleted_trucks) DB.deleted_trucks = [];
@@ -8970,6 +8912,159 @@ async function deleteDispo(idx) {
       localStorage.setItem('numiplan_deleted_trucks', JSON.stringify(delArr));
     }
   } catch(e) {}
+
+  // Log Sortie Camion
+  logMouvement('Sortie Camion', 'Camion', r.v, finalJustif);
+
+  // Gestion intelligente du chauffeur : extension vs mono-camion
+  if (r.chauffeur && r.chauffeur !== '—' && r.chauffeur !== '-') {
+    const todayISO = new Date().toISOString().split('T')[0];
+    const normFn = (n) => typeof normalizeDriverName === 'function' ? normalizeDriverName(n) : (n||'').trim().toUpperCase();
+    const canonFn = (n) => (typeof getCanonicalDriverName === 'function' ? getCanonicalDriverName(n) : normFn(n)).replace(/\s+\d+$/, '').trim();
+    const chNorm = normFn(r.chauffeur).replace(/\s+\d+$/, '').trim();
+    const chCanon = canonFn(r.chauffeur);
+
+    if (!window._ADMIN_SHARIK_CUSTOM_EDITS) window._ADMIN_SHARIK_CUSTOM_EDITS = {};
+
+    // Chercher le chauffeur dans le registre (INITIAL_ADMIN_SHARIK_DATA + new_drivers)
+    let foundEditKey = null;
+    let foundRecord = null;
+
+    // 1. Recherche dans INITIAL_ADMIN_SHARIK_DATA
+    if (typeof INITIAL_ADMIN_SHARIK_DATA !== 'undefined' && Array.isArray(INITIAL_ADMIN_SHARIK_DATA)) {
+      for (let recIdx = 0; recIdx < INITIAL_ADMIN_SHARIK_DATA.length; recIdx++) {
+        const rec = INITIAL_ADMIN_SHARIK_DATA[recIdx];
+        const recNorm = normFn(rec.sharik).replace(/\s+\d+$/, '').trim();
+        const recCanon = canonFn(rec.sharik);
+        const matchOk = (recCanon === chCanon) || (recNorm === chNorm) ||
+          (typeof areNamesFuzzyMatching === 'function' && areNamesFuzzyMatching(rec.sharik, r.chauffeur));
+        if (matchOk) {
+          foundEditKey = rec.code || rec.sharik || String(recIdx);
+          foundRecord = rec;
+          break;
+        }
+      }
+    }
+
+    // 2. Recherche dans new_drivers si pas trouvé
+    if (!foundEditKey && Array.isArray(window._ADMIN_SHARIK_CUSTOM_EDITS.new_drivers)) {
+      for (let ndIdx = 0; ndIdx < window._ADMIN_SHARIK_CUSTOM_EDITS.new_drivers.length; ndIdx++) {
+        const nd = window._ADMIN_SHARIK_CUSTOM_EDITS.new_drivers[ndIdx];
+        const ndNorm = normFn(nd.sharik).replace(/\s+\d+$/, '').trim();
+        const ndCanon = canonFn(nd.sharik);
+        const matchOk = (ndCanon === chCanon) || (ndNorm === chNorm) ||
+          (typeof areNamesFuzzyMatching === 'function' && areNamesFuzzyMatching(nd.sharik, r.chauffeur));
+        if (matchOk) {
+          foundEditKey = nd.code || nd.sharik;
+          foundRecord = nd;
+          break;
+        }
+      }
+    }
+
+    // 3. Détection STRICTE et ROBUSTE du statut EXTENSION
+    const remainingActiveTrucks = getDriverActiveTrucks(r.chauffeur, deletedTruckImmat);
+    let isExtensionDriver = remainingActiveTrucks.length > 0;
+
+    if (!isExtensionDriver && foundRecord) {
+      if (foundRecord.is_extension) isExtensionDriver = true;
+      if (parseInt(foundRecord.flotte) > 1) isExtensionDriver = true;
+      if (foundRecord.nb_camions > 1) isExtensionDriver = true;
+      if (Array.isArray(foundRecord.tracteurs) && foundRecord.tracteurs.length > 1) isExtensionDriver = true;
+      if (foundRecord.tracteur && foundRecord.tracteur.includes('·')) isExtensionDriver = true;
+      if (foundRecord.contrat && foundRecord.contrat.toUpperCase().includes('EXTENSION')) isExtensionDriver = true;
+      if (foundRecord.motif_out && foundRecord.motif_out.toUpperCase().includes('EXTENSION')) isExtensionDriver = true;
+
+      // Vérifier les autres camions déclarés au registre (hors camion supprimé)
+      const allRegTrucks = (Array.isArray(foundRecord.tracteurs) && foundRecord.tracteurs.length > 0)
+        ? foundRecord.tracteurs
+        : (foundRecord.tracteur ? foundRecord.tracteur.split(' · ') : []);
+      const inactiveTrs = (window._ADMIN_SHARIK_CUSTOM_EDITS[foundEditKey]?.inactive_tracteurs) || [];
+      const remainingRegTrucks = allRegTrucks.filter(t => {
+        const trU = (t || '').trim().toUpperCase();
+        return trU && trU !== deletedTruckImmat && !inactiveTrs.includes(trU);
+      });
+      if (remainingRegTrucks.length > 0) isExtensionDriver = true;
+    }
+
+    if (isExtensionDriver) {
+      // ── CAS EXTENSION : Le chauffeur possède ou gère plusieurs camions ! ──
+      // Le chauffeur reste STRICTEMENT ACTIF dans le registre. Seul le camion supprimé devient inactif.
+      logMouvement('Sortie Camion', 'Camion', deletedTruckImmat, `Camion ${deletedTruckImmat} supprimé de l'extension de ${r.chauffeur} (Chauffeur reste ACTIF) | ${finalJustif}`);
+
+      if (foundEditKey) {
+        if (!window._ADMIN_SHARIK_CUSTOM_EDITS[foundEditKey]) {
+          window._ADMIN_SHARIK_CUSTOM_EDITS[foundEditKey] = { ...foundRecord };
+        }
+        const editObj = window._ADMIN_SHARIK_CUSTOM_EDITS[foundEditKey];
+        editObj.statut = 'ACTIF';
+        editObj.date_out = '';
+        editObj.motif_out = ''; // Jamais de motif de sortie sur le chauffeur actif !
+        if (!Array.isArray(editObj.inactive_tracteurs)) editObj.inactive_tracteurs = [];
+        if (!editObj.inactive_tracteurs.includes(deletedTruckImmat)) {
+          editObj.inactive_tracteurs.push(deletedTruckImmat);
+        }
+        // Retirer le camion supprimé des tracteurs actifs
+        if (Array.isArray(editObj.tracteurs)) {
+          editObj.tracteurs = editObj.tracteurs.filter(t => (t||'').trim().toUpperCase() !== deletedTruckImmat);
+        }
+        if (editObj.tracteur) {
+          editObj.tracteur = editObj.tracteur.split(' · ')
+            .filter(t => (t||'').trim().toUpperCase() !== deletedTruckImmat)
+            .join(' · ');
+        }
+      }
+      showToast(`🚛 Camion ${deletedTruckImmat} supprimé. Chauffeur ${r.chauffeur} reste ACTIF (Extension).`);
+    } else {
+      // ── CAS MONO-CAMION : Le chauffeur n'a qu'un seul camion et il est supprimé ──
+      logMouvement('Sortie Chauffeur', 'Chauffeur', r.chauffeur, 'Supprimé avec son unique camion | ' + finalJustif);
+
+      if (foundEditKey) {
+        const existingEdit = window._ADMIN_SHARIK_CUSTOM_EDITS[foundEditKey] || {};
+        window._ADMIN_SHARIK_CUSTOM_EDITS[foundEditKey] = {
+          ...foundRecord,
+          ...existingEdit,
+          statut: 'INACTIF',
+          date_out: todayISO,
+          motif_out: finalJustif || 'Sorti de Numiplan'
+        };
+      } else {
+        if (!Array.isArray(window._ADMIN_SHARIK_CUSTOM_EDITS.new_drivers)) {
+          window._ADMIN_SHARIK_CUSTOM_EDITS.new_drivers = [];
+        }
+        const alreadyInNew = window._ADMIN_SHARIK_CUSTOM_EDITS.new_drivers.some(d =>
+          typeof areNamesFuzzyMatching === 'function'
+            ? areNamesFuzzyMatching(d.sharik, r.chauffeur)
+            : normFn(d.sharik) === chNorm
+        );
+        if (!alreadyInNew) {
+          window._ADMIN_SHARIK_CUSTOM_EDITS.new_drivers.push({
+            code: 'NEW_' + Date.now() + '_' + Math.floor(Math.random()*1000),
+            sharik: r.chauffeur,
+            tracteur: r.v,
+            remorque: '',
+            date_in: '',
+            date_out: todayISO,
+            date_contrat_fin: '',
+            motif_out: finalJustif || 'Sorti de Numiplan',
+            statut: 'INACTIF',
+            contrat: 'CDD',
+            regime: 'IFU'
+          });
+        }
+      }
+    }
+
+    // Sauvegarder et synchroniser
+    window._lastSharikLocalSaveTs = Date.now();
+    localStorage.setItem('numiplan_admin_sharik_custom_edits', JSON.stringify(window._ADMIN_SHARIK_CUSTOM_EDITS));
+    if (typeof pushSharikEditsToCloud === 'function') pushSharikEditsToCloud();
+    window._registreDataDirty = true;
+    if (typeof renderAdminEntreesSorties === 'function') renderAdminEntreesSorties(true);
+  }
+
+  showToast('⏳ Suppression cloud en cours...');
+  DB.dispo.splice(idx, 1);
 
   DB._localTs = Date.now();
   DB._last_edited_by = sessionStorage.getItem('numiplan_username') || 'ADMIN';
@@ -20127,12 +20222,29 @@ function findBestNumiplanSuggestion(registryName, numiplanDrivers) {
 
 // Stockage des personnalisations et modifications administratives
 
-  // Nettoyage automatique des caches obsolètes de DJENNADI MUSTAPHA
+  // Nettoyage et restauration automatique des chauffeurs en extension indûment marqués inactifs
   try {
     const edits = JSON.parse(localStorage.getItem('numiplan_admin_sharik_custom_edits') || '{}');
+    let editsChanged = false;
     if (edits['1016426'] || edits['DJENNADI MUSTAPHA']) {
       delete edits['1016426'];
       delete edits['DJENNADI MUSTAPHA'];
+      editsChanged = true;
+    }
+    // Restaurer les chauffeurs extension indûment passés en INACTIF
+    Object.keys(edits).forEach(k => {
+      const item = edits[k];
+      if (item && typeof item === 'object') {
+        const isExt = item.is_extension || (Array.isArray(item.tracteurs) && item.tracteurs.length > 1) || parseInt(item.flotte) > 1 || (item.tracteur && item.tracteur.includes('·'));
+        if (isExt && item.statut === 'INACTIF' && (!item.motif_out || item.motif_out === 'Démission' || item.motif_out === 'Résiliation' || item.motif_out === 'Sorti de Numiplan' || item.motif_out.includes('supprimé'))) {
+          item.statut = 'ACTIF';
+          item.date_out = '';
+          item.motif_out = '';
+          editsChanged = true;
+        }
+      }
+    });
+    if (editsChanged) {
       localStorage.setItem('numiplan_admin_sharik_custom_edits', JSON.stringify(edits));
     }
   } catch(e) {}
@@ -20482,6 +20594,26 @@ function buildConsolidatedRegistreData() {
       }
     }
 
+    // Gestion propre des camions inactifs pour ce chauffeur
+    const inactList = Array.isArray(r.inactive_tracteurs) 
+      ? r.inactive_tracteurs.map(t => (t||'').trim().toUpperCase()) 
+      : [];
+    r.inactive_tracteurs = inactList;
+
+    // Retirer les camions inactifs des tracteurs actifs qui tournent
+    inactList.forEach(t => driverTrucksSet.delete(t));
+
+    // Si le chauffeur a des tracteurs déclarés dans son contrat/registre, les intégrer (hors inactifs et hors tombstones)
+    const initialTracteurs = Array.isArray(r.tracteurs) && r.tracteurs.length > 0
+      ? r.tracteurs
+      : (r.tracteur ? r.tracteur.split(' · ').map(t => t.trim()).filter(Boolean) : []);
+    initialTracteurs.forEach(t => {
+      const tUpper = (t||'').trim().toUpperCase();
+      if (!inactList.includes(tUpper) && (!DB.deleted_trucks || !DB.deleted_trucks.includes(tUpper))) {
+        driverTrucksSet.add(tUpper);
+      }
+    });
+
     if (driverTrucksSet.size > 0) {
       r.tracteurs = Array.from(driverTrucksSet);
       r.tracteur = r.tracteurs.join(' · ');
@@ -20495,12 +20627,23 @@ function buildConsolidatedRegistreData() {
       r.remorque = '';
     }
 
-    if (r.tracteurs && r.tracteurs.length > 1) {
+    const totalKnownCamions = driverTrucksSet.size + inactList.length;
+    if (driverTrucksSet.size > 1 || totalKnownCamions > 1 || r.is_extension || parseInt(r.flotte) > 1 || (r.contrat && r.contrat.toUpperCase().includes('EXTENSION'))) {
       r.is_extension = true;
-      r.nb_camions = r.tracteurs.length;
+      r.nb_camions = Math.max(driverTrucksSet.size, totalKnownCamions, parseInt(r.flotte) || 1);
     } else {
       r.is_extension = false;
       r.nb_camions = 1;
+    }
+
+    // ── RÈGLE FONDAMENTALE : Si le chauffeur est en extension et a encore au moins 1 camion actif ──
+    // Il doit STRICTEMENT rester ACTIF, sans date de sortie ni motif de résiliation !
+    if (r.is_extension && driverTrucksSet.size > 0) {
+      r.statut = 'ACTIF';
+      r.date_out = '';
+      r.motif_out = '';
+      r._incoherence = false;
+      r._incoherenceType = '';
     }
 
     // Résolution de remorque via Master Parc
@@ -20685,10 +20828,19 @@ function renderAdminEntreesSorties(forceRebuild = false) {
       ? '<span style="background:rgba(34,197,94,0.15);color:#22c55e;border:1px solid rgba(34,197,94,0.4);border-radius:6px;padding:2px 8px;font-size:11px;font-weight:800">🟢 ACTIF</span>'
       : '<span style="background:rgba(239,68,68,0.15);color:#ef4444;border:1px solid rgba(239,68,68,0.4);border-radius:6px;padding:2px 8px;font-size:11px;font-weight:800">🔴 SORTIE</span>';
 
-    // Rendu des tracteurs multiples
+    // Rendu des tracteurs multiples (Actifs vs Inactifs)
     const trList = (r.tracteurs && r.tracteurs.length > 0) ? r.tracteurs : (r.tracteur ? r.tracteur.split(' · ') : []);
-    const trHtml = trList.length > 0
-      ? trList.map(t => `<span style="font-family:monospace;font-weight:800;color:var(--acc, #00d2ff);background:rgba(0,210,255,0.08);border:1px solid rgba(0,210,255,0.25);padding:2px 6px;border-radius:4px;display:inline-block;margin:1px 2px">${t.trim()}</span>`).join(' ')
+    const inactTrList = Array.isArray(r.inactive_tracteurs) ? r.inactive_tracteurs.map(t => (t||'').trim().toUpperCase()) : [];
+    const allUniqueTrs = Array.from(new Set([...trList.map(t => t.trim().toUpperCase()), ...inactTrList]));
+
+    const trHtml = allUniqueTrs.length > 0
+      ? allUniqueTrs.map(t => {
+          const isInactive = inactTrList.includes(t);
+          if (isInactive) {
+            return `<span style="font-family:monospace;font-weight:700;color:#ef4444;background:rgba(239,68,68,0.12);border:1px solid rgba(239,68,68,0.35);padding:2px 6px;border-radius:4px;display:inline-block;margin:1px 2px;text-decoration:line-through;opacity:0.85" title="Camion supprimé / inactif sur Numiplan">${t} (Inactif)</span>`;
+          }
+          return `<span style="font-family:monospace;font-weight:800;color:var(--acc, #00d2ff);background:rgba(0,210,255,0.08);border:1px solid rgba(0,210,255,0.25);padding:2px 6px;border-radius:4px;display:inline-block;margin:1px 2px">${t}</span>`;
+        }).join(' ')
       : '<span style="color:#64748b">—</span>';
 
     // Rendu des remorques multiples
@@ -20699,9 +20851,15 @@ function renderAdminEntreesSorties(forceRebuild = false) {
 
     const motifHtml = r.motif_out ? `<span style="color:#f87171;font-weight:600">${r.motif_out}</span>` : '<span style="color:#64748b">—</span>';
 
-    const isExtension = r.is_extension || (r.tracteurs && r.tracteurs.length > 1);
+    const activeCount = allUniqueTrs.filter(t => !inactTrList.includes(t)).length;
+    const isExtension = r.is_extension || (allUniqueTrs.length > 1) || (parseInt(r.flotte) > 1);
+    let extBadgeText = `⭐ EXTENSION (${r.nb_camions || allUniqueTrs.length || 2} Camions)`;
+    if (inactTrList.length > 0) {
+      extBadgeText = `⭐ EXTENSION (${activeCount} Actif${activeCount > 1 ? 's' : ''} · ${inactTrList.length} Inactif)`;
+    }
+
     const extBadge = isExtension
-      ? `<div style="font-size:10px;font-weight:900;color:#eab308;background:rgba(234,179,8,0.15);border:1px solid rgba(234,179,8,0.4);border-radius:4px;padding:2px 6px;display:inline-flex;align-items:center;gap:4px;margin-top:4px">⭐ EXTENSION (${r.tracteurs?.length || 2} Camions)</div>`
+      ? `<div style="font-size:10px;font-weight:900;color:#eab308;background:rgba(234,179,8,0.15);border:1px solid rgba(234,179,8,0.4);border-radius:4px;padding:2px 6px;display:inline-flex;align-items:center;gap:4px;margin-top:4px">${extBadgeText}</div>`
       : '';
 
     let incoherenceBadge = '';
