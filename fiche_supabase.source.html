@@ -8,22 +8,45 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script>
   // ═══════════════════════════════════════════════════════════════
-  // PROTECTION DU CODE SOURCE & ANTI-INSPECTION
+  // SYSTEME DE PROTECTION DU CODE SOURCE & ANTI-INSPECTION NUMIPLAN
+  // TOUTE TENTATIVE D'ACCES NON AUTORISE EST BLOQUEE ET DETECTEE
   // ═══════════════════════════════════════════════════════════════
   (function() {
-    // 1. Bloquer le Clic Droit
+    "use strict";
+
+    // 1. Style Anti-Sélection & Anti-Copie
+    try {
+      var _secStyle = document.createElement("style");
+      _secStyle.textContent = `
+        body, table, th, td, .card, .tab-pane, .tab-content, .kpi-box, .stat-box, .role-bar, header, nav, #app-container {
+          -webkit-user-select: none !important;
+          -moz-user-select: none !important;
+          -ms-user-select: none !important;
+          user-select: none !important;
+        }
+        input, textarea, select, [contenteditable="true"] {
+          -webkit-user-select: text !important;
+          -moz-user-select: text !important;
+          -ms-user-select: text !important;
+          user-select: text !important;
+        }
+      `;
+      document.head.appendChild(_secStyle);
+    } catch(e) {}
+
+    // 2. Bloquer le Clic Droit
     document.addEventListener('contextmenu', function(e) {
-      // Autoriser le clic droit sur les champs de saisie pour couper/copier/coller du texte
       const tag = (e.target && e.target.tagName) ? e.target.tagName.toUpperCase() : '';
       if (tag === 'INPUT' || tag === 'TEXTAREA' || (e.target && e.target.isContentEditable)) {
         return true;
       }
       e.preventDefault();
+      e.stopPropagation();
       return false;
-    }, { capture: true });
+    }, true);
 
-    // 2. Bloquer les raccourcis d'inspection et d'affichage source
-    document.addEventListener('keydown', function(e) {
+    // 3. Bloquer les raccourcis d'inspection et d'affichage source
+    window.addEventListener('keydown', function(e) {
       // F12 (DevTools)
       if (e.key === 'F12' || e.keyCode === 123) {
         e.preventDefault();
@@ -54,18 +77,105 @@
           return false;
         }
       }
-    }, { capture: true });
+    }, true);
 
-    // 3. Masquer les traces de la console
-    try {
-      const isDev = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
-      if (!isDev) {
-        const _noop = function() {};
-        console.log = _noop;
-        console.info = _noop;
-        console.debug = _noop;
+    // 4. Bloquer la copie et la coupure sur les éléments protégés
+    document.addEventListener("copy", function(e) {
+      const tag = (e.target && e.target.tagName) ? e.target.tagName.toUpperCase() : '';
+      if (tag !== 'INPUT' && tag !== 'TEXTAREA' && !(e.target && e.target.isContentEditable)) {
+        e.preventDefault();
+        return false;
       }
+    }, true);
+
+    document.addEventListener("cut", function(e) {
+      const tag = (e.target && e.target.tagName) ? e.target.tagName.toUpperCase() : '';
+      if (tag !== 'INPUT' && tag !== 'TEXTAREA' && !(e.target && e.target.isContentEditable)) {
+        e.preventDefault();
+        return false;
+      }
+    }, true);
+
+    // 5. Boucle infernale Debugger Trap
+    function _0xdbg() {
+      try {
+        (function(a){
+          return (function(b){
+            return Function('return (function() {}.constructor("debugger")())')();
+          })(a);
+        })()();
+      } catch(err){}
+    }
+    setInterval(_0xdbg, 150);
+
+    // 6. Neutralisation et verrouillage total de la console
+    try {
+      const _noop = function() {};
+      const _methods = [
+        "log", "debug", "info", "warn", "error", "dir", "dirxml", 
+        "table", "trace", "clear", "count", "assert", "profile", "time", "timeEnd"
+      ];
+      for (let i = 0; i < _methods.length; i++) {
+        try {
+          Object.defineProperty(window.console, _methods[i], {
+            value: _noop,
+            writable: false,
+            configurable: false
+          });
+        } catch(err) {
+          try { window.console[_methods[i]] = _noop; } catch(e){}
+        }
+      }
+      try { Object.freeze(window.console); } catch(err){}
     } catch(e) {}
+
+    // 7. Détection active multi-critères d'ouverture des DevTools
+    let _detected = false;
+    function _onDevToolsDetected() {
+      if (_detected) return;
+      _detected = true;
+      try {
+        document.body.innerHTML = `
+          <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh;background:#0b132b;color:#ef4444;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;text-align:center;padding:30px;line-height:1.6;">
+            <div style="background:#1c2541;padding:40px;border-radius:16px;max-width:650px;box-shadow:0 20px 50px rgba(0,0,0,0.5);border:2px solid #ef4444;">
+              <div style="font-size:3.5em;margin-bottom:15px;">🛡️</div>
+              <h1 style="font-size:2em;margin-bottom:15px;color:#f87171;letter-spacing:1px;">ACCÈS NON AUTORISÉ DÉTECTÉ</h1>
+              <p style="font-size:1.1em;color:#e2e8f0;line-height:1.7;margin-bottom:25px;">
+                L'inspection du code source, l'accès à la console et la tentative de copie des algorithmes ou données de l'application NUMIPLAN sont strictement interdits afin de protéger la propriété intellectuelle.
+              </p>
+              <button onclick="location.reload()" style="background:#ef4444;color:white;border:none;padding:12px 28px;border-radius:8px;font-weight:700;font-size:1em;cursor:pointer;">
+                Fermer les DevTools et recharger
+              </button>
+            </div>
+          </div>
+        `;
+      } catch(e){}
+      setTimeout(function(){
+        try { window.location.reload(); } catch(e){}
+      }, 2000);
+    }
+
+    // Détection 1 : Différentiel dimensions (Docked DevTools)
+    function checkDimensions() {
+      const widthDiff = window.outerWidth - window.innerWidth > 160;
+      const heightDiff = window.outerHeight - window.innerHeight > 160;
+      if (widthDiff || heightDiff) {
+        _onDevToolsDetected();
+      }
+    }
+    setInterval(checkDimensions, 800);
+
+    // Détection 2 : Seuil de timing performance (Debugger trap)
+    function checkTiming() {
+      const t0 = performance.now();
+      debugger;
+      const t1 = performance.now();
+      if (t1 - t0 > 100) {
+        _onDevToolsDetected();
+      }
+    }
+    setInterval(checkTiming, 1000);
+
   })();
 </script>
 <script>
