@@ -195,9 +195,20 @@
   // getCurrentEquipe définie ici (script classique) pour être disponible
   // AVANT le chargement du module ES6 (qui est différé par défaut)
   function getCurrentEquipe() {
-    return (typeof window.CURRENT_EQUIPE !== 'undefined') ? window.CURRENT_EQUIPE : 'A';
+    const lock = sessionStorage.getItem('numiplan_team_lock');
+    if (lock && lock !== 'BL' && lock !== 'DIR') {
+      const allowed = (lock === 'ALL' || lock === '*') ? ['A', 'B', 'C', 'D'] : lock.split(/[,;\s\/\-]+/).map(x => x.trim().toUpperCase()).filter(Boolean);
+      if (allowed.length > 0) {
+        if (typeof window.CURRENT_EQUIPE === 'undefined' || !allowed.includes(window.CURRENT_EQUIPE)) {
+          window.CURRENT_EQUIPE = allowed[0];
+          if (typeof CURRENT_EQUIPE !== 'undefined') CURRENT_EQUIPE = allowed[0];
+        }
+        return window.CURRENT_EQUIPE;
+      }
+    }
+    return (typeof window.CURRENT_EQUIPE !== 'undefined' && window.CURRENT_EQUIPE) ? window.CURRENT_EQUIPE : 'A';
   }
-    window.getCurrentEquipe = getCurrentEquipe;
+  window.getCurrentEquipe = getCurrentEquipe;
 
   function emptyTeamData() {
     return {
@@ -405,12 +416,19 @@
   });
 
   function getCurrentEquipe() {
+    const lock = sessionStorage.getItem('numiplan_team_lock');
+    if (lock && lock !== 'BL' && lock !== 'DIR') {
+      const allowed = (lock === 'ALL' || lock === '*') ? ['A', 'B', 'C', 'D'] : lock.split(/[,;\s\/\-]+/).map(x => x.trim().toUpperCase()).filter(Boolean);
+      if (allowed.length > 0) {
+        if (typeof window.CURRENT_EQUIPE === 'undefined' || !allowed.includes(window.CURRENT_EQUIPE)) {
+          window.CURRENT_EQUIPE = allowed[0];
+          if (typeof CURRENT_EQUIPE !== 'undefined') CURRENT_EQUIPE = allowed[0];
+        }
+        return window.CURRENT_EQUIPE;
+      }
+    }
     if (typeof window.CURRENT_EQUIPE !== 'undefined' && window.CURRENT_EQUIPE) {
       return window.CURRENT_EQUIPE;
-    }
-    const lock = sessionStorage.getItem('numiplan_team_lock');
-    if (lock && ['A', 'B', 'C', 'D'].includes(lock)) {
-      return lock;
     }
     return 'A';
   }
@@ -482,9 +500,18 @@
     merged.deleted_gasoil = Array.from(allDeletedGasoil);
 
     function isRecordBeingEdited(key, listName) {
-      if (listName === 'dispo' && document.getElementById('modal-dispo')?.classList.contains('open')) {
-        const idx = parseInt(document.getElementById('dispo-edit-idx')?.value);
-        if (idx >= 0 && local.dispo && local.dispo[idx]) return local.dispo[idx].v === key;
+      if (listName === 'dispo') {
+        if (document.getElementById('modal-dispo')?.classList.contains('open')) {
+          const idx = parseInt(document.getElementById('dispo-edit-idx')?.value);
+          if (idx >= 0 && local.dispo && local.dispo[idx]) return local.dispo[idx].v === key;
+        }
+        const activeEl = document.activeElement;
+        if (activeEl && activeEl.dataset && activeEl.dataset.idx !== undefined) {
+          const activeIdx = parseInt(activeEl.dataset.idx);
+          if (activeIdx >= 0 && local.dispo && local.dispo[activeIdx]) {
+            return local.dispo[activeIdx].v === key;
+          }
+        }
       }
       return false;
     }
@@ -657,13 +684,16 @@
   }
 
   // ── DETECTION ACTIVE D'INTERACTION UTILISATEUR & ANTI-INTERRUPTION SAISIE ──
+  if (!window._NUMIPLAN_CLIENT_ID) {
+    window._NUMIPLAN_CLIENT_ID = 'cli_' + Math.random().toString(36).substring(2, 10) + '_' + Date.now();
+  }
   window._lastUserInteractionTs = 0;
   if (!window._userInteractionListenersAttached) {
     window._userInteractionListenersAttached = true;
-    ['input', 'keydown', 'keypress', 'paste', 'compositionstart', 'focus'].forEach(evt => {
+    ['input', 'keydown', 'keypress', 'paste', 'compositionstart', 'focus', 'focusin', 'click'].forEach(evt => {
       window.addEventListener(evt, (e) => {
         const tag = (e.target && e.target.tagName ? e.target.tagName : '').toUpperCase();
-        if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || (e.target && (e.target.isContentEditable || (e.target.getAttribute && e.target.getAttribute('contenteditable') === 'true')))) {
+        if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || (e.target && (e.target.isContentEditable || (e.target.getAttribute && e.target.getAttribute('contenteditable') === 'true') || e.target.classList?.contains('cell-input') || e.target.classList?.contains('cell-edit')))) {
           window._lastUserInteractionTs = Date.now();
         }
       }, { passive: true, capture: true });
@@ -677,13 +707,17 @@
       if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' ||
           activeEl.isContentEditable ||
           activeEl.getAttribute('contenteditable') === 'true' ||
-          activeEl.classList.contains('cell-edit') ||
-          activeEl.classList.contains('cell-input')) {
+          activeEl.classList?.contains('cell-edit') ||
+          activeEl.classList?.contains('cell-input')) {
+        return true;
+      }
+      const dispoBody = document.getElementById('dispo-body');
+      if (dispoBody && dispoBody.contains(activeEl)) {
         return true;
       }
     }
-    // Si l'utilisateur a frappé une touche ou interagi dans les 3.5 dernières secondes
-    if (Date.now() - (window._lastUserInteractionTs || 0) < 3500) {
+    // Si l'utilisateur a frappé une touche ou interagi dans les 6 dernières secondes
+    if (Date.now() - (window._lastUserInteractionTs || 0) < 6000) {
       return true;
     }
     return false;
@@ -694,11 +728,11 @@
   let _deferredRenderTeam = null;
 
   function safeRenderActiveTeam(eq) {
-    if (isUserActivelyEditing()) {
+    if (typeof isUserActivelyEditing === 'function' && isUserActivelyEditing()) {
       _deferredRenderTeam = eq;
       if (_deferredRenderTimer) clearTimeout(_deferredRenderTimer);
       _deferredRenderTimer = setTimeout(function checkDeferredRender() {
-        if (isUserActivelyEditing()) {
+        if (typeof isUserActivelyEditing === 'function' && isUserActivelyEditing()) {
           // L'utilisateur est encore en train de saisir ou interagir, repousser en douceur
           _deferredRenderTimer = setTimeout(checkDeferredRender, 2000);
           return;
@@ -781,6 +815,14 @@
   window.getActiveTabName = getActiveTabName;
 
   function _doRender(eq, forceAll = false) {
+    if (typeof isUserActivelyEditing === 'function' && isUserActivelyEditing()) {
+      console.log('[_doRender] Re-render différé car utilisateur en train d\'éditer');
+      _deferredRenderTeam = eq;
+      if (!_deferredRenderTimer) {
+        _deferredRenderTimer = setTimeout(() => safeRenderActiveTeam(eq), 2500);
+      }
+      return;
+    }
     const _prevPerfTs = (typeof DB !== 'undefined' && DB.perfImportTs) ? DB.perfImportTs : null;
     const activeTab = getActiveTabName();
     try {
@@ -846,7 +888,8 @@
         if (typeof isUserActivelyEditing !== 'function' || !isUserActivelyEditing()) {
           showFirebaseBadge('⚡ Import Perf Camions mis à jour par un collaborateur');
         }
-      } else {
+      } else if (window._lastRemoteUpdateBadge) {
+        window._lastRemoteUpdateBadge = false;
         if (typeof isUserActivelyEditing !== 'function' || !isUserActivelyEditing()) {
           showFirebaseBadge('⚡ Mis à jour depuis Supabase');
         }
@@ -920,7 +963,11 @@
       ['A', 'B', 'C', 'D'].forEach(eq => {
         if (!window['DB_' + eq]) window['DB_' + eq] = { dispo: [] };
       });
-      if (typeof renderDispo === 'function') renderDispo();
+      if (typeof safeRenderActiveTeam === 'function') {
+        safeRenderActiveTeam(getCurrentEquipe());
+      } else if (typeof renderDispo === 'function') {
+        renderDispo();
+      }
     } catch (e) {
       console.warn("Notice loading global dispo for extensions:", e);
     }
@@ -1040,8 +1087,13 @@
         const activeSrc = window['DB_' + currentEq];
         if (activeSrc && typeof window.DB !== 'undefined') {
           _fbReady = true;
-          Object.keys(window.DB).forEach(k => delete window.DB[k]);
-          Object.assign(window.DB, activeSrc);
+          if (typeof isUserActivelyEditing === 'function' && isUserActivelyEditing() && typeof mergeTeamData === 'function') {
+            const merged = mergeTeamData(window.DB, activeSrc);
+            Object.assign(window.DB, merged);
+          } else {
+            Object.keys(window.DB).forEach(k => delete window.DB[k]);
+            Object.assign(window.DB, activeSrc);
+          }
         }
 
         if (typeof scheduleLocalStorageSave === 'function') {
@@ -1112,22 +1164,30 @@
                   localStorage.setItem('numiplan_admin_sharik_custom_edits', JSON.stringify(window._ADMIN_SHARIK_CUSTOM_EDITS));
                   if (typeof renderAdminEntreesSorties === 'function') renderAdminEntreesSorties();
                 } else {
-                  // ── FILTRE ANTI-ÉCHO ULTRA-STRICT POUR LES ÉQUIPES ──
+                  // ── FILTRE ANTI-ÉCHO SÉCURISÉ POUR LES ÉQUIPES ──
+                  // 1) Si ce paquet provient de notre propre fenêtre (client ID unique) : ignorer immédiatement !
+                  if (data && data._clientId && data._clientId === window._NUMIPLAN_CLIENT_ID) {
+                    console.log(`[Realtime ${eq}] Écho Supabase ignoré (notre propre client ID : ${data._clientId})`);
+                    return;
+                  }
+
                   const lastLocalSave = (window._lastLocalSaveTs && window._lastLocalSaveTs[eq]) ? window._lastLocalSaveTs[eq] : 0;
                   const timeSinceSave = Date.now() - lastLocalSave;
                   const myUser = (sessionStorage.getItem('numiplan_username') || '').toUpperCase().trim();
                   const remoteUser = (data && data._last_edited_by ? String(data._last_edited_by) : '').toUpperCase().trim();
                   
-                  // 1) Si ce paquet provient de notre propre sauvegarde récente (< 5s) et même utilisateur : ignorer l'écho !
-                  if (timeSinceSave < 5000 && remoteUser === myUser) {
-                    console.log(`[Realtime ${eq}] Écho Supabase ignoré (notre propre sauvegarde récente il y a ${timeSinceSave}ms)`);
+                  // 2) Si ce paquet provient d'une sauvegarde locale récente du MÊME utilisateur (< 3s) : ignorer l'écho
+                  if (timeSinceSave < 3000 && remoteUser && myUser && remoteUser === myUser) {
+                    console.log(`[Realtime ${eq}] Écho Supabase ignoré (sauvegarde locale récente par ${remoteUser})`);
                     return;
                   }
-                  // 2) Si le timestamp distant est <= notre dernier timestamp cloud/local enregistré : ignorer l'écho !
-                  if (data && data._localTs && window._lastCloudTs && window._lastCloudTs[eq] && data._localTs <= window._lastCloudTs[eq]) {
-                    console.log(`[Realtime ${eq}] Écho Supabase ignoré (ts distant ${data._localTs} <= local ${window._lastCloudTs[eq]})`);
-                    return;
-                  }
+
+                  // Enregistrer le timestamp cloud reçu
+                  if (!window._lastCloudTs) window._lastCloudTs = {};
+                  window._lastCloudTs[eq] = (data && data._localTs) || Date.now();
+
+                  // Vraie mise à jour distante issue d'un autre collaborateur
+                  window._lastRemoteUpdateBadge = true;
 
                   _fbLoaded[eq] = true;
                   const currentEq = getCurrentEquipe();
@@ -2090,10 +2150,12 @@
     _initialCloudLoadCompleted[eq] = true;
     const writeTs = Date.now();
     dbData._localTs = writeTs;
+    dbData._clientId = window._NUMIPLAN_CLIENT_ID;
     dbData._last_edited_by = sessionStorage.getItem('numiplan_username') || 'INCONNU';
     dbData._last_edited_at = new Date().toISOString();
     const payload = cloneEquipePayload(dbData);
     payload._localTs = writeTs;
+    payload._clientId = window._NUMIPLAN_CLIENT_ID;
     window['DB_' + eq] = payload;
     
     if (!window._lastLocalSaveTs) window._lastLocalSaveTs = {};
@@ -2119,10 +2181,12 @@
     _initialCloudLoadCompleted[eq] = true;
     const writeTs = Date.now();
     dbData._localTs = writeTs;
+    dbData._clientId = window._NUMIPLAN_CLIENT_ID;
     dbData._last_edited_by = sessionStorage.getItem('numiplan_username') || 'INCONNU';
     dbData._last_edited_at = new Date().toISOString();
     const payload = cloneEquipePayload(dbData);
     payload._localTs = writeTs;
+    payload._clientId = window._NUMIPLAN_CLIENT_ID;
     window['DB_' + eq] = payload;
     if (eq === getCurrentEquipe()) {
       Object.assign(window.DB, payload);
@@ -3145,6 +3209,16 @@ function applyTeamLockUI(eq) {
         // Le chef d'équipe est verrouillé STRICTEMENT sur l'équipe issue de Supabase
         sessionStorage.setItem('numiplan_team_lock', rawTargetTeam);
         sessionStorage.setItem('numiplan_user_default_team', targetTeam);
+        try {
+          const rawStore = localStorage.getItem('numiplan_v4_store');
+          if (rawStore) {
+            const parsedStore = JSON.parse(rawStore);
+            if (parsedStore && typeof parsedStore === 'object') {
+              parsedStore.active = targetTeam;
+              localStorage.setItem('numiplan_v4_store', JSON.stringify(parsedStore));
+            }
+          }
+        } catch(eStore) {}
       }
 
       document.getElementById('login-screen').style.display = 'none';
@@ -8156,6 +8230,14 @@ function loadDB() {
   } catch (e) {
     console.warn('loadDB', e);
   }
+  // VERROUILLAGE STRICT : si la session est liée à une équipe (ex: HOUSSAM.A -> C), priorité absolue à l'équipe autorisée
+  const sessLock = sessionStorage.getItem('numiplan_team_lock');
+  if (sessLock && sessLock !== 'BL' && sessLock !== 'DIR') {
+    const allowed = (sessLock === 'ALL' || sessLock === '*') ? ['A', 'B', 'C', 'D'] : sessLock.split(/[,;\s\/\-]+/).map(x => x.trim().toUpperCase()).filter(Boolean);
+    if (allowed.length > 0 && !allowed.includes(active)) {
+      active = allowed[0];
+    }
+  }
   ['A', 'B', 'C', 'D'].forEach(eq => {
     window['DB_' + eq] = cloneTeamData(window['DB_' + eq], emptyTeamData());
   });
@@ -8221,11 +8303,14 @@ function saveDB() {
   const role = (sessionStorage.getItem('numiplan_user_role') || '').toLowerCase();
   const username = (sessionStorage.getItem('numiplan_username') || '').toUpperCase();
   const isAdminUser = (role === 'admin' || username === 'ADMIN' || !lock || lock === 'ADMIN' || (typeof isAdmin === 'function' && isAdmin()) || (typeof isRegistreOrDirectionSession === 'function' && isRegistreOrDirectionSession()));
-  if (lock && lock !== eq && !isAdminUser) {
-    if (typeof showToast === 'function') {
-      showToast('⚠️ Lecture seule — modifications de l\'Équipe ' + lock + ' autorisées uniquement', true);
+  if (lock && lock !== 'BL' && lock !== 'DIR' && !isAdminUser) {
+    const allowed = (lock === 'ALL' || lock === '*') ? ['A', 'B', 'C', 'D'] : lock.split(/[,;\s\/\-]+/).map(x => x.trim().toUpperCase()).filter(Boolean);
+    if (allowed.length > 0 && !allowed.includes(eq)) {
+      if (typeof showToast === 'function') {
+        showToast('⚠️ Lecture seule — modifications de l\'Équipe ' + allowed.join(',') + ' autorisées uniquement', true);
+      }
+      return;
     }
-    return;
   }
 
   // 1. Sauvegarde locale en mémoire + persist asynchrone non-bloquante
@@ -8279,11 +8364,17 @@ function saveDB() {
 function saveArchives() {
   const eq = CURRENT_EQUIPE || 'A';
   const lock = sessionStorage.getItem('numiplan_team_lock');
-  if (lock && lock !== eq) {
-    if (typeof showToast === 'function') {
-      showToast('⚠️ Lecture seule — archivage bloqué', true);
+  const role = (sessionStorage.getItem('numiplan_user_role') || '').toLowerCase();
+  const username = (sessionStorage.getItem('numiplan_username') || '').toUpperCase();
+  const isAdminUser = (role === 'admin' || username === 'ADMIN' || !lock || lock === 'ADMIN' || (typeof isAdmin === 'function' && isAdmin()) || (typeof isRegistreOrDirectionSession === 'function' && isRegistreOrDirectionSession()));
+  if (lock && lock !== 'BL' && lock !== 'DIR' && !isAdminUser) {
+    const allowed = (lock === 'ALL' || lock === '*') ? ['A', 'B', 'C', 'D'] : lock.split(/[,;\s\/\-]+/).map(x => x.trim().toUpperCase()).filter(Boolean);
+    if (allowed.length > 0 && !allowed.includes(eq)) {
+      if (typeof showToast === 'function') {
+        showToast('⚠️ Lecture seule — archivage bloqué pour l\'Équipe ' + eq, true);
+      }
+      return;
     }
-    return;
   }
 
   // 1. Sauvegarde locale complète
@@ -8644,6 +8735,17 @@ function updateDataLists() {
 // RENDER: DISPO
 // ═══════════════════════════════════════════════════════════════
 function renderDispo() {
+  const activeEl = document.activeElement;
+  const isEditingTableCell = activeEl && (
+    activeEl.classList?.contains('cell-input') ||
+    activeEl.classList?.contains('cell-edit') ||
+    (document.getElementById('dispo-body') && document.getElementById('dispo-body').contains(activeEl))
+  );
+
+  if (isEditingTableCell) {
+    console.log('[renderDispo] Re-render annulé : cellule du tableau activement en cours de saisie');
+    return;
+  }
   if (typeof rebuildOrientationBejaiaState === 'function') rebuildOrientationBejaiaState();
   if (typeof rebuildOrientationBrandtState === 'function') rebuildOrientationBrandtState();
   if (typeof rebuildSpeedExcessState === 'function') rebuildSpeedExcessState();
@@ -8846,6 +8948,18 @@ function renderDispo() {
   }
 
   const body = document.getElementById('dispo-body');
+  const curActiveEl = document.activeElement;
+  let restoreTarget = null;
+  if (curActiveEl && body && body.contains(curActiveEl)) {
+    restoreTarget = {
+      field: curActiveEl.dataset ? curActiveEl.dataset.field : null,
+      idx: (curActiveEl.dataset && curActiveEl.dataset.idx !== undefined) ? parseInt(curActiveEl.dataset.idx) : null,
+      tagName: curActiveEl.tagName,
+      value: (curActiveEl.tagName === 'INPUT' || curActiveEl.tagName === 'TEXTAREA') ? curActiveEl.value : curActiveEl.textContent,
+      selStart: (curActiveEl.tagName === 'INPUT' || curActiveEl.tagName === 'TEXTAREA') ? curActiveEl.selectionStart : null,
+      selEnd: (curActiveEl.tagName === 'INPUT' || curActiveEl.tagName === 'TEXTAREA') ? curActiveEl.selectionEnd : null
+    };
+  }
   const lock = sessionStorage.getItem('numiplan_team_lock');
   const showInsurance = DB.config_ui ? DB.config_ui.showInsurance !== false : true;
   const cbShowIns = document.getElementById('dispo-show-insurance');
@@ -8946,8 +9060,8 @@ function renderDispo() {
       <td>${stateBadge(r.etat)}</td>
       <td style="white-space:nowrap; vertical-align: middle;">${chauffeurCellContent}</td>
       <td class="mono" style="white-space:nowrap"><span class="cell-edit" contenteditable="true" data-field="hor" data-idx="${realIdx}" onblur="saveInline(this)" onkeydown="if(event.key==='Enter'){event.preventDefault();this.blur()}">${horaire(r.hor)||'—'}</span></td>
-      <td style="white-space:nowrap;min-width:90px"><input class="cell-input" list="dl-wilayas" autocomplete="off" data-field="lieuJ" data-idx="${realIdx}" value="${r.lieuJ==='—'||!r.lieuJ?'':r.lieuJ}" placeholder="Lieu Jour" onchange="saveInlineInput(this)" style="background:transparent;border:none;border-bottom:1px solid ${(!r.lieuJ||r.lieuJ==='—')?'#f87171':'transparent'};color:inherit;width:100%;font-size:inherit;padding:2px 4px;outline:none;cursor:pointer"></td>
-      <td style="white-space:nowrap;min-width:90px"><input class="cell-input" list="dl-wilayas" autocomplete="off" data-field="lieuJ1" data-idx="${realIdx}" value="${r.lieuJ1==='—'||!r.lieuJ1?'':r.lieuJ1}" placeholder="Lieu J+1" onchange="saveInlineInput(this)" style="background:transparent;border:none;border-bottom:1px solid ${(!r.lieuJ1||r.lieuJ1==='—')?'#f87171':'transparent'};color:inherit;width:100%;font-size:inherit;padding:2px 4px;outline:none;cursor:pointer"></td>
+      <td style="white-space:nowrap;min-width:90px"><input class="cell-input" list="dl-wilayas" autocomplete="off" data-field="lieuJ" data-idx="${realIdx}" value="${r.lieuJ==='—'||!r.lieuJ?'':r.lieuJ}" placeholder="Lieu Jour" onchange="saveInlineInput(this)" onkeydown="if(event.key==='Enter'){event.preventDefault();this.blur();}" style="background:transparent;border:none;border-bottom:1px solid ${(!r.lieuJ||r.lieuJ==='—')?'#f87171':'transparent'};color:inherit;width:100%;font-size:inherit;padding:2px 4px;outline:none;cursor:pointer"></td>
+      <td style="white-space:nowrap;min-width:90px"><input class="cell-input" list="dl-wilayas" autocomplete="off" data-field="lieuJ1" data-idx="${realIdx}" value="${r.lieuJ1==='—'||!r.lieuJ1?'':r.lieuJ1}" placeholder="Lieu J+1" onchange="saveInlineInput(this)" onkeydown="if(event.key==='Enter'){event.preventDefault();this.blur();}" style="background:transparent;border:none;border-bottom:1px solid ${(!r.lieuJ1||r.lieuJ1==='—')?'#f87171':'transparent'};color:inherit;width:100%;font-size:inherit;padding:2px 4px;outline:none;cursor:pointer"></td>
       <td>${(()=>{ const e=equipMap.get(r.v); return e ? equipBadge(e.barre) : equipBadge(r.equip); })()}</td>
       <td>${(()=>{ const e=equipMap.get(r.v); return e ? equipBadge(e.cable) : '<span class="no-data">—</span>'; })()}</td>
       <td style="text-align:center">${(()=>{
@@ -8981,6 +9095,23 @@ function renderDispo() {
   document.querySelectorAll('.col-assurance').forEach(el => {
     el.style.display = 'none';
   });
+
+  // ── RESTAURATION TRANSPARENTE DU FOCUS ET DU CURSEUR APRÈS RE-RENDER ──
+  if (restoreTarget && restoreTarget.field !== null && restoreTarget.idx !== null && !isNaN(restoreTarget.idx)) {
+    const targetEl = body.querySelector(`[data-field="${restoreTarget.field}"][data-idx="${restoreTarget.idx}"]`);
+    if (targetEl) {
+      if (restoreTarget.tagName === 'INPUT' || restoreTarget.tagName === 'TEXTAREA') {
+        targetEl.value = restoreTarget.value;
+        try { targetEl.focus(); } catch(e) {}
+        if (restoreTarget.selStart !== null && restoreTarget.selEnd !== null) {
+          try { targetEl.setSelectionRange(restoreTarget.selStart, restoreTarget.selEnd); } catch(e) {}
+        }
+      } else {
+        targetEl.textContent = restoreTarget.value;
+        try { targetEl.focus(); } catch(e) {}
+      }
+    }
+  }
 }
 
 function editDispo(idx) {
@@ -15711,8 +15842,8 @@ function switchEquipe(eq) {
   if (lock && lock !== 'BL' && lock !== 'DIR') {
     const allowed = (lock === 'ALL' || lock === '*') ? ['A', 'B', 'C', 'D'] : lock.split(/[,;\s\/\-]+/).map(x => x.trim().toUpperCase()).filter(Boolean);
     if (allowed.length > 0 && !allowed.includes(eq)) {
-      console.warn(`[AUTH] Changement vers l'équipe ${eq} bloqué par Supabase (autorisé: ${allowed.join(',')})`);
-      return;
+      console.warn(`[AUTH] Changement vers l'équipe ${eq} bloqué par Supabase (autorisé: ${allowed.join(',')}) -> redirection vers ${allowed[0]}`);
+      eq = allowed[0];
     }
   }
   if (typeof HISTORY_MODE !== 'undefined' && HISTORY_MODE) {
@@ -15720,7 +15851,8 @@ function switchEquipe(eq) {
     const dSelect = document.getElementById('history-date-select');
     if (dSelect) dSelect.value = '';
   }
-  if (eq === CURRENT_EQUIPE) return;
+  const currentSub = document.querySelector('.header-sub');
+  if (eq === CURRENT_EQUIPE && typeof DB !== 'undefined' && DB.dispo && DB.dispo.length > 0 && currentSub && currentSub.textContent.includes(eq)) return;
   // Réinitialiser les filtres de recherche et de date lors du changement d'équipe pour éviter de masquer des pannes
   const filtersToReset = [
     'dispo-search', 'dispo-etat', 'dispo-region', 'dispo-region-j',
@@ -15794,6 +15926,7 @@ function switchEquipe(eq) {
     verifierCspcNonTraite();
   }
 }
+window.switchEquipe = switchEquipe;
 
 // ═══════════════════════════════════════════════════════════════
 // INIT (après définition des équipes + switchEquipe)
@@ -15804,7 +15937,7 @@ const thirtyDaysAgo = new Date();
 thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 const startEl = document.getElementById('odo-filter-start');
 if (startEl) startEl.value = thirtyDaysAgo.toISOString().split('T')[0];
-switchEquipe(CURRENT_EQUIPE || 'A');
+switchEquipe(getCurrentEquipe());
 updateDataLists();
   if (typeof window.setupBlacklistListeners === 'function') window.setupBlacklistListeners();
 
