@@ -656,32 +656,67 @@
     return merged;
   }
 
-  let _needsRenderAfterEdit = false;
+  // ── DETECTION ACTIVE D'INTERACTION UTILISATEUR & ANTI-INTERRUPTION SAISIE ──
+  window._lastUserInteractionTs = 0;
+  if (!window._userInteractionListenersAttached) {
+    window._userInteractionListenersAttached = true;
+    ['input', 'keydown', 'keypress', 'paste', 'compositionstart', 'focus'].forEach(evt => {
+      window.addEventListener(evt, (e) => {
+        const tag = (e.target && e.target.tagName ? e.target.tagName : '').toUpperCase();
+        if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || (e.target && (e.target.isContentEditable || (e.target.getAttribute && e.target.getAttribute('contenteditable') === 'true')))) {
+          window._lastUserInteractionTs = Date.now();
+        }
+      }, { passive: true, capture: true });
+    });
+  }
+
+  function isUserActivelyEditing() {
+    const activeEl = document.activeElement;
+    if (activeEl) {
+      const tag = (activeEl.tagName || '').toUpperCase();
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' ||
+          activeEl.isContentEditable ||
+          activeEl.getAttribute('contenteditable') === 'true' ||
+          activeEl.classList.contains('cell-edit') ||
+          activeEl.classList.contains('cell-input')) {
+        return true;
+      }
+    }
+    // Si l'utilisateur a frappé une touche ou interagi dans les 3.5 dernières secondes
+    if (Date.now() - (window._lastUserInteractionTs || 0) < 3500) {
+      return true;
+    }
+    return false;
+  }
+  window.isUserActivelyEditing = isUserActivelyEditing;
+
+  let _deferredRenderTimer = null;
+  let _deferredRenderTeam = null;
 
   function safeRenderActiveTeam(eq) {
-    const activeEl = document.activeElement;
-    const isTyping = activeEl && (
-      activeEl.classList.contains('cell-edit') ||
-      activeEl.classList.contains('cell-input') ||
-      activeEl.tagName === 'INPUT' ||
-      activeEl.tagName === 'TEXTAREA' ||
-      activeEl.getAttribute('contenteditable') === 'true'
-    );
-
-    if (isTyping) {
-      _needsRenderAfterEdit = true;
-      if (!activeEl._hasBlurRenderListener) {
-        activeEl._hasBlurRenderListener = true;
-        activeEl.addEventListener('blur', () => {
-          if (_needsRenderAfterEdit) {
-            _needsRenderAfterEdit = false;
-            _doRender(eq);
-          }
-        }, { once: true });
-      }
+    if (isUserActivelyEditing()) {
+      _deferredRenderTeam = eq;
+      if (_deferredRenderTimer) clearTimeout(_deferredRenderTimer);
+      _deferredRenderTimer = setTimeout(function checkDeferredRender() {
+        if (isUserActivelyEditing()) {
+          // L'utilisateur est encore en train de saisir ou interagir, repousser en douceur
+          _deferredRenderTimer = setTimeout(checkDeferredRender, 2000);
+          return;
+        }
+        const t = _deferredRenderTeam;
+        _deferredRenderTeam = null;
+        if (t) {
+          _doRender(t);
+        }
+      }, 3000);
       return;
     }
 
+    if (_deferredRenderTimer) {
+      clearTimeout(_deferredRenderTimer);
+      _deferredRenderTimer = null;
+    }
+    _deferredRenderTeam = null;
     _doRender(eq);
   }
 
@@ -710,7 +745,8 @@
     window['DB_' + eq] = cloneEquipePayload(cleanSrc);
     if (eq === currentEq && typeof window.DB !== 'undefined') {
       const isModalOpen = document.querySelector('.modal-overlay.open') !== null;
-      if (isModalOpen && typeof mergeTeamData === 'function') {
+      const isEditing = typeof isUserActivelyEditing === 'function' && isUserActivelyEditing();
+      if ((isModalOpen || isEditing) && typeof mergeTeamData === 'function') {
         const merged = mergeTeamData(window.DB, cleanSrc);
         Object.assign(window.DB, merged);
       } else {
@@ -807,9 +843,13 @@
         PERF_RAW = DB.perfRaw.map(r => ({ ...r, date: r.date ? new Date(r.date) : null }));
         if (typeof populatePerfWeeks === 'function') populatePerfWeeks();
         if (typeof buildPerfRows === 'function') buildPerfRows();
-        showFirebaseBadge('⚡ Import Perf Camions mis à jour par un collaborateur');
+        if (typeof isUserActivelyEditing !== 'function' || !isUserActivelyEditing()) {
+          showFirebaseBadge('⚡ Import Perf Camions mis à jour par un collaborateur');
+        }
       } else {
-        showFirebaseBadge('⚡ Mis à jour depuis Supabase');
+        if (typeof isUserActivelyEditing !== 'function' || !isUserActivelyEditing()) {
+          showFirebaseBadge('⚡ Mis à jour depuis Supabase');
+        }
       }
     } catch(e) { console.warn('Supabase render error', e); }
 
@@ -1072,6 +1112,23 @@
                   localStorage.setItem('numiplan_admin_sharik_custom_edits', JSON.stringify(window._ADMIN_SHARIK_CUSTOM_EDITS));
                   if (typeof renderAdminEntreesSorties === 'function') renderAdminEntreesSorties();
                 } else {
+                  // ── FILTRE ANTI-ÉCHO ULTRA-STRICT POUR LES ÉQUIPES ──
+                  const lastLocalSave = (window._lastLocalSaveTs && window._lastLocalSaveTs[eq]) ? window._lastLocalSaveTs[eq] : 0;
+                  const timeSinceSave = Date.now() - lastLocalSave;
+                  const myUser = (sessionStorage.getItem('numiplan_username') || '').toUpperCase().trim();
+                  const remoteUser = (data && data._last_edited_by ? String(data._last_edited_by) : '').toUpperCase().trim();
+                  
+                  // 1) Si ce paquet provient de notre propre sauvegarde récente (< 5s) et même utilisateur : ignorer l'écho !
+                  if (timeSinceSave < 5000 && remoteUser === myUser) {
+                    console.log(`[Realtime ${eq}] Écho Supabase ignoré (notre propre sauvegarde récente il y a ${timeSinceSave}ms)`);
+                    return;
+                  }
+                  // 2) Si le timestamp distant est <= notre dernier timestamp cloud/local enregistré : ignorer l'écho !
+                  if (data && data._localTs && window._lastCloudTs && window._lastCloudTs[eq] && data._localTs <= window._lastCloudTs[eq]) {
+                    console.log(`[Realtime ${eq}] Écho Supabase ignoré (ts distant ${data._localTs} <= local ${window._lastCloudTs[eq]})`);
+                    return;
+                  }
+
                   _fbLoaded[eq] = true;
                   const currentEq = getCurrentEquipe();
                   if (eq === currentEq) {
@@ -2038,6 +2095,11 @@
     const payload = cloneEquipePayload(dbData);
     payload._localTs = writeTs;
     window['DB_' + eq] = payload;
+    
+    if (!window._lastLocalSaveTs) window._lastLocalSaveTs = {};
+    window._lastLocalSaveTs[eq] = writeTs;
+    if (!window._lastCloudTs) window._lastCloudTs = {};
+    window._lastCloudTs[eq] = writeTs;
     
     clearTimeout(window._teamSaveTimers[eq]);
     window._teamSaveTimers[eq] = setTimeout(() => {
@@ -15168,7 +15230,8 @@ function saveInlineInput(el) {
   const immat = DB.dispo[idx] ? DB.dispo[idx].v : '—';
   el.value = val;
   el.style.borderBottomColor = 'transparent';
-  DB.dispo[idx]._lastEditedTs = Date.now();
+  const nowTs = Date.now();
+  DB.dispo[idx]._lastEditedTs = nowTs;
   DB.dispo[idx][field] = val;
   if (field === 'lieuJ1') {
     if (shouldUpdateLieuJ1Initial(DB.dispo[idx], val)) {
@@ -15178,6 +15241,10 @@ function saveInlineInput(el) {
   if (oldVal !== val && typeof tracerAction === 'function') {
     tracerAction('DISPO', 'MODIF_' + field.toUpperCase(), immat, `${field === 'lieuJ' ? 'Lieu Jour' : 'Lieu J+1'} : "${oldVal || '—'}" ➔ "${val}"`, window.CURRENT_EQUIPE);
   }
+  const currentTeam = window.CURRENT_EQUIPE || 'A';
+  if (!window._lastLocalSaveTs) window._lastLocalSaveTs = {};
+  window._lastLocalSaveTs[currentTeam] = nowTs;
+  window._lastUserInteractionTs = nowTs;
   saveDB();
   showToast('✅ ' + (field === 'lieuJ' ? 'Lieu Jour' : 'Lieu J+1') + ' → ' + val);
 }
@@ -15198,7 +15265,8 @@ function saveInline(el) {
     setTimeout(() => { el.style.outline = ''; el.focus(); }, 1200);
     return;
   }
-  DB.dispo[idx]._lastEditedTs = Date.now();
+  const nowTs = Date.now();
+  DB.dispo[idx]._lastEditedTs = nowTs;
   if (field === 'hor') {
     // Accept HH:MM format → convert to fraction, or keep raw
     const m = val.match(/^(\d{1,2}):(\d{2})$/);
@@ -15224,6 +15292,10 @@ function saveInline(el) {
       tracerAction('DISPO', 'MODIF_' + field.toUpperCase(), immat, `${field} : "${oldVal || '—'}" ➔ "${val}"`, window.CURRENT_EQUIPE);
     }
   }
+  const currentTeam = window.CURRENT_EQUIPE || 'A';
+  if (!window._lastLocalSaveTs) window._lastLocalSaveTs = {};
+  window._lastLocalSaveTs[currentTeam] = nowTs;
+  window._lastUserInteractionTs = nowTs;
   saveDB();
   showToast('✅ Mis à jour');
 }
