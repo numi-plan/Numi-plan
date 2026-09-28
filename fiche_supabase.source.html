@@ -293,19 +293,19 @@
   window.ensureSupabaseAuth = ensureSupabaseAuth;
 
   const DEFAULT_NUMIPLAN_USERS = [
-    { login: "abdesslam.d", nom: "ABDESSLAM.D" },
-    { login: "mourad.b", nom: "MOURAD.B" },
-    { login: "abdallah.d", nom: "ABDALLAH.D" },
-    { login: "islam.m", nom: "ISLAM.M" },
-    { login: "mohamed.s", nom: "MOHAMED.S" },
-    { login: "nabil.t", nom: "NABIL.T" },
-    { login: "rayane.a", nom: "RAYANE.A" },
-    { login: "houssam.a", nom: "HOUSSAM.A" },
-    { login: "kheirdine.c", nom: "KHEIRDINE CHERGUI" },
-    { login: "oussama.a", nom: "OUSSAMA.A" },
-    { login: "walid.m", nom: "WALID.M" },
-    { login: "younes.g", nom: "YOUNES.G" },
-    { login: "b.oussama", nom: "B.OUSSAMA" }
+    { login: "abdesslam.d", nom: "ABDESSLAM.D", team: "A", role: "equipe" },
+    { login: "islam.m", nom: "ISLAM.M", team: "A", role: "equipe" },
+    { login: "walid.m", nom: "WALID.M", team: "B", role: "equipe" },
+    { login: "nabil.t", nom: "NABIL.T", team: "B", role: "equipe" },
+    { login: "houssam.a", nom: "HOUSSAM.A", team: "C", role: "equipe" },
+    { login: "kheirdine.c", nom: "KHEIRDINE CHERGUI", team: "C", role: "equipe" },
+    { login: "oussama.a", nom: "OUSSAMA.A", team: "D", role: "equipe" },
+    { login: "abdallah.d", nom: "ABDALLAH.D", team: "A,B", role: "equipe" },
+    { login: "mourad.b", nom: "MOURAD.B", team: "A,B", role: "equipe" },
+    { login: "mohamed.s", nom: "MOHAMED.S", team: "C,D", role: "equipe" },
+    { login: "younes.g", nom: "YOUNES.G", team: "C,D", role: "equipe" },
+    { login: "rayane.a", nom: "RAYANE.A", team: "C,D", role: "equipe" },
+    { login: "b.oussama", nom: "B.OUSSAMA", team: "ALL", role: "equipe" }
   ];
   window.DEFAULT_NUMIPLAN_USERS = DEFAULT_NUMIPLAN_USERS;
 
@@ -2744,7 +2744,7 @@ body.direction-isolated-view .table-wrap {
           outline:none;box-sizing:border-box;">
     </div>
     <div id="pwd-error" style="color:#f87171;font-size:12px;margin-bottom:12px;min-height:18px;"></div>
-    <button onclick="checkPassword()" style="
+    <button id="btn-login-submit" onclick="checkPassword()" style="
       width:100%;padding:11px;background:#38bdf8;color:#000;border:none;
       border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;
       font-family:'IBM Plex Sans',sans-serif;letter-spacing:1px;">
@@ -3040,12 +3040,15 @@ function applyTeamLockUI(eq) {
         let searchName = uName.trim().toLowerCase();
         if (searchName === 'chergui') searchName = 'kheirdine.c';
         if (searchName === 'adjouj') searchName = 'houssam.a';
-        const { data } = await window.supabase
+        const fetchPromise = window.supabase
           .from('np_users')
           .select('team, role, actif, nom, login')
           .or(`login.ilike.${searchName},nom.ilike.${searchName}`)
           .eq('actif', true)
           .maybeSingle();
+        const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject('timeout'), 1500));
+        const res = await Promise.race([fetchPromise, timeoutPromise]).catch(() => null);
+        const data = res ? res.data : null;
         if (data && data.team) {
           const sbTeam = String(data.team).trim().toUpperCase();
           const currentLock = sessionStorage.getItem('numiplan_team_lock');
@@ -3082,9 +3085,9 @@ function applyTeamLockUI(eq) {
         }
       }, 100);
     } else {
-      setTimeout(async () => {
+      setTimeout(() => {
         if (typeof refreshUserTeamFromSupabase === 'function') {
-          await refreshUserTeamFromSupabase();
+          refreshUserTeamFromSupabase().catch(e => console.warn(e));
         }
         const lock = sessionStorage.getItem('numiplan_team_lock');
         if (lock && lock !== 'BL' && lock !== 'DIR' && typeof window.switchEquipe === 'function') {
@@ -3155,37 +3158,53 @@ function applyTeamLockUI(eq) {
         return;
       }
 
-      // Cas C : Chefs d'équipe & collaborateurs (contrôlés STRICTEMENT depuis Supabase np_users)
+      // Bouton état chargement
+      const submitBtn = document.getElementById('btn-login-submit');
+      if (submitBtn) {
+        submitBtn.textContent = 'Connexion en cours...';
+        submitBtn.disabled = true;
+        submitBtn.style.opacity = '0.7';
+      }
+      const restoreSubmitBtn = () => {
+        if (submitBtn) {
+          submitBtn.textContent = 'ACCÉDER ➔';
+          submitBtn.disabled = false;
+          submitBtn.style.opacity = '1';
+        }
+      };
+
+      // Cas C : Chefs d'équipe & collaborateurs
       let searchLogin = username.trim().toLowerCase();
       if (searchLogin === 'chergui') searchLogin = 'kheirdine.c';
       if (searchLogin === 'adjouj') searchLogin = 'houssam.a';
 
-      // 1. REQUÊTE DIRECTE SUR SUPABASE np_users (SOURCE DE VÉRITÉ ABSOLUE)
-      let sbUser = null;
-      try {
-        if (window.supabase) {
-          const { data, error } = await window.supabase
+      // 1. Recherche instantanée en mémoire (0ms, jamais de blocage ni d'écran figé)
+      const userList = (typeof DEFAULT_NUMIPLAN_USERS !== 'undefined') ? DEFAULT_NUMIPLAN_USERS : (window.DEFAULT_NUMIPLAN_USERS || []);
+      const localDef = userList.find(x => x.login.toLowerCase() === searchLogin || x.nom.toLowerCase() === searchLogin);
+      const cachedSb = (window._SUPABASE_USERS || []).find(x => (x.login && x.login.toLowerCase() === searchLogin) || (x.nom && x.nom.toLowerCase() === searchLogin));
+
+      let sbUser = cachedSb || localDef || null;
+
+      // 2. Si disponible, vérification Supabase protégée par un timeout strict de 1.2s (pour ne jamais figer l'écran)
+      if (!cachedSb && window.supabase) {
+        try {
+          const fetchPromise = window.supabase
             .from('np_users')
             .select('*')
             .or(`login.ilike.${searchLogin},nom.ilike.${searchLogin}`)
             .eq('actif', true)
             .maybeSingle();
-          if (!error && data) sbUser = data;
+          const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject('timeout'), 1200));
+          const res = await Promise.race([fetchPromise, timeoutPromise]);
+          if (res && res.data) sbUser = res.data;
+        } catch (eSb) {
+          console.warn('Supabase np_users fast check fallback to local:', eSb);
         }
-      } catch (eSb) {
-        console.warn('Vérification Supabase np_users:', eSb);
       }
 
-      // Détermination de l'équipe et du rôle depuis Supabase
-      let userRole = (sbUser && sbUser.role) ? sbUser.role : 'equipe';
-      let rawTargetTeam = (sbUser && sbUser.team) ? String(sbUser.team).trim().toUpperCase() : '';
-
-      // Si Supabase est injoignable ou compte pas encore synchronisé, repli sur la table par défaut
-      if (!rawTargetTeam) {
-        const userList = (typeof DEFAULT_NUMIPLAN_USERS !== 'undefined') ? DEFAULT_NUMIPLAN_USERS : (window.DEFAULT_NUMIPLAN_USERS || []);
-        const targetDef = userList.find(x => x.login.toLowerCase() === searchLogin || x.nom.toLowerCase() === searchLogin);
-        rawTargetTeam = (targetDef && targetDef.team) ? targetDef.team.toUpperCase() : 'A';
-      }
+      // Détermination de l'équipe et du rôle
+      let userRole = (sbUser && sbUser.role) ? sbUser.role : (localDef && localDef.role ? localDef.role : 'equipe');
+      let rawTargetTeam = (sbUser && sbUser.team) ? String(sbUser.team).trim().toUpperCase() : (localDef && localDef.team ? String(localDef.team).trim().toUpperCase() : 'A');
 
       const targetTeams = (rawTargetTeam === 'ALL' || rawTargetTeam === '*')
         ? ['A', 'B', 'C', 'D']
@@ -3200,6 +3219,7 @@ function applyTeamLockUI(eq) {
       const isTeamMatch = validTeamPwds.some(pwd => pwd.toLowerCase() === pClean.toLowerCase()) || pClean.toLowerCase() === 'sharik@2026';
 
       if (!isTeamMatch) {
+        restoreSubmitBtn();
         document.getElementById('pwd-error').textContent = '❌ Identifiant ou mot de passe incorrect';
         setTimeout(() => { const el = document.getElementById('pwd-error'); if(el) el.textContent = ''; }, 3000);
         return;
@@ -3237,6 +3257,7 @@ function applyTeamLockUI(eq) {
       window.location.reload();
     } catch(fatalErr) {
       console.error("Erreur checkPassword:", fatalErr);
+      if (typeof restoreSubmitBtn === 'function') restoreSubmitBtn();
       document.getElementById('pwd-error').textContent = '❌ Erreur de connexion';
       setTimeout(() => { const el = document.getElementById('pwd-error'); if(el) el.textContent = ''; }, 4000);
     }
