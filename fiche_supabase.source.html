@@ -716,6 +716,7 @@
     const activeEl = document.activeElement;
     if (activeEl) {
       const tag = (activeEl.tagName || '').toUpperCase();
+      if (tag === 'BUTTON' || tag === 'A') return false;
       if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' ||
           activeEl.isContentEditable ||
           activeEl.getAttribute('contenteditable') === 'true' ||
@@ -723,14 +724,6 @@
           activeEl.classList?.contains('cell-input')) {
         return true;
       }
-      const dispoBody = document.getElementById('dispo-body');
-      if (dispoBody && dispoBody.contains(activeEl)) {
-        return true;
-      }
-    }
-    // Si l'utilisateur a frappé une touche ou interagi dans les 6 dernières secondes
-    if (Date.now() - (window._lastUserInteractionTs || 0) < 6000) {
-      return true;
     }
     return false;
   }
@@ -8776,16 +8769,19 @@ function updateDataLists() {
 // ═══════════════════════════════════════════════════════════════
 // RENDER: DISPO
 // ═══════════════════════════════════════════════════════════════
-function renderDispo() {
+function renderDispo(force = false) {
   const activeEl = document.activeElement;
-  const isEditingTableCell = activeEl && (
+  const isEditingText = activeEl && (
+    activeEl.tagName === 'INPUT' ||
+    activeEl.tagName === 'TEXTAREA' ||
+    activeEl.isContentEditable ||
+    activeEl.getAttribute('contenteditable') === 'true' ||
     activeEl.classList?.contains('cell-input') ||
-    activeEl.classList?.contains('cell-edit') ||
-    (document.getElementById('dispo-body') && document.getElementById('dispo-body').contains(activeEl))
-  );
+    activeEl.classList?.contains('cell-edit')
+  ) && (activeEl.tagName !== 'BUTTON' && activeEl.tagName !== 'A');
 
-  if (isEditingTableCell) {
-    console.log('[renderDispo] Re-render annulé : cellule du tableau activement en cours de saisie');
+  if (!force && isEditingText && document.getElementById('dispo-body') && document.getElementById('dispo-body').contains(activeEl)) {
+    console.log('[renderDispo] Re-render différé : saisie textuelle active dans une cellule');
     return;
   }
   if (typeof rebuildOrientationBejaiaState === 'function') rebuildOrientationBejaiaState();
@@ -9429,7 +9425,7 @@ async function deleteDispo(idx) {
     }));
   } catch(e) {}
   
-  renderDispo();
+  renderDispo(true);
   if (typeof renderAdminEntreesSorties === 'function') renderAdminEntreesSorties();
   
   // Suppression directe et synchrone dans Supabase avec auto-authentification garantie
@@ -9825,8 +9821,11 @@ function toggleAffecte(idx) {
   if (!r.affecte || r.affecte === '') r.affecte = 'OUI';
   else if (r.affecte === 'OUI') r.affecte = 'NON';
   else r.affecte = 'OUI';
+  if (document.activeElement && typeof document.activeElement.blur === 'function') {
+    document.activeElement.blur();
+  }
   saveDB();
-  renderDispo();
+  renderDispo(true);
   showToast(`Affecté ${r.v} → ${r.affecte}`);
 }
 
@@ -14664,7 +14663,10 @@ function declCSPC(idx) {
     // Mettre à jour les infos si déjà présent
     Object.assign(existing, { etat: r.etat, chauffeur: r.chauffeur, hor: r.hor, lieuJ: r.lieuJ, lieuJ1: r.lieuJ1 });
   }
-  saveDB(); renderDispo();
+  if (document.activeElement && typeof document.activeElement.blur === 'function') {
+    document.activeElement.blur();
+  }
+  saveDB(); renderDispo(true);
   if (typeof renderCSPC === 'function') renderCSPC();
   showToast('🔷 ' + r.v + ' ajouté au programme CSPC');
 }
@@ -14685,7 +14687,10 @@ function undeclCSPC(idx) {
   // Sync → supprimer du menu CSPC (avec comparaison souple d'immatriculation)
   const cspcIdx = DB.cspc.findIndex(c => (typeof sameVehicule === 'function' ? sameVehicule(c.v, r.v) : c.v === r.v));
   if (cspcIdx !== -1) DB.cspc.splice(cspcIdx, 1);
-  saveDB(); renderDispo();
+  if (document.activeElement && typeof document.activeElement.blur === 'function') {
+    document.activeElement.blur();
+  }
+  saveDB(); renderDispo(true);
   if (typeof renderCSPC === 'function') renderCSPC();
   showToast('✅ ' + r.v + ' retiré du programme CSPC');
 }
@@ -15540,8 +15545,11 @@ function setEtat(idx, nouvelEtat) {
   if (typeof tracerAction === 'function') {
     tracerAction('DISPO', 'CHANGEMENT_ETAT', DB.dispo[idx].v, `État : "${ancienEtat}" ➔ "${nouvelEtat}"`, window.CURRENT_EQUIPE);
   }
+  if (document.activeElement && typeof document.activeElement.blur === 'function') {
+    document.activeElement.blur();
+  }
   saveDB();
-  renderDispo();
+  renderDispo(true);
   showToast('✅ ' + DB.dispo[idx].v + ' → ' + nouvelEtat);
 }
 
@@ -15567,8 +15575,11 @@ function validerMiniLieu(idx, nouvelEtat) {
     tracerAction('DISPO', 'CHANGEMENT_ETAT', DB.dispo[idx].v, `État : "${ancienEtat}" ➔ "${nouvelEtat}" | Lieu J: ${lieuJ} | Lieu J+1: ${lieuJ1}`, window.CURRENT_EQUIPE);
   }
   document.getElementById('mini-lieu-popup').remove();
+  if (document.activeElement && typeof document.activeElement.blur === 'function') {
+    document.activeElement.blur();
+  }
   saveDB();
-  renderDispo();
+  renderDispo(true);
   showToast('✅ ' + DB.dispo[idx].v + ' → ' + nouvelEtat);
 }
 
@@ -15738,8 +15749,11 @@ function declGasoil(idx) {
     tracerAction('GASOIL', 'DECLARATION_BESOIN_GASOIL', r.v, `Besoin dotation gasoil déclaré pour ${r.v} (${r.chauffeur || '—'})`, window.CURRENT_EQUIPE);
   }
   
+  if (document.activeElement && typeof document.activeElement.blur === 'function') {
+    document.activeElement.blur();
+  }
   saveDB();
-  renderDispo();
+  renderDispo(true);
   if (typeof renderGasoil === 'function') renderGasoil();
   updateGasoilBadge();
   showToast('⛽ ' + r.v + ' déclaré en besoin de dotation gasoil');
@@ -15776,8 +15790,11 @@ function undeclGasoil(idx) {
     tracerAction('GASOIL', 'ANNULATION_BESOIN_GASOIL', r.v, `Besoin dotation gasoil retiré pour ${r.v}`, window.CURRENT_EQUIPE);
   }
   
+  if (document.activeElement && typeof document.activeElement.blur === 'function') {
+    document.activeElement.blur();
+  }
   saveDB();
-  renderDispo();
+  renderDispo(true);
   if (typeof renderGasoil === 'function') renderGasoil();
   updateGasoilBadge();
   showToast('✅ ' + r.v + ' retiré des besoins de dotation gasoil');
@@ -17666,8 +17683,11 @@ function toggleGeoloc(idx) {
   r.geoloc = newVal;
   r.geolocDate = todayStr;
   logMouvement("Geoloc " + newVal, "Camion", r.v, `Géolocalisation modifiée : ${currentVal} ➔ ${newVal} (${todayStr})`);
+  if (document.activeElement && typeof document.activeElement.blur === 'function') {
+    document.activeElement.blur();
+  }
   saveDB();
-  renderDispo();
+  renderDispo(true);
   showToast(`🛰️ Géoloc ${r.v} → ${newVal === 'ON' ? '🟢 ON' : '🔴 OFF'}`);
 }
 
