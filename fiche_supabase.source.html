@@ -761,6 +761,23 @@
 
   function applyEquipeData(eq, src) {
     if (!src || !src.dispo) return;
+
+    // ── VERROU DE SÉCURITÉ ANTI-ÉCRASEMENT STRICT ──
+    const currentLocal = window['DB_' + eq];
+    const localTs = (currentLocal && currentLocal._localTs) || 0;
+    const remoteTs = src._localTs || 0;
+    const hasPending = window._pendingCloudSaves && window._pendingCloudSaves[eq];
+
+    // Si on a des modifications locales en attente d'envoi ou si notre local est plus récent :
+    // INTERDICTION FORMELLE D'ÉCRASER LE LOCAL ! C'est le local qui doit être poussé vers le Cloud.
+    if (hasPending || (localTs > 0 && localTs > remoteTs)) {
+      console.warn(`[ANTI-ÉCRASEMENT applyEquipeData] Paquet Cloud ${eq} (${new Date(remoteTs).toLocaleTimeString()}) rejeté : version locale plus récente (${new Date(localTs).toLocaleTimeString()}) ou en attente.`);
+      if (typeof supabaseUpsertTeam === 'function' && navigator.onLine) {
+        setTimeout(() => supabaseUpsertTeam(eq, currentLocal, true), 1000);
+      }
+      return;
+    }
+
     _initialCloudLoadCompleted[eq] = true;
 
     if (!window._lastCloudTs) window._lastCloudTs = {};
@@ -885,6 +902,7 @@
       if (typeof renderFlashInfos === 'function') renderFlashInfos();
       if (typeof updateDataLists === 'function') updateDataLists();
       if (typeof window.setupBlacklistListeners === 'function') window.setupBlacklistListeners();
+      if (typeof checkPointageRequired === 'function') checkPointageRequired();
 
       if (typeof DB !== 'undefined' && DB.perfRaw && DB.perfRaw.length && DB.perfImportTs !== _prevPerfTs) {
         PERF_RAW = DB.perfRaw.map(r => ({ ...r, date: r.date ? new Date(r.date) : null }));
@@ -1077,6 +1095,20 @@
             localStorage.setItem('numiplan_admin_sharik_custom_edits', JSON.stringify(window._ADMIN_SHARIK_CUSTOM_EDITS));
             return;
           }
+          // VERROU DE SÉCURITÉ ANTI-ÉCRASEMENT STRICT :
+          const currentLocal = window['DB_' + eq];
+          const localTs = (currentLocal && currentLocal._localTs) || 0;
+          const remoteTs = (payload && payload._localTs) || 0;
+          const hasPending = window._pendingCloudSaves && window._pendingCloudSaves[eq];
+
+          if (hasPending || (localTs > 0 && localTs > remoteTs)) {
+            console.warn(`[ANTI-ÉCRASEMENT loadInitialTeams] Équipe ${eq} locale plus récente (${localTs} > ${remoteTs}) ou en attente d'envoi. Rejet du Cloud et synchronisation montante !`);
+            if (typeof supabaseUpsertTeam === 'function' && navigator.onLine) {
+              setTimeout(() => supabaseUpsertTeam(eq, currentLocal, true), 1500);
+            }
+            return;
+          }
+
           _fbLoaded[eq] = true;
           _initialCloudLoadCompleted[eq] = true;
           if (!window._lastCloudTs) window._lastCloudTs = {};
@@ -1088,16 +1120,25 @@
           window['DB_' + eq] = cloneEquipePayload(cleanSrc);
         });
 
-        // Charger l'équipe active en mémoire et afficher
+        // Charger l'équipe active en mémoire et afficher uniquement si le local n'est pas plus récent
         const activeSrc = window['DB_' + currentEq];
+        const currentActiveLocalTs = (window.DB && window.DB._localTs) || 0;
+        const activeRemoteTs = (activeSrc && activeSrc._localTs) || 0;
+        const activeHasPending = window._pendingCloudSaves && window._pendingCloudSaves[currentEq];
+
         if (activeSrc && typeof window.DB !== 'undefined') {
-          _fbReady = true;
-          if (typeof isUserActivelyEditing === 'function' && isUserActivelyEditing() && typeof mergeTeamData === 'function') {
-            const merged = mergeTeamData(window.DB, activeSrc);
-            Object.assign(window.DB, merged);
+          if (activeHasPending || (currentActiveLocalTs > 0 && currentActiveLocalTs > activeRemoteTs)) {
+            console.warn(`[ANTI-ÉCRASEMENT loadInitialTeams] window.DB local de l'équipe ${currentEq} préservé (Local: ${currentActiveLocalTs} > Cloud: ${activeRemoteTs})`);
+            _fbReady = true;
           } else {
-            Object.keys(window.DB).forEach(k => delete window.DB[k]);
-            Object.assign(window.DB, activeSrc);
+            _fbReady = true;
+            if (typeof isUserActivelyEditing === 'function' && isUserActivelyEditing() && typeof mergeTeamData === 'function') {
+              const merged = mergeTeamData(window.DB, activeSrc);
+              Object.assign(window.DB, merged);
+            } else {
+              Object.keys(window.DB).forEach(k => delete window.DB[k]);
+              Object.assign(window.DB, activeSrc);
+            }
           }
         }
 
@@ -1401,17 +1442,10 @@
 
   // Helper interne pour sauvegarder et émettre l'upsert vers les tables normalisées
   async function saveNormalizedTables(eq, payload) {
-    try {
-      console.log(`[Normalized Sync] Début sauvegarde équipe ${eq}...`);
-      
-      const chunkInsert = async (table, rows) => {
-        const chunkSize = 200;
-        for (let i = 0; i < rows.length; i += chunkSize) {
-          const chunk = rows.slice(i, i + chunkSize);
-          const { error } = await supabase.from(table).insert(chunk);
-          if (error) console.error(`[Normalized Sync] Error inserting in ${table}:`, error);
-        }
-      };
+    // DÉSACTIVÉ DÉFINITIVEMENT pour respecter strictement le quota gratuit Supabase.
+    // Toute la persistance passe à 100% par la table principale numiplan_teams en 1 seule requête compacte.
+    return;
+  }
 
       const safe = (val, def = null) => (val === undefined || val === '' || val === null) ? def : val;
 
@@ -2133,12 +2167,9 @@
       if (!window._baseCloudDB) window._baseCloudDB = {};
       window._baseCloudDB[eq] = cloneEquipePayload(payloadToSave);
 
-      // Déclencher la double écriture normalisée en arrière-plan
-      if (!window._normalizedSyncTimers) window._normalizedSyncTimers = {};
-      clearTimeout(window._normalizedSyncTimers[eq]);
-      window._normalizedSyncTimers[eq] = setTimeout(() => {
-        saveNormalizedTables(eq, payloadToSave);
-      }, 5000);
+      if (typeof showFirebaseBadge === 'function') {
+        showFirebaseBadge('✅ Sauvegardé dans le cloud');
+      }
       return true;
     }
   }
@@ -3008,6 +3039,13 @@ function applyTeamLockUI(eq) {
       tabOdo.style.removeProperty('display');
     }
 
+    const isAdm = (typeof isAdmin === 'function' && isAdmin());
+    const zapBtn = document.getElementById('btn-admin-zap-anomalies');
+    if (zapBtn) zapBtn.style.display = isAdm ? 'inline-flex' : 'none';
+    const zapHeaderBtn = document.getElementById('btn-header-zap-anomalies');
+    if (zapHeaderBtn) zapHeaderBtn.style.display = isAdm ? 'inline-flex' : 'none';
+    const modalZapBtn = document.getElementById('btn-modal-zap-rex');
+    if (modalZapBtn) modalZapBtn.style.display = isAdm ? 'inline-block' : 'none';
   }
   window.applyTeamLockUI = applyTeamLockUI;
 
@@ -3327,6 +3365,9 @@ function doLogout() {
     <div style="display:flex; align-items:center; gap:8px;">
       <div class="date-badge" id="todayBadge" style="margin-right:0;"></div>
     </div>
+    <button id="btn-header-zap-anomalies" onclick="ouvrirModalZapAnomalies()" class="date-badge" style="display:none;cursor:pointer;font-weight:800;align-items:center;justify-content:center;gap:6px;transition:all 0.2s;background:rgba(245,158,11,.15);border:1px solid rgba(245,158,11,.4);color:#fbbf24" title="Validation globale des anomalies par le REX (Déblocage Chef d'Équipe)">
+      ⚡ Validation REX
+    </button>
     <button id="theme-toggle-btn" onclick="toggleTheme()" class="date-badge" style="cursor:pointer; font-weight:700; display:flex; align-items:center; justify-content:center; gap:6px; transition:all 0.2s" title="Basculer le mode Sombre / Clair">
       🌓 Mode
     </button>
@@ -4140,6 +4181,7 @@ mark.hl { background: rgba(56,189,248,.25); color: var(--acc); border-radius: 3p
     </select>
     <button class="btn btn-reset" onclick="resetFilters('dispo-search','dispo-etat','dispo-region','dispo-region-j');renderDispo()">↺ Reset</button>
     <button class="btn btn-add" onclick="openModal('modal-dispo')">＋ Ajouter</button>
+    <button id="btn-admin-zap-anomalies" class="btn" onclick="ouvrirModalZapAnomalies()" style="display:none;background:linear-gradient(135deg,rgba(245,158,11,.22),rgba(245,158,11,.1));color:#fbbf24;border:1px solid rgba(245,158,11,.45);padding:7px 14px;border-radius:6px;font-size:11px;font-weight:800;letter-spacing:0.5px;cursor:pointer;transition:all .2s;align-items:center;gap:6px" title="Validation globale des anomalies par le REX (Débloque les chefs d'équipe)">⚡ Zapper Anomalies (REX)</button>
     <label style="display:none !important; align-items:center; gap:6px; cursor:pointer; font-size:12px; margin-left:auto; color:var(--txt2); white-space:nowrap" title="Afficher/Masquer les colonnes d'Assurances TR et RM">
       <input type="checkbox" id="dispo-show-insurance" onchange="toggleDispoInsurance(this)" style="width:auto; cursor:pointer"> 🛡️ Assurances
     </label>
@@ -5126,7 +5168,62 @@ mark.hl { background: rgba(56,189,248,.25); color: var(--acc); border-radius: 3p
         <div style="font-size:11px;color:#64748b">Les actions sont débloquées dès que toutes les anomalies sont traitées.</div>
         <button onclick="ouvrirHistoriqueAnomalies()" style="background:rgba(99,102,241,.15);color:#818cf8;border:1px solid rgba(99,102,241,.3);padding:6px 14px;border-radius:7px;font-weight:700;cursor:pointer;font-size:10px;letter-spacing:1px">📊 HISTORIQUE</button>
       </div>
-      <button id="pointage-valider-btn" onclick="validerToutPointage()" style="display:none;background:#34d399;color:#000;border:none;padding:10px 28px;border-radius:9px;font-weight:800;cursor:pointer;font-size:12px">✅ Terminer le pointage</button>
+      <div style="display:flex;align-items:center;gap:10px">
+        <button id="btn-modal-zap-rex" onclick="adminZapperAnomaliesDirect()" style="display:none;background:linear-gradient(135deg,#f59e0b,#d97706);color:#000;font-weight:800;border:none;padding:9px 18px;border-radius:8px;cursor:pointer;font-size:11px;letter-spacing:0.5px;box-shadow:0 3px 12px rgba(245,158,11,.35)">⚡ ZAPPER TOUT (VALIDATION REX)</button>
+        <button id="pointage-valider-btn" onclick="validerToutPointage()" style="display:none;background:#34d399;color:#000;border:none;padding:10px 28px;border-radius:9px;font-weight:800;cursor:pointer;font-size:12px">✅ Terminer le pointage</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal Admin : Zapper Anomalies (Validation REX) -->
+<div id="modal-admin-zap-anomalies" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.88);z-index:99999;align-items:center;justify-content:center">
+  <div style="background:#0f172a;border:2px solid #f59e0b;border-radius:18px;padding:0;width:720px;max-width:96vw;max-height:88vh;display:flex;flex-direction:column;box-shadow:0 25px 80px rgba(0,0,0,.9)">
+    <!-- Header -->
+    <div style="padding:20px 26px;border-bottom:1px solid rgba(245,158,11,.25);display:flex;align-items:center;justify-content:space-between;flex-shrink:0">
+      <div style="display:flex;align-items:center;gap:12px">
+        <div style="width:42px;height:42px;border-radius:10px;background:rgba(245,158,11,.15);border:1px solid rgba(245,158,11,.4);display:flex;align-items:center;justify-content:center;font-size:22px">⚡</div>
+        <div>
+          <div style="font-size:14px;font-weight:800;color:#fbbf24;letter-spacing:1px;text-transform:uppercase">Validation Globale des Anomalies (REX)</div>
+          <div style="font-size:11px;color:#94a3b8;margin-top:2px">Déblocage administratif immédiat des chefs d'équipe</div>
+        </div>
+      </div>
+      <button onclick="fermerModalZapAnomalies()" style="background:none;border:none;color:#94a3b8;font-size:22px;cursor:pointer;line-height:1;padding:4px 8px" title="Fermer">&times;</button>
+    </div>
+    
+    <!-- Body -->
+    <div style="padding:20px 26px;overflow-y:auto;flex:1">
+      <div style="background:rgba(245,158,11,.08);border:1px solid rgba(245,158,11,.25);border-radius:10px;padding:14px 18px;margin-bottom:18px;font-size:12px;color:#e2e8f0;line-height:1.5">
+        ℹ️ Cette action permet de <b>débloquer instantanément le ou les chefs d'équipe</b> sans qu'ils aient à justifier manuellement chaque anomalie.<br>
+        Toutes les anomalies sélectionnées seront automatiquement archivées avec la mention officielle :<br>
+        <div style="margin-top:8px">
+          <span style="display:inline-block;padding:4px 12px;border-radius:6px;background:rgba(245,158,11,.2);border:1px solid rgba(245,158,11,.4);color:#fbbf24;font-weight:800;font-family:monospace;font-size:12px">pointage REX validé</span>
+        </div>
+      </div>
+
+      <div style="margin-bottom:16px">
+        <label style="font-size:11px;color:#94a3b8;font-weight:700;letter-spacing:1px;display:block;margin-bottom:6px">CHOISIR L'ÉQUIPE À DÉBLOQUER :</label>
+        <select id="zap-equipe-select" onchange="actualiserApercuZapAnomalies()" style="width:100%;box-sizing:border-box;background:#1e293b;border:1px solid rgba(245,158,11,.4);border-radius:8px;padding:10px 14px;color:#f8fafc;font-size:13px;font-weight:700;outline:none">
+          <option value="CURRENT">Équipe en cours d'affichage</option>
+          <option value="A">Équipe A (Chef d'équipe A)</option>
+          <option value="B">Équipe B (Chef d'équipe B)</option>
+          <option value="C">Équipe C (Chef d'équipe C)</option>
+          <option value="D">Équipe D (Chef d'équipe D)</option>
+          <option value="ALL">⭐ TOUTES LES ÉQUIPES (A + B + C + D)</option>
+        </select>
+      </div>
+
+      <div id="zap-anomalies-summary-box" style="background:#0b1120;border:1px solid var(--border);border-radius:10px;padding:14px 16px">
+        <!-- Rempli dynamiquement -->
+      </div>
+    </div>
+
+    <!-- Footer -->
+    <div style="padding:16px 26px;border-top:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;background:#090d16;flex-shrink:0">
+      <button onclick="fermerModalZapAnomalies()" class="btn btn-reset" style="padding:9px 18px;font-size:12px">Annuler</button>
+      <button id="btn-confirm-zap-rex" onclick="confirmerZapAnomaliesRex()" style="background:linear-gradient(135deg,#f59e0b,#d97706);color:#000;font-weight:800;border:none;padding:10px 24px;border-radius:8px;font-size:12px;cursor:pointer;box-shadow:0 4px 14px rgba(245,158,11,.4);display:flex;align-items:center;gap:8px">
+        ⚡ Appliquer "pointage REX validé" &amp; Débloquer
+      </button>
     </div>
   </div>
 </div>
@@ -5142,6 +5239,7 @@ mark.hl { background: rgba(56,189,248,.25); color: var(--acc); border-radius: 3p
       <div style="display:flex;gap:10px;align-items:center">
         <select id="hist-filtre-motif" onchange="renderHistoriqueAnomalies()" style="background:rgba(255,255,255,.06);border:1px solid rgba(129,140,248,.3);border-radius:7px;padding:5px 10px;color:var(--txt);font-size:11px;outline:none">
           <option value="">Tous les motifs</option>
+          <option value="pointage REX validé">⚡ Pointage REX validé</option>
           <option value="Orientation">Orientation</option>
           <option value="Chargement à son compte">Chargement à son compte</option>
           <option value="Chargement à son compte autorisé">Chargement à son compte autorisé</option>
@@ -7695,6 +7793,15 @@ window.imprimerListeBLManquants = imprimerListeBLManquants;
 var POI_SUPABASE_URL = "https://mfljrozyxyfkymzlnsmt.supabase.co";
 var POI_SUPABASE_KEY = "sb_publishable_sMb9uHOr4gpyqmZGrkY-YQ_z90TgNAB";
 if (typeof window._DIRECTION_UNLOCKED_SESSION === 'undefined') window._DIRECTION_UNLOCKED_SESSION = false;
+
+// Helper de sécurité Admin global
+function isAdmin() {
+  const role = (sessionStorage.getItem('numiplan_user_role') || '').toLowerCase();
+  const username = (sessionStorage.getItem('numiplan_username') || '').toUpperCase();
+  const lock = sessionStorage.getItem('numiplan_team_lock');
+  return role === 'admin' || username === 'ADMIN' || !lock || lock === 'ADMIN' || (typeof isRegistreOrDirectionSession === 'function' && isRegistreOrDirectionSession());
+}
+window.isAdmin = isAdmin;
 // Sharik data — initialisé vide ici, peuplé correctement aux lignes ~17676+
 let MASTER_DRIVER_PARC = {"ABDELWAHHAB KERBOUB": {"tr": "001067-514-16", "rm": "000379-816-16", "trs": ["001067-514-16", "000942-515-16"], "rms": ["000379-816-16", "000590-814-16"]}, "AHMED M'HAMED OULD": {"tr": "000990-514-16", "rm": "000505-814-16", "trs": ["000990-514-16"], "rms": ["000505-814-16"]}, "AIOUADJ HICHAM": {"tr": "001174-514-16", "rm": "000375-816-16", "trs": ["001174-514-16"], "rms": ["000375-816-16"]}, "ALI MOHAND HACENE": {"tr": "001056-514-16", "rm": "001273-814-16", "trs": ["001056-514-16"], "rms": ["001273-814-16"]}, "BADREDDINE SEGHIR": {"tr": "000908-514-16", "rm": "000775-814-16", "trs": ["000908-514-16", "000149-515-16"], "rms": ["000775-814-16", "000582-814-16"]}, "BELAHDJER TOUFIK": {"tr": "000791-524-16", "rm": "000551-824-16", "trs": ["000791-524-16", "000914-514-16", "000848-514-16"], "rms": ["000551-824-16", "000256-816-16", "000731-814-16"]}, "BELSKEM MOUHAMED": {"tr": "001060-514-16", "rm": "000469-816-16", "trs": ["001060-514-16"], "rms": ["000469-816-16"]}, "BENHALIS KAMEL": {"tr": "000940-514-16", "rm": "000220-816-16", "trs": ["000940-514-16"], "rms": ["000220-816-16"]}, "BENMASSAOUD ADEL": {"tr": "001006-514-16", "rm": "000351-816-16", "trs": ["001006-514-16"], "rms": ["000351-816-16"]}, "BOUDRISSA RABAH": {"tr": "000692-524-16", "rm": "000655-824-16", "trs": ["000692-524-16", "001076-524-16", "000313-516-16", "000900-514-16"], "rms": ["000655-824-16", "000633-824-16", "000377-816-16", "000488-814-16"]}, "BRAHIM SAHI": {"tr": "000406-516-16", "rm": "000421-816-16", "trs": ["000406-516-16"], "rms": ["000421-816-16"]}, "DACHIR  MUSTAPHA": {"tr": "001417-513-16", "rm": "001642-813-16", "trs": ["001417-513-16", "000974-514-16", "000816-524-16", "001059-524-16"], "rms": ["001642-813-16", "000708-814-16", "000697-824-16", "000668-824-16"]}, "DJEBAR DEHOUCHE": {"tr": "001355-514-16", "rm": "000529-814-16", "trs": ["001355-514-16"], "rms": ["000529-814-16"]}, "DJILALI LEBNA": {"tr": "001091-514-16", "rm": "000602-814-16", "trs": ["001091-514-16"], "rms": ["000602-814-16"]}, "DJOUAD ABDELHAFID": {"tr": "000718-524-16", "rm": "000587.824.16", "trs": ["000718-524-16", "001224-514-16", "000988-514-16"], "rms": ["000587.824.16", "001397.813.16", "000795.814.16"]}, "DRIES MOURAD": {"tr": "001119-514-16", "rm": "000336-816-16", "trs": ["001119-514-16"], "rms": ["000336-816-16"]}, "FEROUDJ NABIL": {"tr": "001273-514-16", "rm": "", "trs": ["001273-514-16"], "rms": []}, "FERROUDJ NABIL": {"tr": "000372-516-16", "rm": "000656-814-16", "trs": ["000372-516-16"], "rms": ["000656-814-16"]}, "KARIM BACHA": {"tr": "001232-514-16", "rm": "000364-816-16", "trs": ["001232-514-16"], "rms": ["000364-816-16"]}, "KEBIR DANI SAID": {"tr": "000321-516-16", "rm": "000287-816-16", "trs": ["000321-516-16"], "rms": ["000287-816-16"]}, "KHELILI MED": {"tr": "000360-516-16", "rm": "000424-816-16", "trs": ["000360-516-16"], "rms": ["000424-816-16"]}, "LABDI HABIB 2": {"tr": "001075-514-16", "rm": "000388-816-16", "trs": ["001075-514-16", "000379-516-16"], "rms": ["000388-816-16", "000783-814-16"]}, "LAMARA REDHA": {"tr": "001127-514-16", "rm": "001259-814-16", "trs": ["001127-514-16"], "rms": ["001259-814-16"]}, "LAMRI TAIB": {"tr": "001077-514-16", "rm": "000714-814-16", "trs": ["001077-514-16"], "rms": ["000714-814-16"]}, "MEJDOUB BOUSMAHA": {"tr": "001133-514-16", "rm": "000648-814-16", "trs": ["001133-514-16"], "rms": ["000648-814-16"]}, "MENOUAR KASSA": {"tr": "000958-514-16", "rm": "000727-814-16", "trs": ["000958-514-16"], "rms": ["000727-814-16"]}, "MUSTAPHA MEZINE": {"tr": "000966-514-16", "rm": "000733-814-16", "trs": ["000966-514-16"], "rms": ["000733-814-16"]}, "NABIL CHACHA": {"tr": "000904-514-16", "rm": "000340-816-16", "trs": ["000904-514-16"], "rms": ["000340-816-16"]}, "NAGHZA AMAR": {"tr": "000788-524-16", "rm": "000553-824-16", "trs": ["000788-524-16", "000364-516-16", "001125-514-16"], "rms": ["000553-824-16", "000565-814-16", "000658-814-16"]}, "NOUAR TALBI": {"tr": "001036-514-16", "rm": "000745-814-16", "trs": ["001036-514-16"], "rms": ["000745-814-16"]}, "NOUREDDINE RAHMI": {"tr": "000267-516-16", "rm": "000419-816-16", "trs": ["000267-516-16"], "rms": ["000419-816-16"]}, "NOURREDINE HADJ MOUSSA": {"tr": "000772-515-16", "rm": "000660-814-16", "trs": ["000772-515-16"], "rms": ["000660-814-16"]}, "OMAR BOUAMRANE": {"tr": "000403-516-16", "rm": "000431-816-16", "trs": ["000403-516-16", "000996-514-16"], "rms": ["000431-816-16", "000519-814-16"]}, "RACHID KHELLIF": {"tr": "000890-514-16", "rm": "000531-814-16", "trs": ["000890-514-16"], "rms": ["000531-814-16"]}, "RAHAL YAHIA": {"tr": "000423-516-16", "rm": "000216-816-16", "trs": ["000423-516-16"], "rms": ["000216-816-16"]}, "RHOUI HABIB": {"tr": "000926-514-16", "rm": "001261-814-16", "trs": ["000926-514-16"], "rms": ["001261-814-16"]}, "ROUABHIA KHALED": {"tr": "000774-515-16", "rm": "000340-816-16", "trs": ["000774-515-16"], "rms": ["000340-816-16"]}, "SAAD SEBIA": {"tr": "001184-514-16", "rm": "000765-814-16", "trs": ["001184-514-16"], "rms": ["000765-814-16"]}, "SAID DINE": {"tr": "001103-514-16", "rm": "000743-814-16", "trs": ["001103-514-16"], "rms": ["000743-814-16"]}, "SALAH BAMBAREK": {"tr": "000978-514-16", "rm": "000646-814-16", "trs": ["000978-514-16"], "rms": ["000646-814-16"]}, "SAMIR CHAIB": {"tr": "000960-514-16", "rm": "000456-816-16", "trs": ["000960-514-16"], "rms": ["000456-816-16"]}, "SKANDAR HAMIMI": {"tr": "001071-514-16", "rm": "000422-816-16", "trs": ["001071-514-16"], "rms": ["000422-816-16"]}, "TABLI CHAFIK": {"tr": "001079-514-16", "rm": "000525-814-16", "trs": ["001079-514-16", "001047-524-16", "001045-524-16"], "rms": ["000525-814-16", "000642-824-16", "000647-824-16"]}, "TOUMI NACER": {"tr": "001044-514-16", "rm": "000215-816-16", "trs": ["001044-514-16"], "rms": ["000215-816-16"]}, "YAHIAOUI DJAMEL": {"tr": "001234-514-16", "rm": "000773-814-16", "trs": ["001234-514-16", "000363-516-16"], "rms": ["000773-814-16", "000627-814-16"]}, "YOUCEF SAIDI": {"tr": "000401-516-16", "rm": "000392-816-16", "trs": ["000401-516-16"], "rms": ["000392-816-16"]}, "MAAMAR IDIR": {"tr": "001228-514-16", "rm": "000718-814-16", "trs": ["001228-514-16"], "rms": ["000718-814-16"]}, "MC": {"tr": "000265-516-16", "rm": "", "trs": ["000265-516-16"], "rms": []}, "HADJARSSI LAKHDER 2": {"tr": "001271-514-16", "rm": "000769-814-16", "trs": ["001271-514-16"], "rms": ["000769-814-16"]}, "MOHAMED OURIDNI 2": {"tr": "001708-514-16", "rm": "001259-814-16", "trs": ["001708-514-16"], "rms": ["001259-814-16"]}, "HAKIM SEGHIR": {"tr": "001141-514-16", "rm": "000291-816-16", "trs": ["001141-514-16"], "rms": ["000291-816-16"]}, "HAKIM HAMICHI": {"tr": "001093-514-16", "rm": "000357-816-16", "trs": ["001093-514-16"], "rms": ["000357-816-16"]}, "KAMEL HELLAL": {"tr": "000884-514-16", "rm": "000345-816-16", "trs": ["000884-514-16"], "rms": ["000345-816-16"]}, "MBAREK KADI 2": {"tr": "000351-516-16", "rm": "000338-816-16", "trs": ["000351-516-16"], "rms": ["000338-816-16"]}, "HOUCINE AZDOUFEL": {"tr": "001111-514-16", "rm": "000676-814-16", "trs": ["001111-514-16"], "rms": ["000676-814-16"]}, "SAID LARBI 1": {"tr": "000859-514-16", "rm": "000545-814-16", "trs": ["000859-514-16"], "rms": ["000545-814-16"]}, "KAMAL HAMALI": {"tr": "000998-514-16", "rm": "000741-814-16", "trs": ["000998-514-16"], "rms": ["000741-814-16"]}, "HADJERSSI LAKHDER": {"tr": "000902-514-16", "rm": "000668-814-16", "trs": ["000902-514-16"], "rms": ["000668-814-16"]}, "TOUFIK SIADJ": {"tr": "000361-516-16", "rm": "000640 814 16", "trs": ["000361-516-16"], "rms": ["000640 814 16"]}, "SAID LARBI 2": {"tr": "001166-514-16", "rm": "000439-816-16", "trs": ["001166-514-16"], "rms": ["000439-816-16"]}, "FATAH MIDOUNA": {"tr": "001081-514-16", "rm": "000638-814-16", "trs": ["001081-514-16"], "rms": ["000638-814-16"]}, "FARID KEHILI": {"tr": "000898-514-16", "rm": "000580-816-16", "trs": ["000898-514-16"], "rms": ["000580-816-16"]}, "EL LOUCIF MEFTAH 2": {"tr": "000342-516-16", "rm": "001465-814-16", "trs": ["000342-516-16"], "rms": ["001465-814-16"]}, "MBAREK KADI 1": {"tr": "001064-514-16", "rm": "000407-816-16", "trs": ["001064-514-16"], "rms": ["000407-816-16"]}, "HALADJ YAKOUB 2": {"tr": "001143-514-16", "rm": "000629 814 16", "trs": ["001143-514-16"], "rms": ["000629 814 16"]}, "HAMITOUCH REDA": {"tr": "000312-516-16", "rm": "000666 814 16", "trs": ["000312-516-16"], "rms": ["000666 814 16"]}, "SAID BENAMAR": {"tr": "000655-515-16", "rm": "000346 814 16", "trs": ["000655-515-16"], "rms": ["000346 814 16"]}, "MEDDAH HAMID": {"tr": "000155-515-16", "rm": "000712 814 16", "trs": ["000155-515-16"], "rms": ["000712 814 16"]}, "MOHAMMED SEGHIR": {"tr": "000932-514-16", "rm": "000767 814 16", "trs": ["000932-514-16"], "rms": ["000767 814 16"]}, "ABD MALEK DEBACHA": {"tr": "001085-514-16", "rm": "000759 814 16", "trs": ["001085-514-16"], "rms": ["000759 814 16"]}, "ABDALLAH DOUADI": {"tr": "001101-514-16", "rm": "000333 814 16", "trs": ["001101-514-16"], "rms": ["000333 814 16"]}, "ABDELKRIM BEKKA": {"tr": "001095-514-16", "rm": "000473 814 16", "trs": ["001095-514-16"], "rms": ["000473 814 16"]}, "ABDELLAH CHELLAL": {"tr": "001156-514-16", "rm": "000808 814 16", "trs": ["001156-514-16"], "rms": ["000808 814 16"]}, "ABDENNOUR HAMMOUDI": {"tr": "000930-514-16", "rm": "000737 814 16", "trs": ["000930-514-16"], "rms": ["000737 814 16"]}, "ABDEREZAK BENLEHDJAR": {"tr": "000865-514-16", "rm": "000682 814 16", "trs": ["000865-514-16"], "rms": ["000682 814 16"]}, "ADEL BOUGRIN": {"tr": "000767-515-16", "rm": "001350 813 16", "trs": ["000767-515-16"], "rms": ["001350 813 16"]}, "AGUERCIF GHILAS": {"tr": "001176-514-16", "rm": "000757 814 16", "trs": ["001176-514-16"], "rms": ["000757 814 16"]}, "AHCENE DADI": {"tr": "001212-514-16", "rm": "000751 814 16", "trs": ["001212-514-16"], "rms": ["000751 814 16"]}, "AIT IGHIL LYES": {"tr": "001129-514-16", "rm": "000684 814 16", "trs": ["001129-514-16"], "rms": ["000684 814 16"]}, "BOULKARIA MD OUHAROUNE": {"tr": "000880-514-16", "rm": "000662 814 16", "trs": ["000880-514-16"], "rms": ["000662 814 16"]}, "BRAHIM BENDRISS": {"tr": "000942-514-16", "rm": "000551 814 16", "trs": ["000942-514-16"], "rms": ["000551 814 16"]}, "DAHMANI HABIB 1": {"tr": "000892-514-16", "rm": "000695 814 16", "trs": ["000892-514-16"], "rms": ["000695 814 16"]}, "DAOUD ZABI": {"tr": "001172-514-16", "rm": "000460 816 16", "trs": ["001172-514-16"], "rms": ["000460 816 16"]}, "FARID DEHIAMT": {"tr": "000362-516-16", "rm": "000545 816 16", "trs": ["000362-516-16"], "rms": ["000545 816 16"]}, "FAROUK BARA": {"tr": "001117-514-16", "rm": "000575 814 16", "trs": ["001117-514-16"], "rms": ["000575 814 16"]}, "GOFER ABDELHAMID 1": {"tr": "001168-514-16", "rm": "000258 816 16", "trs": ["001168-514-16"], "rms": ["000258 816 16"]}, "GOFER ABDELHAMID 2": {"tr": "000391-516-16", "rm": "000258 816 16", "trs": ["000391-516-16"], "rms": ["000258 816 16"]}, "GUENANA MOULOUD": {"tr": "001139-514-16", "rm": "000781 814 16", "trs": ["001139-514-16"], "rms": ["000781 814 16"]}, "GUERMI MOUSSA": {"tr": "000928-514-16", "rm": "000339 814 16", "trs": ["000928-514-16"], "rms": ["000339 814 16"]}, "HAMMOUCHE MENADI 1": {"tr": "000922-514-16", "rm": "001275 814 16", "trs": ["000922-514-16"], "rms": ["001275 814 16"]}, "KHALED BLAM": {"tr": "001115-514-16", "rm": "001269 814 16", "trs": ["001115-514-16"], "rms": ["001269 814 16"]}, "MAMACHE NADIR": {"tr": "001158-514-16", "rm": "000503 814 16", "trs": ["001158-514-16"], "rms": ["000503 814 16"]}, "MEGOUAS M'HAMED": {"tr": "001105-514-16", "rm": "000408 816 16", "trs": ["001105-514-16"], "rms": ["000408 816 16"]}, "NADIR CHELGHOUM": {"tr": "000972-514-16", "rm": "000441 816 16", "trs": ["000972-514-16"], "rms": ["000441 816 16"]}, "NASSIM BALLA": {"tr": "000936-514-16", "rm": "000735 814 16", "trs": ["000936-514-16"], "rms": ["000735 814 16"]}, "SLIMANE DECHACHE": {"tr": "001004-514-16", "rm": "000207 816 16", "trs": ["001004-514-16"], "rms": ["000207 816 16"]}, "SMAILI MOULOUD": {"tr": "001050-514-16", "rm": "000450 816 16", "trs": ["001050-514-16"], "rms": ["000450 816 16"]}, "TALEB YOUNES": {"tr": "000857-514-16", "rm": "000537 814 16", "trs": ["000857-514-16"], "rms": ["000537 814 16"]}, "YAKOUB SALAH HALLADJ": {"tr": "000954-514-16", "rm": "000290 816 16", "trs": ["000954-514-16"], "rms": ["000290 816 16"]}, "ZAKARIA FATMI": {"tr": "001272-514-16", "rm": "000426 816 16", "trs": ["001272-514-16"], "rms": ["000426 816 16"]}, "ZEROUALI MOHAMED AMINE": {"tr": "001190-514-16", "rm": "000640 814 16", "trs": ["001190-514-16"], "rms": ["000640 814 16"]}, "ADJAOUD DJAMEL": {"tr": "001220-514-16", "rm": "000515 814 16", "trs": ["001220-514-16"], "rms": ["000515 814 16"]}, "AGOUNE MAHI": {"tr": "000868-514-16", "rm": "000521-814-16", "trs": ["000868-514-16"], "rms": ["000521-814-16"]}, "AHEDDAD FARID": {"tr": "001099-514-16", "rm": "000395-816-16", "trs": ["001099-514-16"], "rms": ["000395-816-16"]}, "AMROUCHE ABDELGHANI": {"tr": "001083-514-16", "rm": "000343-814-16", "trs": ["001083-514-16", "001154-514-16"], "rms": ["000343-814-16", "000467-813-16"]}, "ATHMANE ABDELMADJID": {"tr": "001097-514-16", "rm": "000716-814-14", "trs": ["001097-514-16", "001247-514-16"], "rms": ["000716-814-14", "000407-813-16"]}, "AYAD FAYCAL": {"tr": "001218-514-16", "rm": "000210-816-16", "trs": ["001218-514-16"], "rms": ["000210-816-16"]}, "BANOUH BOUALEM": {"tr": "000779-515-16", "rm": "000696-896-16", "trs": ["000779-515-16"], "rms": ["000696-896-16"]}, "BENAISSA ABDELMOUNIAME": {"tr": "000137-515-16", "rm": "001270-814-16", "trs": ["000137-515-16"], "rms": ["001270-814-16"]}, "BENBERKANE YOUCEF": {"tr": "000986-514-16", "rm": "000484-814-16", "trs": ["000986-514-16"], "rms": ["000484-814-16"]}, "BENMEHDIA A/KADER": {"tr": "000938-514-16", "rm": "001550 814 16", "trs": ["000938-514-16", "001063-524-16"], "rms": ["001550 814 16", "000695 824 16"]}, "BERKAK MERZOUK": {"tr": "000135-515-16", "rm": "000452 816 16", "trs": ["000135-515-16"], "rms": ["000452 816 16"]}, "BOUASSA LAKHDAR": {"tr": "001073-514-16", "rm": "001618-813-16", "trs": ["001073-514-16"], "rms": ["001618-813-16"]}, "ZAIDI LYASSINE": {"tr": "000644-515-16", "rm": "000710-814-16", "trs": ["000644-515-16", "001162-514-16"], "rms": ["000710-814-16", "000466-816-16"]}, "ZIAT RACHID": {"tr": "000924-514-16", "rm": "000233-816-16", "trs": ["000924-514-16"], "rms": ["000233-816-16"]}, "AMROUCHE": {"tr": "000473-523-16", "rm": "000073-823-16", "trs": ["000473-523-16"], "rms": ["000073-823-16"]}, "SEGHIR": {"tr": "000781-523-16", "rm": "000076-823-16", "trs": ["000781-523-16"], "rms": ["000076-823-16"]}, "BOUAMRANE": {"tr": "000828-523-16", "rm": "000078-823-16", "trs": ["000828-523-16"], "rms": ["000078-823-16"]}, "MBAREK KADI": {"tr": "000894-523-16", "rm": "000082-823-16", "trs": ["000894-523-16"], "rms": ["000082-823-16"]}, "TABLI": {"tr": "000916-523-16", "rm": "000086-823-16", "trs": ["000916-523-16", "000920-523-16"], "rms": ["000086-823-16", "000091-823-16"]}, "LARBI SAID": {"tr": "000939-523-16", "rm": "000382-823-16", "trs": ["000939-523-16"], "rms": ["000382-823-16"]}, "ATMANE ABD": {"tr": "001028-523-16", "rm": "000792-823-16", "trs": ["001028-523-16"], "rms": ["000792-823-16"]}, "BOUDRISSA": {"tr": "000422-523-16", "rm": "000777-823-16", "trs": ["000422-523-16", "000870-523-16"], "rms": ["000777-823-16", "000790-823-16"]}, "NEGHZA": {"tr": "000933-523-16", "rm": "000806-823-16", "trs": ["000933-523-16", "000945-523-16"], "rms": ["000806-823-16", "000819-823-16"]}, "ZAIDI": {"tr": "001024-523-16", "rm": "000779-823-16", "trs": ["001024-523-16"], "rms": ["000779-823-16"]}, "DECHIR": {"tr": "001032-523-16", "rm": "000378-823-16", "trs": ["001032-523-16", "001048-523-16"], "rms": ["000378-823-16", "000356-823-16"]}, "GOFFER": {"tr": "001050-523-16", "rm": "000376-823-16", "trs": ["001050-523-16"], "rms": ["000376-823-16"]}};
 MASTER_TRUCK_PARC = {"001067-514-16": "000379-816-16", "000942-515-16": "000590-814-16", "000990-514-16": "000505-814-16", "001174-514-16": "000375-816-16", "001056-514-16": "001273-814-16", "000908-514-16": "000775-814-16", "000149-515-16": "000582-814-16", "000791-524-16": "000551-824-16", "000914-514-16": "000256-816-16", "000848-514-16": "000731-814-16", "001060-514-16": "000469-816-16", "000940-514-16": "000220-816-16", "001006-514-16": "000351-816-16", "000692-524-16": "000655-824-16", "001076-524-16": "000633-824-16", "000313-516-16": "000377-816-16", "000900-514-16": "000488-814-16", "000406-516-16": "000421-816-16", "001417-513-16": "001642-813-16", "000974-514-16": "000708-814-16", "000816-524-16": "000697-824-16", "001059-524-16": "000668-824-16", "001355-514-16": "000529-814-16", "001091-514-16": "000602-814-16", "000718-524-16": "000587.824.16", "001224-514-16": "001397.813.16", "000988-514-16": "000795.814.16", "001119-514-16": "000336-816-16", "000372-516-16": "000656-814-16", "001232-514-16": "000364-816-16", "000321-516-16": "000287-816-16", "000360-516-16": "000424-816-16", "001075-514-16": "000388-816-16", "000379-516-16": "000783-814-16", "001127-514-16": "001259-814-16", "001077-514-16": "000714-814-16", "001133-514-16": "000648-814-16", "000958-514-16": "000727-814-16", "000966-514-16": "000733-814-16", "000904-514-16": "000340-816-16", "000788-524-16": "000553-824-16", "000364-516-16": "000565-814-16", "001125-514-16": "000658-814-16", "001036-514-16": "000745-814-16", "000267-516-16": "000419-816-16", "000772-515-16": "000660-814-16", "000403-516-16": "000431-816-16", "000996-514-16": "000519-814-16", "000890-514-16": "000531-814-16", "000423-516-16": "000216-816-16", "000926-514-16": "001261-814-16", "000774-515-16": "000340-816-16", "001184-514-16": "000765-814-16", "001103-514-16": "000743-814-16", "000978-514-16": "000646-814-16", "000960-514-16": "000456-816-16", "001071-514-16": "000422-816-16", "001079-514-16": "000525-814-16", "001047-524-16": "000642-824-16", "001045-524-16": "000647-824-16", "001044-514-16": "000215-816-16", "001234-514-16": "000773-814-16", "000363-516-16": "000627-814-16", "000401-516-16": "000392-816-16", "001228-514-16": "000718-814-16", "001271-514-16": "000769-814-16", "001708-514-16": "001259-814-16", "001141-514-16": "000291-816-16", "001093-514-16": "000357-816-16", "000884-514-16": "000345-816-16", "000351-516-16": "000338-816-16", "001111-514-16": "000676-814-16", "000859-514-16": "000545-814-16", "000998-514-16": "000741-814-16", "000902-514-16": "000668-814-16", "000361-516-16": "000640 814 16", "001166-514-16": "000439-816-16", "001081-514-16": "000638-814-16", "000898-514-16": "000580-816-16", "000342-516-16": "001465-814-16", "001064-514-16": "000407-816-16", "001143-514-16": "000629 814 16", "000312-516-16": "000666 814 16", "000655-515-16": "000346 814 16", "000155-515-16": "000712 814 16", "000932-514-16": "000767 814 16", "001085-514-16": "000759 814 16", "001101-514-16": "000333 814 16", "001095-514-16": "000473 814 16", "001156-514-16": "000808 814 16", "000930-514-16": "000737 814 16", "000865-514-16": "000682 814 16", "000767-515-16": "001350 813 16", "001176-514-16": "000757 814 16", "001212-514-16": "000751 814 16", "001129-514-16": "000684 814 16", "000880-514-16": "000662 814 16", "000942-514-16": "000551 814 16", "000892-514-16": "000695 814 16", "001172-514-16": "000460 816 16", "000362-516-16": "000545 816 16", "001117-514-16": "000575 814 16", "001168-514-16": "000258 816 16", "000391-516-16": "000258 816 16", "001139-514-16": "000781 814 16", "000928-514-16": "000339 814 16", "000922-514-16": "001275 814 16", "001115-514-16": "001269 814 16", "001158-514-16": "000503 814 16", "001105-514-16": "000408 816 16", "000972-514-16": "000441 816 16", "000936-514-16": "000735 814 16", "001004-514-16": "000207 816 16", "001050-514-16": "000450 816 16", "000857-514-16": "000537 814 16", "000954-514-16": "000290 816 16", "001272-514-16": "000426 816 16", "001190-514-16": "000640 814 16", "001220-514-16": "000515 814 16", "000868-514-16": "000521-814-16", "001099-514-16": "000395-816-16", "001083-514-16": "000343-814-16", "001154-514-16": "000467-813-16", "001097-514-16": "000716-814-14", "001247-514-16": "000407-813-16", "001218-514-16": "000210-816-16", "000779-515-16": "000696-896-16", "000137-515-16": "001270-814-16", "000986-514-16": "000484-814-16", "000938-514-16": "001550 814 16", "001063-524-16": "000695 824 16", "000135-515-16": "000452 816 16", "001073-514-16": "001618-813-16", "000644-515-16": "000710-814-16", "001162-514-16": "000466-816-16", "000924-514-16": "000233-816-16", "000473-523-16": "000073-823-16", "000781-523-16": "000076-823-16", "000828-523-16": "000078-823-16", "000894-523-16": "000082-823-16", "000916-523-16": "000086-823-16", "000920-523-16": "000091-823-16", "000939-523-16": "000382-823-16", "001028-523-16": "000792-823-16", "000422-523-16": "000777-823-16", "000870-523-16": "000790-823-16", "000933-523-16": "000806-823-16", "000945-523-16": "000819-823-16", "001024-523-16": "000779-823-16", "001032-523-16": "000378-823-16", "001048-523-16": "000356-823-16", "001050-523-16": "000376-823-16"};
@@ -8348,24 +8455,22 @@ function saveDB() {
     }
   }
 
-  // 1. Sauvegarde locale en mémoire + persist asynchrone non-bloquante
+  // 1. Sauvegarde locale en mémoire + persist IMMÉDIAT dans localStorage (sécurité crash/coupure)
   DB._localTs = Date.now();
   window['DB_' + eq] = cloneTeamData(DB, emptyTeamData());
-  if (typeof scheduleLocalStorageSave === 'function') {
-    scheduleLocalStorageSave(1000);
-  } else {
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify({
-        version: 4,
-        active: eq,
-        teams: { A: window.DB_A, B: window.DB_B, C: window.DB_C, D: window.DB_D   }
-      }));
-    } catch(e) {
-      console.warn('LocalStorage save error (likely quota exceeded):', e);
-    }
+  try {
+    const rawExisting = localStorage.getItem(STORAGE_KEY);
+    const existingStore = rawExisting ? JSON.parse(rawExisting) : {};
+    if (!existingStore.teams) existingStore.teams = {};
+    existingStore.version = 4;
+    existingStore.active = eq;
+    existingStore.teams[eq] = window['DB_' + eq];
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(existingStore));
+  } catch(e) {
+    console.warn('LocalStorage save error:', e);
   }
-  // 2. Sauvegarde cloud Firebase — on RETIRE les fichiers base64 (trop volumineux)
-  //    Firestore limite les documents à 1 Mo. Les PDF/images d'assurance restent en local uniquement.
+
+  // 2. Sauvegarde cloud Supabase
   if (typeof window._firebaseSaveDB === 'function') {
     const FILE_KEYS = ['assuranceTrFile','assuranceRmFile','assuranceTrFileType','assuranceRmFileType'];
     const stripFiles = (arr) => (arr || []).map(item => {
@@ -8380,7 +8485,7 @@ function saveDB() {
     window._firebaseSaveDB(dbCloud);
   }
   if (typeof window._showFirebaseBadge === 'function') {
-    window._showFirebaseBadge('\u2705 Sauvegard\u00e9 dans le cloud');
+    window._showFirebaseBadge('💾 Enregistré sur ce poste');
   }
   if (typeof checkPointageRequired === 'function') {
     checkPointageRequired();
@@ -8784,6 +8889,11 @@ function renderDispo(force = false) {
     console.log('[renderDispo] Re-render différé : saisie textuelle active dans une cellule');
     return;
   }
+  const isAdm = (typeof window.isAdmin === 'function' ? window.isAdmin() : !sessionStorage.getItem('numiplan_team_lock'));
+  const zapBtn = document.getElementById('btn-admin-zap-anomalies');
+  if (zapBtn) zapBtn.style.display = isAdm ? 'inline-flex' : 'none';
+  const zapHeaderBtn = document.getElementById('btn-header-zap-anomalies');
+  if (zapHeaderBtn) zapHeaderBtn.style.display = isAdm ? 'inline-flex' : 'none';
   if (typeof rebuildOrientationBejaiaState === 'function') rebuildOrientationBejaiaState();
   if (typeof rebuildOrientationBrandtState === 'function') rebuildOrientationBrandtState();
   if (typeof rebuildSpeedExcessState === 'function') rebuildSpeedExcessState();
@@ -8847,8 +8957,8 @@ function renderDispo(force = false) {
   let adminBlCardHtml = '';
   let adminExtensionsCardHtml = '';
   let adminComplianceCardHtml = '';
-  const isAdmin = !sessionStorage.getItem('numiplan_team_lock');
-  if (isAdmin) {
+  const isAdmDispo = (typeof window.isAdmin === 'function') ? window.isAdmin() : !sessionStorage.getItem('numiplan_team_lock');
+  if (isAdmDispo) {
     adminKpiCardHtml = `
     <div class="stat-card green" style="cursor:pointer;transition:opacity .2s;border-left-color:#22c55e" onclick="ouvrirPointageKpiAtelier('OUI')" title="Voir les pannes pointées OUI (Passé à l'atelier)">
       <div class="stat-num" style="color:#22c55e">${passCount}</div>
@@ -13716,11 +13826,12 @@ function pointerAnomalieItem(key, immat, extraChauffeur = '', extraLieu = '') {
   saveDB();
 }
 
-function getAnomaliesAPointer() {
-  if (!DB || !DB.dispo) return [];
-  const deja = DB.anomaliesPointees || {};
+function getAnomaliesAPointer(targetDB = null) {
+  const d = targetDB || (typeof DB !== 'undefined' ? DB : null);
+  if (!d || !d.dispo) return [];
+  const deja = d.anomaliesPointees || {};
   const todayStr = today();
-  return DB.dispo.filter(r => {
+  return d.dispo.filter(r => {
     if (!r.lieuJ1_initial || !r.lieuJ1) return false;
     if (r.lieuJ1 === '—' || r.lieuJ1_initial === '—') return false;
     if (r.lieuJ1.trim().toUpperCase() === r.lieuJ1_initial.trim().toUpperCase()) return false;
@@ -13730,16 +13841,17 @@ function getAnomaliesAPointer() {
 }
 window.getAnomaliesAPointer = getAnomaliesAPointer;
 
-function getBlacklistViolations() {
-  if (!DB || !DB.dispo) return [];
-  const bl = DB.blacklist || [];
+function getBlacklistViolations(targetDB = null) {
+  const d = targetDB || (typeof DB !== 'undefined' ? DB : null);
+  if (!d || !d.dispo) return [];
+  const bl = d.blacklist || [];
   if (!bl.length) return [];
   
-  const deja = DB.anomaliesPointees || {};
+  const deja = d.anomaliesPointees || {};
   const todayStr = today();
   const violations = [];
   
-  DB.dispo.forEach(r => {
+  d.dispo.forEach(r => {
     bl.forEach(rule => {
       const chMatch = (r.chauffeur || '').trim().toUpperCase() === rule.chauffeur;
       if (!chMatch) return;
@@ -13756,7 +13868,8 @@ function getBlacklistViolations() {
             chauffeur: r.chauffeur,
             champ: 'Lieu Jour',
             lieu: lieuJ,
-            rule: rule
+            rule: rule,
+            key: pkey
           });
         }
       }
@@ -13769,7 +13882,8 @@ function getBlacklistViolations() {
             chauffeur: r.chauffeur,
             champ: 'Lieu J+1',
             lieu: lieuJ1,
-            rule: rule
+            rule: rule,
+            key: pkey
           });
         }
       }
@@ -13982,8 +14096,316 @@ function validerToutPointage() {
     tracerAction('POINTAGE', 'VALIDATION_POINTAGE', `Équipe ${window.CURRENT_EQUIPE || 'A'}`, 'Pointage matinal validé — toutes anomalies traitées', window.CURRENT_EQUIPE);
   }
   showToast('✅ Pointage terminé — toutes les anomalies ont été traitées');
-  renderDispo();
+  renderDispo(true);
 }
+
+// ── Zapping & Validation Globale des Anomalies par le REX (Admin Uniquement) ──
+function ouvrirModalZapAnomalies() {
+  if (typeof isAdmin === 'function' && !isAdmin()) {
+    showToast("⛔ Action strictement réservée à l'administrateur REX", true);
+    return;
+  }
+  const modal = document.getElementById('modal-admin-zap-anomalies');
+  if (!modal) return;
+  const sel = document.getElementById('zap-equipe-select');
+  if (sel) sel.value = 'CURRENT';
+  actualiserApercuZapAnomalies();
+  modal.style.display = 'flex';
+}
+window.ouvrirModalZapAnomalies = ouvrirModalZapAnomalies;
+
+function fermerModalZapAnomalies() {
+  const modal = document.getElementById('modal-admin-zap-anomalies');
+  if (modal) modal.style.display = 'none';
+}
+window.fermerModalZapAnomalies = fermerModalZapAnomalies;
+
+function actualiserApercuZapAnomalies() {
+  const sel = document.getElementById('zap-equipe-select');
+  const box = document.getElementById('zap-anomalies-summary-box');
+  const confirmBtn = document.getElementById('btn-confirm-zap-rex');
+  if (!sel || !box) return;
+  
+  const choice = sel.value;
+  let targetTeams = [];
+  if (choice === 'CURRENT') {
+    targetTeams = [window.CURRENT_EQUIPE || 'A'];
+  } else if (choice === 'ALL') {
+    targetTeams = ['A', 'B', 'C', 'D'];
+  } else {
+    targetTeams = [choice];
+  }
+  
+  let totalAnomalies = 0;
+  let html = '';
+  
+  targetTeams.forEach(eq => {
+    const isCurrent = (eq === (window.CURRENT_EQUIPE || 'A'));
+    const tDB = isCurrent ? window.DB : (window['DB_' + eq] || (typeof emptyTeamData === 'function' ? emptyTeamData() : { dispo: [] }));
+    const anoms = (typeof getAnomaliesAPointer === 'function') ? getAnomaliesAPointer(tDB) : [];
+    const viols = (typeof getBlacklistViolations === 'function') ? getBlacklistViolations(tDB) : [];
+    const count = anoms.length + viols.length;
+    totalAnomalies += count;
+    
+    html += `
+      <div style="margin-bottom:12px;padding:10px 12px;background:rgba(255,255,255,.03);border:1px solid ${count > 0 ? 'rgba(245,158,11,.3)' : 'rgba(34,197,94,.2)'};border-radius:8px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+          <span style="font-weight:800;color:var(--acc);font-size:12px;letter-spacing:0.5px">ÉQUIPE ${eq} ${isCurrent ? '<span style="font-size:10px;color:#94a3b8;font-weight:400">(en cours)</span>' : ''}</span>
+          <span style="font-size:11px;font-weight:800;padding:2px 8px;border-radius:6px;background:${count > 0 ? 'rgba(245,158,11,.15)' : 'rgba(34,197,94,.15)'};color:${count > 0 ? '#fbbf24' : '#4ade80'}">
+            ${count > 0 ? count + ' anomalie(s)' : '✅ 0 anomalie (débloquée)'}
+          </span>
+        </div>
+    `;
+    
+    if (anoms.length > 0) {
+      html += `<div style="max-height:120px;overflow-y:auto;font-size:11px;color:var(--txt2);padding-right:4px">`;
+      anoms.forEach(r => {
+        html += `
+          <div style="display:flex;justify-content:space-between;padding:3px 0;border-bottom:1px dashed rgba(255,255,255,.05)">
+            <span><b style="font-family:monospace;color:var(--txt)">${r.v}</b> · ${r.chauffeur || '—'}</span>
+            <span>Prévu: <span style="color:#34d399">${r.lieuJ1_initial || '—'}</span> ➔ Actuel: <span style="color:#f87171">${r.lieuJ1 || '—'}</span></span>
+          </div>
+        `;
+      });
+      html += `</div>`;
+    }
+    if (viols.length > 0) {
+      html += `<div style="font-size:10px;color:#f87171;margin-top:4px;font-weight:700">🚫 ${viols.length} violation(s) Blacklist en attente</div>`;
+    }
+    html += `</div>`;
+  });
+  
+  box.innerHTML = `
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;padding-bottom:8px;border-bottom:1px solid rgba(255,255,255,.1)">
+      <span style="font-size:12px;color:var(--txt1);font-weight:700">Total des anomalies à valider :</span>
+      <span style="font-size:16px;font-weight:800;color:${totalAnomalies > 0 ? '#fbbf24' : '#4ade80'}">${totalAnomalies} anomalie(s)</span>
+    </div>
+    ${html}
+  `;
+  
+  if (confirmBtn) {
+    if (totalAnomalies === 0) {
+      confirmBtn.disabled = true;
+      confirmBtn.style.opacity = '0.5';
+      confirmBtn.style.cursor = 'not-allowed';
+      confirmBtn.innerHTML = '✅ Aucune anomalie en attente';
+    } else {
+      confirmBtn.disabled = false;
+      confirmBtn.style.opacity = '1';
+      confirmBtn.style.cursor = 'pointer';
+      confirmBtn.innerHTML = `⚡ Valider ${totalAnomalies} anomalie(s) ("pointage REX validé") &amp; Débloquer`;
+    }
+  }
+}
+window.actualiserApercuZapAnomalies = actualiserApercuZapAnomalies;
+
+async function zapperAnomaliesPourEquipe(eq) {
+  if (typeof isAdmin === 'function' && !isAdmin()) {
+    showToast("⛔ Action strictement réservée à l'administrateur REX", true);
+    return 0;
+  }
+  
+  const todayStr = (typeof today === 'function') ? today() : new Date().toISOString().split('T')[0];
+  const isCurrent = (eq === (window.CURRENT_EQUIPE || 'A'));
+  const targetDB = isCurrent ? window.DB : (window['DB_' + eq] || (typeof cloneTeamData === 'function' ? cloneTeamData(window['DB_' + eq], emptyTeamData()) : { dispo: [] }));
+  if (!targetDB || !targetDB.dispo) return 0;
+  
+  if (!targetDB.anomaliesPointees) targetDB.anomaliesPointees = {};
+  
+  const anoms = (typeof getAnomaliesAPointer === 'function') ? getAnomaliesAPointer(targetDB) : [];
+  const viols = (typeof getBlacklistViolations === 'function') ? getBlacklistViolations(targetDB) : [];
+  const total = anoms.length + viols.length;
+  if (total === 0) return 0;
+  
+  const adminName = sessionStorage.getItem('numiplan_username') || 'ADMIN (REX)';
+  const nowIso = new Date().toISOString();
+  const dbRowsForSupabase = [];
+  
+  // 1. Zapper anomalies Lieu J+1 avec "pointage REX validé"
+  anoms.forEach(r => {
+    const key = r.v + '_' + todayStr;
+    const item = {
+      motif: "pointage REX validé",
+      detail: `Validé par le REX (${r.lieuJ1_initial || '—'} ➔ ${r.lieuJ1 || '—'})`,
+      justif: "pointage REX validé",
+      validePar: "REX",
+      adminUser: adminName,
+      ts: nowIso,
+      date: todayStr,
+      equipe: eq,
+      chauffeur: r.chauffeur || '—',
+      lieuInitial: r.lieuJ1_initial || '—',
+      lieuActuel: r.lieuJ1 || '—',
+      v: r.v,
+      immat: r.v
+    };
+    targetDB.anomaliesPointees[key] = item;
+    dbRowsForSupabase.push({
+      id: key + '_' + eq,
+      team: eq,
+      v: r.v,
+      chauffeur: r.chauffeur || '—',
+      date: todayStr,
+      lieu_initial: r.lieuJ1_initial || '—',
+      lieu_actuel: r.lieuJ1 || '—',
+      motif: "pointage REX validé",
+      detail: item.detail,
+      justif: "pointage REX validé"
+    });
+  });
+  
+  // 2. Zapper violations blacklist avec "pointage REX validé"
+  viols.forEach(v => {
+    const pkey = v.key || ('viol_' + v.vehicule.replace(/\s+/g, '_') + '_' + (v.chauffeur || '').replace(/\s+/g, '_') + '_' + (v.lieu || '').replace(/\s+/g, '_') + '_' + todayStr);
+    const item = {
+      motif: "pointage REX validé",
+      detail: `Violation blacklist validée par le REX (${v.lieu})`,
+      justif: "pointage REX validé",
+      validePar: "REX",
+      adminUser: adminName,
+      ts: nowIso,
+      date: todayStr,
+      equipe: eq,
+      chauffeur: v.chauffeur || '—',
+      lieuInitial: 'Blacklist Règle',
+      lieuActuel: v.lieu,
+      v: v.vehicule,
+      immat: v.vehicule
+    };
+    targetDB.anomaliesPointees[pkey] = item;
+    dbRowsForSupabase.push({
+      id: pkey + '_' + eq,
+      team: eq,
+      v: v.vehicule,
+      chauffeur: v.chauffeur || '—',
+      date: todayStr,
+      lieu_initial: 'Blacklist Règle',
+      lieu_actuel: v.lieu,
+      motif: "pointage REX validé",
+      detail: item.detail,
+      justif: "pointage REX validé"
+    });
+  });
+  
+  targetDB._lastEditedTs = Date.now();
+  targetDB._localTs = Date.now();
+  window['DB_' + eq] = targetDB;
+  
+  // 3. Tracer l'action dans le journal d'audit
+  if (typeof tracerAction === 'function') {
+    tracerAction(
+      'POINTAGE',
+      'ZAP_ANOMALIES_REX',
+      `Équipe ${eq}`,
+      `Pointage REX validé : ${anoms.length} anomalie(s) et ${viols.length} violation(s) validées pour l'Équipe ${eq}`,
+      eq
+    );
+  }
+  if (typeof logMouvement === 'function') {
+    logMouvement('Pointage REX Validé', 'Pointage', `Équipe ${eq}`, `${total} anomalies validées par le REX`);
+  }
+  
+  // 4. Si c'est l'équipe en cours, synchroniser DB
+  if (isCurrent) {
+    if (!window.DB.anomaliesPointees) window.DB.anomaliesPointees = {};
+    Object.assign(window.DB.anomaliesPointees, targetDB.anomaliesPointees);
+    saveDB();
+  }
+  
+  // 5. Sauvegarder dans le cloud Supabase
+  if (typeof window.saveTeamDB === 'function') {
+    window.saveTeamDB(eq, targetDB);
+  }
+  
+  // 6. Direct upsert dans np_anomalies si Supabase est actif
+  if (window.supabase && dbRowsForSupabase.length > 0) {
+    try {
+      window.supabase.from('np_anomalies').upsert(dbRowsForSupabase).then(({error}) => {
+        if (error) console.warn("Supabase np_anomalies upsert warning:", error);
+      });
+    } catch(e) {}
+  }
+  
+  // 7. Persister localStorage
+  try {
+    const raw = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}');
+    if (!raw.teams) raw.teams = {};
+    raw.teams[eq] = targetDB;
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(raw));
+  } catch(e) {}
+  
+  return total;
+}
+window.zapperAnomaliesPourEquipe = zapperAnomaliesPourEquipe;
+
+async function confirmerZapAnomaliesRex() {
+  if (typeof isAdmin === 'function' && !isAdmin()) {
+    showToast("⛔ Action strictement réservée à l'administrateur REX", true);
+    return;
+  }
+  
+  const sel = document.getElementById('zap-equipe-select');
+  const choice = sel ? sel.value : 'CURRENT';
+  let targetTeams = [];
+  if (choice === 'CURRENT') {
+    targetTeams = [window.CURRENT_EQUIPE || 'A'];
+  } else if (choice === 'ALL') {
+    targetTeams = ['A', 'B', 'C', 'D'];
+  } else {
+    targetTeams = [choice];
+  }
+  
+  const confirmMsg = (targetTeams.length > 1)
+    ? `⚡ Confirmer la validation globale par le REX pour TOUTES les équipes (${targetTeams.join(', ')}) ?\n\nToutes les anomalies recevront la mention :\n"pointage REX validé"\net tous les chefs d'équipe seront immédiatement débloqués.`
+    : `⚡ Confirmer la validation globale par le REX pour l'Équipe ${targetTeams[0]} ?\n\nToutes les anomalies recevront la mention :\n"pointage REX validé"\net le chef d'équipe sera immédiatement débloqué.`;
+    
+  if (!confirm(confirmMsg)) return;
+  
+  let grandTotal = 0;
+  for (const eq of targetTeams) {
+    const nb = await zapperAnomaliesPourEquipe(eq);
+    grandTotal += nb;
+  }
+  
+  fermerModalZapAnomalies();
+  
+  // Fermer le modal pointage s'il était ouvert
+  const modalPointage = document.getElementById('modal-pointage-anomalies');
+  if (modalPointage) modalPointage.style.display = 'none';
+  const overlay = document.getElementById('pointage-block-overlay');
+  if (overlay) overlay.style.display = 'none';
+  if (typeof _setActionsBloqueesPointage === 'function') _setActionsBloqueesPointage(false);
+  
+  if (typeof renderDispo === 'function') renderDispo(true);
+  if (typeof checkPointageRequired === 'function') checkPointageRequired();
+  
+  showToast(`⚡ ${grandTotal} anomalie(s) validée(s) par le REX ("pointage REX validé") — Déblocage réussi !`);
+}
+window.confirmerZapAnomaliesRex = confirmerZapAnomaliesRex;
+
+async function adminZapperAnomaliesDirect() {
+  if (typeof isAdmin === 'function' && !isAdmin()) {
+    showToast("⛔ Action strictement réservée à l'administrateur REX", true);
+    return;
+  }
+  
+  const eq = window.CURRENT_EQUIPE || 'A';
+  if (!confirm(`⚡ Valider immédiatement toutes les anomalies de l'Équipe ${eq} avec la mention "pointage REX validé" ?\n\nLe chef d'équipe sera instantanément débloqué.`)) return;
+  
+  const nb = await zapperAnomaliesPourEquipe(eq);
+  
+  const modalPointage = document.getElementById('modal-pointage-anomalies');
+  if (modalPointage) modalPointage.style.display = 'none';
+  const overlay = document.getElementById('pointage-block-overlay');
+  if (overlay) overlay.style.display = 'none';
+  if (typeof _setActionsBloqueesPointage === 'function') _setActionsBloqueesPointage(false);
+  
+  if (typeof renderDispo === 'function') renderDispo(true);
+  if (typeof checkPointageRequired === 'function') checkPointageRequired();
+  
+  showToast(`⚡ ${nb} anomalie(s) de l'Équipe ${eq} validée(s) par le REX ("pointage REX validé") !`);
+}
+window.adminZapperAnomaliesDirect = adminZapperAnomaliesDirect;
 
 // ── Historique des anomalies pointées ──────────────────────────────────────
 function ouvrirHistoriqueAnomalies() {
@@ -14032,6 +14454,9 @@ function renderHistoriqueAnomalies() {
   filtered.forEach(a => { const m = a.motif || 'Non précisé'; byMotif[m] = (byMotif[m]||0)+1; });
 
   const motifColors = {
+    'pointage REX validé': '#f59e0b',
+    'Pointage REX validé': '#f59e0b',
+    'Validation REX': '#f59e0b',
     'Orientation': '#38bdf8',
     'Chargement à son compte': '#f87171',
     'Chargement à son compte autorisé': '#34d399',
