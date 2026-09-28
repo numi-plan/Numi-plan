@@ -21284,7 +21284,7 @@ function renderAdminEntreesSorties(forceRebuild = false) {
         return `<div style="font-size:11px;color:#f87171;margin:2px 0"><span style="font-weight:700">${shortT}:</span> ${cleanM}</div>`;
       }).filter(Boolean);
       if (motifRows.length > 0) motifHtml = motifRows.join('');
-    }font-weight:600">${r.motif_out}</span>` : '<span style="color:#64748b">—</span>';
+    }
 
     const activeCount = allUniqueTrs.filter(t => !inactTrList.includes(t)).length;
     const isExtension = r.is_extension || (allUniqueTrs.length > 1) || (parseInt(r.flotte) > 1);
