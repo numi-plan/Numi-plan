@@ -191,6 +191,18 @@
   }
   window.isRegistreOrDirectionSession = isRegistreOrDirectionSession;
 
+  function isTeamAllowed(eq) {
+    if (!eq) return false;
+    const role = (sessionStorage.getItem('numiplan_user_role') || '').toLowerCase();
+    const user = (sessionStorage.getItem('numiplan_username') || '').toUpperCase().trim();
+    const lock = sessionStorage.getItem('numiplan_team_lock');
+    if (role === 'admin' || user === 'ADMIN' || !lock || lock === 'ADMIN' || lock === 'ALL' || lock === '*') return true;
+    if (lock === 'BL' || lock === 'DIR') return false;
+    const allowed = lock.split(/[,;\s\/\-]+/).map(x => x.trim().toUpperCase()).filter(Boolean);
+    return allowed.includes(String(eq).trim().toUpperCase());
+  }
+  window.isTeamAllowed = isTeamAllowed;
+
   window._ADMIN_SHARIK_CUSTOM_EDITS = JSON.parse(localStorage.getItem('numiplan_admin_sharik_custom_edits') || '{}');
   // getCurrentEquipe définie ici (script classique) pour être disponible
   // AVANT le chargement du module ES6 (qui est différé par défaut)
@@ -1300,7 +1312,7 @@
       }
       const ids = [];
       const lock = sessionStorage.getItem('numiplan_team_lock');
-      const targetEqs = (lock && lock !== 'BL') ? [lock] : ['A', 'B', 'C', 'D'];
+      const targetEqs = (lock && lock !== 'BL' && lock !== 'DIR') ? lock.split(/[,;\s\/\-]+/).map(x => x.trim().toUpperCase()).filter(Boolean) : ['A', 'B', 'C', 'D'];
       targetEqs.forEach(eq => {
         months.forEach(m => {
           ids.push(eq + '_' + m);
@@ -3507,7 +3519,7 @@ mark.hl { background: rgba(56,189,248,.25); color: var(--acc); border-radius: 3p
     const results = [];
     const lock = sessionStorage.getItem('numiplan_team_lock');
     ['A', 'B', 'C', 'D'].forEach(eq => {
-      if (lock && lock !== eq) return;
+      if (lock && typeof isTeamAllowed === 'function' && !isTeamAllowed(eq)) return;
       const src = window['DB_' + eq] || (window.CURRENT_EQUIPE === eq ? window.DB : null);
       if (!src) return;
       (src.dispo||[]).forEach(r => {
@@ -4950,7 +4962,7 @@ mark.hl { background: rgba(56,189,248,.25); color: var(--acc); border-radius: 3p
         if (raw) {
           const parsed = JSON.parse(raw);
           const eq = parsed.active || 'A';
-          if (lock === eq) {
+          if (lock && (typeof isTeamAllowed === 'function' ? isTeamAllowed(eq) : lock === eq)) {
             const dbEq = parsed.teams && parsed.teams[eq];
             if (dbEq && dbEq.dispo) {
               const deja = dbEq.anomaliesPointees || {};
@@ -6285,7 +6297,8 @@ function updateHeaderRAC() {
     if (el) {
       el.innerHTML = `Éq. ${eq}: ${eqRacStr}`;
       if (lock && lock !== 'BL') {
-        if (eq === lock) {
+        const allowedThisEq = typeof isTeamAllowed === 'function' ? isTeamAllowed(eq) : (eq === lock);
+        if (allowedThisEq) {
           el.style.removeProperty('display');
           el.style.border = '1.5px solid var(--acc)';
           el.style.boxShadow = '0 0 6px rgba(56,189,248,0.4)';
@@ -7433,6 +7446,14 @@ window.imprimerListeBLManquants = imprimerListeBLManquants;
     <div style="margin-bottom:16px">
       <label style="font-size:11px; font-weight:700; color:var(--txt2); display:block; margin-bottom:4px">Motif de Résiliation / Justification / Observations</label>
       <input type="text" id="edit-sharik-motif" placeholder="Ex: Démission, Fin de contrat, VOL, Changement d'affectation..." style="width:100%; background:var(--bg3); border:1px solid var(--border); border-radius:7px; padding:8px; color:var(--txt)">
+    </div>
+
+    <!-- Section Tracteurs Inactifs (Extensions) -->
+    <div id="edit-sharik-inactive-section" style="display:none; margin-bottom:16px; background:rgba(239,68,68,0.06); border:1px solid rgba(239,68,68,0.3); border-radius:8px; padding:12px">
+      <div style="font-size:11px; font-weight:800; color:#f87171; margin-bottom:8px; display:flex; align-items:center; gap:6px">
+        <span>🚜 Date(s) et Motif(s) de Sortie des Tracteurs Inactifs :</span>
+      </div>
+      <div id="edit-sharik-inactive-list" style="display:flex; flex-direction:column; gap:8px"></div>
     </div>
 
     <div style="border-top:1px solid var(--border); padding-top:16px">
@@ -9307,6 +9328,10 @@ async function deleteDispo(idx) {
         if (!editObj.inactive_tracteurs.includes(deletedTruckImmat)) {
           editObj.inactive_tracteurs.push(deletedTruckImmat);
         }
+        if (!editObj.dates_sortie_tracteurs) editObj.dates_sortie_tracteurs = {};
+        editObj.dates_sortie_tracteurs[deletedTruckImmat] = todayISO;
+        if (!editObj.motifs_sortie_tracteurs) editObj.motifs_sortie_tracteurs = {};
+        editObj.motifs_sortie_tracteurs[deletedTruckImmat] = finalJustif || 'Sorti de Numiplan';
         // Retirer le camion supprimé des tracteurs actifs
         if (Array.isArray(editObj.tracteurs)) {
           editObj.tracteurs = editObj.tracteurs.filter(t => (t||'').trim().toUpperCase() !== deletedTruckImmat);
@@ -10797,7 +10822,7 @@ function showVehicleProfile(immat) {
 function archiveToday() {
   const eq = typeof window.CURRENT_EQUIPE !== 'undefined' ? window.CURRENT_EQUIPE : 'A';
   const lock = sessionStorage.getItem('numiplan_team_lock');
-  if (lock && lock !== eq) {
+  if (lock && typeof isTeamAllowed === 'function' && !isTeamAllowed(eq)) {
     if (typeof showToast === 'function') {
       showToast('⚠️ Lecture seule — vous ne pouvez pas archiver la journée de l\'Équipe ' + eq, true);
     }
@@ -11716,7 +11741,23 @@ function renderOdo() {
   const lock = sessionStorage.getItem('numiplan_team_lock');
   const isAdminForced = selectTeamEl && selectTeamEl.getAttribute('data-admin-forced') === 'true';
   if (!isAdminForced && lock && lock !== 'DIR' && lock !== 'BL' && selectTeamEl) {
-    selectTeamEl.value = lock;
+    const allowed = (lock === 'ALL' || lock === '*') ? ['A', 'B', 'C', 'D'] : lock.split(/[,;\s\/\-]+/).map(x => x.trim().toUpperCase()).filter(Boolean);
+    if (allowed.length === 1) {
+      selectTeamEl.value = allowed[0];
+      selectTeamEl.disabled = true;
+      selectTeamEl.style.display = 'none';
+    } else {
+      Array.from(selectTeamEl.options).forEach(opt => {
+        if (opt.value !== 'ALL' && !allowed.includes(opt.value)) {
+          opt.style.display = 'none';
+        } else {
+          opt.style.display = '';
+        }
+      });
+      selectTeamEl.disabled = false;
+      selectTeamEl.style.removeProperty('display');
+      return;
+    }
     selectTeamEl.disabled = true;
     selectTeamEl.style.display = 'none';
   }
@@ -15034,7 +15075,7 @@ function renderKpiPointageList() {
   if (closeBtn) {
     const lock = sessionStorage.getItem('numiplan_team_lock');
     const eq = typeof window.CURRENT_EQUIPE !== 'undefined' ? window.CURRENT_EQUIPE : 'A';
-    const isBlocked = lock && lock === eq && getBlockingKpis().length > 0;
+    const isBlocked = lock && (typeof isTeamAllowed === 'function' ? isTeamAllowed(eq) : lock === eq) && getBlockingKpis().length > 0;
     const shiftState = getKpiShiftState();
     if (isBlocked && !shiftState.isCloseAllowed) {
       closeBtn.style.setProperty('display', 'none', 'important');
@@ -15186,7 +15227,7 @@ window.voirHistoriqueKpi = voirHistoriqueKpi;
 function basculerJournee() {
   const eq = typeof window.CURRENT_EQUIPE !== 'undefined' ? window.CURRENT_EQUIPE : 'A';
   const lock = sessionStorage.getItem('numiplan_team_lock');
-  if (lock && lock !== eq) {
+  if (lock && typeof isTeamAllowed === 'function' && !isTeamAllowed(eq)) {
     if (typeof showToast === 'function') {
       showToast('⚠️ Lecture seule — vous ne pouvez pas basculer la journée de l\'Équipe ' + eq, true);
     }
@@ -17967,7 +18008,7 @@ function verifierCspcNonTraite(forceShow = false) {
 
 function modifierAnomalie(eq, key) {
   const lock = sessionStorage.getItem('numiplan_team_lock');
-  if (lock && lock !== eq) {
+  if (lock && typeof isTeamAllowed === 'function' && !isTeamAllowed(eq)) {
     showToast(`⚠️ Lecture seule — vous ne pouvez modifier que les anomalies de l'Équipe ${lock}`, true);
     return;
   }
@@ -17997,7 +18038,7 @@ function saveModifiedAnomalie() {
   const detail = document.getElementById('edit-anom-detail').value.trim();
   
   const lock = sessionStorage.getItem('numiplan_team_lock');
-  if (lock && lock !== eq) {
+  if (lock && typeof isTeamAllowed === 'function' && !isTeamAllowed(eq)) {
     showToast(`⚠️ Lecture seule — vous ne pouvez modifier que les anomalies de l'Équipe ${lock}`, true);
     return;
   }
@@ -20671,6 +20712,7 @@ function buildConsolidatedRegistreData() {
   const EQUIPES = ['A', 'B', 'C', 'D'];
   const numiplanActiveDrivers = {};
   const numiplanDriverTrucks = {}; // chauffeur normalisé -> Set de camions
+  const lastSortieTruckTraceMap = new Map();
 
   EQUIPES.forEach(eq => {
     try {
@@ -20687,6 +20729,38 @@ function buildConsolidatedRegistreData() {
               const ts = t.timestamp || 0;
               if (!existing || ts > existing.ts) {
                 lastEntreeTraceMap.set(k, { ts, date: t.date ? t.date.split(' ')[0] : '' });
+              }
+            }
+          }
+        }
+
+        // Indexation de toutes les traces de sortie de camion (pour connaître la date de sortie de chaque camion)
+        if (Array.isArray(db.tracabilite)) {
+          for (let i = 0; i < db.tracabilite.length; i++) {
+            const t = db.tracabilite[i];
+            if (t && t.target && (t.type === 'Sortie Camion' || t.type === 'Suppression Camion' || (t.type && t.type.toLowerCase().includes('sortie') && t.type.toLowerCase().includes('camion')))) {
+              const trTarget = (t.target || '').trim().toUpperCase();
+              const existing = lastSortieTruckTraceMap.get(trTarget);
+              const ts = t.timestamp || 0;
+              if (!existing || ts > existing.ts) {
+                let cleanDate = '';
+                if (t.date) {
+                  const dOnly = t.date.split(' ')[0];
+                  if (dOnly.includes('/')) {
+                    const p = dOnly.split('/');
+                    if (p.length === 3 && p[2].length === 4) cleanDate = `${p[2]}-${p[1].padStart(2,'0')}-${p[0].padStart(2,'0')}`;
+                    else cleanDate = dOnly;
+                  } else {
+                    cleanDate = dOnly;
+                  }
+                } else if (t.created_at) {
+                  cleanDate = t.created_at.split('T')[0];
+                }
+                lastSortieTruckTraceMap.set(trTarget, {
+                  ts,
+                  date: cleanDate,
+                  motif: t.detail || 'Sorti de Numiplan'
+                });
               }
             }
           }
@@ -20916,7 +20990,20 @@ function buildConsolidatedRegistreData() {
     r.inactive_tracteurs = inactList;
 
     // Retirer les camions inactifs des tracteurs actifs qui tournent
-    inactList.forEach(t => driverTrucksSet.delete(t));
+    if (!r.inactive_tracteurs_dates) r.inactive_tracteurs_dates = { ...(r.dates_sortie_tracteurs || {}) };
+    if (!r.inactive_tracteurs_motifs) r.inactive_tracteurs_motifs = { ...(r.motifs_sortie_tracteurs || {}) };
+
+    inactList.forEach(t => {
+      driverTrucksSet.delete(t);
+      if (!r.inactive_tracteurs_dates[t]) {
+        const trace = lastSortieTruckTraceMap.get(t);
+        if (trace && trace.date) r.inactive_tracteurs_dates[t] = trace.date;
+      }
+      if (!r.inactive_tracteurs_motifs[t]) {
+        const trace = lastSortieTruckTraceMap.get(t);
+        if (trace && trace.motif) r.inactive_tracteurs_motifs[t] = trace.motif;
+      }
+    });
 
     // Si le chauffeur a des tracteurs déclarés dans son contrat/registre, les intégrer (hors inactifs et hors tombstones)
     const initialTracteurs = Array.isArray(r.tracteurs) && r.tracteurs.length > 0
@@ -21152,7 +21239,7 @@ function renderAdminEntreesSorties(forceRebuild = false) {
       ? allUniqueTrs.map(t => {
           const isInactive = inactTrList.includes(t);
           if (isInactive) {
-            return `<span style="font-family:monospace;font-weight:700;color:#ef4444;background:rgba(239,68,68,0.12);border:1px solid rgba(239,68,68,0.35);padding:2px 6px;border-radius:4px;display:inline-block;margin:1px 2px;text-decoration:line-through;opacity:0.85" title="Camion supprimé / inactif sur Numiplan">${t} (Inactif)</span>`;
+            return `<span style="font-family:monospace;font-weight:700;color:#ef4444;background:rgba(239,68,68,0.12);border:1px solid rgba(239,68,68,0.35);padding:2px 6px;border-radius:4px;display:inline-block;margin:1px 2px;text-decoration:line-through;opacity:0.85" title="Tracteur supprimé / sorti de Numiplan">${t}${(() => { const od = (r.inactive_tracteurs_dates && r.inactive_tracteurs_dates[t]) || ""; return od ? ` (Sorti le ${fmtDate(od)})` : " (Inactif)"; })()}</span>`;
           }
           return `<span style="font-family:monospace;font-weight:800;color:var(--acc, #00d2ff);background:rgba(0,210,255,0.08);border:1px solid rgba(0,210,255,0.25);padding:2px 6px;border-radius:4px;display:inline-block;margin:1px 2px">${t}</span>`;
         }).join(' ')
@@ -21164,7 +21251,19 @@ function renderAdminEntreesSorties(forceRebuild = false) {
       ? rmList.map(rm => `<span style="font-family:monospace;font-weight:800;color:#fbbf24;background:rgba(251,191,36,0.1);border:1px solid rgba(251,191,36,0.3);padding:2px 6px;border-radius:4px;display:inline-block;margin:1px 2px">${rm.trim()}</span>`).join(' ')
       : '<span style="color:#64748b">—</span>';
 
-    const motifHtml = r.motif_out ? `<span style="color:#f87171;font-weight:600">${r.motif_out}</span>` : '<span style="color:#64748b">—</span>';
+    let motifHtml = '<span style="color:#64748b">—</span>';
+    if (r.motif_out) {
+      motifHtml = `<span style="color:#f87171;font-weight:600">${r.motif_out}</span>`;
+    } else if (inactTrList.length > 0) {
+      const motifRows = inactTrList.map(t => {
+        const m = (r.inactive_tracteurs_motifs && r.inactive_tracteurs_motifs[t]) || '';
+        if (!m) return '';
+        const shortT = t.length > 10 ? t.slice(-6) : t;
+        const cleanM = m.replace(/^Camion\s+\S+\s+supprimé de l'extension de\s+.*?\s+\|\s*/i, '');
+        return `<div style="font-size:11px;color:#f87171;margin:2px 0"><span style="font-weight:700">${shortT}:</span> ${cleanM}</div>`;
+      }).filter(Boolean);
+      if (motifRows.length > 0) motifHtml = motifRows.join('');
+    }font-weight:600">${r.motif_out}</span>` : '<span style="color:#64748b">—</span>';
 
     const activeCount = allUniqueTrs.filter(t => !inactTrList.includes(t)).length;
     const isExtension = r.is_extension || (allUniqueTrs.length > 1) || (parseInt(r.flotte) > 1);
@@ -21207,7 +21306,23 @@ function renderAdminEntreesSorties(forceRebuild = false) {
         <td>${trHtml}</td>
         <td>${rmHtml}</td>
         <td style="font-family:monospace;font-size:11px;color:#22c55e">${r.date_in ? fmtDate(r.date_in) : '—'}</td>
-        <td style="font-family:monospace;font-size:11px;color:${(!isActif && r.date_out) ? '#ef4444' : '#aaa'}">${(!isActif && r.date_out) ? fmtDate(r.date_out) : '—'}</td>
+        <td style="font-family:monospace;font-size:11px">
+          ${(() => {
+            if (!isActif && r.date_out) {
+              return `<span style="color:#ef4444;font-weight:700">${fmtDate(r.date_out)}</span>`;
+            }
+            if (inactTrList.length > 0) {
+              const outRows = inactTrList.map(t => {
+                const d = (r.inactive_tracteurs_dates && r.inactive_tracteurs_dates[t]) || '';
+                if (!d) return '';
+                const shortT = t.length > 10 ? t.slice(-6) : t;
+                return `<div style="margin:2px 0"><span style="color:#ef4444;font-weight:800">${fmtDate(d)}</span> <span style="font-size:9px;color:#94a3b8">(${shortT})</span></div>`;
+              }).filter(Boolean);
+              if (outRows.length > 0) return outRows.join('');
+            }
+            return '<span style="color:#64748b">—</span>';
+          })()}
+        </td>
         <td style="font-size:11px; cursor:pointer" onclick="ouvrirModalEditionSharik(${r._idx})" title="Cliquer pour modifier le contrat & régime">
           <div style="display:flex; align-items:center; gap:6px; flex-wrap:wrap">
             <span style="background:rgba(56,189,248,0.12);border:1px solid rgba(56,189,248,0.3);padding:2px 8px;border-radius:4px;font-weight:700;color:#38bdf8">${r.contrat || 'CDD'}</span>
@@ -21434,6 +21549,33 @@ function ouvrirModalEditionSharik(idx) {
     regimeSel.value = knownRegimes.includes(regimeVal) ? regimeVal : 'custom';
   }
 
+  // Remplissage de la section des tracteurs inactifs
+  const inactSection = document.getElementById('edit-sharik-inactive-section');
+  const inactListEl = document.getElementById('edit-sharik-inactive-list');
+  const inactTrs = Array.isArray(r.inactive_tracteurs) ? r.inactive_tracteurs : [];
+  if (inactSection && inactListEl) {
+    if (inactTrs.length > 0) {
+      inactSection.style.display = 'block';
+      inactListEl.innerHTML = inactTrs.map(t => {
+        let curD = (r.inactive_tracteurs_dates && r.inactive_tracteurs_dates[t]) || (r.dates_sortie_tracteurs && r.dates_sortie_tracteurs[t]) || '';
+        if (curD.includes('T')) curD = curD.split('T')[0];
+        let curM = (r.inactive_tracteurs_motifs && r.inactive_tracteurs_motifs[t]) || (r.motifs_sortie_tracteurs && r.motifs_sortie_tracteurs[t]) || '';
+        return `
+          <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap; background:rgba(0,0,0,0.25); border:1px solid rgba(255,255,255,0.06); padding:8px 12px; border-radius:6px">
+            <span style="font-family:monospace; font-weight:800; color:#ef4444; min-width:120px">${t}</span>
+            <label style="font-size:10px; font-weight:700; color:#94a3b8">Date de sortie :</label>
+            <input type="date" class="edit-inact-tr-date" data-truck="${t}" value="${curD.slice(0,10)}" style="background:var(--bg3); border:1px solid var(--border); border-radius:6px; padding:6px 8px; color:var(--txt); font-size:11px">
+            <label style="font-size:10px; font-weight:700; color:#94a3b8">Motif :</label>
+            <input type="text" class="edit-inact-tr-motif" data-truck="${t}" value="${curM}" placeholder="Motif de sortie du tracteur..." style="flex:1; min-width:140px; background:var(--bg3); border:1px solid var(--border); border-radius:6px; padding:6px 8px; color:var(--txt); font-size:11px">
+          </div>
+        `;
+      }).join('');
+    } else {
+      inactSection.style.display = 'none';
+      inactListEl.innerHTML = '';
+    }
+  }
+
   const modal = document.getElementById('modal-admin-edit-sharik');
   if (modal) {
     modal.classList.add('open');
@@ -21561,6 +21703,22 @@ function saveAdminSharikEdit() {
     statut: document.getElementById('edit-sharik-statut').value,
     motif_out: document.getElementById('edit-sharik-motif').value.trim()
   };
+
+  // Sauvegarder les dates et motifs des tracteurs inactifs
+  const inactDates = {};
+  const inactMotifs = {};
+  document.querySelectorAll('.edit-inact-tr-date').forEach(inp => {
+    const tr = inp.getAttribute('data-truck');
+    if (tr && inp.value) inactDates[tr] = inp.value;
+  });
+  document.querySelectorAll('.edit-inact-tr-motif').forEach(inp => {
+    const tr = inp.getAttribute('data-truck');
+    if (tr && inp.value) inactMotifs[tr] = inp.value;
+  });
+  const existingEd = _ADMIN_SHARIK_CUSTOM_EDITS[editKey] || {};
+  updatedObj.inactive_tracteurs = existingEd.inactive_tracteurs || [];
+  updatedObj.dates_sortie_tracteurs = { ...(existingEd.dates_sortie_tracteurs || {}), ...inactDates };
+  updatedObj.motifs_sortie_tracteurs = { ...(existingEd.motifs_sortie_tracteurs || {}), ...inactMotifs };
 
   _ADMIN_SHARIK_CUSTOM_EDITS[editKey] = updatedObj;
   localStorage.setItem('numiplan_admin_sharik_custom_edits', JSON.stringify(_ADMIN_SHARIK_CUSTOM_EDITS));
