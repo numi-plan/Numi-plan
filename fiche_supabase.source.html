@@ -21317,6 +21317,19 @@ function renderAdminEntreesSorties(forceRebuild = false) {
       incoherenceBadge = `<div style="font-size:10px;font-weight:700;color:#fbbf24;margin-top:4px;background:rgba(251,191,36,0.1);border:1px solid rgba(251,191,36,0.3);padding:2px 6px;border-radius:4px;text-align:left">${r._incoherenceType}</div>`;
     }
 
+    let dateOutHtml = '<span style="color:#64748b">—</span>';
+    if (!isActif && r.date_out) {
+      dateOutHtml = '<span style="color:#ef4444;font-weight:700">' + fmtDate(r.date_out) + '</span>';
+    } else if (inactTrList.length > 0) {
+      const outRows = inactTrList.map(t => {
+        const d = (r.inactive_tracteurs_dates && r.inactive_tracteurs_dates[t]) || '';
+        if (!d) return '';
+        const shortT = t.length > 10 ? t.slice(-6) : t;
+        return '<div style="margin:2px 0"><span style="color:#ef4444;font-weight:800">' + fmtDate(d) + '</span> <span style="font-size:9px;color:#94a3b8">(' + shortT + ')</span></div>';
+      }).filter(Boolean);
+      if (outRows.length > 0) dateOutHtml = outRows.join('');
+    }
+
     return `
       <tr style="border-bottom:1px solid rgba(255,255,255,0.05);transition:background 0.2s">
         <td style="font-family:monospace;font-weight:700;color:var(--acc, #00d2ff)">${r.code || '—'}</td>
@@ -21327,23 +21340,7 @@ function renderAdminEntreesSorties(forceRebuild = false) {
         <td>${trHtml}</td>
         <td>${rmHtml}</td>
         <td style="font-family:monospace;font-size:11px;color:#22c55e">${r.date_in ? fmtDate(r.date_in) : '—'}</td>
-        <td style="font-family:monospace;font-size:11px">
-          ${(() => {
-            if (!isActif && r.date_out) {
-              return `<span style="color:#ef4444;font-weight:700">${fmtDate(r.date_out)}</span>`;
-            }
-            if (inactTrList.length > 0) {
-              const outRows = inactTrList.map(t => {
-                const d = (r.inactive_tracteurs_dates && r.inactive_tracteurs_dates[t]) || '';
-                if (!d) return '';
-                const shortT = t.length > 10 ? t.slice(-6) : t;
-                return `<div style="margin:2px 0"><span style="color:#ef4444;font-weight:800">${fmtDate(d)}</span> <span style="font-size:9px;color:#94a3b8">(${shortT})</span></div>`;
-              }).filter(Boolean);
-              if (outRows.length > 0) return outRows.join('');
-            }
-            return '<span style="color:#64748b">—</span>';
-          })()}
-        </td>
+        <td style="font-family:monospace;font-size:11px">${dateOutHtml}</td>
         <td style="font-size:11px; cursor:pointer" onclick="ouvrirModalEditionSharik(${r._idx})" title="Cliquer pour modifier le contrat & régime">
           <div style="display:flex; align-items:center; gap:6px; flex-wrap:wrap">
             <span style="background:rgba(56,189,248,0.12);border:1px solid rgba(56,189,248,0.3);padding:2px 8px;border-radius:4px;font-weight:700;color:#38bdf8">${r.contrat || 'CDD'}</span>
