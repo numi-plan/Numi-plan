@@ -767,10 +767,11 @@
     const localTs = (currentLocal && currentLocal._localTs) || 0;
     const remoteTs = src._localTs || 0;
     const hasPending = window._pendingCloudSaves && window._pendingCloudSaves[eq];
+    const localHasDispo = currentLocal && Array.isArray(currentLocal.dispo) && currentLocal.dispo.length > 0;
+    const remoteHasDispo = src && Array.isArray(src.dispo) && src.dispo.length > 0;
 
-    // Si on a des modifications locales en attente d'envoi ou si notre local est plus récent :
-    // INTERDICTION FORMELLE D'ÉCRASER LE LOCAL ! C'est le local qui doit être poussé vers le Cloud.
-    if (hasPending || (localTs > 0 && localTs > remoteTs)) {
+    // Si le local a des données et qu'il est plus récent ou en attente d'envoi : protéger le local
+    if (localHasDispo && (hasPending || (localTs > 0 && localTs > remoteTs))) {
       console.warn(`[ANTI-ÉCRASEMENT applyEquipeData] Paquet Cloud ${eq} (${new Date(remoteTs).toLocaleTimeString()}) rejeté : version locale plus récente (${new Date(localTs).toLocaleTimeString()}) ou en attente.`);
       if (typeof supabaseUpsertTeam === 'function' && navigator.onLine) {
         setTimeout(() => supabaseUpsertTeam(eq, currentLocal, true), 1000);
@@ -1100,8 +1101,11 @@
           const localTs = (currentLocal && currentLocal._localTs) || 0;
           const remoteTs = (payload && payload._localTs) || 0;
           const hasPending = window._pendingCloudSaves && window._pendingCloudSaves[eq];
+          const localHasDispo = currentLocal && Array.isArray(currentLocal.dispo) && currentLocal.dispo.length > 0;
+          const remoteHasDispo = payload && Array.isArray(payload.dispo) && payload.dispo.length > 0;
 
-          if (hasPending || (localTs > 0 && localTs > remoteTs)) {
+          // Seul un local avec de VRAIES données de camions peut rejeter le Cloud
+          if (localHasDispo && (hasPending || (localTs > 0 && localTs > remoteTs))) {
             console.warn(`[ANTI-ÉCRASEMENT loadInitialTeams] Équipe ${eq} locale plus récente (${localTs} > ${remoteTs}) ou en attente d'envoi. Rejet du Cloud et synchronisation montante !`);
             if (typeof supabaseUpsertTeam === 'function' && navigator.onLine) {
               setTimeout(() => supabaseUpsertTeam(eq, currentLocal, true), 1500);
@@ -1125,9 +1129,10 @@
         const currentActiveLocalTs = (window.DB && window.DB._localTs) || 0;
         const activeRemoteTs = (activeSrc && activeSrc._localTs) || 0;
         const activeHasPending = window._pendingCloudSaves && window._pendingCloudSaves[currentEq];
+        const localActiveHasDispo = window.DB && Array.isArray(window.DB.dispo) && window.DB.dispo.length > 0;
 
         if (activeSrc && typeof window.DB !== 'undefined') {
-          if (activeHasPending || (currentActiveLocalTs > 0 && currentActiveLocalTs > activeRemoteTs)) {
+          if (localActiveHasDispo && (activeHasPending || (currentActiveLocalTs > 0 && currentActiveLocalTs > activeRemoteTs))) {
             console.warn(`[ANTI-ÉCRASEMENT loadInitialTeams] window.DB local de l'équipe ${currentEq} préservé (Local: ${currentActiveLocalTs} > Cloud: ${activeRemoteTs})`);
             _fbReady = true;
           } else {
