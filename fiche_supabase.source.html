@@ -2295,27 +2295,37 @@
     }
   };
 
-  // Badge discret de synchronisation en bas à droite
+  // Badge visible de synchronisation au-dessus du toast
   function showFirebaseBadge(msg, isError = false) {
     let badge = document.getElementById('fb-sync-badge');
     if (!badge) {
       badge = document.createElement('div');
       badge.id = 'fb-sync-badge';
       badge.style.cssText = [
-        'position:fixed','bottom:16px','right:16px','z-index:9999',
-        'padding:6px 14px','border-radius:8px','font-size:11px',
+        'position:fixed','bottom:75px','right:24px','z-index:99999',
+        'padding:7px 16px','border-radius:8px','font-size:11px','font-weight:700',
         'font-family:IBM Plex Mono,monospace','pointer-events:none',
-        'transition:opacity .4s','opacity:0'
+        'transition:all .3s ease','opacity:0','transform:translateY(10px)',
+        'box-shadow:0 4px 15px rgba(0,0,0,0.5)'
       ].join(';');
       document.body.appendChild(badge);
     }
-    badge.style.background    = isError ? 'rgba(248,113,113,.9)' : 'rgba(56,189,248,.9)';
-    badge.style.color         = '#000';
-    badge.style.border        = isError ? '1px solid #f87171' : '1px solid #38bdf8';
-    badge.textContent = msg;
-    badge.style.opacity = '1';
+    const isCloudSuccess = msg.includes('✅') || msg.includes('cloud') || msg.includes('Supabase');
+    badge.style.background = isError 
+      ? 'rgba(239, 68, 68, 0.95)' 
+      : (isCloudSuccess ? 'rgba(16, 185, 129, 0.95)' : 'rgba(14, 165, 233, 0.95)');
+    badge.style.color      = '#ffffff';
+    badge.style.border     = isError 
+      ? '1px solid #f87171' 
+      : (isCloudSuccess ? '1px solid #34d399' : '1px solid #38bdf8');
+    badge.textContent      = msg;
+    badge.style.opacity    = '1';
+    badge.style.transform  = 'translateY(0)';
     clearTimeout(badge._timer);
-    badge._timer = setTimeout(() => { badge.style.opacity = '0'; }, 2500);
+    badge._timer = setTimeout(() => { 
+      badge.style.opacity = '0'; 
+      badge.style.transform = 'translateY(10px)';
+    }, 2800);
   }
 
   window._showFirebaseBadge = showFirebaseBadge;
