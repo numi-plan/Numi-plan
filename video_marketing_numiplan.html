@@ -1,0 +1,1857 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>NUMIPLAN — Vidéo Marketing & Présentation Commerciale</title>
+  
+  <!-- Polices Google Fonts de haute qualité -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=Inter:wght@300;400;500;600;700;800&family=Outfit:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+  
+  <!-- Font Awesome Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+  <style>
+    :root {
+      --bg-dark: #070913;
+      --bg-card: rgba(15, 23, 42, 0.75);
+      --bg-glass: rgba(22, 34, 60, 0.55);
+      --border-subtle: rgba(255, 255, 255, 0.08);
+      --border-glow: rgba(56, 189, 248, 0.35);
+      
+      --cyan: #38bdf8;
+      --cyan-glow: rgba(56, 189, 248, 0.3);
+      --blue: #2563eb;
+      --indigo: #6366f1;
+      --emerald: #10b981;
+      --emerald-glow: rgba(16, 185, 129, 0.25);
+      --amber: #f59e0b;
+      --rose: #f43f5e;
+      --purple: #a855f7;
+      
+      --text-main: #f8fafc;
+      --text-muted: #94a3b8;
+      --text-dim: #64748b;
+      
+      --font-display: 'Outfit', sans-serif;
+      --font-body: 'Inter', sans-serif;
+      --font-mono: 'IBM Plex Mono', monospace;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      user-select: none;
+    }
+
+    body {
+      background: var(--bg-dark);
+      color: var(--text-main);
+      font-family: var(--font-body);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+      overflow-x: hidden;
+    }
+
+    /* TOP BAR - MODE CONTRÔLE COMMERCE */
+    .top-action-bar {
+      width: 100%;
+      max-width: 1200px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 12px;
+      padding: 10px 18px;
+      background: rgba(15, 23, 42, 0.85);
+      backdrop-filter: blur(12px);
+      border: 1px solid var(--border-subtle);
+      border-radius: 12px;
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+
+    .brand-badge {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .brand-logo-icon {
+      width: 34px;
+      height: 34px;
+      background: linear-gradient(135deg, #0284c7 0%, #38bdf8 100%);
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: white;
+      font-size: 17px;
+      box-shadow: 0 0 16px var(--cyan-glow);
+    }
+
+    .brand-title {
+      font-family: var(--font-display);
+      font-weight: 800;
+      font-size: 1.15rem;
+      letter-spacing: 1px;
+      background: linear-gradient(to right, #ffffff, #93c5fd);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .brand-tag {
+      font-size: 0.7rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      padding: 3px 8px;
+      background: rgba(56, 189, 248, 0.15);
+      color: var(--cyan);
+      border: 1px solid rgba(56, 189, 248, 0.3);
+      border-radius: 20px;
+      letter-spacing: 0.8px;
+    }
+
+    .top-buttons {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .btn-top {
+      background: rgba(255, 255, 255, 0.06);
+      border: 1px solid var(--border-subtle);
+      color: var(--text-main);
+      padding: 7px 14px;
+      border-radius: 8px;
+      font-size: 0.85rem;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .btn-top:hover {
+      background: rgba(255, 255, 255, 0.12);
+      border-color: var(--cyan);
+      color: var(--cyan);
+      transform: translateY(-1px);
+    }
+
+    .btn-top.btn-primary {
+      background: linear-gradient(135deg, #0284c7 0%, #0ea5e9 100%);
+      border-color: transparent;
+      color: white;
+      box-shadow: 0 4px 14px rgba(14, 165, 233, 0.35);
+    }
+
+    .btn-top.btn-primary:hover {
+      background: linear-gradient(135deg, #0369a1 0%, #0284c7 100%);
+      box-shadow: 0 6px 18px rgba(14, 165, 233, 0.5);
+    }
+
+    .btn-top.recording-active {
+      background: #ef4444 !important;
+      color: white !important;
+      animation: pulseRecord 1.5s infinite;
+    }
+
+    .volume-slider-box {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 12px;
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid var(--border-subtle);
+      border-radius: 8px;
+    }
+
+    .volume-slider-box input[type="range"] {
+      width: 75px;
+      height: 4px;
+      accent-color: var(--cyan);
+      cursor: pointer;
+    }
+
+    @keyframes pulseRecord {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.85; transform: scale(0.97); }
+    }
+
+    /* ═══════════════════════════════════════════════════════════════
+       CADRE CINÉMATIQUE VIDÉO (16:9)
+       ═══════════════════════════════════════════════════════════════ */
+    .video-theater {
+      position: relative;
+      width: 100%;
+      max-width: 1200px;
+      aspect-ratio: 16 / 9;
+      background: #04060d;
+      border-radius: 20px;
+      overflow: hidden;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.8), 0 0 40px rgba(14, 165, 233, 0.15);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* FOND PARTICULES & LUMIÈRE DYNAMIQUE */
+    .viewport-canvas {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      z-index: 1;
+    }
+
+    .ambient-glow {
+      position: absolute;
+      width: 600px;
+      height: 600px;
+      border-radius: 50%;
+      filter: blur(120px);
+      opacity: 0.18;
+      pointer-events: none;
+      z-index: 1;
+      transition: all 1.5s ease;
+    }
+
+    .glow-1 {
+      top: -200px;
+      left: -100px;
+      background: #0284c7;
+    }
+
+    .glow-2 {
+      bottom: -200px;
+      right: -100px;
+      background: #8b5cf6;
+    }
+
+    /* CONTENEUR DE SCÈNES */
+    .scenes-viewport {
+      position: relative;
+      flex: 1;
+      width: 100%;
+      height: 100%;
+      z-index: 2;
+      overflow: hidden;
+    }
+
+    /* SCÈNE INDIVIDUELLE */
+    .scene-frame {
+      position: absolute;
+      inset: 0;
+      padding: 40px 55px;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      opacity: 0;
+      transform: scale(1.05) translateY(12px);
+      pointer-events: none;
+      transition: opacity 0.8s cubic-bezier(0.16, 1, 0.3, 1), transform 0.8s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    .scene-frame.active {
+      opacity: 1;
+      transform: scale(1) translateY(0);
+      pointer-events: auto;
+    }
+
+    /* ÉLÉMENTS DE TYPOGRAPHIE DYNAMIQUE */
+    .scene-kicker {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 0.85rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 2px;
+      color: var(--cyan);
+      background: rgba(56, 189, 248, 0.12);
+      border: 1px solid rgba(56, 189, 248, 0.25);
+      padding: 6px 16px;
+      border-radius: 30px;
+      margin-bottom: 16px;
+      box-shadow: 0 0 15px rgba(56, 189, 248, 0.2);
+    }
+
+    .scene-title {
+      font-family: var(--font-display);
+      font-weight: 800;
+      font-size: clamp(1.8rem, 3.4vw, 2.8rem);
+      line-height: 1.15;
+      text-align: center;
+      margin-bottom: 16px;
+      max-width: 950px;
+      background: linear-gradient(135deg, #ffffff 30%, #94a3b8 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .scene-title span.highlight {
+      background: linear-gradient(135deg, #38bdf8 0%, #818cf8 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .scene-title span.danger-highlight {
+      background: linear-gradient(135deg, #fb7185 0%, #f43f5e 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .scene-title span.success-highlight {
+      background: linear-gradient(135deg, #34d399 0%, #10b981 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .scene-desc {
+      font-size: clamp(0.95rem, 1.4vw, 1.15rem);
+      color: var(--text-muted);
+      text-align: center;
+      max-width: 780px;
+      line-height: 1.5;
+      margin-bottom: 28px;
+    }
+
+    /* COMPOSANTS DE VISUELS & CARTES PAR SCÈNE */
+    .visual-grid {
+      width: 100%;
+      max-width: 1020px;
+      display: grid;
+      gap: 16px;
+    }
+
+    /* Grille 4 colonnes pour les KPI / Douleurs */
+    .grid-4 {
+      grid-template-columns: repeat(4, 1fr);
+    }
+
+    .grid-3 {
+      grid-template-columns: repeat(3, 1fr);
+    }
+
+    .grid-2 {
+      grid-template-columns: repeat(2, 1fr);
+    }
+
+    .glass-card {
+      background: var(--bg-card);
+      backdrop-filter: blur(14px);
+      border: 1px solid var(--border-subtle);
+      border-radius: 14px;
+      padding: 18px 20px;
+      transition: all 0.3s ease;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .glass-card::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 2px;
+      background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+    }
+
+    .glass-card.danger {
+      border-color: rgba(244, 63, 94, 0.3);
+      background: rgba(30, 15, 24, 0.7);
+    }
+
+    .glass-card.success {
+      border-color: rgba(16, 185, 129, 0.3);
+      background: rgba(10, 30, 24, 0.7);
+    }
+
+    .glass-card.cyan {
+      border-color: rgba(56, 189, 248, 0.3);
+      background: rgba(12, 28, 48, 0.75);
+    }
+
+    .card-icon {
+      font-size: 1.8rem;
+      margin-bottom: 12px;
+      display: inline-block;
+    }
+
+    .card-title {
+      font-family: var(--font-display);
+      font-weight: 700;
+      font-size: 1.1rem;
+      margin-bottom: 6px;
+      color: var(--text-main);
+    }
+
+    .card-subtitle {
+      font-size: 0.85rem;
+      color: var(--text-muted);
+      line-height: 1.4;
+    }
+
+    .card-metric {
+      font-family: var(--font-mono);
+      font-size: 1.7rem;
+      font-weight: 700;
+      margin-top: 10px;
+      color: var(--cyan);
+    }
+
+    /* SCÈNE HERO 2 : PRÉSENTATION IMAGE / 3D */
+    .hero-presentation-box {
+      width: 100%;
+      max-width: 950px;
+      display: flex;
+      align-items: center;
+      gap: 30px;
+      background: rgba(15, 23, 42, 0.75);
+      border: 1px solid var(--border-glow);
+      border-radius: 18px;
+      padding: 24px;
+      box-shadow: 0 12px 40px rgba(0, 0, 0, 0.6), 0 0 30px var(--cyan-glow);
+    }
+
+    .hero-img-container {
+      flex: 1.1;
+      height: 260px;
+      border-radius: 12px;
+      overflow: hidden;
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      position: relative;
+    }
+
+    .hero-img-container img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      transform: scale(1.02);
+      transition: transform 6s ease;
+    }
+
+    .scene-frame.active .hero-img-container img {
+      transform: scale(1.1);
+    }
+
+    .hero-badges-list {
+      flex: 0.9;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .hero-badge-item {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 10px 14px;
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid var(--border-subtle);
+      border-radius: 10px;
+      font-size: 0.9rem;
+      color: var(--text-main);
+      font-weight: 600;
+    }
+
+    .hero-badge-item i {
+      font-size: 1.1rem;
+      color: var(--cyan);
+      width: 24px;
+      text-align: center;
+    }
+
+    /* SIMULATEUR TABLEAU DE BORD TEMPS RÉEL (Scène 3, 4, 5, 6) */
+    .mock-dashboard {
+      width: 100%;
+      max-width: 980px;
+      background: rgba(10, 16, 29, 0.9);
+      border: 1px solid var(--border-subtle);
+      border-radius: 16px;
+      padding: 18px 24px;
+      box-shadow: 0 16px 36px rgba(0, 0, 0, 0.7);
+    }
+
+    .mock-topbar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding-bottom: 14px;
+      border-bottom: 1px solid var(--border-subtle);
+      margin-bottom: 16px;
+    }
+
+    .mock-tabs {
+      display: flex;
+      gap: 8px;
+    }
+
+    .mock-tab {
+      padding: 6px 14px;
+      border-radius: 6px;
+      font-size: 0.8rem;
+      font-weight: 700;
+      background: rgba(255, 255, 255, 0.05);
+      color: var(--text-muted);
+      border: 1px solid transparent;
+    }
+
+    .mock-tab.active {
+      background: rgba(56, 189, 248, 0.15);
+      border-color: rgba(56, 189, 248, 0.4);
+      color: var(--cyan);
+    }
+
+    .mock-pulse-dot {
+      display: inline-block;
+      width: 8px;
+      height: 8px;
+      background: var(--emerald);
+      border-radius: 50%;
+      margin-right: 6px;
+      box-shadow: 0 0 10px var(--emerald);
+      animation: pulseLive 1.5s infinite;
+    }
+
+    @keyframes pulseLive {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.4; transform: scale(0.8); }
+    }
+
+    /* BARRE D'AVANCEMENT DU SCÉNARIO & SOUS-TITRES SYNCHRONISÉS */
+    .video-bottom-hud {
+      position: relative;
+      width: 100%;
+      background: rgba(7, 10, 19, 0.95);
+      backdrop-filter: blur(16px);
+      border-top: 1px solid var(--border-subtle);
+      padding: 12px 24px 14px;
+      z-index: 10;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    /* BARRE DE PROGRESSION GLOBALE */
+    .timeline-container {
+      position: relative;
+      width: 100%;
+      height: 6px;
+      background: rgba(255, 255, 255, 0.1);
+      border-radius: 10px;
+      cursor: pointer;
+      overflow: hidden;
+    }
+
+    .timeline-fill {
+      height: 100%;
+      width: 0%;
+      background: linear-gradient(90deg, #0284c7, #38bdf8, #818cf8);
+      border-radius: 10px;
+      box-shadow: 0 0 10px rgba(56, 189, 248, 0.5);
+      transition: width 0.1s linear;
+    }
+
+    /* SOUS-TITRES VOIX-OFF COMMERCIALE */
+    .subtitles-banner {
+      min-height: 44px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      font-size: clamp(0.9rem, 1.25vw, 1.1rem);
+      font-weight: 500;
+      color: #f1f5f9;
+      background: rgba(15, 23, 42, 0.7);
+      border: 1px solid rgba(255, 255, 255, 0.05);
+      padding: 8px 24px;
+      border-radius: 8px;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+      position: relative;
+    }
+
+    .subtitles-banner i {
+      color: var(--cyan);
+      margin-right: 10px;
+      font-size: 0.9rem;
+    }
+
+    /* CONTRÔLES LECTEUR */
+    .player-controls-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 14px;
+      flex-wrap: wrap;
+    }
+
+    .controls-left, .controls-right, .controls-center {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .hud-btn {
+      background: rgba(255, 255, 255, 0.08);
+      border: 1px solid var(--border-subtle);
+      color: var(--text-main);
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      font-size: 0.9rem;
+      transition: all 0.2s ease;
+    }
+
+    .hud-btn:hover {
+      background: rgba(56, 189, 248, 0.2);
+      border-color: var(--cyan);
+      color: var(--cyan);
+      transform: scale(1.06);
+    }
+
+    .hud-btn.play-btn {
+      width: 44px;
+      height: 44px;
+      background: linear-gradient(135deg, #0284c7 0%, #38bdf8 100%);
+      color: white;
+      font-size: 1.1rem;
+      box-shadow: 0 0 16px var(--cyan-glow);
+    }
+
+    .time-readout {
+      font-family: var(--font-mono);
+      font-size: 0.85rem;
+      color: var(--text-muted);
+      min-width: 90px;
+    }
+
+    .scene-navigator {
+      display: flex;
+      gap: 5px;
+    }
+
+    .scene-dot {
+      width: 24px;
+      height: 8px;
+      border-radius: 4px;
+      background: rgba(255, 255, 255, 0.15);
+      cursor: pointer;
+      transition: all 0.25s ease;
+    }
+
+    .scene-dot.active {
+      width: 40px;
+      background: var(--cyan);
+      box-shadow: 0 0 10px var(--cyan-glow);
+    }
+
+    .scene-dot:hover:not(.active) {
+      background: rgba(255, 255, 255, 0.35);
+    }
+
+    /* SCÈNE FINALE CTA COMMERCIAL */
+    .cta-container {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 20px;
+      max-width: 700px;
+    }
+
+    .cta-button-big {
+      background: linear-gradient(135deg, #0284c7 0%, #38bdf8 100%);
+      color: #030712;
+      font-family: var(--font-display);
+      font-size: 1.25rem;
+      font-weight: 800;
+      padding: 16px 36px;
+      border-radius: 30px;
+      border: none;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 12px;
+      box-shadow: 0 10px 30px rgba(56, 189, 248, 0.45);
+      transition: all 0.3s ease;
+      text-decoration: none;
+    }
+
+    .cta-button-big:hover {
+      transform: translateY(-2px) scale(1.03);
+      box-shadow: 0 14px 40px rgba(56, 189, 248, 0.65);
+    }
+
+    .cta-features-strip {
+      display: flex;
+      gap: 20px;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+
+    .cta-feature {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 0.9rem;
+      font-weight: 600;
+      color: var(--text-muted);
+    }
+
+    .cta-feature i {
+      color: var(--emerald);
+    }
+
+    /* RESPONSIVE DESIGN */
+    @media (max-width: 900px) {
+      .video-theater {
+        aspect-ratio: auto;
+        min-height: 580px;
+      }
+      .grid-4 { grid-template-columns: repeat(2, 1fr); }
+      .grid-3 { grid-template-columns: 1fr; }
+      .hero-presentation-box { flex-direction: column; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- BARRE SUPÉRIEURE D'ACTIONS MARKETING & EXPORT -->
+  <div class="top-action-bar">
+    <div class="brand-badge">
+      <div class="brand-logo-icon"><i class="fa-solid fa-truck-fast"></i></div>
+      <div>
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <span class="brand-title">NUMIPLAN</span>
+          <span class="brand-tag">Édition Commerciale B2B</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="top-buttons">
+      <button class="btn-top" id="btn-toggle-voice" onclick="toggleVoiceover()">
+        <i class="fa-solid fa-volume-high" id="voice-icon"></i>
+        <span id="voice-label">Voix-Off Active</span>
+      </button>
+
+      <button class="btn-top" id="btn-toggle-music" onclick="toggleMusic()">
+        <i class="fa-solid fa-music" id="music-icon"></i>
+        <span id="music-label">Musique Tech</span>
+      </button>
+
+      <!-- Import de fichier MP3 personnalisé -->
+      <input type="file" id="custom-music-input" accept="audio/*" style="display:none;" onchange="handleCustomMusicUpload(event)">
+      <button class="btn-top" id="btn-upload-music" onclick="document.getElementById('custom-music-input').click()" title="Charger votre propre musique MP3 depuis votre PC">
+        <i class="fa-solid fa-file-audio"></i>
+        <span id="upload-music-label">Importer MP3</span>
+      </button>
+
+      <!-- Contrôle du Volume Musique -->
+      <div class="volume-slider-box" title="Volume Musique">
+        <i class="fa-solid fa-sliders" style="font-size:0.8rem; color:var(--cyan);"></i>
+        <input type="range" id="music-vol-slider" min="0" max="1" step="0.05" value="0.45" oninput="changeMusicVolume(this.value)">
+      </div>
+
+      <button class="btn-top btn-primary" id="btn-record-video" onclick="toggleVideoRecording()">
+        <i class="fa-solid fa-circle-dot" id="record-icon"></i>
+        <span id="record-label">Enregistrer Vidéo (MP4/WebM)</span>
+      </button>
+
+      <button class="btn-top" onclick="toggleFullscreen()">
+        <i class="fa-solid fa-expand"></i>
+        <span>Plein Écran</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- CADRE VIDÉO THÉÂTRE (16:9) -->
+  <div class="video-theater" id="video-theater">
+    
+    <!-- CANVAS PARTICULES D'AMBIANCE HAUTE PERFORMANCE -->
+    <canvas id="ambient-canvas" class="viewport-canvas"></canvas>
+    
+    <div class="ambient-glow glow-1" id="glow-1"></div>
+    <div class="ambient-glow glow-2" id="glow-2"></div>
+
+    <!-- CONTENEUR DES 9 SCÈNES MINUTÉES -->
+    <div class="scenes-viewport" id="scenes-container">
+
+      <!-- ═══════════════════════════════════════════════════════════════
+           SCÈNE 1 (0:00 - 0:13) : LE CHAOS DU TRANSPORT & LA DOULEUR CLIENT
+           ═══════════════════════════════════════════════════════════════ -->
+      <div class="scene-frame active" id="scene-0" data-duration="13" data-narrative="Chaque jour, votre entreprise de transport perd des milliers d'euros dans l'ombre : feuilles Excel éparpillées, trajets à vide non maîtrisés, pannes surprises et bons de livraison égarés.">
+        <div class="scene-kicker"><i class="fa-solid fa-triangle-exclamation"></i> La Réalité du Transport Routier</div>
+        <h1 class="scene-title">Le Chaos Invisible qui Grignote <br><span class="danger-highlight">Vos Marges & Votre Flotte</span></h1>
+        <p class="scene-desc">Gestion sur papier, saisies manuelles, manque de visibilité en temps réel... Les transporteurs subissent une perte moyenne de 18% de rentabilité.</p>
+
+        <div class="visual-grid grid-4">
+          <div class="glass-card danger">
+            <span class="card-icon" style="color: #fb7185;"><i class="fa-solid fa-file-excel"></i></span>
+            <div class="card-title">Fichiers Dispersés</div>
+            <div class="card-subtitle">Données obsolètes, double saisie et perte d'informations critiques.</div>
+            <div class="card-metric" style="color: #fb7185;">-35% de temps</div>
+          </div>
+
+          <div class="glass-card danger">
+            <span class="card-icon" style="color: #fb7185;"><i class="fa-solid fa-gas-pump"></i></span>
+            <div class="card-title">Gasoil Non Réconcilié</div>
+            <div class="card-subtitle">Écarts de carburant et surconsommations impossibles à pister.</div>
+            <div class="card-metric" style="color: #fb7185;">+12% de fuite</div>
+          </div>
+
+          <div class="glass-card danger">
+            <span class="card-icon" style="color: #fb7185;"><i class="fa-solid fa-truck-pickup"></i></span>
+            <div class="card-title">Pannes Imprévues</div>
+            <div class="card-subtitle">Camions immobilisés sur route sans alerte préventive immédiate.</div>
+            <div class="card-metric" style="color: #fb7185;">8 500 € / arrêt</div>
+          </div>
+
+          <div class="glass-card danger">
+            <span class="card-icon" style="color: #fb7185;"><i class="fa-solid fa-file-circle-xmark"></i></span>
+            <div class="card-title">BL Introuvables</div>
+            <div class="card-subtitle">Facturation retardée et litiges clients par manque de preuve.</div>
+            <div class="card-metric" style="color: #fb7185;">45j de retard</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ═══════════════════════════════════════════════════════════════
+           SCÈNE 2 (0:13 - 0:26) : LA RÉVÉLATION NUMIPLAN
+           ═══════════════════════════════════════════════════════════════ -->
+      <div class="scene-frame" id="scene-1" data-duration="13" data-narrative="Voici NUMIPLAN. L'ERP et Cockpit TMS Nouvelle Génération conçu spécialement pour unifier et piloter l'intégralité de votre exploitation transport en temps réel.">
+        <div class="scene-kicker"><i class="fa-solid fa-wand-magic-sparkles"></i> L'Innovation Transport</div>
+        <h1 class="scene-title">Voici <span class="highlight">NUMIPLAN</span> • Le Cockpit ERP & TMS <br>Nouvelle Génération</h1>
+        <p class="scene-desc">Une seule plateforme cloud unifiée pour orchestrer vos tracteurs, semi-remorques, chauffeurs, gasoil et quais de chargement.</p>
+
+        <div class="hero-presentation-box">
+          <div class="hero-img-container">
+            <img src="numiplan_hero.jpg" alt="NUMIPLAN Control Room" onerror="this.src='https://images.unsplash.com/photo-1586528116311-ad8dd3c8310d?auto=format&fit=crop&w=1200&q=80'">
+          </div>
+          <div class="hero-badges-list">
+            <div class="hero-badge-item">
+              <i class="fa-solid fa-bolt"></i>
+              <span>Synchronisation Instantanée Supabase & Firebase</span>
+            </div>
+            <div class="hero-badge-item">
+              <i class="fa-solid fa-users-gear"></i>
+              <span>Architecture Multi-Équipes (A, B, C, D & Multi-Agences)</span>
+            </div>
+            <div class="hero-badge-item">
+              <i class="fa-solid fa-tv"></i>
+              <span>Mode Grand Écran TV pour Salle d'Exploitation</span>
+            </div>
+            <div class="hero-badge-item">
+              <i class="fa-solid fa-shield-halved"></i>
+              <span>Sécurité Industrielle & Protection Anti-Rollback</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ═══════════════════════════════════════════════════════════════
+           SCÈNE 3 (0:26 - 0:40) : DISPONIBILITÉ FLOTTE & DISPATCH CHAUFFEURS
+           ═══════════════════════════════════════════════════════════════ -->
+      <div class="scene-frame" id="scene-2" data-duration="14" data-narrative="Module Disponibilité Flotte : Visualisez en une seconde quel camion roule, qui est disponible et qui est immobilisé. Affectez vos chauffeurs sans aucun risque de doublon.">
+        <div class="scene-kicker"><i class="fa-solid fa-truck-front"></i> Module Opérationnel 1</div>
+        <h1 class="scene-title">Disponibilité Flotte & Chauffeurs <br><span class="highlight">En Temps Réel & Zéro Conflit</span></h1>
+        <p class="scene-desc">Orchestrez vos ressources tracteurs, remorques et conducteurs sans frictions entre vos équipes d'exploitation.</p>
+
+        <div class="mock-dashboard">
+          <div class="mock-topbar">
+            <div class="mock-tabs">
+              <div class="mock-tab active">Équipe A (Nord)</div>
+              <div class="mock-tab">Équipe B (Sud)</div>
+              <div class="mock-tab">Équipe C (Est)</div>
+              <div class="mock-tab">Équipe D (Ouest)</div>
+            </div>
+            <div style="font-size: 0.85rem; font-weight: 700; color: var(--emerald);">
+              <span class="mock-pulse-dot"></span> 94.2% Taux de Disponibilité
+            </div>
+          </div>
+
+          <div class="visual-grid grid-3">
+            <div class="glass-card success">
+              <div style="display:flex; justify-content:space-between; align-items:center;">
+                <span class="card-title">Tracteurs Opérationnels</span>
+                <i class="fa-solid fa-truck" style="color: var(--emerald);"></i>
+              </div>
+              <div class="card-metric" style="color: var(--emerald);">68 / 72</div>
+              <div class="card-subtitle">4 en maintenance préventive</div>
+            </div>
+
+            <div class="glass-card success">
+              <div style="display:flex; justify-content:space-between; align-items:center;">
+                <span class="card-title">Chauffeurs Actifs</span>
+                <i class="fa-solid fa-user-check" style="color: var(--cyan);"></i>
+              </div>
+              <div class="card-metric" style="color: var(--cyan);">64 Actifs</div>
+              <div class="card-subtitle">Zéro doublon de planning</div>
+            </div>
+
+            <div class="glass-card cyan">
+              <div style="display:flex; justify-content:space-between; align-items:center;">
+                <span class="card-title">Semi-Remorques Prêtes</span>
+                <i class="fa-solid fa-trailer" style="color: var(--amber);"></i>
+              </div>
+              <div class="card-metric" style="color: var(--amber);">89 Disponibles</div>
+              <div class="card-subtitle">Accroche / Décroche H24 à jour</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ═══════════════════════════════════════════════════════════════
+           SCÈNE 4 (0:40 - 0:54) : ODOMÈTRE & ROULAGE À CHARGE (RAC)
+           ═══════════════════════════════════════════════════════════════ -->
+      <div class="scene-frame" id="scene-3" data-duration="14" data-narrative="Optimisez chaque kilomètre. Grâce à la synchronisation odomètre et au calcul automatique du RAC, éliminez les kilomètres à vide et maximisez votre rentabilité au kilomètre.">
+        <div class="scene-kicker"><i class="fa-solid fa-gauge-high"></i> Module Rentabilité Kilométrique</div>
+        <h1 class="scene-title">Odomètre Automatisé & <br><span class="highlight">Roulage à Charge (RAC) Optimal</span></h1>
+        <p class="scene-desc">Synchronisation automatique des compteurs GPS, détection des anomalies de kilométrage et ratio direct charge versus à vide.</p>
+
+        <div class="visual-grid grid-3">
+          <div class="glass-card cyan">
+            <span class="card-icon" style="color: var(--cyan);"><i class="fa-solid fa-route"></i></span>
+            <div class="card-title">Ratio Roulage à Charge (RAC)</div>
+            <div class="card-subtitle">Pourcentage de kilomètres générant du chiffre d'affaires.</div>
+            <div class="card-metric" style="color: #38bdf8;">87.6 %</div>
+            <div style="font-size:0.75rem; color:var(--emerald); margin-top:4px;">+14% vs moyenne nationale</div>
+          </div>
+
+          <div class="glass-card cyan">
+            <span class="card-icon" style="color: var(--amber);"><i class="fa-solid fa-tachometer-alt"></i></span>
+            <div class="card-title">KM Mensuels Exploitation</div>
+            <div class="card-subtitle">Suivi automatique par tracteur et par chauffeur.</div>
+            <div class="card-metric" style="color: #fbbf24;">482 150 KM</div>
+            <div style="font-size:0.75rem; color:var(--text-muted); margin-top:4px;">Synchronisation GPS temps réel</div>
+          </div>
+
+          <div class="glass-card cyan">
+            <span class="card-icon" style="color: var(--emerald);"><i class="fa-solid fa-chart-line"></i></span>
+            <div class="card-title">Économie de Roulage à Vide</div>
+            <div class="card-subtitle">Réduction directe de l'usure matériel et pneus.</div>
+            <div class="card-metric" style="color: #34d399;">- 24 500 KM</div>
+            <div style="font-size:0.75rem; color:var(--emerald); margin-top:4px;">Gain net estimé : 19 600 € / mois</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ═══════════════════════════════════════════════════════════════
+           SCÈNE 5 (0:54 - 1:08) : CARBURANT GASOIL & MAINTENANCE PROACTIVE
+           ═══════════════════════════════════════════════════════════════ -->
+      <div class="scene-frame" id="scene-4" data-duration="14" data-narrative="Maîtrisez votre premier poste de dépense. Le module Gasoil détecte immédiatement les surconsommations et réconcilie chaque litre, tandis que le carnet d'entretien anticipe les pannes.">
+        <div class="scene-kicker"><i class="fa-solid fa-oil-can"></i> Économies Directes</div>
+        <h1 class="scene-title">Contrôle Gasoil Strict & <br><span class="highlight">Maintenance Préventive CSPC</span></h1>
+        <p class="scene-desc">Fini les fuites de carburant et les immobilisations surprises grâce à la fiche véhicule 360° et aux alertes d'anomalies.</p>
+
+        <div class="visual-grid grid-3">
+          <div class="glass-card">
+            <div class="card-title" style="display:flex; align-items:center; gap:8px;">
+              <i class="fa-solid fa-gas-pump" style="color: var(--amber);"></i>
+              Audit Carburant Litre / 100km
+            </div>
+            <div class="card-subtitle">Comparaison automatique plein versus odomètre.</div>
+            <div class="card-metric" style="color: var(--amber);">29.4 L / 100</div>
+            <div style="font-size:0.75rem; color:var(--emerald); margin-top:4px;">-3.2 L/100km d'optimisation</div>
+          </div>
+
+          <div class="glass-card">
+            <div class="card-title" style="display:flex; align-items:center; gap:8px;">
+              <i class="fa-solid fa-bell" style="color: var(--rose);"></i>
+              Détection Immédiate d'Anomalie
+            </div>
+            <div class="card-subtitle">Alerte rouge si écart de consommation suspect.</div>
+            <div class="card-metric" style="color: var(--rose);">0 Fraude</div>
+            <div style="font-size:0.75rem; color:var(--text-muted); margin-top:4px;">Traçabilité complète des réservoirs</div>
+          </div>
+
+          <div class="glass-card">
+            <div class="card-title" style="display:flex; align-items:center; gap:8px;">
+              <i class="fa-solid fa-wrench" style="color: var(--emerald);"></i>
+              Fiche Véhicule 360° & Atelier
+            </div>
+            <div class="card-subtitle">Historique des pièces, pneumatiques et visites CSPC.</div>
+            <div class="card-metric" style="color: var(--emerald);">100% Conforme</div>
+            <div style="font-size:0.75rem; color:var(--cyan); margin-top:4px;">Contrôles réglementaires validés</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ═══════════════════════════════════════════════════════════════
+           SCÈNE 6 (1:08 - 1:22) : GESTION DES QUAIS & SUIVI ZÉRO-PERTE DES BL
+           ═══════════════════════════════════════════════════════════════ -->
+      <div class="scene-frame" id="scene-5" data-duration="14" data-narrative="Accélérez la rotation de vos quais et sécurisez votre trésorerie. NUMIPLAN assure la traçabilité intégrale des bons de livraison et élimine les temps d'attente chauffeurs.">
+        <div class="scene-kicker"><i class="fa-solid fa-warehouse"></i> Rotation & Trésorerie</div>
+        <h1 class="scene-title">Supervision des Quais & <br><span class="highlight">Zéro Perte de Bons de Livraison (BL)</span></h1>
+        <p class="scene-desc">Gestion des entrées/sorties en quai, accroche-décroche 24h/24 et réconciliation des bons pour facturer sans délai.</p>
+
+        <div class="visual-grid grid-3">
+          <div class="glass-card cyan">
+            <span class="card-icon" style="color: var(--cyan);"><i class="fa-solid fa-file-shield"></i></span>
+            <div class="card-title">Suivi des BL Récupérés</div>
+            <div class="card-subtitle">Alerte automatique si un chauffeur n'a pas restitué le bon.</div>
+            <div class="card-metric" style="color: var(--cyan);">100% Restitués</div>
+            <div style="font-size:0.75rem; color:var(--emerald); margin-top:4px;">Facturation accélérée de 18 jours</div>
+          </div>
+
+          <div class="glass-card cyan">
+            <span class="card-icon" style="color: var(--amber);"><i class="fa-solid fa-stopwatch"></i></span>
+            <div class="card-title">Temps d'Immobilisation Quai</div>
+            <div class="card-subtitle">Chronométrage du chargement et déchargement.</div>
+            <div class="card-metric" style="color: var(--amber);">&lt; 42 min</div>
+            <div style="font-size:0.75rem; color:var(--emerald); margin-top:4px;">-50% d'attente camion</div>
+          </div>
+
+          <div class="glass-card cyan">
+            <span class="card-icon" style="color: var(--emerald);"><i class="fa-solid fa-truck-ramp-box"></i></span>
+            <div class="card-title">Rotation Quai Inbound / Outbound</div>
+            <div class="card-subtitle">Affectation optimisée des portes de quai en direct.</div>
+            <div class="card-metric" style="color: var(--emerald);">+40% Flux</div>
+            <div style="font-size:0.75rem; color:var(--text-muted); margin-top:4px;">Capacité maximale exploitée</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ═══════════════════════════════════════════════════════════════
+           SCÈNE 7 (1:22 - 1:36) : COCKPIT TMS & MUR VIDÉO DIRECTION
+           ═══════════════════════════════════════════════════════════════ -->
+      <div class="scene-frame" id="scene-6" data-duration="14" data-narrative="Offrez à votre direction et vos exploitants un mur d'affichage TV haute définition pour superviser l'ensemble des segments de livraison, des alertes et des KPI en un coup d'œil.">
+        <div class="scene-kicker"><i class="fa-solid fa-tv"></i> Salle de Contrôle Grand Écran</div>
+        <h1 class="scene-title">Cockpit TMS & <br><span class="highlight">Mur d'Affichage TV Salle d'Exploitation</span></h1>
+        <p class="scene-desc">Donnez à vos directeurs et exploitants la vision totale sur le terrain avec des tableaux de bord interactifs pensés pour la projection TV.</p>
+
+        <div class="hero-presentation-box">
+          <div class="hero-badges-list" style="flex: 1;">
+            <div class="hero-badge-item">
+              <i class="fa-solid fa-display"></i>
+              <span>Mode Kiosque TV automatique sans interaction requise</span>
+            </div>
+            <div class="hero-badge-item">
+              <i class="fa-solid fa-arrows-rotate"></i>
+              <span>Mise à jour en direct chaque 30 secondes sans rechargement</span>
+            </div>
+            <div class="hero-badge-item">
+              <i class="fa-solid fa-chart-pie"></i>
+              <span>KPI Segments Livrés, Chargés, Pannes et Litiges par Agence</span>
+            </div>
+            <div class="hero-badge-item">
+              <i class="fa-solid fa-lock"></i>
+              <span>Vues restreintes par rôles (Direction, Exploitant, Registre)</span>
+            </div>
+          </div>
+          <div class="hero-img-container" style="flex: 1.1;">
+            <img src="numiplan_mobile.jpg" alt="NUMIPLAN Mobile Dispatch" onerror="this.src='numiplan_hero.jpg'">
+          </div>
+        </div>
+      </div>
+
+      <!-- ═══════════════════════════════════════════════════════════════
+           SCÈNE 8 (1:36 - 1:50) : LE RETOUR SUR INVESTISSEMENT (ROI)
+           ═══════════════════════════════════════════════════════════════ -->
+      <div class="scene-frame" id="scene-7" data-duration="14" data-narrative="NUMIPLAN n'est pas un coût, c'est un investissement amorti en moins de soixante jours. Augmentez votre productivité de trente-cinq pour cent et réduisez vos coûts de carburant de dix-huit pour cent.">
+        <div class="scene-kicker"><i class="fa-solid fa-sack-dollar"></i> Rentabilité Garantie</div>
+        <h1 class="scene-title">Un Investissement Rentabilisé en <br><span class="success-highlight">Moins de 60 Jours</span></h1>
+        <p class="scene-desc">Les chiffres réels constatés chez les transporteurs équipés de NUMIPLAN.</p>
+
+        <div class="visual-grid grid-4">
+          <div class="glass-card success">
+            <div class="card-icon" style="color: var(--emerald);"><i class="fa-solid fa-arrow-trend-up"></i></div>
+            <div class="card-metric" style="color: var(--emerald);">+35 %</div>
+            <div class="card-title">Productivité Équipe</div>
+            <div class="card-subtitle">Temps d'organisation divisé par deux chaque matin.</div>
+          </div>
+
+          <div class="glass-card success">
+            <div class="card-icon" style="color: var(--emerald);"><i class="fa-solid fa-arrow-trend-down"></i></div>
+            <div class="card-metric" style="color: var(--emerald);">-18 %</div>
+            <div class="card-title">Coûts de Carburant</div>
+            <div class="card-subtitle">Grâce à l'analyse du RAC et la lutte contre les fuites.</div>
+          </div>
+
+          <div class="glass-card success">
+            <div class="card-icon" style="color: var(--emerald);"><i class="fa-solid fa-shield-heart"></i></div>
+            <div class="card-metric" style="color: var(--emerald);">-40 %</div>
+            <div class="card-title">Immobilisation Pannes</div>
+            <div class="card-subtitle">Maintenance préventive et interventions express.</div>
+          </div>
+
+          <div class="glass-card success">
+            <div class="card-icon" style="color: var(--emerald);"><i class="fa-solid fa-circle-check"></i></div>
+            <div class="card-metric" style="color: var(--emerald);">100 %</div>
+            <div class="card-title">BL Réconciliés</div>
+            <div class="card-subtitle">Zéro facture contestée ou impayée pour perte de bon.</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ═══════════════════════════════════════════════════════════════
+           SCÈNE 9 (1:50 - 2:05) : APPEL À L'ACTION COMMERCIAL (CLOSING)
+           ═══════════════════════════════════════════════════════════════ -->
+      <div class="scene-frame" id="scene-8" data-duration="15" data-narrative="Prenez une longueur d'avance sur vos concurrents. Équipez votre flotte avec NUMIPLAN dès aujourd'hui. Contactez-nous pour réserver votre démonstration personnalisée gratuite.">
+        <div class="scene-kicker"><i class="fa-solid fa-handshake"></i> Démonstration Personnalisée</div>
+        <h1 class="scene-title">Prêt à Transformer Votre Flotte en <br><span class="highlight">Machine de Précision ?</span></h1>
+        <p class="scene-desc">Découvrez comment NUMIPLAN s'adapte à vos agences, vos camions et vos processus en moins de 48 heures.</p>
+
+        <div class="cta-container">
+          <a href="javascript:void(0)" class="cta-button-big" onclick="alert('Demande de démo prise en compte ! Vos coordonnées de contact commercial peuvent être personnalisées ici.')">
+            <i class="fa-solid fa-calendar-check"></i>
+            <span>Réserver Votre Démo Privée Gratuite</span>
+          </a>
+
+          <div class="cta-features-strip">
+            <div class="cta-feature"><i class="fa-solid fa-circle-check"></i> Déploiement Cloud Clé en Main</div>
+            <div class="cta-feature"><i class="fa-solid fa-circle-check"></i> Formation Complète Équipes Incluse</div>
+            <div class="cta-feature"><i class="fa-solid fa-circle-check"></i> Support Technique Réactif 7j/7</div>
+            <div class="cta-feature"><i class="fa-solid fa-circle-check"></i> Sans Engagement de Durée</div>
+          </div>
+
+          <div style="font-family: var(--font-mono); font-size: 0.9rem; color: var(--text-muted); margin-top: 8px;">
+            NUMIPLAN • Contact Commercial : <span style="color: var(--cyan); font-weight:700;">contact@numiplan.com</span>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- HUD INFÉRIEUR : PROGRESSION, SOUS-TITRES & CONTRÔLES -->
+    <div class="video-bottom-hud">
+      <!-- BARRE DE TEMPS CLICQUABLE -->
+      <div class="timeline-container" id="timeline-container" onclick="seekTimeline(event)">
+        <div class="timeline-fill" id="timeline-fill"></div>
+      </div>
+
+      <!-- BANDEAU SOUS-TITRES SYNCHRONISÉS -->
+      <div class="subtitles-banner">
+        <i class="fa-solid fa-comment-dots"></i>
+        <span id="subtitles-text">Prêt à démarrer la présentation de NUMIPLAN...</span>
+      </div>
+
+      <!-- CONTRÔLES DU LECTEUR -->
+      <div class="player-controls-row">
+        <div class="controls-left">
+          <button class="hud-btn play-btn" id="play-pause-btn" onclick="togglePlayPause()" title="Lecture / Pause (Espace)">
+            <i class="fa-solid fa-play" id="play-icon"></i>
+          </button>
+          <button class="hud-btn" onclick="restartVideo()" title="Recommencer depuis le début">
+            <i class="fa-solid fa-rotate-left"></i>
+          </button>
+          <button class="hud-btn" onclick="prevScene()" title="Scène Précédente">
+            <i class="fa-solid fa-backward-step"></i>
+          </button>
+          <button class="hud-btn" onclick="nextScene()" title="Scène Suivante">
+            <i class="fa-solid fa-forward-step"></i>
+          </button>
+          <div class="time-readout" id="time-readout">00:00 / 02:00</div>
+        </div>
+
+        <div class="controls-center">
+          <div class="scene-navigator" id="scene-dots-container">
+            <!-- Les points de navigation par scène sont injectés dynamiquement -->
+          </div>
+        </div>
+
+        <div class="controls-right">
+          <button class="hud-btn" id="btn-speed" onclick="cyclePlaybackSpeed()" title="Vitesse de Lecture">
+            <span id="speed-label" style="font-size:0.75rem; font-weight:700;">1x</span>
+          </button>
+          <button class="hud-btn" onclick="toggleFullscreen()" title="Plein Écran">
+            <i class="fa-solid fa-expand"></i>
+          </button>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- SCRIPT LOGIQUE VIDÉO MARKETING, AUDIO SYNTH, VOIX & ENREGISTREMENT -->
+  <script>
+    // ═══════════════════════════════════════════════════════════════
+    // GESTION DU SCÉNARIO & TIMELINE
+    // ═══════════════════════════════════════════════════════════════
+    const scenes = Array.from(document.querySelectorAll('.scene-frame'));
+    const totalScenes = scenes.length;
+    
+    // Calcul des durées et horodatages cumulés
+    let sceneDurations = scenes.map(s => parseFloat(s.dataset.duration) || 12);
+    let totalDuration = sceneDurations.reduce((acc, d) => acc + d, 0);
+
+    let currentSceneIndex = 0;
+    let isPlaying = false;
+    let currentTime = 0; // en secondes
+    let playbackSpeed = 1.0;
+    let animationFrameId = null;
+    let lastTimestamp = null;
+
+    // État Audio
+    let isVoiceEnabled = true;
+    let isMusicEnabled = true;
+    let audioContext = null;
+    let musicNodes = null;
+
+    // État Enregistrement Vidéo
+    let mediaRecorder = null;
+    let recordedChunks = [];
+    let isRecording = false;
+
+    // Initialisation de la navigation par points
+    const dotsContainer = document.getElementById('scene-dots-container');
+    scenes.forEach((_, i) => {
+      const dot = document.createElement('div');
+      dot.className = `scene-dot ${i === 0 ? 'active' : ''}`;
+      dot.title = `Scène ${i + 1}`;
+      dot.onclick = () => jumpToScene(i);
+      dotsContainer.appendChild(dot);
+    });
+
+    // Formatage mm:ss
+    function formatTime(sec) {
+      const m = Math.floor(sec / 60);
+      const s = Math.floor(sec % 60);
+      return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+    }
+
+    // Mise à jour de l'affichage du temps
+    function updateTimeDisplay() {
+      document.getElementById('time-readout').textContent = 
+        `${formatTime(currentTime)} / ${formatTime(totalDuration)}`;
+      
+      const pct = Math.min(100, (currentTime / totalDuration) * 100);
+      document.getElementById('timeline-fill').style.width = `${pct}%`;
+    }
+
+    // Changer de scène active
+    function setActiveScene(index, triggerVoice = true) {
+      if (index < 0) index = 0;
+      if (index >= totalScenes) index = totalScenes - 1;
+
+      currentSceneIndex = index;
+      scenes.forEach((scene, i) => {
+        if (i === index) {
+          scene.classList.add('active');
+        } else {
+          scene.classList.remove('active');
+        }
+      });
+
+      // Mettre à jour les points
+      const dots = document.querySelectorAll('.scene-dot');
+      dots.forEach((dot, i) => {
+        if (i === index) dot.classList.add('active');
+        else dot.classList.remove('active');
+      });
+
+      // Mettre à jour le texte du sous-titre
+      const narrativeText = scenes[index].dataset.narrative || '';
+      document.getElementById('subtitles-text').textContent = narrativeText;
+
+      // Déclencher la synthèse vocale si activée
+      if (triggerVoice && isVoiceEnabled && isPlaying) {
+        speakNarrative(narrativeText);
+      }
+
+      // Varier la couleur de lumière d'ambiance
+      updateAmbientGlow(index);
+    }
+
+    function updateAmbientGlow(index) {
+      const g1 = document.getElementById('glow-1');
+      const g2 = document.getElementById('glow-2');
+      const colors = [
+        ['#ef4444', '#f59e0b'], // Chaos (Rouge / Orange)
+        ['#0284c7', '#8b5cf6'], // Révélation (Bleu / Violet)
+        ['#10b981', '#0ea5e9'], // Flotte (Vert / Cyan)
+        ['#38bdf8', '#fbbf24'], // Odo / RAC (Cyan / Doré)
+        ['#f59e0b', '#ef4444'], // Gasoil (Orange / Rouge)
+        ['#0284c7', '#10b981'], // Quais & BL (Bleu / Vert)
+        ['#8b5cf6', '#38bdf8'], // Cockpit TV (Violet / Cyan)
+        ['#10b981', '#34d399'], // ROI (Vert émeraude)
+        ['#0284c7', '#38bdf8']  // Closing
+      ];
+      const pair = colors[index % colors.length];
+      g1.style.background = pair[0];
+      g2.style.background = pair[1];
+    }
+
+    // Déterminer la scène correspondant à un temps donné
+    function getSceneIndexAtTime(t) {
+      let accumulated = 0;
+      for (let i = 0; i < sceneDurations.length; i++) {
+        accumulated += sceneDurations[i];
+        if (t < accumulated) return i;
+      }
+      return sceneDurations.length - 1;
+    }
+
+    // Calculer le timestamp de début d'une scène
+    function getSceneStartTime(index) {
+      let sum = 0;
+      for (let i = 0; i < index; i++) {
+        sum += sceneDurations[i];
+      }
+      return sum;
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // MOTEUR D'ANIMATION DE LA TIMELINE
+    // ═══════════════════════════════════════════════════════════════
+    function animationLoop(timestamp) {
+      if (!lastTimestamp) lastTimestamp = timestamp;
+      const delta = (timestamp - lastTimestamp) / 1000;
+      lastTimestamp = timestamp;
+
+      if (isPlaying) {
+        currentTime += delta * playbackSpeed;
+
+        if (currentTime >= totalDuration) {
+          currentTime = totalDuration;
+          pause();
+          updateTimeDisplay();
+          return;
+        }
+
+        const targetSceneIndex = getSceneIndexAtTime(currentTime);
+        if (targetSceneIndex !== currentSceneIndex) {
+          setActiveScene(targetSceneIndex, true);
+        }
+
+        updateTimeDisplay();
+      }
+
+      animationFrameId = requestAnimationFrame(animationLoop);
+    }
+
+    function play() {
+      if (currentTime >= totalDuration) {
+        currentTime = 0;
+        setActiveScene(0, false);
+      }
+
+      isPlaying = true;
+      document.getElementById('play-icon').className = 'fa-solid fa-pause';
+      lastTimestamp = null;
+      
+      initAudio();
+      if (isMusicEnabled) startTechMusic();
+
+      const narrativeText = scenes[currentSceneIndex].dataset.narrative || '';
+      if (isVoiceEnabled) {
+        speakNarrative(narrativeText);
+      }
+
+      if (!animationFrameId) {
+        animationFrameId = requestAnimationFrame(animationLoop);
+      }
+    }
+
+    function pause() {
+      isPlaying = false;
+      document.getElementById('play-icon').className = 'fa-solid fa-play';
+      stopSpeech();
+      stopTechMusic();
+    }
+
+    function togglePlayPause() {
+      if (isPlaying) pause();
+      else play();
+    }
+
+    function restartVideo() {
+      currentTime = 0;
+      setActiveScene(0, false);
+      updateTimeDisplay();
+      if (isPlaying) {
+        stopSpeech();
+        const narrativeText = scenes[0].dataset.narrative || '';
+        if (isVoiceEnabled) speakNarrative(narrativeText);
+      }
+    }
+
+    function nextScene() {
+      if (currentSceneIndex < totalScenes - 1) {
+        jumpToScene(currentSceneIndex + 1);
+      }
+    }
+
+    function prevScene() {
+      if (currentSceneIndex > 0) {
+        jumpToScene(currentSceneIndex - 1);
+      }
+    }
+
+    function jumpToScene(index) {
+      currentTime = getSceneStartTime(index);
+      setActiveScene(index, isPlaying);
+      updateTimeDisplay();
+    }
+
+    function seekTimeline(e) {
+      const rect = document.getElementById('timeline-container').getBoundingClientRect();
+      const pos = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+      currentTime = pos * totalDuration;
+      const targetScene = getSceneIndexAtTime(currentTime);
+      setActiveScene(targetScene, isPlaying);
+      updateTimeDisplay();
+    }
+
+    function cyclePlaybackSpeed() {
+      const speeds = [1.0, 1.25, 1.5, 0.75];
+      const idx = speeds.indexOf(playbackSpeed);
+      playbackSpeed = speeds[(idx + 1) % speeds.length];
+      document.getElementById('speed-label').textContent = `${playbackSpeed}x`;
+    }
+
+    // Touche espace pour Lecture / Pause
+    window.addEventListener('keydown', (e) => {
+      if (e.code === 'Space' && e.target.tagName !== 'INPUT') {
+        e.preventDefault();
+        togglePlayPause();
+      }
+    });
+
+    // ═══════════════════════════════════════════════════════════════
+    // VOIX-OFF AUTOMATISÉE (WEB SPEECH API)
+    // ═══════════════════════════════════════════════════════════════
+    let synth = window.speechSynthesis;
+    let frenchVoices = [];
+
+    function loadVoices() {
+      if (!synth) return;
+      const allVoices = synth.getVoices();
+      frenchVoices = allVoices.filter(v => v.lang.startsWith('fr'));
+    }
+
+    if (synth) {
+      loadVoices();
+      if (synth.onvoiceschanged !== undefined) {
+        synth.onvoiceschanged = loadVoices;
+      }
+    }
+
+    function speakNarrative(text) {
+      if (!synth || !isVoiceEnabled) return;
+      synth.cancel(); // Stoppe toute parole en cours
+
+      const utterance = new SpeechSynthesisUtterance(text);
+      utterance.lang = 'fr-FR';
+      utterance.rate = 1.05 * playbackSpeed;
+      utterance.pitch = 1.0;
+
+      // Ducking audio : baisse la musique quand la voix commence, la remonte à la fin
+      utterance.onstart = function() {
+        setMusicDucking(true);
+      };
+      utterance.onend = function() {
+        setMusicDucking(false);
+      };
+      utterance.onerror = function() {
+        setMusicDucking(false);
+      };
+
+      // Préférer une voix naturelle si disponible
+      if (frenchVoices.length > 0) {
+        const preferred = frenchVoices.find(v => v.name.includes('Google') || v.name.includes('Natural') || v.name.includes('Paul') || v.name.includes('Thomas'));
+        utterance.voice = preferred || frenchVoices[0];
+      }
+
+      synth.speak(utterance);
+    }
+
+    function stopSpeech() {
+      if (synth) synth.cancel();
+      setMusicDucking(false);
+    }
+
+    function toggleVoiceover() {
+      isVoiceEnabled = !isVoiceEnabled;
+      const icon = document.getElementById('voice-icon');
+      const label = document.getElementById('voice-label');
+      
+      if (isVoiceEnabled) {
+        icon.className = 'fa-solid fa-volume-high';
+        label.textContent = 'Voix-Off Active';
+        if (isPlaying) {
+          speakNarrative(scenes[currentSceneIndex].dataset.narrative || '');
+        }
+      } else {
+        icon.className = 'fa-solid fa-volume-xmark';
+        label.textContent = 'Voix-Off Muette';
+        stopSpeech();
+      }
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // MOTEUR MUSICAL MULTI-MODE : SYNTHÉSEUR DOUX ARPÉGIÉ & MP3
+    // (100% ZÉRO BIP CONTINU — NOTES DOUCES ENVELOPPÉES ET MUSIQUE MP3)
+    // ═══════════════════════════════════════════════════════════════
+    let musicMode = 'synth'; // 'synth' ou 'custom'
+    let musicVolume = 0.45;
+    let isDucked = false;
+    let synthTimer = null;
+    let customAudioElem = null;
+    let masterGainNode = null;
+    let synthStep = 0;
+
+    function initAudio() {
+      if (!audioContext) {
+        const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+        audioContext = new AudioContextClass();
+      }
+      if (audioContext.state === 'suspended') {
+        audioContext.resume();
+      }
+      if (!masterGainNode && audioContext) {
+        masterGainNode = audioContext.createGain();
+        masterGainNode.gain.setValueAtTime(musicVolume, audioContext.currentTime);
+        masterGainNode.connect(audioContext.destination);
+      }
+      if (!customAudioElem) {
+        customAudioElem = document.createElement('audio');
+        customAudioElem.loop = true;
+        customAudioElem.volume = musicVolume;
+        document.body.appendChild(customAudioElem);
+      }
+    }
+
+    // Ducking audio : baisse douce de la musique pendant les paroles
+    function setMusicDucking(active) {
+      isDucked = active;
+      const targetVol = active ? (musicVolume * 0.22) : musicVolume;
+
+      if (masterGainNode && audioContext) {
+        masterGainNode.gain.cancelScheduledValues(audioContext.currentTime);
+        masterGainNode.gain.linearRampToValueAtTime(targetVol, audioContext.currentTime + 0.2);
+      }
+      if (customAudioElem) {
+        customAudioElem.volume = Math.max(0, Math.min(1, targetVol));
+      }
+    }
+
+    // Note d'arpège électronique douce (attaque 15ms, décroissance douce, SANS AUCUN BIP STATIQUE)
+    function triggerPluckNote(freq, velocity = 0.04) {
+      if (!audioContext || !masterGainNode || !isMusicEnabled || musicMode !== 'synth') return;
+
+      const now = audioContext.currentTime;
+      const osc = audioContext.createOscillator();
+      const noteGain = audioContext.createGain();
+      const filter = audioContext.createBiquadFilter();
+
+      osc.type = 'sine'; // Ronde et pure
+      osc.frequency.setValueAtTime(freq, now);
+
+      filter.type = 'lowpass';
+      filter.frequency.setValueAtTime(1400, now);
+      filter.frequency.exponentialRampToValueAtTime(320, now + 0.32);
+
+      // Enveloppe ADSR qui s'éteint toujours
+      noteGain.gain.setValueAtTime(0.0001, now);
+      noteGain.gain.linearRampToValueAtTime(velocity, now + 0.015);
+      noteGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.34);
+
+      osc.connect(filter);
+      filter.connect(noteGain);
+      noteGain.connect(masterGainNode);
+
+      osc.start(now);
+      osc.stop(now + 0.36);
+    }
+
+    // Note de basse feutrée (harmonie profonde et douce)
+    function triggerBassNote(freq, velocity = 0.05) {
+      if (!audioContext || !masterGainNode || !isMusicEnabled || musicMode !== 'synth') return;
+
+      const now = audioContext.currentTime;
+      const osc = audioContext.createOscillator();
+      const bassGain = audioContext.createGain();
+
+      osc.type = 'triangle';
+      osc.frequency.setValueAtTime(freq, now);
+
+      bassGain.gain.setValueAtTime(0.0001, now);
+      bassGain.gain.linearRampToValueAtTime(velocity, now + 0.025);
+      bassGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.55);
+
+      osc.connect(bassGain);
+      bassGain.connect(masterGainNode);
+
+      osc.start(now);
+      osc.stop(now + 0.58);
+    }
+
+    // Suite d'accords Corporate Tech (Am9 -> Fmaj7 -> Cmaj -> G)
+    const synthChords = [
+      { bass: 110.00, notes: [261.63, 329.63, 440.00, 493.88, 523.25, 440.00, 329.63, 261.63] }, // Am9
+      { bass: 87.31,  notes: [261.63, 349.23, 440.00, 523.25, 659.25, 523.25, 440.00, 349.23] }, // Fmaj7
+      { bass: 130.81, notes: [196.00, 261.63, 329.63, 392.00, 523.25, 392.00, 329.63, 261.63] }, // Cmaj
+      { bass: 98.00,  notes: [293.66, 392.00, 493.88, 587.33, 493.88, 392.00, 293.66, 196.00] }  // G
+    ];
+
+    function stepSynthSequencer() {
+      if (!isPlaying || !isMusicEnabled || musicMode !== 'synth') return;
+
+      const barIndex = Math.floor(synthStep / 16) % synthChords.length;
+      const stepInBar = synthStep % 16;
+      const chord = synthChords[barIndex];
+
+      // Basses sur temps 0 et 8
+      if (stepInBar === 0) {
+        triggerBassNote(chord.bass, 0.07);
+      } else if (stepInBar === 8) {
+        triggerBassNote(chord.bass * 1.5, 0.045);
+      }
+
+      // Arpèges fluides
+      const noteIdx = stepInBar % chord.notes.length;
+      const freq = chord.notes[noteIdx];
+      triggerPluckNote(freq, (stepInBar % 4 === 0) ? 0.042 : 0.028);
+
+      synthStep++;
+    }
+
+    function startTechMusic() {
+      initAudio();
+
+      if (musicMode === 'custom' && customAudioElem && customAudioElem.src) {
+        customAudioElem.currentTime = customAudioElem.currentTime || 0;
+        customAudioElem.play().catch(e => console.warn("Audio lecture MP3:", e));
+        return;
+      }
+
+      // Démarrage du séquenceur d'arpège doux (130ms par pas)
+      if (!synthTimer) {
+        synthStep = 0;
+        synthTimer = setInterval(stepSynthSequencer, 130);
+      }
+    }
+
+    function stopTechMusic() {
+      if (synthTimer) {
+        clearInterval(synthTimer);
+        synthTimer = null;
+      }
+      if (customAudioElem) {
+        customAudioElem.pause();
+      }
+    }
+
+    function toggleMusic() {
+      isMusicEnabled = !isMusicEnabled;
+      const icon = document.getElementById('music-icon');
+      const label = document.getElementById('music-label');
+
+      if (isMusicEnabled) {
+        icon.className = 'fa-solid fa-music';
+        label.textContent = (musicMode === 'custom') ? 'Mon MP3' : 'Musique Tech';
+        if (isPlaying) {
+          startTechMusic();
+        }
+      } else {
+        icon.className = 'fa-solid fa-volume-xmark';
+        label.textContent = 'Musique Muette';
+        stopTechMusic();
+      }
+    }
+
+    function changeMusicVolume(val) {
+      musicVolume = parseFloat(val);
+      const targetVol = isDucked ? (musicVolume * 0.22) : musicVolume;
+
+      if (masterGainNode && audioContext) {
+        masterGainNode.gain.cancelScheduledValues(audioContext.currentTime);
+        masterGainNode.gain.setValueAtTime(targetVol, audioContext.currentTime);
+      }
+      if (customAudioElem) {
+        customAudioElem.volume = Math.max(0, Math.min(1, targetVol));
+      }
+    }
+
+    function handleCustomMusicUpload(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+
+      initAudio();
+      stopTechMusic();
+
+      const objectUrl = URL.createObjectURL(file);
+      customAudioElem.src = objectUrl;
+      musicMode = 'custom';
+
+      const label = document.getElementById('music-label');
+      label.textContent = 'Mon MP3';
+
+      const uploadLabel = document.getElementById('upload-music-label');
+      const shortName = file.name.length > 15 ? file.name.substring(0, 12) + '...' : file.name;
+      uploadLabel.textContent = shortName;
+
+      isMusicEnabled = true;
+      document.getElementById('music-icon').className = 'fa-solid fa-music';
+
+      if (isPlaying) {
+        startTechMusic();
+      }
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // PARTICULES D'AMBIANCE SCI-FI CANVAS
+    // ═══════════════════════════════════════════════════════════════
+    const canvas = document.getElementById('ambient-canvas');
+    const ctx = canvas.getContext('2d');
+    let particles = [];
+
+    function resizeCanvas() {
+      canvas.width = canvas.parentElement.clientWidth;
+      canvas.height = canvas.parentElement.clientHeight;
+    }
+    window.addEventListener('resize', resizeCanvas);
+    resizeCanvas();
+
+    for (let i = 0; i < 45; i++) {
+      particles.push({
+        x: Math.random() * canvas.width,
+        y: Math.random() * canvas.height,
+        vx: (Math.random() - 0.5) * 0.4,
+        vy: (Math.random() - 0.5) * 0.4,
+        size: Math.random() * 2 + 1,
+        alpha: Math.random() * 0.5 + 0.1
+      });
+    }
+
+    function renderParticles() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.fillStyle = '#38bdf8';
+
+      particles.forEach(p => {
+        p.x += p.vx;
+        p.y += p.vy;
+        if (p.x < 0) p.x = canvas.width;
+        if (p.x > canvas.width) p.x = 0;
+        if (p.y < 0) p.y = canvas.height;
+        if (p.y > canvas.height) p.y = 0;
+
+        ctx.globalAlpha = p.alpha;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+        ctx.fill();
+      });
+
+      // Lignes de connexion légères
+      ctx.strokeStyle = 'rgba(56, 189, 248, 0.08)';
+      ctx.lineWidth = 0.8;
+      for (let i = 0; i < particles.length; i++) {
+        for (let j = i + 1; j < particles.length; j++) {
+          const dx = particles[i].x - particles[j].x;
+          const dy = particles[i].y - particles[j].y;
+          const dist = Math.sqrt(dx * dx + dy * dy);
+          if (dist < 90) {
+            ctx.beginPath();
+            ctx.moveTo(particles[i].x, particles[i].y);
+            ctx.lineTo(particles[j].x, particles[j].y);
+            ctx.stroke();
+          }
+        }
+      }
+
+      requestAnimationFrame(renderParticles);
+    }
+    renderParticles();
+
+    // ═══════════════════════════════════════════════════════════════
+    // ENREGISTREMENT VIDÉO INTÉGRÉ (CANVAS + WEBM/MP4 DOWNLOAD)
+    // ═══════════════════════════════════════════════════════════════
+    async function toggleVideoRecording() {
+      const btn = document.getElementById('btn-record-video');
+      const label = document.getElementById('record-label');
+
+      if (!isRecording) {
+        try {
+          const element = document.getElementById('video-theater');
+          
+          // Utiliser l'API MediaDevices pour capturer l'onglet/fenêtre ou le flux
+          alert("Pour enregistrer la vidéo en haute qualité :\nSélectionnez 'Onglet Chrome' ou l'écran actuel dans la boîte de dialogue suivante pour lancer la capture directe !");
+          
+          const stream = await navigator.mediaDevices.getDisplayMedia({
+            video: { frameRate: { ideal: 30, max: 60 } },
+            audio: true
+          });
+
+          recordedChunks = [];
+          const options = { mimeType: 'video/webm;codecs=vp9' };
+          mediaRecorder = new MediaRecorder(stream, options);
+
+          mediaRecorder.ondataavailable = function(e) {
+            if (e.data.size > 0) recordedChunks.push(e.data);
+          };
+
+          mediaRecorder.onstop = function() {
+            const blob = new Blob(recordedChunks, { type: 'video/webm' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.style.display = 'none';
+            a.href = url;
+            a.download = `NUMIPLAN_Video_Marketing_${new Date().toISOString().slice(0, 10)}.webm`;
+            document.body.appendChild(a);
+            a.click();
+            setTimeout(() => {
+              document.body.removeChild(a);
+              window.URL.revokeObjectURL(url);
+            }, 100);
+
+            btn.classList.remove('recording-active');
+            label.textContent = 'Enregistrer Vidéo (MP4/WebM)';
+            isRecording = false;
+          };
+
+          mediaRecorder.start();
+          isRecording = true;
+          btn.classList.add('recording-active');
+          label.textContent = 'Enregistrement en cours... (Arrêter)';
+
+          // Lancer la lecture depuis le début
+          restartVideo();
+          play();
+
+          // Arrêt automatique si la capture d'écran est coupée par l'utilisateur
+          stream.getVideoTracks()[0].onended = function() {
+            if (isRecording) mediaRecorder.stop();
+          };
+
+        } catch(err) {
+          console.warn("Capture annulée ou non autorisée:", err);
+        }
+      } else {
+        if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+          mediaRecorder.stop();
+        }
+      }
+    }
+
+    // Plein écran
+    function toggleFullscreen() {
+      const el = document.getElementById('video-theater');
+      if (!document.fullscreenElement) {
+        if (el.requestFullscreen) el.requestFullscreen();
+      } else {
+        if (document.exitFullscreen) document.exitFullscreen();
+      }
+    }
+
+    // Initialisation
+    updateTimeDisplay();
+    setActiveScene(0, false);
+  </script>
+</body>
+</html>
