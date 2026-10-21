@@ -118,10 +118,44 @@
       letter-spacing: 0.8px;
     }
 
+    /* BOUTONS TECHNIQUES / ADMIN MASQUÉS PAR DÉFAUT POUR LA VUE CLIENT */
     .top-buttons {
+      display: none !important;
+      align-items: center;
+      gap: 10px;
+    }
+
+    body.show-admin .top-buttons {
+      display: flex !important;
+    }
+
+    /* BARRE D'ACTIONS ÉPURÉE POUR CLIENTS */
+    .client-top-actions {
       display: flex;
       align-items: center;
       gap: 10px;
+    }
+
+    .client-contact-btn {
+      background: rgba(2, 132, 199, 0.12);
+      border: 1px solid rgba(56, 189, 248, 0.35);
+      color: var(--cyan);
+      text-decoration: none;
+      padding: 7px 14px;
+      border-radius: 8px;
+      font-size: 0.85rem;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      transition: all 0.2s ease;
+    }
+
+    .client-contact-btn:hover {
+      background: rgba(2, 132, 199, 0.25);
+      border-color: var(--cyan);
+      color: #fff;
+      transform: translateY(-1px);
     }
 
     .btn-top {
@@ -474,61 +508,310 @@
       text-align: center;
     }
 
-    /* SIMULATEUR TABLEAU DE BORD TEMPS RÉEL (Scène 3, 4, 5, 6) */
-    .mock-dashboard {
+    /* ═══════════════════════════════════════════════════════════════
+       IMMERSION LOGICIEL RÉEL NUMIPLAN (SIMULATEUR INTERACTIF)
+       ═══════════════════════════════════════════════════════════════ */
+    .app-screen-mockup {
       width: 100%;
-      max-width: 980px;
-      background: rgba(10, 16, 29, 0.9);
-      border: 1px solid var(--border-subtle);
-      border-radius: 16px;
-      padding: 18px 24px;
-      box-shadow: 0 16px 36px rgba(0, 0, 0, 0.7);
+      max-width: 1040px;
+      background: #080d1a;
+      border: 1px solid rgba(56, 189, 248, 0.4);
+      border-radius: 12px;
+      overflow: hidden;
+      box-shadow: 0 20px 50px rgba(0, 0, 0, 0.8), 0 0 30px rgba(56, 189, 248, 0.15);
+      display: flex;
+      flex-direction: column;
+      font-size: 0.85rem;
     }
 
-    .mock-topbar {
+    /* Barre supérieure système de la fenêtre logicielle */
+    .app-top-header {
+      background: #0f172a;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+      padding: 8px 16px;
       display: flex;
       justify-content: space-between;
       align-items: center;
-      padding-bottom: 14px;
-      border-bottom: 1px solid var(--border-subtle);
-      margin-bottom: 16px;
+      gap: 12px;
     }
 
-    .mock-tabs {
+    .app-window-controls {
       display: flex;
+      gap: 6px;
+      align-items: center;
+    }
+
+    .win-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+    }
+    .win-red { background: #ef4444; }
+    .win-yellow { background: #f59e0b; }
+    .win-green { background: #10b981; }
+
+    .app-software-title {
+      font-family: var(--font-mono);
+      font-weight: 700;
+      font-size: 0.82rem;
+      color: #38bdf8;
+      display: flex;
+      align-items: center;
       gap: 8px;
     }
 
-    .mock-tab {
-      padding: 6px 14px;
-      border-radius: 6px;
-      font-size: 0.8rem;
+    .app-live-pill {
+      font-size: 0.68rem;
       font-weight: 700;
-      background: rgba(255, 255, 255, 0.05);
-      color: var(--text-muted);
+      background: rgba(16, 185, 129, 0.15);
+      color: #10b981;
+      border: 1px solid rgba(16, 185, 129, 0.3);
+      padding: 2px 8px;
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+
+    /* Barre des onglets authentiques NUMIPLAN (identique au vrai outil) */
+    .app-tabs-bar {
+      background: #0a0f1d;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+      padding: 6px 12px;
+      display: flex;
+      gap: 6px;
+      overflow-x: auto;
+    }
+
+    .app-tab-btn {
+      padding: 5px 11px;
+      border-radius: 6px;
+      font-size: 0.74rem;
+      font-weight: 600;
+      color: #94a3b8;
+      background: rgba(255, 255, 255, 0.03);
       border: 1px solid transparent;
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      white-space: nowrap;
     }
 
-    .mock-tab.active {
+    .app-tab-btn.active {
       background: rgba(56, 189, 248, 0.15);
-      border-color: rgba(56, 189, 248, 0.4);
-      color: var(--cyan);
+      border-color: rgba(56, 189, 248, 0.45);
+      color: #38bdf8;
+      box-shadow: 0 0 10px rgba(56, 189, 248, 0.25);
     }
 
-    .mock-pulse-dot {
+    .app-tab-count {
+      padding: 1px 5px;
+      border-radius: 8px;
+      font-size: 0.65rem;
+      font-weight: 700;
+      background: rgba(255, 255, 255, 0.12);
+      color: #fff;
+    }
+    .app-tab-count.green { background: #10b981; color: #000; }
+    .app-tab-count.purple { background: #a855f7; color: #fff; }
+    .app-tab-count.red { background: #ef4444; color: #fff; }
+
+    /* Corps du logiciel */
+    .app-body-area {
+      padding: 12px 16px;
+      background: #060a14;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    /* Barre de filtre et sélecteur d'équipes */
+    .app-filter-strip {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      background: rgba(15, 23, 42, 0.8);
+      padding: 6px 12px;
+      border-radius: 8px;
+      border: 1px solid rgba(255, 255, 255, 0.06);
+    }
+
+    .app-team-selector {
+      display: flex;
+      background: rgba(0, 0, 0, 0.4);
+      padding: 2px;
+      border-radius: 6px;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      gap: 3px;
+    }
+
+    .team-btn {
+      padding: 3px 10px;
+      border-radius: 4px;
+      font-size: 0.72rem;
+      font-weight: 700;
+      border: none;
+      cursor: pointer;
+      color: #94a3b8;
+      background: transparent;
+    }
+
+    .team-btn.active {
+      background: #0284c7;
+      color: #fff;
+    }
+
+    .app-search-box {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      background: rgba(0, 0, 0, 0.4);
+      border: 1px solid rgba(56, 189, 248, 0.35);
+      border-radius: 6px;
+      padding: 4px 10px;
+      font-family: var(--font-mono);
+      font-size: 0.75rem;
+      color: #e2e8f0;
+      min-width: 220px;
+    }
+
+    .typing-cursor {
       display: inline-block;
-      width: 8px;
-      height: 8px;
-      background: var(--emerald);
-      border-radius: 50%;
-      margin-right: 6px;
-      box-shadow: 0 0 10px var(--emerald);
-      animation: pulseLive 1.5s infinite;
+      width: 7px;
+      height: 12px;
+      background: var(--cyan);
+      margin-left: 2px;
+      animation: blinkCursor 0.8s infinite;
     }
 
-    @keyframes pulseLive {
-      0%, 100% { opacity: 1; transform: scale(1); }
-      50% { opacity: 0.4; transform: scale(0.8); }
+    @keyframes blinkCursor {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0; }
+    }
+
+    /* Tableau de données live */
+    .app-data-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.78rem;
+      font-family: var(--font-mono);
+    }
+
+    .app-data-table th {
+      text-align: left;
+      padding: 6px 8px;
+      background: rgba(15, 23, 42, 0.95);
+      color: #94a3b8;
+      font-size: 0.68rem;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    }
+
+    .app-data-table td {
+      padding: 7px 8px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+      color: #cbd5e1;
+      vertical-align: middle;
+    }
+
+    .app-data-table tr:hover {
+      background: rgba(56, 189, 248, 0.06);
+    }
+
+    .status-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 2px 7px;
+      border-radius: 4px;
+      font-size: 0.7rem;
+      font-weight: 700;
+    }
+
+    .badge-mission { background: rgba(16, 185, 129, 0.15); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.3); }
+    .badge-dispo { background: rgba(56, 189, 248, 0.15); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.3); }
+    .badge-panne { background: rgba(244, 63, 94, 0.15); color: #fb7185; border: 1px solid rgba(244, 63, 94, 0.3); animation: pulseRed 2s infinite; }
+    .badge-waiting { background: rgba(245, 158, 11, 0.15); color: #fbbf24; border: 1px solid rgba(245, 158, 11, 0.3); }
+
+    .tbl-btn {
+      padding: 2px 7px;
+      border-radius: 4px;
+      font-size: 0.68rem;
+      font-weight: 600;
+      background: rgba(255, 255, 255, 0.08);
+      border: 1px solid var(--border-subtle);
+      color: #94a3b8;
+    }
+
+    /* Style spécifique Odomètre / RAC */
+    .rac-meter-bar {
+      width: 100%;
+      height: 10px;
+      background: rgba(255, 255, 255, 0.08);
+      border-radius: 6px;
+      overflow: hidden;
+      margin: 6px 0;
+      position: relative;
+    }
+
+    .rac-meter-fill {
+      height: 100%;
+      width: 87.6%;
+      background: linear-gradient(90deg, #10b981, #38bdf8);
+      border-radius: 6px;
+      box-shadow: 0 0 12px rgba(56, 189, 248, 0.5);
+    }
+
+    .diag-grid-3 {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 10px;
+    }
+
+    .diag-box {
+      background: rgba(15, 23, 42, 0.7);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 8px;
+      padding: 10px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .diag-title {
+      font-size: 0.75rem;
+      font-weight: 700;
+      color: #38bdf8;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .diag-item {
+      font-size: 0.72rem;
+      color: #cbd5e1;
+      display: flex;
+      justify-content: space-between;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+      padding: 3px 0;
+    }
+
+    /* Ruban ticker TV Kiosque */
+    .tv-ticker-strip {
+      background: rgba(2, 132, 199, 0.2);
+      border: 1px solid rgba(56, 189, 248, 0.4);
+      padding: 5px 12px;
+      border-radius: 6px;
+      font-family: var(--font-mono);
+      font-size: 0.74rem;
+      color: #e0f2fe;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      overflow: hidden;
+      white-space: nowrap;
     }
 
     /* BARRE D'AVANCEMENT DU SCÉNARIO & SOUS-TITRES SYNCHRONISÉS */
@@ -718,6 +1001,422 @@
       color: var(--emerald);
     }
 
+    /* ═══════════════════════════════════════════════════════════════
+       STYLES D'IMMERSION LOGICIEL EN EXÉCUTION & DÉMO DIRECTE
+       ═══════════════════════════════════════════════════════════════ */
+    .live-action-hud {
+      background: rgba(14, 165, 233, 0.15);
+      border: 1px solid rgba(56, 189, 248, 0.35);
+      color: #38bdf8;
+      font-family: var(--font-mono);
+      font-size: 0.72rem;
+      font-weight: 700;
+      padding: 4px 10px;
+      border-radius: 6px;
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      letter-spacing: 0.5px;
+    }
+
+    .live-pulse {
+      color: #10b981;
+      font-size: 0.65rem;
+      animation: pulseGreen 1.2s infinite;
+    }
+
+    @keyframes pulseGreen {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.4; transform: scale(0.85); }
+    }
+
+    /* Curseur logiciel virtuel */
+    .software-cursor {
+      position: absolute;
+      width: 22px;
+      height: 22px;
+      pointer-events: none;
+      z-index: 100;
+      transition: all 0.7s cubic-bezier(0.25, 1, 0.5, 1);
+      filter: drop-shadow(0 3px 6px rgba(0,0,0,0.7));
+      opacity: 0;
+    }
+
+    .software-cursor.visible {
+      opacity: 1;
+    }
+
+    .cursor-click-ripple {
+      position: absolute;
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      border: 2px solid #38bdf8;
+      top: -5px;
+      left: -5px;
+      opacity: 0;
+      transform: scale(0.5);
+      pointer-events: none;
+    }
+
+    .cursor-click-ripple.clicked {
+      animation: rippleAnim 0.5s ease-out forwards;
+    }
+
+    @keyframes rippleAnim {
+      0% { opacity: 1; transform: scale(0.4); }
+      100% { opacity: 0; transform: scale(1.6); }
+    }
+
+    /* Modal d'affectation express live dans la fenêtre */
+    .software-quick-modal {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%) scale(0.9);
+      width: 90%;
+      max-width: 480px;
+      background: rgba(15, 23, 42, 0.95);
+      backdrop-filter: blur(20px);
+      border: 1px solid rgba(56, 189, 248, 0.45);
+      border-radius: 10px;
+      box-shadow: 0 15px 35px rgba(0, 0, 0, 0.8), 0 0 20px rgba(56, 189, 248, 0.25);
+      z-index: 50;
+      opacity: 0;
+      pointer-events: none;
+      transition: all 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    .software-quick-modal.active {
+      opacity: 1;
+      transform: translate(-50%, -50%) scale(1);
+      pointer-events: auto;
+    }
+
+    .sqm-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 8px 14px;
+      background: rgba(2, 132, 199, 0.25);
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+      font-size: 0.78rem;
+      font-weight: 700;
+      color: #38bdf8;
+      font-family: var(--font-display);
+    }
+
+    .sqm-body {
+      padding: 12px 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 7px;
+      font-size: 0.74rem;
+    }
+
+    .sqm-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 4px 0;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+      color: #cbd5e1;
+    }
+
+    .sqm-confirm-btn {
+      width: 100%;
+      padding: 8px;
+      background: linear-gradient(135deg, #0284c7, #38bdf8);
+      border: none;
+      border-radius: 6px;
+      color: white;
+      font-weight: 700;
+      font-size: 0.78rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      margin-top: 6px;
+      cursor: pointer;
+      box-shadow: 0 0 12px rgba(56, 189, 248, 0.4);
+    }
+
+    /* Toast Notification de succès logiciel */
+    .app-toast-notification {
+      position: absolute;
+      top: 14px;
+      right: 14px;
+      background: rgba(16, 185, 129, 0.95);
+      color: #ffffff;
+      padding: 8px 14px;
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 0.74rem;
+      box-shadow: 0 10px 25px rgba(0,0,0,0.5), 0 0 15px rgba(16, 185, 129, 0.4);
+      z-index: 60;
+      opacity: 0;
+      transform: translateY(-15px);
+      transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+      pointer-events: none;
+    }
+
+    .app-toast-notification.active {
+      opacity: 1;
+      transform: translateY(0);
+    }
+
+    /* Badge RAC Gain & Odomètre */
+    .rac-gain-chip {
+      background: rgba(16, 185, 129, 0.15);
+      border: 1px solid rgba(16, 185, 129, 0.35);
+      color: #34d399;
+      font-size: 0.72rem;
+      font-weight: 700;
+      padding: 4px 10px;
+      border-radius: 6px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .live-gps-pill {
+      font-size: 0.68rem;
+      font-family: var(--font-mono);
+      color: #38bdf8;
+      background: rgba(2, 132, 199, 0.15);
+      border: 1px solid rgba(56, 189, 248, 0.25);
+      padding: 3px 8px;
+      border-radius: 4px;
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+    }
+
+    /* Effet Laser Scanner BL */
+    .scanner-laser-line {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 3px;
+      background: linear-gradient(90deg, transparent, #ef4444, #38bdf8, transparent);
+      box-shadow: 0 0 12px #38bdf8, 0 0 20px #ef4444;
+      opacity: 0;
+      z-index: 30;
+      pointer-events: none;
+    }
+
+    .scanner-laser-line.scanning {
+      opacity: 1;
+      animation: laserSweep 1.8s ease-in-out infinite;
+    }
+
+    @keyframes laserSweep {
+      0% { top: 10%; opacity: 0.9; }
+      50% { top: 90%; opacity: 1; }
+      100% { top: 10%; opacity: 0.9; }
+    }
+
+    .bl-stamp {
+      display: inline-block;
+      border: 2px solid #10b981;
+      color: #10b981;
+      font-weight: 800;
+      font-size: 0.68rem;
+      padding: 2px 6px;
+      border-radius: 4px;
+      transform: rotate(-3deg);
+      background: rgba(16, 185, 129, 0.1);
+    }
+
+    /* Radar TV Wall Mini */
+    .radar-map-widget {
+      background: rgba(10, 15, 30, 0.85);
+      border: 1px solid rgba(56, 189, 248, 0.25);
+      border-radius: 8px;
+      padding: 10px 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .radar-track-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 0.72rem;
+      font-family: var(--font-mono);
+    }
+
+    .radar-track-bar {
+      flex: 1;
+      height: 5px;
+      background: rgba(255, 255, 255, 0.08);
+      border-radius: 4px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .radar-track-dot {
+      position: absolute;
+      top: -2px;
+      width: 9px;
+      height: 9px;
+      border-radius: 50%;
+      background: #38bdf8;
+      box-shadow: 0 0 8px #38bdf8;
+      animation: moveTruck 4s linear infinite;
+    }
+
+    @keyframes moveTruck {
+      0% { left: 0%; }
+      100% { left: 95%; }
+    }
+
+    /* Bouton Top Immersion & Overlay Pill */
+    .btn-top.btn-immersion {
+      background: linear-gradient(135deg, rgba(2, 132, 199, 0.35), rgba(99, 102, 241, 0.35));
+      border: 1px solid var(--cyan);
+      color: #e0f2fe;
+      box-shadow: 0 0 14px rgba(56, 189, 248, 0.25);
+      font-weight: 700;
+    }
+
+    .btn-top.btn-immersion:hover {
+      background: linear-gradient(135deg, #0284c7, #6366f1);
+      color: #fff;
+      transform: translateY(-2px);
+      box-shadow: 0 0 20px rgba(56, 189, 248, 0.5);
+    }
+
+    .hud-immersion-pill {
+      position: absolute;
+      top: 14px;
+      right: 18px;
+      background: rgba(15, 23, 42, 0.85);
+      backdrop-filter: blur(12px);
+      border: 1px solid rgba(56, 189, 248, 0.4);
+      border-radius: 20px;
+      padding: 6px 14px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 0.75rem;
+      font-weight: 700;
+      color: #38bdf8;
+      cursor: pointer;
+      z-index: 15;
+      box-shadow: 0 4px 15px rgba(0,0,0,0.4);
+      transition: all 0.25s ease;
+    }
+
+    .hud-immersion-pill:hover {
+      background: rgba(2, 132, 199, 0.9);
+      color: white;
+      border-color: #fff;
+      transform: scale(1.04);
+      box-shadow: 0 0 18px var(--cyan-glow);
+    }
+
+    .live-blink-dot {
+      width: 8px;
+      height: 8px;
+      background: #10b981;
+      border-radius: 50%;
+      box-shadow: 0 0 8px #10b981;
+      animation: pulseGreen 1s infinite;
+    }
+
+    /* Modal Bac à Sable Immersion Client Interactif */
+    .immersion-modal-backdrop {
+      position: fixed;
+      inset: 0;
+      background: rgba(3, 7, 18, 0.88);
+      backdrop-filter: blur(16px);
+      z-index: 9999;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+      opacity: 0;
+      transition: opacity 0.3s ease;
+    }
+
+    .immersion-modal-backdrop.open {
+      display: flex;
+      opacity: 1;
+    }
+
+    .immersion-modal-window {
+      width: 100%;
+      max-width: 1100px;
+      max-height: 90vh;
+      background: #080d1a;
+      border: 1px solid rgba(56, 189, 248, 0.5);
+      border-radius: 14px;
+      box-shadow: 0 25px 60px rgba(0, 0, 0, 0.9), 0 0 40px rgba(56, 189, 248, 0.2);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      animation: modalScaleUp 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    @keyframes modalScaleUp {
+      from { transform: scale(0.92); opacity: 0; }
+      to { transform: scale(1); opacity: 1; }
+    }
+
+    .im-header {
+      background: #0f172a;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+      padding: 12px 18px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .im-header-title {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-family: var(--font-display);
+      font-size: 1rem;
+      font-weight: 800;
+      color: #38bdf8;
+    }
+
+    .im-close-btn {
+      background: rgba(255, 255, 255, 0.08);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      color: #cbd5e1;
+      padding: 5px 12px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 0.8rem;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      transition: all 0.2s;
+    }
+
+    .im-close-btn:hover {
+      background: #ef4444;
+      color: #fff;
+      border-color: #ef4444;
+    }
+
+    .im-body {
+      padding: 16px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      background: #060a14;
+    }
+
     /* RESPONSIVE DESIGN */
     @media (max-width: 900px) {
       .video-theater {
@@ -744,7 +1443,20 @@
       </div>
     </div>
 
-    <div class="top-buttons">
+    <!-- ACTIONS ÉPURÉES POUR LES CLIENTS -->
+    <div class="client-top-actions">
+      <a href="mailto:C1881@icloud.com?subject=Demande%20de%20d%C3%A9monstration%20NUMIPLAN" class="client-contact-btn" title="Contacter un conseiller NUMIPLAN">
+        <i class="fa-solid fa-envelope"></i>
+        <span>Contact : C1881@icloud.com</span>
+      </a>
+      <button class="btn-top" onclick="toggleFullscreen()" title="Afficher en Plein Écran">
+        <i class="fa-solid fa-expand"></i>
+        <span>Plein Écran</span>
+      </button>
+    </div>
+
+    <!-- BOUTONS TECHNIQUES / EXPORT (MASQUÉS PAR DÉFAUT POUR LES CLIENTS • ACCÈS VIA ALT+A OU ?admin=1) -->
+    <div class="top-buttons" id="admin-tools-panel">
       <button class="btn-top" id="btn-toggle-voice" onclick="toggleVoiceover()">
         <i class="fa-solid fa-volume-high" id="voice-icon"></i>
         <span id="voice-label">Voix-Off Active</span>
@@ -768,14 +1480,14 @@
         <input type="range" id="music-vol-slider" min="0" max="1" step="0.05" value="0.45" oninput="changeMusicVolume(this.value)">
       </div>
 
+      <button class="btn-top btn-immersion" id="btn-open-immersion" onclick="openImmersionModal()" title="Tester l'outil NUMIPLAN en direct">
+        <i class="fa-solid fa-gamepad" style="color:var(--cyan);"></i>
+        <span>Immersion Démo Directe</span>
+      </button>
+
       <button class="btn-top btn-primary" id="btn-record-video" onclick="toggleVideoRecording()">
         <i class="fa-solid fa-circle-dot" id="record-icon"></i>
         <span id="record-label">Enregistrer Vidéo (MP4/WebM)</span>
-      </button>
-
-      <button class="btn-top" onclick="toggleFullscreen()">
-        <i class="fa-solid fa-expand"></i>
-        <span>Plein Écran</span>
       </button>
     </div>
   </div>
@@ -783,6 +1495,12 @@
   <!-- CADRE VIDÉO THÉÂTRE (16:9) -->
   <div class="video-theater" id="video-theater">
     
+    <!-- BADGE D'IMMERSION DIRECTE CLIENT DANS LE LECTEUR -->
+    <div class="hud-immersion-pill" onclick="openImmersionModal()" title="Cliquer pour tester l'outil NUMIPLAN en direct">
+      <span class="live-blink-dot"></span>
+      <span>MODE IMMERSION RÉELLE • Cliquez pour manipuler l'outil</span>
+    </div>
+
     <!-- CANVAS PARTICULES D'AMBIANCE HAUTE PERFORMANCE -->
     <canvas id="ambient-canvas" class="viewport-canvas"></canvas>
     
@@ -865,197 +1583,511 @@
       </div>
 
       <!-- ═══════════════════════════════════════════════════════════════
-           SCÈNE 3 (0:26 - 0:40) : DISPONIBILITÉ FLOTTE & DISPATCH CHAUFFEURS
+           SCÈNE 3 (0:26 - 0:40) : IMMERSION EN DIRECT — DISPONIBILITÉ & DISPATCH
            ═══════════════════════════════════════════════════════════════ -->
-      <div class="scene-frame" id="scene-2" data-duration="14" data-narrative="Module Disponibilité Flotte : Visualisez en une seconde quel camion roule, qui est disponible et qui est immobilisé. Affectez vos chauffeurs sans aucun risque de doublon.">
-        <div class="scene-kicker"><i class="fa-solid fa-truck-front"></i> Module Opérationnel 1</div>
-        <h1 class="scene-title">Disponibilité Flotte & Chauffeurs <br><span class="highlight">En Temps Réel & Zéro Conflit</span></h1>
-        <p class="scene-desc">Orchestrez vos ressources tracteurs, remorques et conducteurs sans frictions entre vos équipes d'exploitation.</p>
+      <div class="scene-frame" id="scene-2" data-duration="14" data-narrative="Module Disponibilité Flotte : Visualisez en direct vos camions, vos chauffeurs et vos remorques. Affectez vos ressources en un clic sans aucun risque de doublon.">
+        <div class="scene-kicker"><i class="fa-solid fa-laptop-code"></i> Démonstration Directe • Module Disponibilité</div>
+        <h1 class="scene-title">L'Outil NUMIPLAN en Action : <br><span class="highlight">Supervision & Dispatch en Temps Réel</span></h1>
+        
+        <div class="app-screen-mockup" style="position:relative;">
+          <!-- Curseur Virtuel Logiciel -->
+          <div class="software-cursor" id="cursor-scene-2" style="top:25px; left:25px;">
+            <svg viewBox="0 0 24 24" fill="none" style="width:22px; height:22px;">
+              <path d="M3 3l7 18 3-7 7-3L3 3z" fill="#0284c7" stroke="#ffffff" stroke-width="2" stroke-linejoin="round"/>
+            </svg>
+            <div class="cursor-click-ripple" id="ripple-scene-2"></div>
+          </div>
 
-        <div class="mock-dashboard">
-          <div class="mock-topbar">
-            <div class="mock-tabs">
-              <div class="mock-tab active">Équipe A (Nord)</div>
-              <div class="mock-tab">Équipe B (Sud)</div>
-              <div class="mock-tab">Équipe C (Est)</div>
-              <div class="mock-tab">Équipe D (Ouest)</div>
-            </div>
-            <div style="font-size: 0.85rem; font-weight: 700; color: var(--emerald);">
-              <span class="mock-pulse-dot"></span> 94.2% Taux de Disponibilité
+          <!-- Toast Notification Live -->
+          <div class="app-toast-notification" id="toast-scene-2">
+            <i class="fa-solid fa-circle-check" style="font-size:1.1rem; color:#fff;"></i>
+            <div>
+              <strong>Affectation Confirmée en Temps Réel</strong>
+              <div style="font-size:0.68rem; opacity:0.9;">Synchronisé avec l'application chauffeur Android & iOS (Délai 0.18s)</div>
             </div>
           </div>
 
-          <div class="visual-grid grid-3">
-            <div class="glass-card success">
-              <div style="display:flex; justify-content:space-between; align-items:center;">
-                <span class="card-title">Tracteurs Opérationnels</span>
-                <i class="fa-solid fa-truck" style="color: var(--emerald);"></i>
+          <!-- Modal Express Live -->
+          <div class="software-quick-modal" id="modal-dispatch-scene-2">
+            <div class="sqm-header">
+              <span><i class="fa-solid fa-bolt"></i> AFFECTATION EXPRESS DISPATCH</span>
+              <span style="font-size:0.68rem; color:#94a3b8;">NUMIPLAN CLOUD</span>
+            </div>
+            <div class="sqm-body">
+              <div class="sqm-row">
+                <span>Tracteur sélectionné :</span>
+                <strong style="color:#38bdf8;">AB-124-CD (Volvo FH500)</strong>
               </div>
-              <div class="card-metric" style="color: var(--emerald);">68 / 72</div>
-              <div class="card-subtitle">4 en maintenance préventive</div>
+              <div class="sqm-row">
+                <span>Semi-Remorque :</span>
+                <strong>SR-0482 (Frigo 33 Palettes)</strong>
+              </div>
+              <div class="sqm-row">
+                <span>Conducteur titulaire :</span>
+                <strong style="color:#10b981;">THOMAS BERNARD</strong>
+              </div>
+              <div class="sqm-row">
+                <span>Mission / Axe :</span>
+                <span>PARIS ➔ LYON (Chargé 24T)</span>
+              </div>
+              <button class="sqm-confirm-btn" id="btn-mock-confirm"><i class="fa-solid fa-check"></i> Valider & Transmettre à l'App Chauffeur</button>
+            </div>
+          </div>
+
+          <div class="app-top-header">
+            <div class="app-window-controls">
+              <span class="win-dot win-red"></span>
+              <span class="win-dot win-yellow"></span>
+              <span class="win-dot win-green"></span>
+              <span class="app-software-title"><i class="fa-solid fa-truck-fast"></i> NUMIPLAN ERP v4.2 • Exploitation Flotte</span>
+            </div>
+            <div style="display:flex; align-items:center; gap:8px;">
+              <div class="live-action-hud"><i class="fa-solid fa-circle-dot live-pulse"></i> EXÉCUTION EN DIRECT : DISPATCH CAMIONS</div>
+              <div class="app-live-pill"><span class="mock-pulse-dot"></span> SUPABASE LIVE • 48 CONNECTÉS</div>
+            </div>
+          </div>
+
+          <div class="app-tabs-bar">
+            <button class="app-tab-btn active"><i class="fa-solid fa-truck"></i> Disponibilité <span class="app-tab-count green">48</span> <span class="app-tab-count purple">45</span></button>
+            <button class="app-tab-btn"><i class="fa-solid fa-wrench"></i> Pannes <span class="app-tab-count red">2</span></button>
+            <button class="app-tab-btn"><i class="fa-solid fa-triangle-exclamation"></i> NC</button>
+            <button class="app-tab-btn"><i class="fa-solid fa-gas-pump"></i> Gasoil</button>
+            <button class="app-tab-btn"><i class="fa-solid fa-file-invoice"></i> Suivi BL</button>
+            <button class="app-tab-btn"><i class="fa-solid fa-gauge-high"></i> Odomètre</button>
+            <button class="app-tab-btn"><i class="fa-solid fa-shield"></i> Contrôle Technique</button>
+            <button class="app-tab-btn"><i class="fa-solid fa-magnifying-glass"></i> Fiche Véhicule</button>
+          </div>
+
+          <div class="app-body-area">
+            <div class="app-filter-strip">
+              <div class="app-team-selector">
+                <button class="team-btn active">Équipe A (Paris)</button>
+                <button class="team-btn">Équipe B (Lyon)</button>
+                <button class="team-btn">Équipe C (Lille)</button>
+                <button class="team-btn">Équipe D (Bordeaux)</button>
+              </div>
+              <div class="app-search-box" id="search-box-scene-2">
+                <i class="fa-solid fa-magnifying-glass" style="color:var(--cyan);"></i>
+                <span>Recherche: <strong id="search-text-scene-2">AB-124-CD</strong></span><span class="typing-cursor"></span>
+              </div>
+              <div style="font-size:0.75rem; color:#10b981; font-weight:700;">
+                <i class="fa-solid fa-circle-check"></i> 94.2% Opérationnels
+              </div>
             </div>
 
-            <div class="glass-card success">
+            <table class="app-data-table">
+              <thead>
+                <tr>
+                  <th>TRACTEUR</th>
+                  <th>CHAUFFEUR</th>
+                  <th>REMORQUE</th>
+                  <th>DESTINATION / MISSION</th>
+                  <th>ODOMÈTRE</th>
+                  <th>STATUT EN DIRECT</th>
+                  <th>ACTION</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr id="row-scene-2-01248" style="background: rgba(56, 189, 248, 0.08); transition:all 0.3s ease;">
+                  <td><strong style="color: #38bdf8;">AB-124-CD</strong> <span style="font-size:0.68rem; color:#94a3b8;">Volvo FH500</span></td>
+                  <td>THOMAS BERNARD</td>
+                  <td>SR-0482 (Frigo)</td>
+                  <td id="dest-cell-01248">PARIS ➔ LYON (Chargé)</td>
+                  <td>342 120 KM</td>
+                  <td id="status-cell-01248"><span class="status-badge badge-mission">● EN MISSION</span></td>
+                  <td><button class="tbl-btn" id="btn-action-01248" style="background:#0284c7; color:#fff;">Affecter</button></td>
+                </tr>
+                <tr>
+                  <td><strong style="color: #cbd5e1;">EK-543-LP</strong> <span style="font-size:0.68rem; color:#94a3b8;">Renault T480</span></td>
+                  <td>JULIEN DUBOIS</td>
+                  <td>SR-0312 (Bâchée)</td>
+                  <td>LILLE ➔ STRASBOURG (En transit)</td>
+                  <td>189 450 KM</td>
+                  <td><span class="status-badge badge-mission">● EN MISSION</span></td>
+                  <td><button class="tbl-btn">Fiche 360°</button></td>
+                </tr>
+                <tr>
+                  <td><strong style="color: #cbd5e1;">GH-891-TR</strong> <span style="font-size:0.68rem; color:#94a3b8;">Volvo FH460</span></td>
+                  <td>PIERRE MARTIN</td>
+                  <td>SR-0914 (Plateau)</td>
+                  <td>PLATEFORME LOGISTIQUE RUNGIS</td>
+                  <td>214 800 KM</td>
+                  <td><span class="status-badge badge-dispo">● DISPONIBLE</span></td>
+                  <td><button class="tbl-btn" style="background:#0284c7; color:#fff;">Affecter</button></td>
+                </tr>
+                <tr>
+                  <td><strong style="color: #f87171;">FM-143-AL</strong> <span style="font-size:0.68rem; color:#94a3b8;">Actros 1845</span></td>
+                  <td>NICOLAS MOREAU</td>
+                  <td>SR-0120 (Fourgon)</td>
+                  <td>ATELIER — Électrique</td>
+                  <td>412 050 KM</td>
+                  <td><span class="status-badge badge-panne">● 🔧 PANNE ALTERNATEUR</span></td>
+                  <td><button class="tbl-btn" style="color:#f87171;">Suivi Atelier</button></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- ═══════════════════════════════════════════════════════════════
+           SCÈNE 4 (0:40 - 0:54) : IMMERSION EN DIRECT — ODOMÈTRE & RAC
+           ═══════════════════════════════════════════════════════════════ -->
+      <div class="scene-frame" id="scene-3" data-duration="14" data-narrative="Optimisez chaque kilomètre. Grâce à la synchronisation odomètre et au calcul automatique du RAC, éliminez les kilomètres à vide et maximisez votre rentabilité.">
+        <div class="scene-kicker"><i class="fa-solid fa-laptop-code"></i> Démonstration Directe • Module Odomètre & RAC</div>
+        <h1 class="scene-title">Intelligence Odomètre : <br><span class="highlight">Calcul Automatisé du Roulage à Charge (RAC)</span></h1>
+
+        <div class="app-screen-mockup" style="position:relative;">
+          <!-- Curseur Virtuel Logiciel -->
+          <div class="software-cursor" id="cursor-scene-3" style="top:25px; left:25px;">
+            <svg viewBox="0 0 24 24" fill="none" style="width:22px; height:22px;">
+              <path d="M3 3l7 18 3-7 7-3L3 3z" fill="#0284c7" stroke="#ffffff" stroke-width="2" stroke-linejoin="round"/>
+            </svg>
+            <div class="cursor-click-ripple" id="ripple-scene-3"></div>
+          </div>
+
+          <div class="app-top-header">
+            <div class="app-window-controls">
+              <span class="win-dot win-red"></span>
+              <span class="win-dot win-yellow"></span>
+              <span class="win-dot win-green"></span>
+              <span class="app-software-title"><i class="fa-solid fa-gauge-high"></i> NUMIPLAN • Module Odomètre & Télématique</span>
+            </div>
+            <div style="display:flex; align-items:center; gap:8px;">
+              <div class="live-action-hud"><i class="fa-solid fa-circle-dot live-pulse"></i> EXÉCUTION EN DIRECT : CALCUL AUTOMATIQUE DU RAC</div>
+              <div class="app-live-pill"><span class="mock-pulse-dot"></span> GPS CANBUS SYNCHRO</div>
+            </div>
+          </div>
+
+          <div class="app-tabs-bar">
+            <button class="app-tab-btn"><i class="fa-solid fa-truck"></i> Disponibilité</button>
+            <button class="app-tab-btn active"><i class="fa-solid fa-gauge-high"></i> Odomètre <span class="app-tab-count green">Live</span></button>
+            <button class="app-tab-btn"><i class="fa-solid fa-chart-line"></i> RAC & KM</button>
+            <button class="app-tab-btn"><i class="fa-solid fa-gas-pump"></i> Gasoil</button>
+            <button class="app-tab-btn"><i class="fa-solid fa-file-invoice"></i> Suivi BL</button>
+          </div>
+
+          <div class="app-body-area">
+            <div style="background: rgba(15, 23, 42, 0.8); border: 1px solid rgba(56, 189, 248, 0.25); border-radius: 8px; padding: 10px 14px;">
               <div style="display:flex; justify-content:space-between; align-items:center;">
-                <span class="card-title">Chauffeurs Actifs</span>
-                <i class="fa-solid fa-user-check" style="color: var(--cyan);"></i>
+                <div style="display:flex; align-items:center; gap:10px;">
+                  <span style="font-weight:700; color:#e2e8f0; font-size:0.8rem;">RATIO GLOBAL ROULAGE À CHARGE (RAC)</span>
+                  <button class="tbl-btn" id="btn-sync-odo-scene-3" style="background:#0284c7; color:#fff; font-size:0.68rem; font-weight:700; cursor:pointer;"><i class="fa-solid fa-arrows-rotate"></i> Synchroniser Odomètres</button>
+                </div>
+                <div style="display:flex; align-items:center; gap:10px;">
+                  <div class="rac-gain-chip" id="rac-gain-chip-scene-3" style="display:none;"><i class="fa-solid fa-arrow-trend-up"></i> +15.6% RAC Optimisé</div>
+                  <span style="font-family:var(--font-mono); font-size:1.1rem; font-weight:800; color:#38bdf8;" id="rac-pct-val-scene-3">87.6 % EN CHARGE</span>
+                </div>
               </div>
-              <div class="card-metric" style="color: var(--cyan);">64 Actifs</div>
-              <div class="card-subtitle">Zéro doublon de planning</div>
+              <div class="rac-meter-bar">
+                <div class="rac-meter-fill" id="rac-meter-fill-scene-3" style="width:87.6%; transition:width 1.2s ease;"></div>
+              </div>
+              <div style="display:flex; justify-content:space-between; font-size:0.7rem; color:#94a3b8; font-family:var(--font-mono);">
+                <span>Total Parcouru: <strong id="odo-total-scene-3" style="color:#e2e8f0;">482 150 KM</strong></span>
+                <span style="color:#10b981;">KM Facturables: 422 360 KM</span>
+                <span style="color:#fbbf24;">KM à Vide Réduits: 59 790 KM (-24 500 KM vs M-1)</span>
+              </div>
+              <div style="margin-top:6px; display:flex; justify-content:space-between; align-items:center;">
+                <div class="live-gps-pill"><i class="fa-solid fa-satellite"></i> Autoroute A6 (Beaune) • Signal GPS Fort • Vitesse: 82 km/h • CanBus OK</div>
+                <span style="font-size:0.68rem; color:#10b981; font-family:var(--font-mono); font-weight:700;">ZÉRO FRAUDE KILOMÉTRIQUE DÉTECTÉE</span>
+              </div>
             </div>
 
-            <div class="glass-card cyan">
-              <div style="display:flex; justify-content:space-between; align-items:center;">
-                <span class="card-title">Semi-Remorques Prêtes</span>
-                <i class="fa-solid fa-trailer" style="color: var(--amber);"></i>
+            <table class="app-data-table">
+              <thead>
+                <tr>
+                  <th>VÉHICULE</th>
+                  <th>INDEX PRÉCÉDENT</th>
+                  <th>RELEVÉ GPS ACTUEL</th>
+                  <th>KM PARCOURUS</th>
+                  <th>RAC VÉHICULE</th>
+                  <th>CONFORMITÉ</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr id="row-scene-3-01248" style="transition:background 0.3s;">
+                  <td><strong style="color: #38bdf8;">AB-124-CD</strong></td>
+                  <td>341 200 KM</td>
+                  <td><strong id="odo-val-01248" style="color:#38bdf8;">342 120 KM</strong></td>
+                  <td style="color:#10b981;" id="odo-diff-01248">+920 KM</td>
+                  <td><strong style="color:#38bdf8;" id="rac-val-01248">87.6 %</strong></td>
+                  <td><span class="status-badge badge-mission">✔ OPTIMAL</span></td>
+                </tr>
+                <tr>
+                  <td><strong style="color: #cbd5e1;">EK-543-LP</strong></td>
+                  <td>188 620 KM</td>
+                  <td><strong>189 450 KM</strong></td>
+                  <td style="color:#10b981;">+830 KM</td>
+                  <td><strong style="color:#34d399;">91.2 %</strong></td>
+                  <td><span class="status-badge badge-mission">✔ EXCELLENT</span></td>
+                </tr>
+                <tr>
+                  <td><strong style="color: #cbd5e1;">GH-891-TR</strong></td>
+                  <td>214 550 KM</td>
+                  <td><strong>214 800 KM</strong></td>
+                  <td style="color:#fbbf24;">+250 KM</td>
+                  <td><strong style="color:#fbbf24;">72.0 %</strong></td>
+                  <td><span class="status-badge badge-waiting">⚠️ À CONTRÔLER</span></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- ═══════════════════════════════════════════════════════════════
+           SCÈNE 5 (0:54 - 1:08) : IMMERSION EN DIRECT — FICHE VÉHICULE & GASOIL
+           ═══════════════════════════════════════════════════════════════ -->
+      <div class="scene-frame" id="scene-4" data-duration="14" data-narrative="Maîtrisez votre premier poste de dépense. Le module Gasoil détecte immédiatement les surconsommations et réconcilie chaque litre, tandis que la fiche véhicule 360 anticipe les pannes.">
+        <div class="scene-kicker"><i class="fa-solid fa-laptop-code"></i> Démonstration Directe • Fiche Véhicule 360° & Gasoil</div>
+        <h1 class="scene-title">Fiche Véhicule 360° : <br><span class="highlight">Contrôle Carburant & Conformité Technique</span></h1>
+
+        <div class="app-screen-mockup" style="position:relative;">
+          <!-- Curseur Virtuel Logiciel -->
+          <div class="software-cursor" id="cursor-scene-4" style="top:25px; left:25px;">
+            <svg viewBox="0 0 24 24" fill="none" style="width:22px; height:22px;">
+              <path d="M3 3l7 18 3-7 7-3L3 3z" fill="#0284c7" stroke="#ffffff" stroke-width="2" stroke-linejoin="round"/>
+            </svg>
+            <div class="cursor-click-ripple" id="ripple-scene-4"></div>
+          </div>
+
+          <div class="app-top-header">
+            <div class="app-window-controls">
+              <span class="win-dot win-red"></span>
+              <span class="win-dot win-yellow"></span>
+              <span class="win-dot win-green"></span>
+              <span class="app-software-title"><i class="fa-solid fa-magnifying-glass"></i> NUMIPLAN • Fiche Véhicule 360°</span>
+            </div>
+            <div style="display:flex; align-items:center; gap:8px;">
+              <div class="live-action-hud"><i class="fa-solid fa-circle-dot live-pulse"></i> EXÉCUTION EN DIRECT : CONTRÔLE CARBURANT & CONFORMITÉ</div>
+              <div class="app-live-pill"><span class="mock-pulse-dot"></span> AB-124-CD CONNECTÉ</div>
+            </div>
+          </div>
+
+          <div class="app-tabs-bar">
+            <button class="app-tab-btn"><i class="fa-solid fa-truck"></i> Disponibilité</button>
+            <button class="app-tab-btn"><i class="fa-solid fa-gauge-high"></i> Odomètre</button>
+            <button class="app-tab-btn"><i class="fa-solid fa-gas-pump"></i> Gasoil</button>
+            <button class="app-tab-btn active"><i class="fa-solid fa-magnifying-glass"></i> Fiche Véhicule 360°</button>
+            <button class="app-tab-btn"><i class="fa-solid fa-shield"></i> Sécurité & CT</button>
+          </div>
+
+          <div class="app-body-area">
+            <div style="display:flex; justify-content:space-between; align-items:center; background:rgba(15,23,42,.8); padding:6px 12px; border-radius:6px; border:1px solid rgba(255,255,255,.08);">
+              <div><strong style="color:#38bdf8; font-size:0.9rem;">AB-124-CD</strong> • VOLVO FH500 (Euro 6) • Équipe A (Paris)</div>
+              <div style="font-size:0.75rem; color:#10b981; font-weight:700;"><i class="fa-solid fa-shield-halved"></i> CT & SÉCURITÉ CONFORME • PROCHAINE VISITE : 15/11/2026</div>
+            </div>
+
+            <div class="diag-grid-3">
+              <div class="diag-box" id="box-gasoil-scene-4">
+                <div class="diag-title"><i class="fa-solid fa-gas-pump" style="color:var(--amber);"></i> Consommation Gasoil</div>
+                <!-- Jauge visuelle réservoir -->
+                <div style="margin:4px 0 6px;">
+                  <div style="display:flex; justify-content:space-between; font-size:0.68rem; color:#94a3b8;">
+                    <span>Réservoir A: 380L / 450L</span>
+                    <span style="color:#10b981; font-weight:700;">84.4%</span>
+                  </div>
+                  <div style="height:6px; background:rgba(255,255,255,0.08); border-radius:4px; overflow:hidden; margin-top:2px;">
+                    <div style="width:84.4%; height:100%; background:linear-gradient(90deg, #10b981, #38bdf8); border-radius:4px;"></div>
+                  </div>
+                </div>
+                <div class="diag-item"><span>Consommation réelle:</span> <strong style="color:#fbbf24;">29.4 L/100km</strong></div>
+                <div class="diag-item"><span>Moyenne flotte:</span> <span>32.6 L/100km</span></div>
+                <div class="diag-item"><span>Écart carburant:</span> <strong style="color:#10b981;">0 Litige (Conforme)</strong></div>
+                <div class="diag-item"><span>Dernier plein TotalEnergies:</span> <span style="color:#38bdf8;">420 L (Carte AS 24)</span></div>
               </div>
-              <div class="card-metric" style="color: var(--amber);">89 Disponibles</div>
-              <div class="card-subtitle">Accroche / Décroche H24 à jour</div>
+
+              <div class="diag-box" id="box-maint-scene-4">
+                <div class="diag-title"><i class="fa-solid fa-wrench" style="color:var(--cyan);"></i> Carnet de Maintenance</div>
+                <div class="diag-item"><span>Dernière vidange:</span> <span>335 000 KM (OK)</span></div>
+                <div class="diag-item"><span>Plaquettes freins:</span> <strong style="color:#10b981;">85% (Contrôlées)</strong></div>
+                <div class="diag-item"><span>Historique pannes:</span> <span>0 en cours (1 mineure)</span></div>
+                <div class="diag-item"><span>Diagnostic OBD:</span> <strong style="color:#10b981;">Zéro code défaut</strong></div>
+              </div>
+
+              <div class="diag-box" id="box-secu-scene-4">
+                <div class="diag-title"><i class="fa-solid fa-circle-check" style="color:var(--emerald);"></i> Sécurité & Équipements Réglementaires</div>
+                <div class="diag-item"><span>Pneumatiques essieu:</span> <strong style="color:#10b981;">8.8 Bar (TPMS OK)</strong></div>
+                <div class="diag-item"><span>Extincteur 6KG:</span> <strong style="color:#10b981;">Plombé & Validé</strong></div>
+                <div class="diag-item"><span>Contrôle Technique:</span> <span>Valide jusqu'en 2027</span></div>
+                <div class="diag-item"><span>Accroche remorque:</span> <span>Sellette vérifiée</span></div>
+              </div>
             </div>
           </div>
         </div>
       </div>
 
       <!-- ═══════════════════════════════════════════════════════════════
-           SCÈNE 4 (0:40 - 0:54) : ODOMÈTRE & ROULAGE À CHARGE (RAC)
-           ═══════════════════════════════════════════════════════════════ -->
-      <div class="scene-frame" id="scene-3" data-duration="14" data-narrative="Optimisez chaque kilomètre. Grâce à la synchronisation odomètre et au calcul automatique du RAC, éliminez les kilomètres à vide et maximisez votre rentabilité au kilomètre.">
-        <div class="scene-kicker"><i class="fa-solid fa-gauge-high"></i> Module Rentabilité Kilométrique</div>
-        <h1 class="scene-title">Odomètre Automatisé & <br><span class="highlight">Roulage à Charge (RAC) Optimal</span></h1>
-        <p class="scene-desc">Synchronisation automatique des compteurs GPS, détection des anomalies de kilométrage et ratio direct charge versus à vide.</p>
-
-        <div class="visual-grid grid-3">
-          <div class="glass-card cyan">
-            <span class="card-icon" style="color: var(--cyan);"><i class="fa-solid fa-route"></i></span>
-            <div class="card-title">Ratio Roulage à Charge (RAC)</div>
-            <div class="card-subtitle">Pourcentage de kilomètres générant du chiffre d'affaires.</div>
-            <div class="card-metric" style="color: #38bdf8;">87.6 %</div>
-            <div style="font-size:0.75rem; color:var(--emerald); margin-top:4px;">+14% vs moyenne nationale</div>
-          </div>
-
-          <div class="glass-card cyan">
-            <span class="card-icon" style="color: var(--amber);"><i class="fa-solid fa-tachometer-alt"></i></span>
-            <div class="card-title">KM Mensuels Exploitation</div>
-            <div class="card-subtitle">Suivi automatique par tracteur et par chauffeur.</div>
-            <div class="card-metric" style="color: #fbbf24;">482 150 KM</div>
-            <div style="font-size:0.75rem; color:var(--text-muted); margin-top:4px;">Synchronisation GPS temps réel</div>
-          </div>
-
-          <div class="glass-card cyan">
-            <span class="card-icon" style="color: var(--emerald);"><i class="fa-solid fa-chart-line"></i></span>
-            <div class="card-title">Économie de Roulage à Vide</div>
-            <div class="card-subtitle">Réduction directe de l'usure matériel et pneus.</div>
-            <div class="card-metric" style="color: #34d399;">- 24 500 KM</div>
-            <div style="font-size:0.75rem; color:var(--emerald); margin-top:4px;">Gain net estimé : 19 600 € / mois</div>
-          </div>
-        </div>
-      </div>
-
-      <!-- ═══════════════════════════════════════════════════════════════
-           SCÈNE 5 (0:54 - 1:08) : CARBURANT GASOIL & MAINTENANCE PROACTIVE
-           ═══════════════════════════════════════════════════════════════ -->
-      <div class="scene-frame" id="scene-4" data-duration="14" data-narrative="Maîtrisez votre premier poste de dépense. Le module Gasoil détecte immédiatement les surconsommations et réconcilie chaque litre, tandis que le carnet d'entretien anticipe les pannes.">
-        <div class="scene-kicker"><i class="fa-solid fa-oil-can"></i> Économies Directes</div>
-        <h1 class="scene-title">Contrôle Gasoil Strict & <br><span class="highlight">Maintenance Préventive CSPC</span></h1>
-        <p class="scene-desc">Fini les fuites de carburant et les immobilisations surprises grâce à la fiche véhicule 360° et aux alertes d'anomalies.</p>
-
-        <div class="visual-grid grid-3">
-          <div class="glass-card">
-            <div class="card-title" style="display:flex; align-items:center; gap:8px;">
-              <i class="fa-solid fa-gas-pump" style="color: var(--amber);"></i>
-              Audit Carburant Litre / 100km
-            </div>
-            <div class="card-subtitle">Comparaison automatique plein versus odomètre.</div>
-            <div class="card-metric" style="color: var(--amber);">29.4 L / 100</div>
-            <div style="font-size:0.75rem; color:var(--emerald); margin-top:4px;">-3.2 L/100km d'optimisation</div>
-          </div>
-
-          <div class="glass-card">
-            <div class="card-title" style="display:flex; align-items:center; gap:8px;">
-              <i class="fa-solid fa-bell" style="color: var(--rose);"></i>
-              Détection Immédiate d'Anomalie
-            </div>
-            <div class="card-subtitle">Alerte rouge si écart de consommation suspect.</div>
-            <div class="card-metric" style="color: var(--rose);">0 Fraude</div>
-            <div style="font-size:0.75rem; color:var(--text-muted); margin-top:4px;">Traçabilité complète des réservoirs</div>
-          </div>
-
-          <div class="glass-card">
-            <div class="card-title" style="display:flex; align-items:center; gap:8px;">
-              <i class="fa-solid fa-wrench" style="color: var(--emerald);"></i>
-              Fiche Véhicule 360° & Atelier
-            </div>
-            <div class="card-subtitle">Historique des pièces, pneumatiques et visites CSPC.</div>
-            <div class="card-metric" style="color: var(--emerald);">100% Conforme</div>
-            <div style="font-size:0.75rem; color:var(--cyan); margin-top:4px;">Contrôles réglementaires validés</div>
-          </div>
-        </div>
-      </div>
-
-      <!-- ═══════════════════════════════════════════════════════════════
-           SCÈNE 6 (1:08 - 1:22) : GESTION DES QUAIS & SUIVI ZÉRO-PERTE DES BL
+           SCÈNE 6 (1:08 - 1:22) : IMMERSION EN DIRECT — SUIVI BL & QUAIS
            ═══════════════════════════════════════════════════════════════ -->
       <div class="scene-frame" id="scene-5" data-duration="14" data-narrative="Accélérez la rotation de vos quais et sécurisez votre trésorerie. NUMIPLAN assure la traçabilité intégrale des bons de livraison et élimine les temps d'attente chauffeurs.">
-        <div class="scene-kicker"><i class="fa-solid fa-warehouse"></i> Rotation & Trésorerie</div>
-        <h1 class="scene-title">Supervision des Quais & <br><span class="highlight">Zéro Perte de Bons de Livraison (BL)</span></h1>
-        <p class="scene-desc">Gestion des entrées/sorties en quai, accroche-décroche 24h/24 et réconciliation des bons pour facturer sans délai.</p>
+        <div class="scene-kicker"><i class="fa-solid fa-laptop-code"></i> Démonstration Directe • Suivi BL & Quais</div>
+        <h1 class="scene-title">Gestion Opérationnelle : <br><span class="highlight">Suivi Zéro-Perte des BL & Rotation Quais</span></h1>
 
-        <div class="visual-grid grid-3">
-          <div class="glass-card cyan">
-            <span class="card-icon" style="color: var(--cyan);"><i class="fa-solid fa-file-shield"></i></span>
-            <div class="card-title">Suivi des BL Récupérés</div>
-            <div class="card-subtitle">Alerte automatique si un chauffeur n'a pas restitué le bon.</div>
-            <div class="card-metric" style="color: var(--cyan);">100% Restitués</div>
-            <div style="font-size:0.75rem; color:var(--emerald); margin-top:4px;">Facturation accélérée de 18 jours</div>
+        <div class="app-screen-mockup" style="position:relative;">
+          <!-- Ligne Laser de Numérisation BL -->
+          <div class="scanner-laser-line" id="scanner-laser-scene-5"></div>
+
+          <!-- Curseur Virtuel Logiciel -->
+          <div class="software-cursor" id="cursor-scene-5" style="top:25px; left:25px;">
+            <svg viewBox="0 0 24 24" fill="none" style="width:22px; height:22px;">
+              <path d="M3 3l7 18 3-7 7-3L3 3z" fill="#0284c7" stroke="#ffffff" stroke-width="2" stroke-linejoin="round"/>
+            </svg>
+            <div class="cursor-click-ripple" id="ripple-scene-5"></div>
           </div>
 
-          <div class="glass-card cyan">
-            <span class="card-icon" style="color: var(--amber);"><i class="fa-solid fa-stopwatch"></i></span>
-            <div class="card-title">Temps d'Immobilisation Quai</div>
-            <div class="card-subtitle">Chronométrage du chargement et déchargement.</div>
-            <div class="card-metric" style="color: var(--amber);">&lt; 42 min</div>
-            <div style="font-size:0.75rem; color:var(--emerald); margin-top:4px;">-50% d'attente camion</div>
+          <div class="app-top-header">
+            <div class="app-window-controls">
+              <span class="win-dot win-red"></span>
+              <span class="win-dot win-yellow"></span>
+              <span class="win-dot win-green"></span>
+              <span class="app-software-title"><i class="fa-solid fa-file-invoice"></i> NUMIPLAN • Suivi BL & Traçabilité Quais</span>
+            </div>
+            <div style="display:flex; align-items:center; gap:8px;">
+              <div class="live-action-hud"><i class="fa-solid fa-circle-dot live-pulse"></i> EXÉCUTION EN DIRECT : NUMÉRISATION & SCAN BL</div>
+              <div class="app-live-pill"><span class="mock-pulse-dot"></span> ZERO RETARD FACTURATION</div>
+            </div>
           </div>
 
-          <div class="glass-card cyan">
-            <span class="card-icon" style="color: var(--emerald);"><i class="fa-solid fa-truck-ramp-box"></i></span>
-            <div class="card-title">Rotation Quai Inbound / Outbound</div>
-            <div class="card-subtitle">Affectation optimisée des portes de quai en direct.</div>
-            <div class="card-metric" style="color: var(--emerald);">+40% Flux</div>
-            <div style="font-size:0.75rem; color:var(--text-muted); margin-top:4px;">Capacité maximale exploitée</div>
+          <div class="app-tabs-bar">
+            <button class="app-tab-btn"><i class="fa-solid fa-truck"></i> Disponibilité</button>
+            <button class="app-tab-btn active"><i class="fa-solid fa-file-invoice"></i> Suivi BL <span class="app-tab-count green">À Jour</span></button>
+            <button class="app-tab-btn"><i class="fa-solid fa-warehouse"></i> Gestion Quais</button>
+            <button class="app-tab-btn"><i class="fa-solid fa-clock-rotate-left"></i> Traçabilité</button>
+          </div>
+
+          <div class="app-body-area">
+            <div style="display:flex; justify-content:space-between; align-items:center; background:rgba(15,23,42,.8); padding:6px 12px; border-radius:6px; border:1px solid rgba(255,255,255,.08);">
+              <div style="display:flex; align-items:center; gap:10px;">
+                <span style="font-size:0.78rem; font-weight:700; color:#e2e8f0;">RÉCONCILIATION EXPÉDITIONS & BONS DE LIVRAISON</span>
+                <button class="tbl-btn" id="btn-scan-bl-scene-5" style="background:#0284c7; color:#fff; font-size:0.68rem; font-weight:700; cursor:pointer;"><i class="fa-solid fa-barcode"></i> Scanner BL Chauffeur</button>
+              </div>
+              <span style="color:#10b981; font-weight:700; font-size:0.75rem;"><i class="fa-solid fa-bolt"></i> Rotation Quais: 28 min (-57 min vs papier)</span>
+            </div>
+
+            <table class="app-data-table">
+              <thead>
+                <tr>
+                  <th>N° COMMANDE / BL</th>
+                  <th>CAMION</th>
+                  <th>CONDUCTEUR</th>
+                  <th>CLIENT / DESTINATION</th>
+                  <th>CHARGEMENT</th>
+                  <th>STATUT RESTITUTION BL</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><strong style="color:#38bdf8;">BL-2026-0941</strong></td>
+                  <td>AB-124-CD</td>
+                  <td>THOMAS BERNARD</td>
+                  <td>HUB LOGISTIQUE LYON-CORBAS</td>
+                  <td>33 Palettes (24T)</td>
+                  <td><span class="status-badge badge-mission">✔ RESTITUÉ & NUMÉRISÉ</span></td>
+                </tr>
+                <tr>
+                  <td><strong style="color:#38bdf8;">BL-2026-0942</strong></td>
+                  <td>EK-543-LP</td>
+                  <td>JULIEN DUBOIS</td>
+                  <td>PLATEFORME LOGISTIQUE LILLE</td>
+                  <td>28 Palettes (18T)</td>
+                  <td><span class="status-badge badge-mission">✔ RESTITUÉ & NUMÉRISÉ</span></td>
+                </tr>
+                <tr id="row-bl-scene-5-0943" style="transition:background 0.3s;">
+                  <td><strong style="color:#fbbf24;" id="bl-code-0943">BL-2026-0943</strong></td>
+                  <td>GH-891-TR</td>
+                  <td>PIERRE MARTIN</td>
+                  <td>DÉPÔT RUNGIS — Quai 04</td>
+                  <td>30 Palettes (22T)</td>
+                  <td id="status-cell-bl-0943"><span class="status-badge badge-dispo">EN COURS DÉCHARGEMENT (22 min)</span></td>
+                </tr>
+              </tbody>
+            </table>
           </div>
         </div>
       </div>
 
       <!-- ═══════════════════════════════════════════════════════════════
-           SCÈNE 7 (1:22 - 1:36) : COCKPIT TMS & MUR VIDÉO DIRECTION
+           SCÈNE 7 (1:22 - 1:36) : IMMERSION EN DIRECT — COCKPIT TMS TV
            ═══════════════════════════════════════════════════════════════ -->
-      <div class="scene-frame" id="scene-6" data-duration="14" data-narrative="Offrez à votre direction et vos exploitants un mur d'affichage TV haute définition pour superviser l'ensemble des segments de livraison, des alertes et des KPI en un coup d'œil.">
-        <div class="scene-kicker"><i class="fa-solid fa-tv"></i> Salle de Contrôle Grand Écran</div>
-        <h1 class="scene-title">Cockpit TMS & <br><span class="highlight">Mur d'Affichage TV Salle d'Exploitation</span></h1>
-        <p class="scene-desc">Donnez à vos directeurs et exploitants la vision totale sur le terrain avec des tableaux de bord interactifs pensés pour la projection TV.</p>
+      <div class="scene-frame" id="scene-6" data-duration="14" data-narrative="Offrez à votre direction et vos exploitants un mur d'affichage TV haute définition pour superviser l'ensemble des segments de livraison, des alertes et des KPI en direct.">
+        <div class="scene-kicker"><i class="fa-solid fa-laptop-code"></i> Démonstration Directe • Mur TV Exploitation</div>
+        <h1 class="scene-title">Cockpit Grand Écran : <br><span class="highlight">Supervision Temps Réel Salle d'Exploitation</span></h1>
 
-        <div class="hero-presentation-box">
-          <div class="hero-badges-list" style="flex: 1;">
-            <div class="hero-badge-item">
-              <i class="fa-solid fa-display"></i>
-              <span>Mode Kiosque TV automatique sans interaction requise</span>
+        <div class="app-screen-mockup">
+          <div class="app-top-header" style="background:#0284c7;">
+            <div class="app-window-controls">
+              <span class="win-dot win-red"></span>
+              <span class="win-dot win-yellow"></span>
+              <span class="win-dot win-green"></span>
+              <span class="app-software-title" style="color:#fff;"><i class="fa-solid fa-tv"></i> NUMIPLAN COCKPIT TMS • AFFICHAGE MUR TV SALLE D'EXPLOITATION</span>
             </div>
-            <div class="hero-badge-item">
-              <i class="fa-solid fa-arrows-rotate"></i>
-              <span>Mise à jour en direct chaque 30 secondes sans rechargement</span>
-            </div>
-            <div class="hero-badge-item">
-              <i class="fa-solid fa-chart-pie"></i>
-              <span>KPI Segments Livrés, Chargés, Pannes et Litiges par Agence</span>
-            </div>
-            <div class="hero-badge-item">
-              <i class="fa-solid fa-lock"></i>
-              <span>Vues restreintes par rôles (Direction, Exploitant, Registre)</span>
+            <div style="display:flex; align-items:center; gap:8px;">
+              <div class="live-action-hud" style="background:rgba(0,0,0,0.25); color:#fff; border-color:rgba(255,255,255,0.3);"><i class="fa-solid fa-circle-dot live-pulse"></i> DIFFUSION GRAND ÉCRAN H24</div>
+              <div class="app-live-pill" style="background:rgba(0,0,0,0.3); color:#fff; border-color:rgba(255,255,255,0.3);"><span class="mock-pulse-dot"></span> TEMPS RÉEL</div>
             </div>
           </div>
-          <div class="hero-img-container" style="flex: 1.1;">
-            <img src="numiplan_mobile.jpg" alt="NUMIPLAN Mobile Dispatch" onerror="this.src='numiplan_hero.jpg'">
+
+          <div class="app-body-area">
+            <div class="visual-grid grid-4" style="gap:10px;">
+              <div class="glass-card success" style="padding:10px 14px;">
+                <div style="font-size:0.72rem; color:#94a3b8; text-transform:uppercase;">Segments Livrés</div>
+                <div style="font-family:var(--font-mono); font-size:1.5rem; font-weight:800; color:#10b981;">142 Livrés</div>
+                <div style="font-size:0.68rem; color:#94a3b8;">100% validés aujourd'hui</div>
+              </div>
+
+              <div class="glass-card cyan" style="padding:10px 14px;">
+                <div style="font-size:0.72rem; color:#94a3b8; text-transform:uppercase;">En Transit / Route</div>
+                <div style="font-family:var(--font-mono); font-size:1.5rem; font-weight:800; color:#38bdf8;">38 Actifs</div>
+                <div style="font-size:0.68rem; color:#94a3b8;">Régulation flux continu</div>
+              </div>
+
+              <div class="glass-card cyan" style="padding:10px 14px;">
+                <div style="font-size:0.72rem; color:#94a3b8; text-transform:uppercase;">Roulage à Charge</div>
+                <div style="font-family:var(--font-mono); font-size:1.5rem; font-weight:800; color:#fbbf24;">87.6 % RAC</div>
+                <div style="font-size:0.68rem; color:#10b981;">+14% vs moyenne</div>
+              </div>
+
+              <div class="glass-card danger" style="padding:10px 14px;">
+                <div style="font-size:0.72rem; color:#94a3b8; text-transform:uppercase;">Immobilisations Pannes</div>
+                <div style="font-family:var(--font-mono); font-size:1.5rem; font-weight:800; color:#fb7185;">2 Pannes</div>
+                <div style="font-size:0.68rem; color:#fb7185;">Prise en charge atelier</div>
+              </div>
+            </div>
+
+            <!-- Mini Radar de Flotte France -->
+            <div class="radar-map-widget">
+              <div style="display:flex; justify-content:space-between; align-items:center; font-size:0.72rem; font-weight:700; color:#38bdf8;">
+                <span><i class="fa-solid fa-route"></i> AXES STRATÉGIQUES EN TRANSIT (GPS DIRECT)</span>
+                <span style="color:#10b981;"><i class="fa-solid fa-signal"></i> 38 Camions en mouvement sur le réseau national</span>
+              </div>
+              <div class="radar-track-row">
+                <span style="width:130px; color:#cbd5e1;">Axe Paris ➔ Lyon (A6) :</span>
+                <div class="radar-track-bar"><div class="radar-track-dot" style="animation-duration:5s;"></div></div>
+                <span style="width:130px; text-align:right; color:#38bdf8;">AB-124-CD (82 km/h)</span>
+              </div>
+              <div class="radar-track-row">
+                <span style="width:130px; color:#cbd5e1;">Axe Paris ➔ Lille (A1) :</span>
+                <div class="radar-track-bar"><div class="radar-track-dot" style="animation-duration:4.2s; background:#34d399; box-shadow:0 0 8px #34d399;"></div></div>
+                <span style="width:130px; text-align:right; color:#34d399;">EK-543-LP (79 km/h)</span>
+              </div>
+              <div class="radar-track-row">
+                <span style="width:130px; color:#cbd5e1;">Axe Lyon ➔ Marseille (A7) :</span>
+                <div class="radar-track-bar"><div class="radar-track-dot" style="animation-duration:6.5s; background:#fbbf24; box-shadow:0 0 8px #fbbf24;"></div></div>
+                <span style="width:130px; text-align:right; color:#fbbf24;">GH-891-TR (75 km/h)</span>
+              </div>
+            </div>
+
+            <div class="tv-ticker-strip">
+              <span style="color:#38bdf8; font-weight:700;"><i class="fa-solid fa-bullhorn"></i> FLUX OPÉRATIONNEL :</span>
+              <span>[13:40] Camion AB-124-CD arrivé à Lyon • BL émargé</span>
+              <span style="color:#94a3b8;">•</span>
+              <span>[13:42] Ravitaillement Gasoil 420L certifié Carte Carburant</span>
+              <span style="color:#94a3b8;">•</span>
+              <span>[13:45] Quai 04 libéré à Rungis (22 min)</span>
+              <span style="color:#94a3b8;">•</span>
+              <span style="color:#10b981;">Cockpit synchro Supabase H24</span>
+            </div>
           </div>
         </div>
       </div>
@@ -1108,7 +2140,7 @@
         <p class="scene-desc">Découvrez comment NUMIPLAN s'adapte à vos agences, vos camions et vos processus en moins de 48 heures.</p>
 
         <div class="cta-container">
-          <a href="javascript:void(0)" class="cta-button-big" onclick="alert('Demande de démo prise en compte ! Vos coordonnées de contact commercial peuvent être personnalisées ici.')">
+          <a href="mailto:C1881@icloud.com?subject=Demande%20de%20d%C3%A9monstration%20NUMIPLAN&body=Bonjour%2C%20je%20souhaite%20r%C3%A9server%20une%20d%C3%A9monstration%20priv%C3%A9e%20de%20NUMIPLAN%20pour%20notre%20flotte%20de%20transport." class="cta-button-big">
             <i class="fa-solid fa-calendar-check"></i>
             <span>Réserver Votre Démo Privée Gratuite</span>
           </a>
@@ -1120,8 +2152,8 @@
             <div class="cta-feature"><i class="fa-solid fa-circle-check"></i> Sans Engagement de Durée</div>
           </div>
 
-          <div style="font-family: var(--font-mono); font-size: 0.9rem; color: var(--text-muted); margin-top: 8px;">
-            NUMIPLAN • Contact Commercial : <span style="color: var(--cyan); font-weight:700;">contact@numiplan.com</span>
+          <div style="font-family: var(--font-mono); font-size: 0.95rem; color: var(--text-muted); margin-top: 8px;">
+            NUMIPLAN • Contact Commercial : <a href="mailto:C1881@icloud.com" style="color: var(--cyan); font-weight:700; text-decoration: underline;">C1881@icloud.com</a>
           </div>
         </div>
       </div>
@@ -1176,6 +2208,177 @@
       </div>
     </div>
 
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════════════
+       MODAL BAC À SABLE : IMMERSION DÉMO CLIENT INTERACTIF NUMIPLAN
+       ═══════════════════════════════════════════════════════════════ -->
+  <div class="immersion-modal-backdrop" id="immersion-client-modal" onclick="if(event.target===this) closeImmersionModal()">
+    <div class="immersion-modal-window">
+      <!-- En-Tête Fenêtre -->
+      <div class="im-header">
+        <div class="im-header-title">
+          <i class="fa-solid fa-truck-fast"></i>
+          <span>NUMIPLAN ERP & Cockpit TMS • Environnement Interactif Démo Client</span>
+          <span class="brand-tag" style="background:#10b981; color:#000; font-weight:800; font-size:0.68rem; padding:2px 8px; border-radius:10px;">Session Live Client</span>
+        </div>
+        <button class="im-close-btn" onclick="closeImmersionModal()">
+          <i class="fa-solid fa-xmark"></i>
+          <span>Fermer & Reprendre la Vidéo</span>
+        </button>
+      </div>
+
+      <!-- Navigation Onglets Démo -->
+      <div class="app-tabs-bar" style="background:#0a0f1d; padding:8px 16px;">
+        <button class="app-tab-btn active" id="im-tab-dispo" onclick="switchImmersionTab('dispo')"><i class="fa-solid fa-truck"></i> Disponibilité Flotte [48 Camions]</button>
+        <button class="app-tab-btn" id="im-tab-rac" onclick="switchImmersionTab('rac')"><i class="fa-solid fa-gauge-high"></i> Calculateur RAC & Économies</button>
+        <button class="app-tab-btn" id="im-tab-bl" onclick="switchImmersionTab('bl')"><i class="fa-solid fa-barcode"></i> Scanner Numérique BL</button>
+        <button class="app-tab-btn" id="im-tab-tv" onclick="switchImmersionTab('tv')"><i class="fa-solid fa-tv"></i> Cockpit Mur TV Direct</button>
+      </div>
+
+      <!-- Corps Démo -->
+      <div class="im-body">
+        
+        <!-- ONGLET 1 : DISPONIBILITÉ FLOTTE -->
+        <div id="im-panel-dispo">
+          <div class="app-filter-strip" style="margin-bottom:12px;">
+            <div class="app-team-selector">
+              <button class="team-btn active im-team-btn" data-team="ALL" onclick="filterImmersionTeam('ALL')">Tous (48)</button>
+              <button class="team-btn im-team-btn" data-team="A" onclick="filterImmersionTeam('A')">Équipe A (Paris)</button>
+              <button class="team-btn im-team-btn" data-team="B" onclick="filterImmersionTeam('B')">Équipe B (Lyon)</button>
+              <button class="team-btn im-team-btn" data-team="C" onclick="filterImmersionTeam('C')">Équipe C (Lille)</button>
+              <button class="team-btn im-team-btn" data-team="D" onclick="filterImmersionTeam('D')">Équipe D (Bordeaux)</button>
+            </div>
+            <div class="app-search-box" style="flex:1; max-width:320px;">
+              <i class="fa-solid fa-magnifying-glass" style="color:var(--cyan);"></i>
+              <input type="text" placeholder="Filtrer matricule, chauffeur, agence..." style="background:transparent; border:none; color:#fff; outline:none; font-family:var(--font-mono); font-size:0.75rem; width:100%;" oninput="handleImmersionSearch(this.value)">
+            </div>
+            <div style="font-size:0.75rem; color:#10b981; font-weight:700;">
+              <i class="fa-solid fa-cloud"></i> Connecté à Supabase Cloud
+            </div>
+          </div>
+
+          <div style="overflow-x:auto; max-height:420px; border:1px solid rgba(255,255,255,0.06); border-radius:8px;">
+            <table class="app-data-table">
+              <thead>
+                <tr>
+                  <th>TRACTEUR</th>
+                  <th>CHAUFFEUR</th>
+                  <th>REMORQUE</th>
+                  <th>DESTINATION / MISSION</th>
+                  <th>ODOMÈTRE</th>
+                  <th>STATUT EN DIRECT</th>
+                  <th>ACTIONS RAPIDES</th>
+                </tr>
+              </thead>
+              <tbody id="im-fleet-tbody">
+                <!-- Rempli dynamiquement par JS -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- ONGLET 2 : CALCULATEUR RAC -->
+        <div id="im-panel-rac" style="display:none; flex-direction:column; gap:16px;">
+          <div style="background:rgba(15,23,42,0.85); border:1px solid rgba(56,189,248,0.3); border-radius:10px; padding:18px;">
+            <h3 style="color:#38bdf8; font-size:1rem; margin-bottom:6px;"><i class="fa-solid fa-calculator"></i> Simulateur Interactif de Roulage à Charge (RAC)</h3>
+            <p style="font-size:0.8rem; color:#94a3b8; margin-bottom:16px;">Ajustez les curseurs avec les valeurs de votre entreprise pour calculer en direct les kilomètres à vide évités et l'économie nette en Euros (€).</p>
+
+            <div style="display:grid; grid-template-columns: repeat(2, 1fr); gap:16px;">
+              <div>
+                <label style="font-size:0.75rem; color:#cbd5e1; font-weight:700;">Kilomètres Totaux Parcourus par la Flotte (Mois) :</label>
+                <input type="number" id="calc-total-km" value="482000" step="5000" style="width:100%; padding:8px 12px; margin-top:4px; background:#0b1222; border:1px solid rgba(255,255,255,0.15); border-radius:6px; color:#fff; font-family:var(--font-mono); font-size:0.85rem;" oninput="calculateInteractiveRac()">
+              </div>
+              <div>
+                <label style="font-size:0.75rem; color:#cbd5e1; font-weight:700;">Kilomètres Facturables (Roulage Chargé) :</label>
+                <input type="number" id="calc-charged-km" value="422360" step="5000" style="width:100%; padding:8px 12px; margin-top:4px; background:#0b1222; border:1px solid rgba(255,255,255,0.15); border-radius:6px; color:#fff; font-family:var(--font-mono); font-size:0.85rem;" oninput="calculateInteractiveRac()">
+              </div>
+            </div>
+
+            <div style="display:grid; grid-template-columns: repeat(3, 1fr); gap:12px; margin-top:16px;">
+              <div style="background:rgba(2,132,199,0.2); border:1px solid rgba(56,189,248,0.3); border-radius:8px; padding:12px; text-align:center;">
+                <div style="font-size:0.72rem; color:#94a3b8;">Taux RAC Calculé</div>
+                <div style="font-family:var(--font-mono); font-size:1.6rem; font-weight:800; color:#38bdf8;" id="calc-rac-result">87.6 %</div>
+                <div style="font-size:0.68rem; color:#10b981;">Performance Exceptionnelle</div>
+              </div>
+
+              <div style="background:rgba(245,158,11,0.2); border:1px solid rgba(245,158,11,0.3); border-radius:8px; padding:12px; text-align:center;">
+                <div style="font-size:0.72rem; color:#94a3b8;">KM à Vide Résiduels</div>
+                <div style="font-family:var(--font-mono); font-size:1.6rem; font-weight:800; color:#fbbf24;" id="calc-empty-km">59 640 KM</div>
+                <div style="font-size:0.68rem; color:#fbbf24;">Optimisé de -24 500 KM</div>
+              </div>
+
+              <div style="background:rgba(16,185,129,0.2); border:1px solid rgba(16,185,129,0.3); border-radius:8px; padding:12px; text-align:center;">
+                <div style="font-size:0.72rem; color:#94a3b8;">Économie Gasoil Mensuelle Estimée</div>
+                <div style="font-family:var(--font-mono); font-size:1.6rem; font-weight:800; color:#34d399;" id="calc-savings-result">10 735 €</div>
+                <div style="font-size:0.68rem; color:#34d399;">Investissement Rentabilisé en 45j</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ONGLET 3 : SCANNER NUMÉRIQUE BL -->
+        <div id="im-panel-bl" style="display:none; flex-direction:column; gap:16px;">
+          <div style="background:rgba(15,23,42,0.85); border:1px solid rgba(56,189,248,0.3); border-radius:10px; padding:22px; text-align:center;">
+            <i class="fa-solid fa-barcode" style="font-size:3.5rem; color:#38bdf8; margin-bottom:12px;"></i>
+            <h3 style="color:#fff; margin-bottom:6px; font-size:1.1rem;">Module Traçabilité Zéro-Perte des Bons de Livraison (BL)</h3>
+            <p style="font-size:0.82rem; color:#94a3b8; max-width:620px; margin:0 auto 16px;">Permet au conducteur ou au chef de quai de flasher le BL avec un smartphone ou lecteur optique. Déclenche immédiatement la facturation client et libère le quai.</p>
+            <button class="btn-top btn-primary" onclick="simulateInteractiveScan()" style="padding:10px 24px; font-size:0.85rem; margin:0 auto;">
+              <i class="fa-solid fa-camera"></i> Tester le Scan Optique d'un Bon de Livraison
+            </button>
+            <div id="im-scan-result" style="margin-top:16px; font-weight:700; color:#10b981; font-size:0.85rem; display:none;">
+              <i class="fa-solid fa-circle-check"></i> BL-2026-9842 scanné & validé avec succès • Photo archivée • Facturation prête • Quai 03 libéré en 22 min !
+            </div>
+          </div>
+        </div>
+
+        <!-- ONGLET 4 : COCKPIT MUR TV -->
+        <div id="im-panel-tv" style="display:none; flex-direction:column; gap:14px;">
+          <div style="background:rgba(2,132,199,0.15); border:1px solid rgba(56,189,248,0.35); border-radius:8px; padding:12px;">
+            <strong>Cockpit TV Mur d'Exploitation H24</strong>
+            <p style="font-size:0.75rem; color:#94a3b8;">Affichage dynamique autonome pour les téléviseurs 65" / 75" de la salle de contrôle.</p>
+          </div>
+          <div class="visual-grid grid-4" style="gap:10px;">
+            <div class="glass-card success" style="padding:10px 14px;">
+              <div style="font-size:0.72rem; color:#94a3b8; text-transform:uppercase;">Segments Livrés</div>
+              <div style="font-family:var(--font-mono); font-size:1.5rem; font-weight:800; color:#10b981;">142 Livrés</div>
+              <div style="font-size:0.68rem; color:#94a3b8;">100% conformes</div>
+            </div>
+            <div class="glass-card cyan" style="padding:10px 14px;">
+              <div style="font-size:0.72rem; color:#94a3b8; text-transform:uppercase;">En Transit</div>
+              <div style="font-family:var(--font-mono); font-size:1.5rem; font-weight:800; color:#38bdf8;">38 Camions</div>
+              <div style="font-size:0.68rem; color:#94a3b8;">Flux continu régulé</div>
+            </div>
+            <div class="glass-card cyan" style="padding:10px 14px;">
+              <div style="font-size:0.72rem; color:#94a3b8; text-transform:uppercase;">Roulage à Charge</div>
+              <div style="font-family:var(--font-mono); font-size:1.5rem; font-weight:800; color:#fbbf24;">87.6 % RAC</div>
+              <div style="font-size:0.68rem; color:#10b981;">+14% vs secteur</div>
+            </div>
+            <div class="glass-card danger" style="padding:10px 14px;">
+              <div style="font-size:0.72rem; color:#94a3b8; text-transform:uppercase;">Pannes Signalées</div>
+              <div style="font-family:var(--font-mono); font-size:1.5rem; font-weight:800; color:#fb7185;">2 Pannes</div>
+              <div style="font-size:0.68rem; color:#fb7185;">Prise en charge atelier</div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Pied de Page de la Modal -->
+      <div style="background:#0f172a; padding:10px 18px; border-top:1px solid rgba(255,255,255,0.08); display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
+        <span style="font-size:0.75rem; color:#94a3b8;">
+          <i class="fa-solid fa-lock" style="color:#10b981;"></i> Données sécurisées • Compatible ERP SAP, Oracle, Sage & Fichiers Excel
+        </span>
+        <div style="display:flex; gap:12px; align-items:center;">
+          <a href="mailto:C1881@icloud.com" style="color:#38bdf8; font-size:0.8rem; text-decoration:none; font-weight:700;">
+            <i class="fa-solid fa-envelope"></i> Contact Déploiement : C1881@icloud.com
+          </a>
+          <button class="tbl-btn" onclick="closeImmersionModal()" style="background:#0284c7; color:#fff; padding:6px 14px; font-weight:700; cursor:pointer;">
+            Reprendre la Présentation Vidéo
+          </button>
+        </div>
+      </div>
+    </div>
   </div>
 
   <!-- SCRIPT LOGIQUE VIDÉO MARKETING, AUDIO SYNTH, VOIX & ENREGISTREMENT -->
@@ -1266,6 +2469,11 @@
 
       // Varier la couleur de lumière d'ambiance
       updateAmbientGlow(index);
+
+      // Réinitialiser les animations d'immersion logicielle
+      if (typeof resetLiveSceneSimulations === 'function') {
+        resetLiveSceneSimulations();
+      }
     }
 
     function updateAmbientGlow(index) {
@@ -1330,6 +2538,13 @@
         }
 
         updateTimeDisplay();
+      }
+
+      // Simulation immersive logicielle synchronisée
+      if (typeof updateLiveSceneSimulation === 'function') {
+        const sceneStart = getSceneStartTime(currentSceneIndex);
+        const sceneElapsed = Math.max(0, currentTime - sceneStart);
+        updateLiveSceneSimulation(currentSceneIndex, sceneElapsed);
       }
 
       animationFrameId = requestAnimationFrame(animationLoop);
@@ -1848,6 +3063,409 @@
         if (document.exitFullscreen) document.exitFullscreen();
       }
     }
+
+    // ═══════════════════════════════════════════════════════════════
+    // EFFETS AUDIO LOGICIEL (CLIC & SCANNER BEEP SANS BUZZ CONTINU)
+    // ═══════════════════════════════════════════════════════════════
+    function playUiSoftClick() {
+      if (!audioContext || !isMusicEnabled) return;
+      try {
+        const osc = audioContext.createOscillator();
+        const g = audioContext.createGain();
+        osc.type = 'sine';
+        const now = audioContext.currentTime;
+        osc.frequency.setValueAtTime(650, now);
+        osc.frequency.exponentialRampToValueAtTime(180, now + 0.04);
+        g.gain.setValueAtTime(0.04, now);
+        g.gain.exponentialRampToValueAtTime(0.0001, now + 0.04);
+        osc.connect(g);
+        g.connect(masterGainNode || audioContext.destination);
+        osc.start(now);
+        osc.stop(now + 0.05);
+      } catch(e) {}
+    }
+
+    function playBarcodeBeep() {
+      if (!audioContext || !isMusicEnabled) return;
+      try {
+        const osc = audioContext.createOscillator();
+        const g = audioContext.createGain();
+        osc.type = 'triangle';
+        const now = audioContext.currentTime;
+        osc.frequency.setValueAtTime(1750, now);
+        g.gain.setValueAtTime(0.05, now);
+        g.gain.exponentialRampToValueAtTime(0.0001, now + 0.08);
+        osc.connect(g);
+        g.connect(masterGainNode || audioContext.destination);
+        osc.start(now);
+        osc.stop(now + 0.09);
+      } catch(e) {}
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // MOTEUR D'IMMERSION LOGICIELLE EN DIRECT DANS LA VIDÉO
+    // ═══════════════════════════════════════════════════════════════
+    function updateLiveSceneSimulation(sceneIndex, elapsed) {
+      // ── SCÈNE 3 (index 2) : Disponibilité & Dispatch ──
+      if (sceneIndex === 2) {
+        const cur = document.getElementById('cursor-scene-2');
+        const rip = document.getElementById('ripple-scene-2');
+        const modal = document.getElementById('modal-dispatch-scene-2');
+        const toast = document.getElementById('toast-scene-2');
+        const statusCell = document.getElementById('status-cell-01248');
+
+        if (elapsed < 1.0) {
+          if (cur) { cur.style.opacity = '0'; cur.style.top = '25px'; cur.style.left = '25px'; }
+          if (modal) modal.classList.remove('active');
+          if (toast) toast.classList.remove('active');
+          if (statusCell) statusCell.innerHTML = '<span class="status-badge badge-mission">● EN MISSION</span>';
+        } else if (elapsed < 3.2) {
+          if (cur) {
+            cur.style.opacity = '1';
+            cur.style.top = '100px';
+            cur.style.left = '340px'; // Sur barre de recherche
+          }
+        } else if (elapsed < 5.0) {
+          if (cur) {
+            cur.style.top = '175px';
+            cur.style.left = '830px'; // Sur bouton Affecter
+          }
+        } else if (elapsed < 7.4) {
+          if (modal && !modal.classList.contains('active')) {
+            modal.classList.add('active');
+            if (rip) { rip.classList.add('clicked'); setTimeout(() => rip.classList.remove('clicked'), 500); }
+            playUiSoftClick();
+          }
+          if (cur) {
+            cur.style.top = '280px';
+            cur.style.left = '490px'; // Sur bouton Valider
+          }
+        } else if (elapsed < 12.0) {
+          if (modal && modal.classList.contains('active')) {
+            modal.classList.remove('active');
+            if (rip) { rip.classList.add('clicked'); setTimeout(() => rip.classList.remove('clicked'), 500); }
+            playUiSoftClick();
+          }
+          if (toast) toast.classList.add('active');
+          if (statusCell) {
+            statusCell.innerHTML = '<span class="status-badge badge-mission" style="border-color:#10b981; box-shadow:0 0 10px rgba(16,185,129,0.5);">✔ MISSION CONFIRMÉE</span>';
+          }
+        } else {
+          if (toast) toast.classList.remove('active');
+        }
+      }
+
+      // ── SCÈNE 4 (index 3) : Odomètre & Calcul RAC ──
+      else if (sceneIndex === 3) {
+        const cur = document.getElementById('cursor-scene-3');
+        const rip = document.getElementById('ripple-scene-3');
+        const racFill = document.getElementById('rac-meter-fill-scene-3');
+        const racText = document.getElementById('rac-pct-val-scene-3');
+        const odoVal = document.getElementById('odo-val-01248');
+        const racChip = document.getElementById('rac-gain-chip-scene-3');
+
+        if (elapsed < 1.0) {
+          if (cur) { cur.style.opacity = '0'; cur.style.top = '25px'; cur.style.left = '25px'; }
+          if (racFill) racFill.style.width = '72.0%';
+          if (racText) racText.textContent = '72.0 % EN CHARGE';
+          if (odoVal) odoVal.textContent = '341 200 KM';
+          if (racChip) racChip.style.display = 'none';
+        } else if (elapsed < 2.8) {
+          if (cur) {
+            cur.style.opacity = '1';
+            cur.style.top = '105px';
+            cur.style.left = '330px'; // Bouton Synchroniser Odomètre
+          }
+        } else if (elapsed < 7.0) {
+          if (rip && !rip.classList.contains('clicked') && elapsed >= 2.8 && elapsed <= 3.2) {
+            rip.classList.add('clicked');
+            setTimeout(() => rip.classList.remove('clicked'), 500);
+            playUiSoftClick();
+          }
+          const prog = Math.min(1, (elapsed - 2.8) / 3.2);
+          const curRac = (72.0 + (87.6 - 72.0) * prog).toFixed(1);
+          const curOdo = Math.round(341200 + 920 * prog);
+          if (racFill) racFill.style.width = `${curRac}%`;
+          if (racText) racText.textContent = `${curRac} % EN CHARGE`;
+          if (odoVal) odoVal.textContent = `${curOdo.toLocaleString()} KM`;
+          if (prog >= 0.75 && racChip) {
+            racChip.style.display = 'flex';
+          }
+        } else {
+          if (racFill) racFill.style.width = '87.6%';
+          if (racText) racText.textContent = '87.6 % EN CHARGE';
+          if (odoVal) odoVal.textContent = '342 120 KM';
+          if (racChip) racChip.style.display = 'flex';
+        }
+      }
+
+      // ── SCÈNE 5 (index 4) : Fiche Véhicule 360° & Gasoil ──
+      else if (sceneIndex === 4) {
+        const cur = document.getElementById('cursor-scene-4');
+        const boxGasoil = document.getElementById('box-gasoil-scene-4');
+        const boxMaint = document.getElementById('box-maint-scene-4');
+        const boxSecu = document.getElementById('box-secu-scene-4');
+
+        if (elapsed < 1.0) {
+          if (cur) { cur.style.opacity = '0'; cur.style.top = '25px'; cur.style.left = '25px'; }
+          if (boxGasoil) boxGasoil.style.borderColor = 'rgba(255,255,255,0.08)';
+          if (boxMaint) boxMaint.style.borderColor = 'rgba(255,255,255,0.08)';
+          if (boxSecu) boxSecu.style.borderColor = 'rgba(255,255,255,0.08)';
+        } else if (elapsed < 3.8) {
+          if (cur) {
+            cur.style.opacity = '1';
+            cur.style.top = '170px';
+            cur.style.left = '160px'; // Boîte Gasoil
+          }
+          if (boxGasoil) boxGasoil.style.borderColor = 'rgba(56, 189, 248, 0.6)';
+        } else if (elapsed < 7.0) {
+          if (cur) {
+            cur.style.top = '170px';
+            cur.style.left = '480px'; // Boîte Maintenance
+          }
+          if (boxMaint) boxMaint.style.borderColor = 'rgba(16, 185, 129, 0.6)';
+        } else {
+          if (cur) {
+            cur.style.top = '170px';
+            cur.style.left = '800px'; // Boîte Sécurité & Réglementaire
+          }
+          if (boxSecu) boxSecu.style.borderColor = 'rgba(56, 189, 248, 0.6)';
+        }
+      }
+
+      // ── SCÈNE 6 (index 5) : Suivi BL & Scanner Quais ──
+      else if (sceneIndex === 5) {
+        const cur = document.getElementById('cursor-scene-5');
+        const rip = document.getElementById('ripple-scene-5');
+        const laser = document.getElementById('scanner-laser-scene-5');
+        const statusCell = document.getElementById('status-cell-bl-0943');
+        const blCode = document.getElementById('bl-code-0943');
+
+        if (elapsed < 1.5) {
+          if (cur) { cur.style.opacity = '0'; cur.style.top = '25px'; cur.style.left = '25px'; }
+          if (laser) laser.classList.remove('scanning');
+          if (statusCell) statusCell.innerHTML = '<span class="status-badge badge-dispo">EN COURS DÉCHARGEMENT (22 min)</span>';
+          if (blCode) blCode.style.color = '#fbbf24';
+        } else if (elapsed < 3.2) {
+          if (cur) {
+            cur.style.opacity = '1';
+            cur.style.top = '105px';
+            cur.style.left = '360px'; // Bouton Scanner
+          }
+        } else if (elapsed < 6.0) {
+          if (laser && !laser.classList.contains('scanning')) {
+            laser.classList.add('scanning');
+            if (rip) { rip.classList.add('clicked'); setTimeout(() => rip.classList.remove('clicked'), 500); }
+            playUiSoftClick();
+          }
+          if (cur) {
+            cur.style.top = '230px';
+            cur.style.left = '120px'; // Sur le BL
+          }
+        } else {
+          if (laser && laser.classList.contains('scanning')) {
+            laser.classList.remove('scanning');
+            playBarcodeBeep();
+          }
+          if (statusCell) {
+            statusCell.innerHTML = '<span class="status-badge badge-mission"><i class="fa-solid fa-check"></i> NUMÉRISÉ & ÉMARGÉ CLIENT</span>';
+          }
+          if (blCode) blCode.style.color = '#34d399';
+        }
+      }
+    }
+
+    function resetLiveSceneSimulations() {
+      // Scène 2
+      const cur2 = document.getElementById('cursor-scene-2');
+      if (cur2) { cur2.style.opacity = '0'; cur2.style.top = '25px'; cur2.style.left = '25px'; }
+      const modal2 = document.getElementById('modal-dispatch-scene-2');
+      if (modal2) modal2.classList.remove('active');
+      const toast2 = document.getElementById('toast-scene-2');
+      if (toast2) toast2.classList.remove('active');
+      const statusCell2 = document.getElementById('status-cell-01248');
+      if (statusCell2) statusCell2.innerHTML = '<span class="status-badge badge-mission">● EN MISSION</span>';
+
+      // Scène 3
+      const cur3 = document.getElementById('cursor-scene-3');
+      if (cur3) { cur3.style.opacity = '0'; cur3.style.top = '25px'; cur3.style.left = '25px'; }
+      const racFill3 = document.getElementById('rac-meter-fill-scene-3');
+      if (racFill3) racFill3.style.width = '72.0%';
+      const racText3 = document.getElementById('rac-pct-val-scene-3');
+      if (racText3) racText3.textContent = '72.0 % EN CHARGE';
+      const odoVal3 = document.getElementById('odo-val-01248');
+      if (odoVal3) odoVal3.textContent = '341 200 KM';
+      const racChip3 = document.getElementById('rac-gain-chip-scene-3');
+      if (racChip3) racChip3.style.display = 'none';
+
+      // Scène 4
+      const cur4 = document.getElementById('cursor-scene-4');
+      if (cur4) { cur4.style.opacity = '0'; cur4.style.top = '25px'; cur4.style.left = '25px'; }
+
+      // Scène 5
+      const cur5 = document.getElementById('cursor-scene-5');
+      if (cur5) { cur5.style.opacity = '0'; cur5.style.top = '25px'; cur5.style.left = '25px'; }
+      const laser5 = document.getElementById('scanner-laser-scene-5');
+      if (laser5) laser5.classList.remove('scanning');
+      const statusCell5 = document.getElementById('status-cell-bl-0943');
+      if (statusCell5) statusCell5.innerHTML = '<span class="status-badge badge-dispo">EN COURS DÉCHARGEMENT (22 min)</span>';
+      const blCode5 = document.getElementById('bl-code-0943');
+      if (blCode5) blCode5.style.color = '#fbbf24';
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // GESTION DU MODE IMMERSION DÉMO CLIENT INTERACTIF (BAC À SABLE)
+    // ═══════════════════════════════════════════════════════════════
+    const demoFleetData = [
+      { id: '01248', team: 'A', agency: 'Paris', plate: 'AB-124-CD', model: 'Volvo FH500', driver: 'THOMAS BERNARD', trailer: 'SR-0482 (Frigo)', mission: 'PARIS ➔ LYON', km: '342 120 KM', status: 'MISSION', rac: '88.4%', fuel: '29.2 L/100km' },
+      { id: '05432', team: 'A', agency: 'Paris', plate: 'EK-543-LP', model: 'Renault T480', driver: 'JULIEN DUBOIS', trailer: 'SR-0312 (Bâchée)', mission: 'LILLE ➔ STRASBOURG', km: '189 450 KM', status: 'MISSION', rac: '91.2%', fuel: '30.1 L/100km' },
+      { id: '08912', team: 'A', agency: 'Paris', plate: 'GH-891-TR', model: 'Volvo FH460', driver: 'PIERRE MARTIN', trailer: 'SR-0914 (Plateau)', mission: 'PLATEFORME LOGISTIQUE RUNGIS', km: '214 800 KM', status: 'DISPO', rac: '82.0%', fuel: '31.5 L/100km' },
+      { id: '11094', team: 'B', agency: 'Lyon', plate: 'CD-110-XY', model: 'Mercedes Actros', driver: 'ALEXANDRE LEROY', trailer: 'SR-0551 (Citerne)', mission: 'MARSEILLE ➔ LYON', km: '412 800 KM', status: 'MISSION', rac: '92.5%', fuel: '33.8 L/100km' },
+      { id: '12490', team: 'B', agency: 'Lyon', plate: 'BP-124-NZ', model: 'Volvo FH540', driver: 'LUCAS PETIT', trailer: 'SR-0820 (Plateau Lourd)', mission: 'TOULOUSE ➔ BORDEAUX', km: '295 100 KM', status: 'DISPO', rac: '86.4%', fuel: '32.1 L/100km' },
+      { id: '03819', team: 'C', agency: 'Lille', plate: 'DR-381-TG', model: 'MAN TGX 480', driver: 'MAXIME ROUX', trailer: 'SR-0114 (Fourgon)', mission: 'LILLE ➔ ROUEN', km: '238 600 KM', status: 'MISSION', rac: '89.0%', fuel: '28.9 L/100km' },
+      { id: '07124', team: 'C', agency: 'Lille', plate: 'HT-712-QF', model: 'Renault T460', driver: 'ÉRIC DUPONT', trailer: 'SR-0741 (Bâchée)', mission: 'METZ ➔ STRASBOURG', km: '167 400 KM', status: 'DISPO', rac: '85.2%', fuel: '30.4 L/100km' },
+      { id: '09812', team: 'D', agency: 'Bordeaux', plate: 'KL-981-ZM', model: 'Scania R450', driver: 'LAURENT FONTAINE', trailer: 'SR-0399 (Frigo)', mission: 'BORDEAUX ➔ NANTES', km: '318 200 KM', status: 'MISSION', rac: '90.1%', fuel: '29.8 L/100km' },
+      { id: '14320', team: 'D', agency: 'Bordeaux', plate: 'FM-143-AL', model: 'Actros 1845', driver: 'NICOLAS MOREAU', trailer: 'SR-0120 (Fourgon)', mission: 'ATELIER — Alternateur', km: '412 050 KM', status: 'PANNE', rac: '64.0%', fuel: '34.2 L/100km' }
+    ];
+
+    let selectedImmersionTeam = 'ALL';
+    let immersionSearchQuery = '';
+
+    function openImmersionModal() {
+      if (isPlaying) pause();
+      const m = document.getElementById('immersion-client-modal');
+      if (m) m.classList.add('open');
+      renderImmersionTable();
+    }
+
+    function closeImmersionModal() {
+      const m = document.getElementById('immersion-client-modal');
+      if (m) m.classList.remove('open');
+    }
+
+    function switchImmersionTab(tabName) {
+      const tabs = ['dispo', 'rac', 'bl', 'tv'];
+      tabs.forEach(t => {
+        const btn = document.getElementById('im-tab-' + t);
+        const panel = document.getElementById('im-panel-' + t);
+        if (btn) btn.classList.toggle('active', t === tabName);
+        if (panel) panel.style.display = (t === tabName) ? (t === 'dispo' ? 'block' : 'flex') : 'none';
+      });
+      playUiSoftClick();
+    }
+
+    function filterImmersionTeam(team) {
+      selectedImmersionTeam = team;
+      document.querySelectorAll('.im-team-btn').forEach(b => {
+        b.classList.toggle('active', b.dataset.team === team);
+      });
+      renderImmersionTable();
+      playUiSoftClick();
+    }
+
+    function handleImmersionSearch(val) {
+      immersionSearchQuery = val.toLowerCase().trim();
+      renderImmersionTable();
+    }
+
+    function renderImmersionTable() {
+      const tbody = document.getElementById('im-fleet-tbody');
+      if (!tbody) return;
+
+      const filtered = demoFleetData.filter(v => {
+        const matchTeam = (selectedImmersionTeam === 'ALL' || v.team === selectedImmersionTeam);
+        const matchQuery = !immersionSearchQuery || 
+          v.plate.toLowerCase().includes(immersionSearchQuery) ||
+          v.driver.toLowerCase().includes(immersionSearchQuery) ||
+          v.model.toLowerCase().includes(immersionSearchQuery) ||
+          v.agency.toLowerCase().includes(immersionSearchQuery);
+        return matchTeam && matchQuery;
+      });
+
+      tbody.innerHTML = filtered.map(v => `
+        <tr>
+          <td><strong style="color:#38bdf8;">${v.plate}</strong> <span style="font-size:0.7rem; color:#94a3b8;">(${v.model})</span></td>
+          <td><strong>${v.driver}</strong></td>
+          <td><span style="font-size:0.7rem; color:#cbd5e1;">${v.trailer}</span></td>
+          <td>${v.mission}</td>
+          <td><span style="font-family:var(--font-mono);">${v.km}</span></td>
+          <td>
+            <span class="status-badge ${v.status === 'MISSION' ? 'badge-mission' : v.status === 'DISPO' ? 'badge-dispo' : 'badge-panne'}">
+              ● ${v.status === 'MISSION' ? 'EN MISSION' : v.status === 'DISPO' ? 'DISPONIBLE' : 'EN ATELIER'}
+            </span>
+          </td>
+          <td>
+            <div style="display:flex; gap:6px;">
+              <button class="tbl-btn" onclick="openVehicle360('${v.id}')" style="background:rgba(56,189,248,0.2); color:#38bdf8; cursor:pointer;" title="Consulter diagnostic 360°">360°</button>
+              <button class="tbl-btn" onclick="quickAssign('${v.id}')" style="background:#0284c7; color:#fff; cursor:pointer;" title="Affecter mission direct">Affecter</button>
+            </div>
+          </td>
+        </tr>
+      `).join('');
+    }
+
+    function openVehicle360(id) {
+      playUiSoftClick();
+      const v = demoFleetData.find(x => x.id === id) || demoFleetData[0];
+      alert("🚛 FICHE VÉHICULE 360° NUMIPLAN • " + v.plate + " (" + v.model + ")\n" +
+            "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n" +
+            "• Chauffeur titulaire : " + v.driver + "\n" +
+            "• Agence de rattachement : Équipe " + v.team + " (" + v.agency + ")\n" +
+            "• Kilométrage odomètre : " + v.km + "\n" +
+            "• Taux Roulage à Charge (RAC) : " + v.rac + " (Statut Conforme)\n" +
+            "• Consommation Réelle : " + v.fuel + " (Capteur CanBus actif)\n" +
+            "• Ravitaillement Carte Carburant : Vérifié sans écart\n" +
+            "• Contrôle Technique Poids Lourds : Valide 2027\n\n" +
+            "Données synchronisées en temps réel sur NUMIPLAN.");
+    }
+
+    function quickAssign(id) {
+      playUiSoftClick();
+      const v = demoFleetData.find(x => x.id === id);
+      if (!v) return;
+      const newMission = prompt("AFFECTATION EXPRESS DISPATCH pour " + v.plate + " (" + v.driver + ") :", v.mission);
+      if (newMission) {
+        v.mission = newMission;
+        v.status = 'MISSION';
+        renderImmersionTable();
+        playUiSoftClick();
+        alert("✓ Affectation confirmée et envoyée au chauffeur " + v.driver + " !\nSynchronisation Supabase Cloud instantanée (0.18s).");
+      }
+    }
+
+    function calculateInteractiveRac() {
+      const totalKm = parseFloat(document.getElementById('calc-total-km').value) || 10000;
+      const chargedKm = parseFloat(document.getElementById('calc-charged-km').value) || 8500;
+      
+      const rac = ((chargedKm / totalKm) * 100).toFixed(1);
+      const emptyKm = Math.max(0, totalKm - chargedKm);
+      const estimatedSavings = Math.round(emptyKm * 0.18);
+
+      document.getElementById('calc-rac-result').textContent = rac + " %";
+      document.getElementById('calc-empty-km').textContent = emptyKm.toLocaleString('fr-FR') + " KM";
+      document.getElementById('calc-savings-result').textContent = estimatedSavings.toLocaleString('fr-FR') + " €";
+    }
+
+    function simulateInteractiveScan() {
+      playBarcodeBeep();
+      const res = document.getElementById('im-scan-result');
+      if (res) {
+        res.style.display = 'block';
+        res.style.animation = 'pulseGreen 0.6s ease';
+      }
+    }
+
+    // Gestion de l'affichage des options d'administration/enregistrement
+    // Masquées par défaut pour les clients. Activables via ?admin=1 dans l'URL ou le raccourci Alt + A
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.get('admin') === '1' || urlParams.get('admin') === 'true') {
+      document.body.classList.add('show-admin');
+    }
+    window.addEventListener('keydown', (e) => {
+      if (e.altKey && (e.key === 'a' || e.key === 'A')) {
+        document.body.classList.toggle('show-admin');
+      }
+    });
 
     // Initialisation
     updateTimeDisplay();
