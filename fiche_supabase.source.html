@@ -1096,6 +1096,17 @@
             localStorage.setItem('numiplan_admin_sharik_custom_edits', JSON.stringify(window._ADMIN_SHARIK_CUSTOM_EDITS));
             return;
           }
+          if (eq === 'SEGMENTS_ERP') {
+            if (payload && Array.isArray(payload.segments)) {
+              window._SEGMENTS_ERP_DATA = payload;
+              const badge = document.getElementById('cnt-segments');
+              if (badge) badge.textContent = payload.segments.length;
+              if (typeof renderSegmentsErpPage === 'function' && document.getElementById('page-segments') && document.getElementById('page-segments').classList.contains('active')) {
+                renderSegmentsErpPage();
+              }
+            }
+            return;
+          }
           // VERROU DE SÉCURITÉ ANTI-ÉCRASEMENT STRICT :
           const currentLocal = window['DB_' + eq];
           const localTs = (currentLocal && currentLocal._localTs) || 0;
@@ -3573,6 +3584,7 @@ mark.hl { background: rgba(56,189,248,.25); color: var(--acc); border-radius: 3p
   <button class="tab-btn" onclick="switchTab('tracabilite',this)">📜 Traçabilité <span class="tab-count" id="cnt-tracabilite" style="display:none;">—</span></button>
   <button class="tab-btn" id="tab-flashinfo" onclick="switchTab('flashinfo',this)">📢 Flash Info</button>
   <button class="tab-btn" id="tab-poi" onclick="switchTab('poi',this)">🛰️ Suivi POI <span class="tab-count red" id="cnt-poi-alerts" style="display:none;background:#ef4444">—</span></button>
+  <button class="tab-btn" id="tab-segments" onclick="switchTab('segments',this)" style="border-color:rgba(56,189,248,.4)">&#x1F4E6; Voyages &amp; Segments <span class="tab-count" id="cnt-segments" style="background:#38bdf8;color:#000">-</span></button>
   <button class="tab-btn" onclick="ouvrirHistoriqueAnomalies()" style="color:#fbbf24;border-color:rgba(251,191,36,.3)">📊 Historique Anomalies</button>
 </div>
 
@@ -4743,6 +4755,249 @@ mark.hl { background: rgba(56,189,248,.25); color: var(--acc); border-radius: 3p
 <!-- ══════════════ CONFIGURATION IDENTIFIANTS ══════════════ -->
 
 
+<!-- ══════════════ SUIVI VOYAGES & SEGMENTS ERP + CONFIRMATION POI ══════════════ -->
+<div id="page-segments" class="page">
+  <!-- Barre Supérieure : Import Quotidien & Infos Fichier -->
+  <div class="filter-bar" style="background:linear-gradient(90deg, rgba(56,189,248,0.14) 0%, rgba(15,23,42,0.92) 100%);border:1px solid rgba(56,189,248,0.4);border-bottom:2px solid #38bdf8;padding:14px 18px;border-radius:12px;margin-bottom:16px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px">
+    <div style="display:flex;align-items:center;gap:12px">
+      <div style="width:42px;height:42px;border-radius:10px;background:rgba(56,189,248,0.18);border:1px solid rgba(56,189,248,0.4);display:flex;align-items:center;justify-content:center;font-size:22px">📦</div>
+      <div>
+        <div style="font-size:15px;font-weight:800;color:#fff;letter-spacing:0.4px;display:flex;align-items:center;gap:8px">
+          <span>SUIVI QUOTIDIEN VOYAGES &amp; SEGMENTS (ERP) — CONTRÔLE POI</span>
+          <span id="seg-cloud-badge" style="font-size:10px;padding:2px 8px;border-radius:10px;background:rgba(34,197,94,0.18);color:#4ade80;border:1px solid rgba(34,197,94,0.4);font-weight:700">☁️ Synchronisé Cloud</span>
+        </div>
+        <div id="seg-file-info" style="font-size:11px;color:#94a3b8;margin-top:3px">
+          Chargement des segments ERP et des pointages POI en cours...
+        </div>
+      </div>
+    </div>
+
+    <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+      <input type="file" id="seg-excel-input" accept=".xlsx,.xls,.csv" style="display:none" onchange="importSegmentsErpExcel(this)">
+      <select id="seg-import-mode" class="filter-input" style="max-width:195px;font-size:11px;padding:7px 10px" title="Mode d'importation du fichier quotidien">
+        <option value="replace">🔄 Remplacer par le nouveau fichier</option>
+        <option value="merge">➕ Cumuler / Fusionner (par N° Seg)</option>
+      </select>
+      <button class="btn btn-save" onclick="document.getElementById('seg-excel-input').click()" style="background:#38bdf8;color:#0f172a;font-weight:800;padding:8px 14px;display:inline-flex;align-items:center;gap:6px">
+        📥 Importer Fichier Segments (.xlsx)
+      </button>
+      <button class="btn" onclick="refreshSegmentsPoiData(true)" style="background:rgba(16,185,129,0.15);color:#34d399;border:1px solid rgba(16,185,129,0.4);font-weight:700;padding:8px 12px" title="Recalculer la confirmation POI avec les derniers pointages GPS">
+        🛰️ Recalculer POI
+      </button>
+      <button class="btn btn-extract" onclick="exportSegmentsErpExcel()" style="padding:8px 12px;font-weight:700">
+        📊 Exporter Bilan Excel
+      </button>
+    </div>
+  </div>
+
+  <!-- Barre de Filtres Multi-Critères (Dates, Équipe, Agence, Statut/POI, Recherche) -->
+  <div class="filter-bar" style="margin-bottom:16px;padding:12px 16px;background:var(--bg2);border:1px solid var(--border);border-radius:12px;display:flex;flex-wrap:wrap;gap:10px;align-items:center">
+    <div style="display:flex;align-items:center;gap:6px">
+      <label style="font-size:11px;font-weight:700;color:var(--txt2)">📅 Du :</label>
+      <input type="date" id="seg-date-from" class="filter-input" style="width:132px;padding:6px 8px;font-size:12px" onchange="renderSegmentsErpPage()">
+      <label style="font-size:11px;font-weight:700;color:var(--txt2)">Au :</label>
+      <input type="date" id="seg-date-to" class="filter-input" style="width:132px;padding:6px 8px;font-size:12px" onchange="renderSegmentsErpPage()">
+    </div>
+
+    <div style="display:flex;gap:4px;flex-wrap:wrap">
+      <button class="btn btn-reset" style="padding:5px 9px;font-size:11px" onclick="setSegmentsDatePreset('all')">Toutes dates</button>
+      <button class="btn btn-reset" style="padding:5px 9px;font-size:11px" onclick="setSegmentsDatePreset('lastday')">Dernier jour</button>
+      <button class="btn btn-reset" style="padding:5px 9px;font-size:11px" onclick="setSegmentsDatePreset('prevday')">Veille</button>
+      <button class="btn btn-reset" style="padding:5px 9px;font-size:11px" onclick="setSegmentsDatePreset('last3')">3 derniers j.</button>
+    </div>
+
+    <select id="seg-filter-team" class="filter-input" style="max-width:155px;font-size:12px" onchange="renderSegmentsErpPage()">
+      <option value="ALL">👥 Toutes Équipes</option>
+      <option value="ACTIVE">⭐ Équipe Active</option>
+      <option value="A">Équipe A</option>
+      <option value="B">Équipe B</option>
+      <option value="C">Équipe C</option>
+      <option value="D">Équipe D</option>
+      <option value="HORS_FLOTTE">Hors Équipe / Externe</option>
+    </select>
+
+    <select id="seg-filter-agence" class="filter-input" style="max-width:155px;font-size:12px" onchange="renderSegmentsErpPage()">
+      <option value="ALL">🏢 Toutes Agences ERP</option>
+      <option value="PART A">PART A</option>
+      <option value="PART B">PART B</option>
+      <option value="PART C">PART C</option>
+      <option value="PART D">PART D</option>
+      <option value="PART BEJAIA">PART BEJAIA</option>
+    </select>
+
+    <select id="seg-filter-status" class="filter-input" style="max-width:240px;font-size:12px;border-color:rgba(56,189,248,0.4)" onchange="renderSegmentsErpPage()">
+      <option value="ALL">🔍 Tous statuts &amp; contrôles POI</option>
+      <option value="CHARGE_24H">🚨 Statut "CHARGÉ" &gt; 24h uniquement</option>
+      <option value="HAS_CHARGE">📦 Ayant statut "CHARGÉ"</option>
+      <option value="CHARGE_POI_OK">✅ "CHARGÉ" Confirmé par POI</option>
+      <option value="CHARGE_POI_KO">❌ "CHARGÉ" Non pointé au POI Départ</option>
+      <option value="HAS_LIVRE">🏁 Ayant statut "LIVRÉ"</option>
+      <option value="LIVRE_POI_OK">✅ "LIVRÉ" Confirmé par POI</option>
+      <option value="LIVRE_POI_KO">⚠️ "LIVRÉ" Non pointé au POI Arrivée</option>
+      <option value="HAS_CONFIRME">📋 Ayant statut "CONFIRMÉ" / Autres</option>
+      <option value="ANY_POI_KO">🚨 Toute anomalie POI (Chargé ou Livré)</option>
+    </select>
+
+    <select id="seg-charge-ref-mode" class="filter-input" style="max-width:195px;font-size:11px" onchange="renderSegmentsErpPage()" title="Référence de calcul pour le dépassement 24h du statut CHARGÉ">
+      <option value="dateSeg">⏱️ Calcul 24h : Date Segment / Départ</option>
+      <option value="dateSegM">⏱️ Calcul 24h : Dernière Modif (Seg M)</option>
+    </select>
+
+    <input type="text" id="seg-search" class="filter-input" placeholder="🔎 Camion, chauffeur, client, lieu, segment..." style="flex:1;min-width:200px;font-size:12px" oninput="renderSegmentsErpPage()">
+
+    <button class="btn btn-reset" onclick="resetSegmentsErpFilters()" style="padding:6px 12px;font-size:11px">↺ Reset</button>
+  </div>
+
+  <!-- Cartes KPI Synthétiques (Cliquables pour filtrer) -->
+  <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(185px, 1fr));gap:12px;margin-bottom:18px">
+    <div onclick="setSegmentsStatusFilter('ALL')" style="cursor:pointer;background:var(--bg2);border:1px solid var(--border);border-left:4px solid #38bdf8;border-radius:12px;padding:12px 14px">
+      <div style="font-size:11px;color:var(--txt3);font-weight:700;text-transform:uppercase">🚛 Camions &amp; Cumul Voyages</div>
+      <div style="display:flex;align-items:baseline;gap:8px;margin-top:6px">
+        <span id="seg-kpi-voyages" style="font-size:24px;font-weight:900;color:#38bdf8">0</span>
+        <span style="font-size:12px;color:var(--txt2);font-weight:600">voyages</span>
+      </div>
+      <div id="seg-kpi-voyages-sub" style="font-size:11px;color:var(--txt3);margin-top:4px">0 camions • 0 segments bruts</div>
+    </div>
+
+    <div onclick="setSegmentsStatusFilter('CHARGE_24H')" style="cursor:pointer;background:var(--bg2);border:1px solid rgba(239,68,68,0.4);border-left:4px solid #ef4444;border-radius:12px;padding:12px 14px">
+      <div style="font-size:11px;color:#f87171;font-weight:800;text-transform:uppercase">🚨 Statut "CHARGÉ" &gt; 24h</div>
+      <div style="display:flex;align-items:baseline;gap:8px;margin-top:6px">
+        <span id="seg-kpi-charge24" style="font-size:24px;font-weight:900;color:#ef4444">0</span>
+        <span style="font-size:12px;color:#fca5a5;font-weight:600">voyages &gt; 24h</span>
+      </div>
+      <div id="seg-kpi-charge24-sub" style="font-size:11px;color:var(--txt3);margin-top:4px">Sur 0 voyages au statut CHARGÉ</div>
+    </div>
+
+    <div onclick="setSegmentsStatusFilter('HAS_CHARGE')" style="cursor:pointer;background:var(--bg2);border:1px solid var(--border);border-left:4px solid #f59e0b;border-radius:12px;padding:12px 14px">
+      <div style="font-size:11px;color:#fbbf24;font-weight:700;text-transform:uppercase">📦 Contrôle POI "CHARGÉ"</div>
+      <div style="display:flex;align-items:baseline;gap:8px;margin-top:6px">
+        <span id="seg-kpi-charge-poi" style="font-size:22px;font-weight:900;color:#fbbf24">0 / 0</span>
+        <span style="font-size:11px;color:var(--txt2)">confirmés POI</span>
+      </div>
+      <div id="seg-kpi-charge-poi-sub" style="font-size:11px;color:var(--txt3);margin-top:4px">Pointage au POI de départ affecté</div>
+    </div>
+
+    <div onclick="setSegmentsStatusFilter('HAS_LIVRE')" style="cursor:pointer;background:var(--bg2);border:1px solid var(--border);border-left:4px solid #10b981;border-radius:12px;padding:12px 14px">
+      <div style="font-size:11px;color:#34d399;font-weight:700;text-transform:uppercase">🏁 Contrôle POI "LIVRÉ"</div>
+      <div style="display:flex;align-items:baseline;gap:8px;margin-top:6px">
+        <span id="seg-kpi-livre-poi" style="font-size:22px;font-weight:900;color:#10b981">0 / 0</span>
+        <span style="font-size:11px;color:var(--txt2)">confirmés POI</span>
+      </div>
+      <div id="seg-kpi-livre-poi-sub" style="font-size:11px;color:var(--txt3);margin-top:4px">Pointage au POI client / livraison</div>
+    </div>
+
+    <div onclick="setSegmentsStatusFilter('HAS_CONFIRME')" style="cursor:pointer;background:var(--bg2);border:1px solid var(--border);border-left:4px solid #a78bfa;border-radius:12px;padding:12px 14px">
+      <div style="font-size:11px;color:#c084fc;font-weight:700;text-transform:uppercase">📋 Statut "CONFIRMÉ" &amp; Autres</div>
+      <div style="display:flex;align-items:baseline;gap:8px;margin-top:6px">
+        <span id="seg-kpi-confirme" style="font-size:24px;font-weight:900;color:#c084fc">0</span>
+        <span style="font-size:12px;color:var(--txt2)">voyages</span>
+      </div>
+      <div id="seg-kpi-confirme-sub" style="font-size:11px;color:var(--txt3);margin-top:4px">Confirmé, Compte Rendu, Provisoire...</div>
+    </div>
+
+    <div onclick="setSegmentsStatusFilter('ALL')" style="cursor:pointer;background:var(--bg2);border:1px solid var(--border);border-left:4px solid #22c55e;border-radius:12px;padding:12px 14px">
+      <div style="font-size:11px;color:#4ade80;font-weight:700;text-transform:uppercase">💰 Total ACHAT (Cumul)</div>
+      <div style="display:flex;align-items:baseline;gap:6px;margin-top:6px">
+        <span id="seg-kpi-achat" style="font-size:20px;font-weight:900;color:#4ade80">0 DA</span>
+      </div>
+      <div id="seg-kpi-achat-sub" style="font-size:11px;color:var(--txt3);margin-top:4px">Moy: 0 DA / voyage • 0 km</div>
+    </div>
+  </div>
+
+  <!-- Commutateur de Vue : Synthèse par Camion vs Liste Détaillée des Voyages -->
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:10px">
+    <div style="display:flex;gap:8px">
+      <button id="btn-seg-view-trucks" class="btn" onclick="switchSegmentsView('trucks')" style="background:#38bdf8;color:#000;font-weight:800;padding:8px 16px;border-radius:8px">
+        🚛 Vue Cumul par Camion (<span id="seg-count-trucks">0</span>)
+      </button>
+      <button id="btn-seg-view-trips" class="btn" onclick="switchSegmentsView('trips')" style="background:rgba(255,255,255,0.06);color:var(--txt);font-weight:700;padding:8px 16px;border-radius:8px">
+        📋 Liste Détaillée des Voyages &amp; Audit POI (<span id="seg-count-trips">0</span>)
+      </button>
+    </div>
+    <div style="font-size:11px;color:var(--txt3)">
+      💡 <b>Astuce :</b> Cliquez sur une carte KPI pour filtrer ou sur <b>« 🔍 Détail »</b> d'un camion pour inspecter ses voyages et ses pointages POI.
+    </div>
+  </div>
+
+  <!-- VUE 1 : TABLEAU CUMUL PAR CAMION -->
+  <div id="seg-view-trucks" class="table-wrap" style="max-height:68vh;overflow-y:auto">
+    <table>
+      <thead>
+        <tr>
+          <th style="cursor:pointer" onclick="sortSegmentsTrucks('tracteur')">Camion (Tracteur) ⇅</th>
+          <th style="cursor:pointer" onclick="sortSegmentsTrucks('team')">Éq. / Agence ⇅</th>
+          <th style="cursor:pointer" onclick="sortSegmentsTrucks('chauffeur')">Chauffeur (Affrété / Cond.) ⇅</th>
+          <th style="text-align:center;cursor:pointer" onclick="sortSegmentsTrucks('totalTrips')">Cumul Voyages ⇅</th>
+          <th style="text-align:center;cursor:pointer" onclick="sortSegmentsTrucks('chargeOver24')">Statut "CHARGÉ" (&amp; &gt;24h) ⇅</th>
+          <th style="text-align:center;cursor:pointer" onclick="sortSegmentsTrucks('chargePoiOk')">Confirmation POI "CHARGÉ" ⇅</th>
+          <th style="text-align:center;cursor:pointer" onclick="sortSegmentsTrucks('livreCount')">Statut "LIVRÉ" ⇅</th>
+          <th style="text-align:center;cursor:pointer" onclick="sortSegmentsTrucks('livrePoiOk')">Confirmation POI "LIVRÉ" ⇅</th>
+          <th>Autres Statuts (Confirmé, Tracking…)</th>
+          <th style="text-align:right;cursor:pointer" onclick="sortSegmentsTrucks('totalAchat')">Total ACHAT (DA) ⇅</th>
+          <th style="text-align:center">Actions</th>
+        </tr>
+      </thead>
+      <tbody id="seg-trucks-tbody"></tbody>
+    </table>
+  </div>
+
+  <!-- VUE 2 : LISTE DÉTAILLÉE DES VOYAGES & AUDIT POI -->
+  <div id="seg-view-trips" class="table-wrap" style="max-height:68vh;overflow-y:auto;display:none">
+    <table>
+      <thead>
+        <tr>
+          <th>Date Départ</th>
+          <th>N° Segment / Groupage</th>
+          <th>Camion &amp; Éq.</th>
+          <th>Chauffeur</th>
+          <th>Client</th>
+          <th>Trajet (Lieu Départ ➔ Lieu Arrivée)</th>
+          <th style="text-align:center">État Commande &amp; Durée</th>
+          <th style="text-align:center">Tracking / État Seg</th>
+          <th>Vérification &amp; Confirmation POI (GPS)</th>
+          <th style="text-align:right">Montant ACHAT</th>
+        </tr>
+      </thead>
+      <tbody id="seg-trips-tbody"></tbody>
+    </table>
+  </div>
+</div>
+
+<!-- Modal Détail des Voyages & Pointages POI d'un Camion -->
+<div class="modal-overlay" id="modal-segments-truck-detail" style="z-index:100005">
+  <div class="modal" style="width:1180px;max-width:96vw;max-height:90vh;display:flex;flex-direction:column;background:var(--bg2);border:1px solid var(--border);border-radius:16px;padding:22px">
+    <div style="display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid var(--border);padding-bottom:12px;margin-bottom:14px">
+      <div>
+        <h3 id="seg-modal-title" style="margin:0;font-size:16px;color:var(--acc);display:flex;align-items:center;gap:10px">🚛 Détail des Voyages &amp; Pointages POI</h3>
+        <div id="seg-modal-subtitle" style="font-size:12px;color:var(--txt2);margin-top:4px"></div>
+      </div>
+      <button class="del-btn" onclick="closeModal('modal-segments-truck-detail')" style="background:none;border:none;color:var(--txt2);font-size:22px;cursor:pointer">✕</button>
+    </div>
+    <div id="seg-modal-summary" style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:14px"></div>
+    <div class="table-wrap" style="flex:1;overflow-y:auto">
+      <table>
+        <thead>
+          <tr>
+            <th>Date</th>
+            <th>Segment / Groupage</th>
+            <th>Client &amp; Réf Cmd</th>
+            <th>Lieu Départ ➔ Lieu Arrivée</th>
+            <th style="text-align:center">Statut Cmd &amp; Durée</th>
+            <th style="text-align:center">Autres Statuts</th>
+            <th>Confirmation POI Départ (Chargé)</th>
+            <th>Confirmation POI Arrivée (Livré)</th>
+            <th style="text-align:right">ACHAT (DA)</th>
+          </tr>
+        </thead>
+        <tbody id="seg-modal-tbody"></tbody>
+      </table>
+    </div>
+    <div style="margin-top:14px;display:flex;justify-content:space-between;align-items:center">
+      <div id="seg-modal-poi-history" style="font-size:11px;color:var(--txt3)"></div>
+      <button class="btn btn-reset" onclick="closeModal('modal-segments-truck-detail')">Fermer</button>
+    </div>
+  </div>
+</div>
 </div><!-- /page-area -->
 </div><!-- /app-layout -->
 
@@ -8617,6 +8872,7 @@ function switchTab(name, btn) {
   
   if (name === 'incidents-livraison' && typeof renderIncidentsLivraisonPage === 'function') renderIncidentsLivraisonPage();
   if (name === 'poi' && typeof renderPoiPage === 'function') renderPoiPage();
+  if (name === 'segments' && typeof renderSegmentsErpPage === 'function') renderSegmentsErpPage();
   checkBascule();
 }
 
@@ -23546,6 +23802,1211 @@ function resetAnalyticsFilters() {
   onAnalyticsFilterChange();
 }
 window.resetAnalyticsFilters = resetAnalyticsFilters;
+
+// ══════════════════════════════════════════════════════════════════════════════
+// MODULE SUIVI QUOTIDIEN VOYAGES & SEGMENTS (ERP) + CONFIRMATION POI
+// ══════════════════════════════════════════════════════════════════════════════
+window._SEGMENTS_ERP_DATA = window._SEGMENTS_ERP_DATA || null;
+window._SEGMENTS_POI_VISITS = window._SEGMENTS_POI_VISITS || [];
+window._SEGMENTS_POIS_LIST = window._SEGMENTS_POIS_LIST || [];
+window._SEGMENTS_VIEW_MODE = 'trucks';
+window._SEGMENTS_SORT = { col: 'totalTrips', asc: false };
+window._SEGMENTS_COMPUTED = { trucks: [], trips: [] };
+window._SEGMENTS_LOADING_CLOUD = false;
+
+// Synonymes et correspondances entre les lieux ERP (LIEU DEP / LIEU ARRIV / CLIENT) et les noms de POI dans IdeGPS / Geoloc / Numiplan
+const ERP_POI_ALIASES = {
+  'BEJAIA USINE': ['BEJAIA USINE', 'CEVITAL COMPLEXE', 'PORT DE BEJAIA', 'PARC A/D NUMILOG BEJAIA', 'CEVITAL BEJAIA', 'COMPLEXE CEVITAL', 'BEJAIA'],
+  'PLF BOUIRA': ['PF BOUIRA', 'PLF BOUIRA', 'ATELIER BOUIRA', 'PLATEFORME BOUIRA', 'LOGIZONE BOUIRA'],
+  'DEPOT DEPART': ['PF BOUIRA', 'PLF BOUIRA', 'ATELIER BOUIRA', 'PARC A/D NUMILOG BEJAIA', 'BEJAIA USINE', 'DEPOT'],
+  'DEPOT ARRIVEE': ['PF BOUIRA', 'PLF BOUIRA', 'ATELIER BOUIRA', 'PARC A/D NUMILOG BEJAIA', 'BEJAIA USINE', 'DEPOT'],
+  'PLF HASSI AMEUR': ['CLR 31 HASSI AMEUR CEVIF', 'PLF HASSI AMEUR', 'HASSI AMEUR', 'CLR 31'],
+  'USINE HAMOUD BOUALEM BOUFARIK': ['HAMOUD BOUFARIK', 'SPA HAMOUD BOUALEM', 'HAMOUD BOUALEM DEPOT BEN HAMDANI', 'BOUFARIK'],
+  'DEPOT HB AIN TRIK': ['HAMOUD BOUALEM', 'ATELIER_SETIF', 'UPL SETIF', 'SETIF', 'AIN TRIK'],
+  'USINE BRANDT': ['BRANDT', 'UPL SETIF', 'ATELIER_SETIF', 'SETIF'],
+  'LALA KHADIDJA': ['LALA KHADIDJA', 'LK ', 'TIZI OUZOU', 'AGouni'],
+  'KNAUF USINE (ORAN)': ['KNAUF', 'ORAN', 'HASSI AMEUR', 'BENFREHA'],
+  'DLIRYAHEN': ['DLOGELMATMAR', 'DLIRYAHEN', 'EL KSEUR', 'BEJAIA', 'AMIZOUR'],
+  'DLOGELMATMAR': ['DLOGELMATMAR', 'DLIRYAHEN', 'EL KSEUR', 'AMIZOUR'],
+  'CLR16BACHDJERAH': ['CLR 16 BACH MUTU', 'BACHDJERAH', 'CLR 16'],
+  'CLR48OUEDRHIOU': ['CLR 48 O.RHIOU MUTU', 'OUED RHIOU', 'CLR 48'],
+  'CLR05BATNA': ['CLR 05', 'BATNA'],
+  'CLR31ORAN': ['CLR 31 HASSI AMEUR CEVIF', 'CLR 31', 'ORAN', 'HASSI AMEUR'],
+  'ARTPAP USINE': ['EURL ARTPAP', 'ARTPAP', 'AKBOU'],
+  'FRUITAL SKIKDA': ['FRUITAL', 'SKIKDA'],
+  'USINE FRUITAL': ['FRUITAL', 'ROUIBA', 'ALGER'],
+  'SARL SETIFIS BOUTELING': ['SETIFIS', 'AYA SETIF', 'SARL AYA', 'SETIF'],
+  'USINE SNAX ALGER': ['SNAX', 'BABA ALI', 'ALGER'],
+  'COJEK EL KSEUR': ['COJEK EL KSEUR', 'COJEK', 'RTA EL KSEUR'],
+  'SOBCO': ['SOBCO KEK', 'SOBCO', 'KHEMIS EL KHECHNA']
+};
+
+function normErpStr(s) {
+  return String(s || '')
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .toUpperCase()
+    .replace(/[^A-Z0-9]+/g, ' ')
+    .trim();
+}
+
+function normErpPlate(s) {
+  return String(s || '').replace(/[^A-Z0-9]/gi, '').toUpperCase();
+}
+
+function parseErpDateTime(val) {
+  if (!val) return null;
+  if (typeof val === 'number') {
+    if (val > 40000 && val < 65000) {
+      const utcDays = Math.floor(val - 25569);
+      const utcValue = utcDays * 86400;
+      const dateInfo = new Date(utcValue * 1000);
+      const fractionalDay = val - Math.floor(val) + 0.0000001;
+      let totalSeconds = Math.floor(86400 * fractionalDay);
+      const seconds = totalSeconds % 60;
+      totalSeconds -= seconds;
+      const hours = Math.floor(totalSeconds / (60 * 60));
+      const minutes = Math.floor(totalSeconds / 60) % 60;
+      return new Date(dateInfo.getUTCFullYear(), dateInfo.getUTCMonth(), dateInfo.getUTCDate(), hours, minutes, seconds);
+    }
+  }
+  const s = String(val).trim();
+  if (!s) return null;
+  // Format YYYY-MM-DD HH:mm ou YYYY-MM-DD
+  const isoMatch = s.match(/^(\d{4})-(\d{2})-(\d{2})(?:[ T](\d{2}):(\d{2}))?/);
+  if (isoMatch) {
+    return new Date(
+      parseInt(isoMatch[1], 10),
+      parseInt(isoMatch[2], 10) - 1,
+      parseInt(isoMatch[3], 10),
+      isoMatch[4] ? parseInt(isoMatch[4], 10) : 0,
+      isoMatch[5] ? parseInt(isoMatch[5], 10) : 0,
+      0
+    );
+  }
+  // Format DD/MM/YYYY HH:mm ou DD-MM-YYYY
+  const frMatch = s.match(/^(\d{2})[\/\-](\d{2})[\/\-](\d{4})(?:[ T](\d{2}):(\d{2}))?/);
+  if (frMatch) {
+    return new Date(
+      parseInt(frMatch[3], 10),
+      parseInt(frMatch[2], 10) - 1,
+      parseInt(frMatch[1], 10),
+      frMatch[4] ? parseInt(frMatch[4], 10) : 0,
+      frMatch[5] ? parseInt(frMatch[5], 10) : 0,
+      0
+    );
+  }
+  const d = new Date(s);
+  return isNaN(d.getTime()) ? null : d;
+}
+
+function formatErpDateTimeStr(d) {
+  if (!d || isNaN(d.getTime())) return '';
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  const hh = String(d.getHours()).padStart(2, '0');
+  const mm = String(d.getMinutes()).padStart(2, '0');
+  return `${y}-${m}-${day} ${hh}:${mm}`;
+}
+
+// Récupère l'équipe Numiplan et les infos live d'un camion
+function getTruckNumiplanInfo(plate) {
+  const pNorm = normErpPlate(plate);
+  if (!pNorm) return { team: '—', chauffeur: '', lieuJ: '', geoloc: 'OFF', lat: null, lng: null };
+  const teams = ['A', 'B', 'C', 'D'];
+  for (const eq of teams) {
+    const dbEq = (eq === (typeof getCurrentEquipe === 'function' ? getCurrentEquipe() : '') && window.DB) ? window.DB : window['DB_' + eq];
+    if (dbEq && Array.isArray(dbEq.dispo)) {
+      const found = dbEq.dispo.find(r => normErpPlate(r.v) === pNorm);
+      if (found) {
+        const liveRow = (window.LIVE_DISPOS_MAP && window.LIVE_DISPOS_MAP[String(found.v || '').trim().toUpperCase()]) || found;
+        return {
+          team: eq,
+          v: found.v,
+          chauffeur: found.chauffeur || '',
+          lieuJ: found.lieuJ || '',
+          geoloc: liveRow.geoloc || found.geoloc || 'OFF',
+          lat: liveRow.lat ?? found.lat ?? null,
+          lng: liveRow.lng ?? found.lng ?? null
+        };
+      }
+    }
+  }
+  if (window.LIVE_DISPOS_MAP) {
+    for (const [k, vObj] of Object.entries(window.LIVE_DISPOS_MAP)) {
+      if (normErpPlate(k) === pNorm) {
+        return {
+          team: vObj.team || '—',
+          v: k,
+          chauffeur: vObj.chauffeur || '',
+          lieuJ: vObj.lieuJ || '',
+          geoloc: vObj.geoloc || 'OFF',
+          lat: vObj.lat ?? null,
+          lng: vObj.lng ?? null
+        };
+      }
+    }
+  }
+  return { team: '—', v: plate, chauffeur: '', lieuJ: '', geoloc: 'OFF', lat: null, lng: null };
+}
+
+// Vérifie si un nom de POI correspond au lieu ERP (LIEU DEP ou LIEU ARRIV)
+function doesPoiMatchErpLocation(poiNameRaw, erpLieuRaw, erpVilleRaw, erpClientRaw) {
+  const poiNorm = normErpStr(poiNameRaw);
+  if (!poiNorm) return false;
+  const lieuNorm = normErpStr(erpLieuRaw);
+  const villeNorm = normErpStr(erpVilleRaw);
+  const clientNorm = normErpStr(erpClientRaw);
+
+  // 1. Correspondance directe ou inclusion
+  if (lieuNorm && (poiNorm === lieuNorm || poiNorm.includes(lieuNorm) || lieuNorm.includes(poiNorm))) {
+    return true;
+  }
+
+  // 2. Dictionnaire d'alias connus (BEJAIA USINE, PLF BOUIRA, PLF HASSI AMEUR, CLR..., etc.)
+  for (const [erpKey, aliases] of Object.entries(ERP_POI_ALIASES)) {
+    const keyNorm = normErpStr(erpKey);
+    if ((lieuNorm && (lieuNorm.includes(keyNorm) || keyNorm.includes(lieuNorm))) ||
+        (villeNorm && keyNorm.includes(villeNorm) && lieuNorm.includes('PLF'))) {
+      for (const al of aliases) {
+        const alNorm = normErpStr(al);
+        if (alNorm && (poiNorm.includes(alNorm) || alNorm.includes(poiNorm))) return true;
+      }
+    }
+  }
+
+  // 3. Mots-clés significatifs (>= 4 lettres, hors mots génériques)
+  const stopWords = new Set(['USINE', 'DEPOT', 'DEPART', 'ARRIVEE', 'SARL', 'EURL', 'SPA', 'SNC', 'ETS', 'CLIENT', 'PLATEFORME', 'ZONE', 'INDUSTRIELLE', 'CENTRE', 'DISTRIBUTION', 'ALGERIE']);
+  const tokens = (lieuNorm + ' ' + clientNorm)
+    .split(/\s+/)
+    .filter(w => w.length >= 4 && !stopWords.has(w));
+  for (const tk of tokens) {
+    if (poiNorm.includes(tk)) return true;
+  }
+
+  // 4. Correspondance sur la ville si le POI porte le nom de la ville ou contient la ville
+  if (villeNorm && villeNorm.length >= 4 && poiNorm.includes(villeNorm)) {
+    return true;
+  }
+
+  return false;
+}
+
+// Vérifie la confirmation POI d'un segment/voyage pour un camion donné
+function checkPoiConfirmationForSegment(seg, mode, truckVisits, truckInfo, poisList) {
+  // mode === 'CHARGE' -> vérifier LIEU DEP / VILLE DEP
+  // mode === 'LIVRE'  -> vérifier LIEU ARRIV / VILLE ARRIV / CLIENT
+  const targetLieu = mode === 'CHARGE' ? seg.lieuDep : seg.lieuArriv;
+  const targetVille = mode === 'CHARGE' ? seg.villeDep : seg.villeArr;
+  const targetClient = mode === 'CHARGE' ? '' : seg.client;
+
+  const segDateStr = seg.date || (seg.dtDepP ? seg.dtDepP.substring(0, 10) : '');
+  const segDateObj = segDateStr ? new Date(segDateStr + 'T00:00:00') : null;
+
+  // 1. Chercher dans l'historique des visites POI (np_poi_visits) de ce camion
+  if (Array.isArray(truckVisits) && truckVisits.length > 0) {
+    // Filtrer les visites qui correspondent au lieu attendu
+    const matchingVisits = truckVisits.filter(v => doesPoiMatchErpLocation(v.poi_name, targetLieu, targetVille, targetClient));
+    if (matchingVisits.length > 0) {
+      // Privilégier une visite proche de la date du segment (+/- 4 jours) sinon prendre la plus récente
+      let bestVisit = matchingVisits[0];
+      if (segDateObj && !isNaN(segDateObj.getTime())) {
+        const closeVisit = matchingVisits.find(v => {
+          const vDate = new Date(v.arrived_at || v.last_seen_at);
+          if (isNaN(vDate.getTime())) return false;
+          const diffDays = Math.abs(vDate - segDateObj) / (1000 * 3600 * 24);
+          return diffDays <= 5;
+        });
+        if (closeVisit) bestVisit = closeVisit;
+      }
+      const arrTime = bestVisit.arrived_at ? new Date(bestVisit.arrived_at).toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : '';
+      return {
+        confirmed: true,
+        source: 'POI_VISIT',
+        poiName: bestVisit.poi_name,
+        timeStr: arrTime,
+        label: `✅ Pointé POI « ${bestVisit.poi_name} » (${arrTime})`
+      };
+    }
+  }
+
+  // 2. Vérifier la position GPS temps réel du camion par rapport aux coordonnées des POIs enregistrés (np_pois)
+  if (truckInfo && truckInfo.lat !== null && truckInfo.lng !== null && Array.isArray(poisList) && poisList.length > 0) {
+    for (const poi of poisList) {
+      if (poi.lat && poi.lng && doesPoiMatchErpLocation(poi.name, targetLieu, targetVille, targetClient)) {
+        const distKm = getDistanceKmErp(truckInfo.lat, truckInfo.lng, poi.lat, poi.lng);
+        const radiusKm = Math.max((poi.radius || 500) / 1000, 2.5); // Tolérance zone industrielle 2.5 km
+        if (distKm <= radiusKm) {
+          return {
+            confirmed: true,
+            source: 'GPS_LIVE',
+            poiName: poi.name,
+            timeStr: 'En direct',
+            label: `✅ Position GPS sur POI « ${poi.name} » (${distKm.toFixed(1)} km)`
+          };
+        }
+      }
+    }
+  }
+
+  // 3. Indiquer si le camion a pointé dans un AUTRE POI récemment (utile pour le diagnostic)
+  let otherPoiNote = '';
+  if (Array.isArray(truckVisits) && truckVisits.length > 0) {
+    const latest = truckVisits[0];
+    const latestTime = latest.arrived_at ? new Date(latest.arrived_at).toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : '';
+    otherPoiNote = ` (Dernier POI vu : ${latest.poi_name} le ${latestTime})`;
+  }
+
+  return {
+    confirmed: false,
+    source: 'NONE',
+    poiName: null,
+    timeStr: '',
+    label: `❌ Non pointé au POI « ${targetLieu || targetVille || 'Affecté'} »${otherPoiNote}`
+  };
+}
+
+function getDistanceKmErp(lat1, lon1, lat2, lon2) {
+  const R = 6371;
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLon = (lon2 - lon1) * Math.PI / 180;
+  const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+            Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+            Math.sin(dLon / 2) * Math.sin(dLon / 2);
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+// Charge les données SEGMENTS_ERP et les visites POI depuis Supabase
+async function refreshSegmentsPoiData(forceRefresh = false) {
+  if (window._SEGMENTS_LOADING_CLOUD) return;
+  window._SEGMENTS_LOADING_CLOUD = true;
+  try {
+    const cloudBadge = document.getElementById('seg-cloud-badge');
+    if (cloudBadge) {
+      cloudBadge.textContent = '⏳ Synchro POI & Segments...';
+      cloudBadge.style.color = '#fbbf24';
+    }
+
+    // 1. Charger SEGMENTS_ERP depuis numiplan_teams si pas encore en mémoire ou forceRefresh
+    if ((!window._SEGMENTS_ERP_DATA || forceRefresh) && window.supabase) {
+      const { data: segRow, error: segErr } = await window.supabase
+        .from('numiplan_teams')
+        .select('payload,updated_at')
+        .eq('team', 'SEGMENTS_ERP')
+        .maybeSingle();
+      if (!segErr && segRow && segRow.payload && Array.isArray(segRow.payload.segments)) {
+        window._SEGMENTS_ERP_DATA = segRow.payload;
+      }
+    }
+
+    // 2. Charger toutes les visites POI (np_poi_visits) et la liste des POIs (np_pois)
+    if (typeof poiSupabaseFetch === 'function') {
+      const [visitsRes, poisRes] = await Promise.all([
+        poiSupabaseFetch('np_poi_visits?select=v,poi_name,arrived_at,last_seen_at,left_at,duration_hours&order=arrived_at.desc&limit=3000').catch(() => []),
+        getPoisCached(forceRefresh).catch(() => [])
+      ]);
+      if (Array.isArray(visitsRes)) window._SEGMENTS_POI_VISITS = visitsRes;
+      if (Array.isArray(poisRes)) window._SEGMENTS_POIS_LIST = poisRes;
+    }
+
+    if (cloudBadge) {
+      cloudBadge.textContent = '☁️ Synchronisé Cloud & POI';
+      cloudBadge.style.color = '#4ade80';
+    }
+  } catch (e) {
+    console.error('[Segments ERP] Erreur chargement Cloud/POI:', e);
+  } finally {
+    window._SEGMENTS_LOADING_CLOUD = false;
+    renderSegmentsErpPage();
+  }
+}
+window.refreshSegmentsPoiData = refreshSegmentsPoiData;
+
+// Importation quotidienne d'un fichier Excel EDITION__LISTE_SEGMENTS
+async function importSegmentsErpExcel(input) {
+  const file = input && input.files && input.files[0];
+  if (!file) return;
+  try {
+    showToast('⏳ Lecture et analyse du fichier Segments ERP en cours...');
+    const buf = await file.arrayBuffer();
+    const wb = XLSX.read(buf, { type: 'array', cellDates: false });
+    const wsName = wb.SheetNames[0];
+    const ws = wb.Sheets[wsName];
+    const rows = XLSX.utils.sheet_to_json(ws, { defval: '' });
+
+    if (!rows || rows.length === 0) {
+      showToast('❌ Le fichier Excel est vide.', true);
+      return;
+    }
+
+    // Extraire la date d'export depuis le nom du fichier si présente (ex: _09-11-2026_11-45-25_)
+    let fileExportDate = '';
+    const fnMatch = file.name.match(/(\d{2})[-_](\d{2})[-_](\d{4})[_ ](\d{2})[-_](\d{2})/);
+    if (fnMatch) {
+      fileExportDate = `${fnMatch[3]}-${fnMatch[2]}-${fnMatch[1]} ${fnMatch[4]}:${fnMatch[5]}`;
+    } else {
+      fileExportDate = formatErpDateTimeStr(new Date());
+    }
+
+    const parsedSegments = rows.map(r => {
+      const getCol = (...keys) => {
+        for (const k of keys) {
+          if (r[k] !== undefined && r[k] !== null && r[k] !== '') return r[k];
+        }
+        return '';
+      };
+
+      const dtDepPObj = parseErpDateTime(getCol('DT.DEP P', 'DT DEP P'));
+      const dtArrPObj = parseErpDateTime(getCol('DT.ARRIV P', 'DT ARRIV P'));
+      const dtDepRObj = parseErpDateTime(getCol('DT.DEP R', 'DT DEP R'));
+      const dtArrRObj = parseErpDateTime(getCol('DT.ARRIV. R', 'DT.ARRIV R', 'DT ARRIV R'));
+      const dateSegObj = parseErpDateTime(getCol('DATE SEG'));
+      const dateSegMObj = parseErpDateTime(getCol('DATE SEG M'));
+
+      const dtDepP = formatErpDateTimeStr(dtDepPObj);
+      const dtArrP = formatErpDateTimeStr(dtArrPObj);
+      const dtDepR = formatErpDateTimeStr(dtDepRObj);
+      const dtArrR = formatErpDateTimeStr(dtArrRObj);
+      const dateSeg = formatErpDateTimeStr(dateSegObj);
+      const dateSegM = formatErpDateTimeStr(dateSegMObj);
+
+      const dateRef = (dtDepP ? dtDepP.substring(0, 10) : '') || (dateSeg ? dateSeg.substring(0, 10) : '');
+      const achatVal = parseFloat(String(getCol('ACHAT')).replace(/\s/g, '').replace(',', '.')) || 0;
+      const kmCartoVal = parseFloat(String(getCol('KM CARTO')).replace(/\s/g, '').replace(',', '.')) || 0;
+      const kmExplVal = parseFloat(String(getCol('KM EXPLOITATION')).replace(/\s/g, '').replace(',', '.')) || 0;
+
+      return {
+        seg: String(getCol('SEGMENT')).trim(),
+        tracking: String(getCol('TRACKING')).trim(),
+        agence: String(getCol('AGENCE')).trim(),
+        client: String(getCol('CLIENT')).trim(),
+        refCmd: String(getCol('REF CMD')).trim(),
+        activite: String(getCol('ACTIVITE')).trim(),
+        etatSeg: String(getCol('ETAT SEG')).trim(),
+        lieuDep: String(getCol('LIEU DEP')).trim(),
+        lieuArriv: String(getCol('LIEU ARRIV')).trim(),
+        villeDep: String(getCol('VILLE DEP')).trim(),
+        villeArr: String(getCol('VILLE ARRIV')).trim(),
+        kmCarto: Math.round(kmCartoVal * 10) / 10,
+        kmExpl: Math.round(kmExplVal * 10) / 10,
+        dtDepP,
+        dtArrP,
+        affrete: String(getCol('AFFRETE')).trim(),
+        cond1: String(getCol('COND 1')).trim(),
+        tracteur: String(getCol('TRACTEUR')).trim().toUpperCase(),
+        remorque: String(getCol('REMORQUE')).trim().toUpperCase(),
+        groupage: String(getCol('GROUPAGE')).trim().toUpperCase(),
+        achat: Math.round(achatVal * 100) / 100,
+        commande: String(getCol('COMMANDE')).trim(),
+        dtDepR,
+        dtArrR,
+        dateSeg,
+        etatCmd: String(getCol('ETAT CMD')).trim(),
+        dateSegM,
+        jumlage: String(getCol('JUMLAGE')).trim().toUpperCase(),
+        date: dateRef
+      };
+    }).filter(s => s.seg || s.tracteur || s.commande);
+
+    const importMode = document.getElementById('seg-import-mode')?.value || 'replace';
+    let finalSegments = parsedSegments;
+
+    if (importMode === 'merge' && window._SEGMENTS_ERP_DATA && Array.isArray(window._SEGMENTS_ERP_DATA.segments)) {
+      const mapBySeg = new Map();
+      window._SEGMENTS_ERP_DATA.segments.forEach(s => {
+        const key = s.seg || `${s.tracteur}_${s.commande}_${s.date}`;
+        mapBySeg.set(key, s);
+      });
+      parsedSegments.forEach(s => {
+        const key = s.seg || `${s.tracteur}_${s.commande}_${s.date}`;
+        mapBySeg.set(key, s);
+      });
+      finalSegments = Array.from(mapBySeg.values());
+    }
+
+    const payload = {
+      fileName: file.name,
+      importedAt: new Date().toISOString(),
+      fileExportDate,
+      count: finalSegments.length,
+      segments: finalSegments
+    };
+
+    window._SEGMENTS_ERP_DATA = payload;
+
+    // Sauvegarder dans Supabase (numiplan_teams -> SEGMENTS_ERP)
+    if (window.supabase) {
+      const { error } = await window.supabase
+        .from('numiplan_teams')
+        .upsert({
+          team: 'SEGMENTS_ERP',
+          payload: payload,
+          updated_at: new Date().toISOString()
+        }, { onConflict: 'team' });
+      if (error) console.warn('[Segments ERP] Erreur sauvegarde Cloud:', error);
+    }
+
+    // Réinitialiser les filtres dates pour couvrir le fichier importé
+    document.getElementById('seg-date-from').value = '';
+    document.getElementById('seg-date-to').value = '';
+    renderSegmentsErpPage();
+    showToast(`✅ ${finalSegments.length} segments importés et synchronisés avec succès !`);
+  } catch (err) {
+    console.error('Erreur importSegmentsErpExcel:', err);
+    showToast('❌ Erreur lors de la lecture du fichier Excel : ' + err.message, true);
+  } finally {
+    input.value = '';
+  }
+}
+window.importSegmentsErpExcel = importSegmentsErpExcel;
+
+function setSegmentsDatePreset(preset) {
+  const segs = (window._SEGMENTS_ERP_DATA && window._SEGMENTS_ERP_DATA.segments) || [];
+  const dates = segs.map(s => s.date).filter(Boolean).sort();
+  const maxDate = dates.length > 0 ? dates[dates.length - 1] : new Date().toISOString().split('T')[0];
+  const minDate = dates.length > 0 ? dates[0] : maxDate;
+
+  const fromEl = document.getElementById('seg-date-from');
+  const toEl = document.getElementById('seg-date-to');
+  if (!fromEl || !toEl) return;
+
+  if (preset === 'all') {
+    fromEl.value = '';
+    toEl.value = '';
+  } else if (preset === 'lastday') {
+    fromEl.value = maxDate;
+    toEl.value = maxDate;
+  } else if (preset === 'prevday') {
+    const d = new Date(maxDate + 'T00:00:00');
+    d.setDate(d.getDate() - 1);
+    const prev = d.toISOString().split('T')[0];
+    fromEl.value = prev;
+    toEl.value = prev;
+  } else if (preset === 'last3') {
+    const d = new Date(maxDate + 'T00:00:00');
+    d.setDate(d.getDate() - 2);
+    fromEl.value = d.toISOString().split('T')[0];
+    toEl.value = maxDate;
+  }
+  renderSegmentsErpPage();
+}
+window.setSegmentsDatePreset = setSegmentsDatePreset;
+
+function setSegmentsStatusFilter(statusVal) {
+  const sel = document.getElementById('seg-filter-status');
+  if (sel) {
+    sel.value = statusVal;
+    renderSegmentsErpPage();
+  }
+}
+window.setSegmentsStatusFilter = setSegmentsStatusFilter;
+
+function resetSegmentsErpFilters() {
+  const ids = ['seg-date-from', 'seg-date-to', 'seg-search'];
+  ids.forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+  const selects = { 'seg-filter-team': 'ALL', 'seg-filter-agence': 'ALL', 'seg-filter-status': 'ALL', 'seg-charge-ref-mode': 'dateSeg' };
+  for (const [id, val] of Object.entries(selects)) {
+    const el = document.getElementById(id);
+    if (el) el.value = val;
+  }
+  renderSegmentsErpPage();
+}
+window.resetSegmentsErpFilters = resetSegmentsErpFilters;
+
+function switchSegmentsView(mode) {
+  window._SEGMENTS_VIEW_MODE = mode;
+  const vTrucks = document.getElementById('seg-view-trucks');
+  const vTrips = document.getElementById('seg-view-trips');
+  const bTrucks = document.getElementById('btn-seg-view-trucks');
+  const bTrips = document.getElementById('btn-seg-view-trips');
+  if (mode === 'trucks') {
+    if (vTrucks) vTrucks.style.display = 'block';
+    if (vTrips) vTrips.style.display = 'none';
+    if (bTrucks) { bTrucks.style.background = '#38bdf8'; bTrucks.style.color = '#000'; bTrucks.style.fontWeight = '800'; }
+    if (bTrips) { bTrips.style.background = 'rgba(255,255,255,0.06)'; bTrips.style.color = 'var(--txt)'; bTrips.style.fontWeight = '700'; }
+  } else {
+    if (vTrucks) vTrucks.style.display = 'none';
+    if (vTrips) vTrips.style.display = 'block';
+    if (bTrips) { bTrips.style.background = '#38bdf8'; bTrips.style.color = '#000'; bTrips.style.fontWeight = '800'; }
+    if (bTrucks) { bTrucks.style.background = 'rgba(255,255,255,0.06)'; bTrucks.style.color = 'var(--txt)'; bTrucks.style.fontWeight = '700'; }
+  }
+}
+window.switchSegmentsView = switchSegmentsView;
+
+function sortSegmentsTrucks(col) {
+  if (window._SEGMENTS_SORT.col === col) {
+    window._SEGMENTS_SORT.asc = !window._SEGMENTS_SORT.asc;
+  } else {
+    window._SEGMENTS_SORT.col = col;
+    window._SEGMENTS_SORT.asc = (col === 'tracteur' || col === 'chauffeur' || col === 'team');
+  }
+  renderSegmentsErpPage();
+}
+window.sortSegmentsTrucks = sortSegmentsTrucks;
+
+// Moteur principal de calcul et rendu de la page Voyages & Segments ERP
+function renderSegmentsErpPage() {
+  const badge = document.getElementById('cnt-segments');
+  if (!window._SEGMENTS_ERP_DATA || !Array.isArray(window._SEGMENTS_ERP_DATA.segments)) {
+    if (!window._SEGMENTS_LOADING_CLOUD) {
+      refreshSegmentsPoiData(false);
+    }
+    return;
+  }
+
+  // Si les visites POI n'ont pas encore été chargées, lancer leur récupération en arrière-plan
+  if (window._SEGMENTS_POI_VISITS.length === 0 && !window._SEGMENTS_LOADING_CLOUD) {
+    refreshSegmentsPoiData(false);
+  }
+
+  const rawData = window._SEGMENTS_ERP_DATA;
+  const allSegments = rawData.segments || [];
+  if (badge) badge.textContent = allSegments.length;
+
+  // Afficher les infos du fichier actif
+  const datesAll = allSegments.map(s => s.date).filter(Boolean).sort();
+  const minDateAll = datesAll[0] || '—';
+  const maxDateAll = datesAll[datesAll.length - 1] || '—';
+  const infoEl = document.getElementById('seg-file-info');
+  if (infoEl) {
+    infoEl.innerHTML = `📄 Fichier actif : <b style="color:#f8fafc">${rawData.fileName || 'Import ERP'}</b> • Période du fichier : <b style="color:#38bdf8">${minDateAll}</b> au <b style="color:#38bdf8">${maxDateAll}</b> • Export ERP : <b>${rawData.fileExportDate || '—'}</b> (${allSegments.length} segments)`;
+  }
+
+  // Timestamp de référence pour le calcul des > 24h (soit la date d'export du fichier ERP, soit maintenant)
+  const refDateObj = parseErpDateTime(rawData.fileExportDate) || new Date();
+  const chargeRefMode = document.getElementById('seg-charge-ref-mode')?.value || 'dateSeg';
+
+  // Indexer les visites POI par plaque de camion normalisée
+  const visitsByPlate = new Map();
+  (window._SEGMENTS_POI_VISITS || []).forEach(v => {
+    const p = normErpPlate(v.v);
+    if (!p) return;
+    if (!visitsByPlate.has(p)) visitsByPlate.set(p, []);
+    visitsByPlate.get(p).push(v);
+  });
+
+  // Lecture des filtres
+  const dateFrom = document.getElementById('seg-date-from')?.value || '';
+  const dateTo = document.getElementById('seg-date-to')?.value || '';
+  const teamFilter = document.getElementById('seg-filter-team')?.value || 'ALL';
+  const agenceFilter = document.getElementById('seg-filter-agence')?.value || 'ALL';
+  const statusFilter = document.getElementById('seg-filter-status')?.value || 'ALL';
+  const searchVal = normErpStr(document.getElementById('seg-search')?.value || '');
+  const activeEq = typeof getCurrentEquipe === 'function' ? getCurrentEquipe() : 'A';
+
+  // 1. Filtrer les segments par Date & Agence & Équipe
+  const filteredSegments = allSegments.filter(s => {
+    // Ignorer les segments sans camion affecté sauf si on recherche spécifiquement ce segment
+    if (!s.tracteur && !searchVal) return false;
+    if (dateFrom && s.date && s.date < dateFrom) return false;
+    if (dateTo && s.date && s.date > dateTo) return false;
+    if (agenceFilter !== 'ALL' && s.agence !== agenceFilter) return false;
+
+    const tInfo = getTruckNumiplanInfo(s.tracteur);
+    if (teamFilter === 'ACTIVE' && tInfo.team !== activeEq) return false;
+    if (['A', 'B', 'C', 'D'].includes(teamFilter) && tInfo.team !== teamFilter) return false;
+    if (teamFilter === 'HORS_FLOTTE' && ['A', 'B', 'C', 'D'].includes(tInfo.team)) return false;
+
+    if (searchVal) {
+      const hay = normErpStr(`${s.tracteur} ${s.affrete} ${s.cond1} ${tInfo.chauffeur} ${s.client} ${s.lieuDep} ${s.lieuArriv} ${s.villeDep} ${s.villeArr} ${s.seg} ${s.groupage} ${s.refCmd}`);
+      if (!hay.includes(searchVal)) return false;
+    }
+    return true;
+  });
+
+  // 2. Regrouper par Camion et dédoublonner les Voyages (Groupage / Jumelage)
+  const trucksMap = new Map();
+  const allDeduplicatedTrips = [];
+
+  filteredSegments.forEach(s => {
+    const plateKey = s.tracteur || 'SANS-CAMION';
+    if (!trucksMap.has(plateKey)) {
+      const tInfo = getTruckNumiplanInfo(s.tracteur);
+      trucksMap.set(plateKey, {
+        tracteur: plateKey,
+        team: tInfo.team,
+        geoloc: tInfo.geoloc,
+        lat: tInfo.lat,
+        lng: tInfo.lng,
+        numiplanChauffeur: tInfo.chauffeur,
+        chauffeur: s.affrete || s.cond1 || tInfo.chauffeur || '—',
+        agence: s.agence || '—',
+        rawSegments: [],
+        tripsMap: new Map(),
+        trips: [],
+        totalTrips: 0,
+        groupedSegmentsCount: 0,
+        chargeCount: 0,
+        chargeOver24: 0,
+        maxChargeHours: 0,
+        chargePoiOk: 0,
+        chargePoiKo: 0,
+        livreCount: 0,
+        livrePoiOk: 0,
+        livrePoiKo: 0,
+        confirmeCount: 0,
+        compteRenduCount: 0,
+        otherStatusCounts: {},
+        trackingCounts: {},
+        totalAchat: 0,
+        totalKmExpl: 0
+      });
+    }
+
+    const tr = trucksMap.get(plateKey);
+    tr.rawSegments.push(s);
+    if ((!tr.chauffeur || tr.chauffeur === '—') && (s.affrete || s.cond1)) {
+      tr.chauffeur = s.affrete || s.cond1;
+    }
+    // Somme totale ACHAT et KM sur tous les segments (car sur un groupage ERP répartit l'achat sur chaque ligne)
+    tr.totalAchat += (Number(s.achat) || 0);
+    tr.totalKmExpl += (Number(s.kmExpl) || 0);
+
+    // Clé de dédoublonnage voyage : si GROUPAGE présent -> même voyage pour ce camion
+    // Si JUMLAGE === 'OUI' sans code groupage -> rattaché au voyage du même jour
+    let tripKey = '';
+    if (s.groupage) {
+      tripKey = `GRP_${plateKey}_${s.groupage}`;
+    } else if (s.jumlage === 'OUI') {
+      tripKey = `JUM_${plateKey}_${s.date}_${s.lieuDep}`;
+    } else {
+      tripKey = `SEG_${s.seg || Math.random()}`;
+    }
+
+    if (!tr.tripsMap.has(tripKey)) {
+      tr.tripsMap.set(tripKey, {
+        tripKey,
+        tracteur: plateKey,
+        team: tr.team,
+        agence: s.agence,
+        chauffeur: tr.chauffeur,
+        date: s.date,
+        segIds: [s.seg],
+        groupage: s.groupage,
+        isGrouped: Boolean(s.groupage || s.jumlage === 'OUI'),
+        clients: [s.client].filter(Boolean),
+        refCmds: [s.refCmd].filter(Boolean),
+        lieuxDep: [s.lieuDep].filter(Boolean),
+        lieuxArriv: [s.lieuArriv].filter(Boolean),
+        villesDep: [s.villeDep].filter(Boolean),
+        villesArr: [s.villeArr].filter(Boolean),
+        etatCmd: s.etatCmd || '—',
+        tracking: s.tracking || '—',
+        etatSeg: s.etatSeg || '—',
+        dtDepP: s.dtDepP,
+        dtDepR: s.dtDepR,
+        dateSeg: s.dateSeg,
+        dateSegM: s.dateSegM,
+        achat: Number(s.achat) || 0,
+        kmExpl: Number(s.kmExpl) || 0,
+        segments: [s]
+      });
+    } else {
+      const tp = tr.tripsMap.get(tripKey);
+      tp.isGrouped = true;
+      if (s.seg && !tp.segIds.includes(s.seg)) tp.segIds.push(s.seg);
+      if (s.client && !tp.clients.includes(s.client)) tp.clients.push(s.client);
+      if (s.refCmd && !tp.refCmds.includes(s.refCmd)) tp.refCmds.push(s.refCmd);
+      if (s.lieuDep && !tp.lieuxDep.includes(s.lieuDep)) tp.lieuxDep.push(s.lieuDep);
+      if (s.lieuArriv && !tp.lieuxArriv.includes(s.lieuArriv)) tp.lieuxArriv.push(s.lieuArriv);
+      if (s.villeDep && !tp.villesDep.includes(s.villeDep)) tp.villesDep.push(s.villeDep);
+      if (s.villeArr && !tp.villesArr.includes(s.villeArr)) tp.villesArr.push(s.villeArr);
+      tp.achat += (Number(s.achat) || 0);
+      tp.kmExpl += (Number(s.kmExpl) || 0);
+      tp.segments.push(s);
+      // Priorité de statut si l'un des segments est CHARGE ou LIVRE
+      if (s.etatCmd === 'CHARGE' || (tp.etatCmd !== 'CHARGE' && s.etatCmd === 'LIVRE')) {
+        tp.etatCmd = s.etatCmd;
+      }
+      tr.groupedSegmentsCount++;
+    }
+  });
+
+  // 3. Évaluer chaque Voyage (Dépassement 24h pour CHARGÉ + Confirmation POI pour CHARGÉ et LIVRÉ)
+  trucksMap.forEach(tr => {
+    const pNorm = normErpPlate(tr.tracteur);
+    const truckVisits = visitsByPlate.get(pNorm) || [];
+    const tInfo = { team: tr.team, lat: tr.lat, lng: tr.lng, geoloc: tr.geoloc };
+
+    tr.trips = Array.from(tr.tripsMap.values());
+    tr.totalTrips = tr.trips.length;
+
+    tr.trips.forEach(tp => {
+      const isCharge = tp.etatCmd === 'CHARGE' || tp.tracking === 'CHARGE';
+      const isLivre = !isCharge && (tp.etatCmd === 'LIVRE' || tp.tracking === 'LIVRE');
+
+      // Calcul durée en statut CHARGÉ
+      tp.chargeHours = 0;
+      tp.isChargeOver24 = false;
+      if (isCharge) {
+        const refStr = chargeRefMode === 'dateSegM'
+          ? (tp.dateSegM || tp.dateSeg || tp.dtDepP)
+          : (tp.dateSeg || tp.dtDepP || tp.dateSegM);
+        const startObj = parseErpDateTime(refStr);
+        if (startObj && !isNaN(startObj.getTime())) {
+          const diffH = (refDateObj.getTime() - startObj.getTime()) / (1000 * 3600);
+          tp.chargeHours = Math.max(0, Math.round(diffH * 10) / 10);
+          if (tp.chargeHours > 24) {
+            tp.isChargeOver24 = true;
+          }
+        }
+      }
+
+      // Confirmation POI pour CHARGÉ (vérifie tous les segments du voyage sur le POI de départ)
+      tp.poiChargeCheck = null;
+      if (isCharge || isLivre) {
+        let confirmedCharge = null;
+        for (const seg of tp.segments) {
+          const chk = checkPoiConfirmationForSegment(seg, 'CHARGE', truckVisits, tInfo, window._SEGMENTS_POIS_LIST);
+          if (chk.confirmed) { confirmedCharge = chk; break; }
+          if (!confirmedCharge) confirmedCharge = chk;
+        }
+        tp.poiChargeCheck = confirmedCharge;
+      }
+
+      // Confirmation POI pour LIVRÉ (vérifie si le camion a bien pointé dans le POI d'arrivée / client)
+      tp.poiLivreCheck = null;
+      if (isLivre) {
+        let confirmedLivre = null;
+        for (const seg of tp.segments) {
+          const chk = checkPoiConfirmationForSegment(seg, 'LIVRE', truckVisits, tInfo, window._SEGMENTS_POIS_LIST);
+          if (chk.confirmed) { confirmedLivre = chk; break; }
+          if (!confirmedLivre) confirmedLivre = chk;
+        }
+        tp.poiLivreCheck = confirmedLivre;
+      }
+
+      // Cumuler les compteurs par camion
+      if (isCharge) {
+        tr.chargeCount++;
+        if (tp.isChargeOver24) tr.chargeOver24++;
+        if (tp.chargeHours > tr.maxChargeHours) tr.maxChargeHours = tp.chargeHours;
+        if (tp.poiChargeCheck && tp.poiChargeCheck.confirmed) tr.chargePoiOk++;
+        else tr.chargePoiKo++;
+      } else if (isLivre) {
+        tr.livreCount++;
+        if (tp.poiLivreCheck && tp.poiLivreCheck.confirmed) tr.livrePoiOk++;
+        else tr.livrePoiKo++;
+      } else {
+        if (tp.etatCmd === 'CONFIRME') tr.confirmeCount++;
+        else if (tp.etatCmd === 'Compte Rendu') tr.compteRenduCount++;
+        const stKey = tp.etatCmd || 'AUTRE';
+        tr.otherStatusCounts[stKey] = (tr.otherStatusCounts[stKey] || 0) + 1;
+      }
+
+      // Enregistrer aussi les autres statuts de Tracking / État Segment (PROVISOIRE, NON TRAITE, ENATT...)
+      if (tp.tracking && tp.tracking !== 'LIVRE' && tp.tracking !== 'CHARGE') {
+        tr.trackingCounts[tp.tracking] = (tr.trackingCounts[tp.tracking] || 0) + 1;
+      }
+      if (tp.etatSeg && tp.etatSeg === 'ENATT') {
+        tr.trackingCounts['ENATT'] = (tr.trackingCounts['ENATT'] || 0) + 1;
+      }
+    });
+  });
+
+  // 4. Appliquer le filtre Statut / Contrôle POI sur les camions et les voyages
+  let trucksList = Array.from(trucksMap.values()).filter(tr => {
+    if (statusFilter === 'CHARGE_24H') return tr.chargeOver24 > 0;
+    if (statusFilter === 'HAS_CHARGE') return tr.chargeCount > 0;
+    if (statusFilter === 'CHARGE_POI_OK') return tr.chargePoiOk > 0;
+    if (statusFilter === 'CHARGE_POI_KO') return tr.chargePoiKo > 0;
+    if (statusFilter === 'HAS_LIVRE') return tr.livreCount > 0;
+    if (statusFilter === 'LIVRE_POI_OK') return tr.livrePoiOk > 0;
+    if (statusFilter === 'LIVRE_POI_KO') return tr.livrePoiKo > 0;
+    if (statusFilter === 'HAS_CONFIRME') return (tr.confirmeCount + tr.compteRenduCount + Object.keys(tr.trackingCounts).length) > 0;
+    if (statusFilter === 'ANY_POI_KO') return (tr.chargePoiKo > 0 || tr.livrePoiKo > 0);
+    return true;
+  });
+
+  // Trier la liste des camions
+  const { col, asc } = window._SEGMENTS_SORT;
+  trucksList.sort((a, b) => {
+    let va = a[col], vb = b[col];
+    if (typeof va === 'string') {
+      return asc ? va.localeCompare(vb) : vb.localeCompare(va);
+    }
+    va = Number(va) || 0;
+    vb = Number(vb) || 0;
+    return asc ? (va - vb) : (vb - va);
+  });
+
+  // Construire la liste des voyages filtrés
+  trucksList.forEach(tr => {
+    tr.trips.forEach(tp => {
+      const isCharge = tp.etatCmd === 'CHARGE' || tp.tracking === 'CHARGE';
+      const isLivre = !isCharge && (tp.etatCmd === 'LIVRE' || tp.tracking === 'LIVRE');
+      if (statusFilter === 'CHARGE_24H' && !tp.isChargeOver24) return;
+      if (statusFilter === 'HAS_CHARGE' && !isCharge) return;
+      if (statusFilter === 'CHARGE_POI_OK' && !(isCharge && tp.poiChargeCheck?.confirmed)) return;
+      if (statusFilter === 'CHARGE_POI_KO' && !(isCharge && !tp.poiChargeCheck?.confirmed)) return;
+      if (statusFilter === 'HAS_LIVRE' && !isLivre) return;
+      if (statusFilter === 'LIVRE_POI_OK' && !(isLivre && tp.poiLivreCheck?.confirmed)) return;
+      if (statusFilter === 'LIVRE_POI_KO' && !(isLivre && !tp.poiLivreCheck?.confirmed)) return;
+      if (statusFilter === 'HAS_CONFIRME' && (isCharge || isLivre)) return;
+      if (statusFilter === 'ANY_POI_KO' && !((isCharge && !tp.poiChargeCheck?.confirmed) || (isLivre && !tp.poiLivreCheck?.confirmed))) return;
+      allDeduplicatedTrips.push(tp);
+    });
+  });
+
+  window._SEGMENTS_COMPUTED = { trucks: trucksList, trips: allDeduplicatedTrips, visitsByPlate };
+
+  // 5. Mettre à jour les cartes KPI
+  let sumTrips = 0, sumRawSegs = 0, sumGrouped = 0;
+  let sumCharge = 0, sumCharge24 = 0, trucksWithCharge24 = 0, sumChargePoiOk = 0;
+  let sumLivre = 0, sumLivrePoiOk = 0;
+  let sumConfirme = 0, sumCompteRendu = 0, sumProvisoire = 0;
+  let sumAchat = 0, sumKm = 0;
+
+  trucksList.forEach(tr => {
+    sumTrips += tr.totalTrips;
+    sumRawSegs += tr.rawSegments.length;
+    sumGrouped += tr.groupedSegmentsCount;
+    sumCharge += tr.chargeCount;
+    sumCharge24 += tr.chargeOver24;
+    if (tr.chargeOver24 > 0) trucksWithCharge24++;
+    sumChargePoiOk += tr.chargePoiOk;
+    sumLivre += tr.livreCount;
+    sumLivrePoiOk += tr.livrePoiOk;
+    sumConfirme += tr.confirmeCount;
+    sumCompteRendu += tr.compteRenduCount;
+    sumProvisoire += (tr.trackingCounts['PROVISOIRE'] || 0);
+    sumAchat += tr.totalAchat;
+    sumKm += tr.totalKmExpl;
+  });
+
+  const setTxt = (id, t) => { const el = document.getElementById(id); if (el) el.textContent = t; };
+  setTxt('seg-kpi-voyages', sumTrips.toLocaleString('fr-FR'));
+  setTxt('seg-kpi-voyages-sub', `${trucksList.length} camions • ${sumRawSegs} seg. (${sumGrouped} jumelés dédoublonnés)`);
+
+  setTxt('seg-kpi-charge24', sumCharge24.toLocaleString('fr-FR'));
+  setTxt('seg-kpi-charge24-sub', `${trucksWithCharge24} camion(s) concerné(s) sur ${sumCharge} voyages CHARGÉ`);
+
+  const chargePct = sumCharge > 0 ? Math.round((sumChargePoiOk / sumCharge) * 100) : 0;
+  setTxt('seg-kpi-charge-poi', `${sumChargePoiOk} / ${sumCharge}`);
+  setTxt('seg-kpi-charge-poi-sub', `${chargePct}% confirmés au POI Départ (${sumCharge - sumChargePoiOk} non pointés)`);
+
+  const livrePct = sumLivre > 0 ? Math.round((sumLivrePoiOk / sumLivre) * 100) : 0;
+  setTxt('seg-kpi-livre-poi', `${sumLivrePoiOk} / ${sumLivre}`);
+  setTxt('seg-kpi-livre-poi-sub', `${livrePct}% confirmés au POI Client (${sumLivre - sumLivrePoiOk} non pointés)`);
+
+  setTxt('seg-kpi-confirme', (sumConfirme + sumCompteRendu).toLocaleString('fr-FR'));
+  setTxt('seg-kpi-confirme-sub', `Confirmé: ${sumConfirme} • C.Rendu: ${sumCompteRendu} • Provisoire: ${sumProvisoire}`);
+
+  setTxt('seg-kpi-achat', `${Math.round(sumAchat).toLocaleString('fr-FR')} DA`);
+  const moyAchat = sumTrips > 0 ? Math.round(sumAchat / sumTrips) : 0;
+  setTxt('seg-kpi-achat-sub', `Moy: ${moyAchat.toLocaleString('fr-FR')} DA/voy. • ${Math.round(sumKm).toLocaleString('fr-FR')} km`);
+
+  setTxt('seg-count-trucks', trucksList.length);
+  setTxt('seg-count-trips', allDeduplicatedTrips.length);
+
+  // 6. Rendu du tableau Vue 1 : Par Camion
+  const trucksTbody = document.getElementById('seg-trucks-tbody');
+  if (trucksTbody) {
+    if (trucksList.length === 0) {
+      trucksTbody.innerHTML = `<tr><td colspan="11" style="text-align:center;padding:28px;color:var(--txt3)">Aucun camion ne correspond aux filtres sélectionnés.</td></tr>`;
+    } else {
+      trucksTbody.innerHTML = trucksList.map(tr => {
+        const gpsDot = tr.geoloc === 'ON'
+          ? `<span title="GPS Actif" style="display:inline-block;width:9px;height:9px;border-radius:50%;background:#22c55e;box-shadow:0 0 6px #22c55e;margin-right:6px"></span>`
+          : `<span title="GPS Inactif / Hors flotte" style="display:inline-block;width:9px;height:9px;border-radius:50%;background:#64748b;margin-right:6px"></span>`;
+        const pinLink = (tr.lat && tr.lng)
+          ? `<a href="https://www.google.com/maps?q=${tr.lat},${tr.lng}" target="_blank" title="Voir position temps réel sur Google Maps" style="text-decoration:none;margin-left:5px">📍</a>`
+          : '';
+
+        const teamBadge = ['A', 'B', 'C', 'D'].includes(tr.team)
+          ? `<span style="background:rgba(56,189,248,0.18);color:#38bdf8;border:1px solid rgba(56,189,248,0.4);padding:2px 7px;border-radius:6px;font-weight:800;font-size:11px">Éq. ${tr.team}</span>`
+          : `<span style="background:rgba(148,163,184,0.15);color:#94a3b8;padding:2px 7px;border-radius:6px;font-size:10px">${tr.agence}</span>`;
+
+        const grpNote = tr.groupedSegmentsCount > 0
+          ? `<div style="font-size:10px;color:#94a3b8;margin-top:2px">(${tr.rawSegments.length} seg. dont ${tr.groupedSegmentsCount} jumelé${tr.groupedSegmentsCount > 1 ? 's' : ''})</div>`
+          : '';
+
+        // Colonne Statut CHARGÉ & > 24h
+        let chargeHtml = '<span style="color:var(--txt3)">0</span>';
+        if (tr.chargeCount > 0) {
+          const overBadge = tr.chargeOver24 > 0
+            ? `<div style="margin-top:4px"><span style="background:rgba(239,68,68,0.2);color:#f87171;border:1px solid #ef4444;padding:2px 7px;border-radius:6px;font-size:10px;font-weight:800;display:inline-block">🚨 ${tr.chargeOver24} &gt; 24h (max ${Math.round(tr.maxChargeHours)}h)</span></div>`
+            : `<div style="font-size:10px;color:#34d399;margin-top:2px">⏱️ &lt; 24h (${Math.round(tr.maxChargeHours)}h)</div>`;
+          chargeHtml = `<div style="font-weight:800;font-size:14px;color:#fbbf24">${tr.chargeCount}</div>${overBadge}`;
+        }
+
+        // Colonne Confirmation POI CHARGÉ
+        let chargePoiHtml = '<span style="color:var(--txt3)">—</span>';
+        if (tr.chargeCount > 0) {
+          if (tr.chargePoiOk === tr.chargeCount) {
+            chargePoiHtml = `<span style="background:rgba(16,185,129,0.18);color:#34d399;border:1px solid rgba(16,185,129,0.4);padding:3px 8px;border-radius:6px;font-size:11px;font-weight:700">✅ ${tr.chargePoiOk}/${tr.chargeCount} Confirmé POI</span>`;
+          } else if (tr.chargePoiOk > 0) {
+            chargePoiHtml = `<span style="background:rgba(245,158,11,0.18);color:#fbbf24;border:1px solid rgba(245,158,11,0.4);padding:3px 8px;border-radius:6px;font-size:11px;font-weight:700">⚠️ ${tr.chargePoiOk}/${tr.chargeCount} Confirmé POI</span>`;
+          } else {
+            chargePoiHtml = `<span style="background:rgba(239,68,68,0.18);color:#f87171;border:1px solid rgba(239,68,68,0.4);padding:3px 8px;border-radius:6px;font-size:11px;font-weight:700">❌ 0/${tr.chargeCount} Non pointé POI</span>`;
+          }
+        }
+
+        // Colonne Statut LIVRÉ
+        let livreHtml = tr.livreCount > 0
+          ? `<span style="font-weight:800;font-size:14px;color:#34d399">${tr.livreCount}</span>`
+          : '<span style="color:var(--txt3)">0</span>';
+
+        // Colonne Confirmation POI LIVRÉ
+        let livrePoiHtml = '<span style="color:var(--txt3)">—</span>';
+        if (tr.livreCount > 0) {
+          if (tr.livrePoiOk === tr.livreCount) {
+            livrePoiHtml = `<span style="background:rgba(16,185,129,0.18);color:#34d399;border:1px solid rgba(16,185,129,0.4);padding:3px 8px;border-radius:6px;font-size:11px;font-weight:700">✅ ${tr.livrePoiOk}/${tr.livreCount} Confirmé POI</span>`;
+          } else if (tr.livrePoiOk > 0) {
+            livrePoiHtml = `<span style="background:rgba(245,158,11,0.18);color:#fbbf24;border:1px solid rgba(245,158,11,0.4);padding:3px 8px;border-radius:6px;font-size:11px;font-weight:700">⚠️ ${tr.livrePoiOk}/${tr.livreCount} Confirmé (${tr.livrePoiKo} non pointé)</span>`;
+          } else {
+            livrePoiHtml = `<span style="background:rgba(239,68,68,0.18);color:#f87171;border:1px solid rgba(239,68,68,0.4);padding:3px 8px;border-radius:6px;font-size:11px;font-weight:700">❌ 0/${tr.livreCount} Non pointé POI</span>`;
+          }
+        }
+
+        // Colonne Autres Statuts (CONFIRME, Compte Rendu, PROVISOIRE, NON TRAITE, ENATT)
+        const badgesOther = [];
+        if (tr.confirmeCount > 0) {
+          badgesOther.push(`<span style="background:rgba(167,139,250,0.18);color:#c084fc;border:1px solid rgba(167,139,250,0.4);padding:2px 7px;border-radius:6px;font-size:11px;font-weight:700">📋 CONFIRMÉ: ${tr.confirmeCount}</span>`);
+        }
+        if (tr.compteRenduCount > 0) {
+          badgesOther.push(`<span style="background:rgba(56,189,248,0.15);color:#38bdf8;border:1px solid rgba(56,189,248,0.35);padding:2px 7px;border-radius:6px;font-size:11px;font-weight:700">📝 C.Rendu: ${tr.compteRenduCount}</span>`);
+        }
+        for (const [tk, cnt] of Object.entries(tr.trackingCounts)) {
+          badgesOther.push(`<span style="background:rgba(148,163,184,0.14);color:#cbd5e1;padding:2px 6px;border-radius:5px;font-size:10px">${tk}: ${cnt}</span>`);
+        }
+        const otherHtml = badgesOther.length > 0 ? `<div style="display:flex;gap:4px;flex-wrap:wrap">${badgesOther.join('')}</div>` : '<span style="color:var(--txt3)">—</span>';
+
+        const rowStyle = tr.chargeOver24 > 0 ? 'style="background:rgba(239,68,68,0.06)"' : '';
+
+        return `
+          <tr ${rowStyle}>
+            <td class="mono" style="font-weight:800;color:var(--acc);white-space:nowrap">${gpsDot}${tr.tracteur}${pinLink}</td>
+            <td>${teamBadge}<div style="font-size:10px;color:var(--txt3);margin-top:2px">${tr.agence}</div></td>
+            <td style="font-weight:600">${tr.chauffeur}</td>
+            <td style="text-align:center">
+              <span style="font-size:15px;font-weight:900;color:#38bdf8">${tr.totalTrips}</span>
+              ${grpNote}
+            </td>
+            <td style="text-align:center">${chargeHtml}</td>
+            <td style="text-align:center">${chargePoiHtml}</td>
+            <td style="text-align:center">${livreHtml}</td>
+            <td style="text-align:center">${livrePoiHtml}</td>
+            <td>${otherHtml}</td>
+            <td class="mono" style="text-align:right;font-weight:800;color:#4ade80;white-space:nowrap">
+              ${Math.round(tr.totalAchat).toLocaleString('fr-FR')} DA
+              <div style="font-size:10px;color:var(--txt3);font-weight:400">${Math.round(tr.totalKmExpl).toLocaleString('fr-FR')} km</div>
+            </td>
+            <td style="text-align:center">
+              <button class="btn" onclick="openSegmentsTruckDetailModal('${tr.tracteur}')" style="background:rgba(56,189,248,0.15);color:#38bdf8;border:1px solid rgba(56,189,248,0.4);padding:5px 10px;font-size:11px;font-weight:700;border-radius:6px">
+                🔍 Détail (${tr.totalTrips})
+              </button>
+            </td>
+          </tr>
+        `;
+      }).join('');
+    }
+  }
+
+  // 7. Rendu du tableau Vue 2 : Liste Détaillée des Voyages
+  const tripsTbody = document.getElementById('seg-trips-tbody');
+  if (tripsTbody) {
+    if (allDeduplicatedTrips.length === 0) {
+      tripsTbody.innerHTML = `<tr><td colspan="10" style="text-align:center;padding:28px;color:var(--txt3)">Aucun voyage ne correspond aux filtres sélectionnés.</td></tr>`;
+    } else {
+      tripsTbody.innerHTML = allDeduplicatedTrips.slice(0, 500).map(tp => {
+        const isCharge = tp.etatCmd === 'CHARGE' || tp.tracking === 'CHARGE';
+        const isLivre = !isCharge && (tp.etatCmd === 'LIVRE' || tp.tracking === 'LIVRE');
+
+        let statusBadge = `<span style="background:rgba(167,139,250,0.18);color:#c084fc;padding:3px 8px;border-radius:6px;font-size:11px;font-weight:700">${tp.etatCmd}</span>`;
+        if (isCharge) {
+          const durBadge = tp.isChargeOver24
+            ? `<div style="margin-top:3px"><span style="background:#ef4444;color:#fff;padding:2px 6px;border-radius:4px;font-size:10px;font-weight:800">🚨 ${tp.chargeHours}h (&gt;24h)</span></div>`
+            : `<div style="font-size:10px;color:#fbbf24;margin-top:2px">⏱️ ${tp.chargeHours}h</div>`;
+          statusBadge = `<span style="background:rgba(245,158,11,0.2);color:#fbbf24;border:1px solid #f59e0b;padding:3px 8px;border-radius:6px;font-size:11px;font-weight:800">📦 CHARGÉ</span>${durBadge}`;
+        } else if (isLivre) {
+          statusBadge = `<span style="background:rgba(16,185,129,0.2);color:#34d399;border:1px solid #10b981;padding:3px 8px;border-radius:6px;font-size:11px;font-weight:800">🏁 LIVRÉ</span>`;
+        }
+
+        let poiHtml = '<span style="color:var(--txt3);font-size:11px">En attente de chargement / livraison</span>';
+        if (isCharge && tp.poiChargeCheck) {
+          const c = tp.poiChargeCheck;
+          poiHtml = `<div style="color:${c.confirmed ? '#34d399' : '#f87171'};font-size:11px;font-weight:700">${c.label}</div>`;
+        } else if (isLivre && tp.poiLivreCheck) {
+          const c = tp.poiLivreCheck;
+          poiHtml = `<div style="color:${c.confirmed ? '#34d399' : '#f87171'};font-size:11px;font-weight:700">${c.label}</div>`;
+        }
+
+        const grpBadge = tp.isGrouped
+          ? `<div style="font-size:10px;color:#38bdf8;font-weight:700">🔗 Groupage ${tp.groupage || 'Jumelé'} (${tp.segIds.length} seg.)</div>`
+          : '';
+
+        return `
+          <tr>
+            <td class="mono" style="font-size:11px;white-space:nowrap">${tp.date || '—'}<div style="font-size:10px;color:var(--txt3)">${tp.dateSeg ? tp.dateSeg.substring(11) : ''}</div></td>
+            <td class="mono" style="font-size:11px"><b>${tp.segIds.join(', ')}</b>${grpBadge}</td>
+            <td class="mono" style="font-weight:700;color:var(--acc)">${tp.tracteur}<div style="font-size:10px;color:var(--txt3)">Éq. ${tp.team} • ${tp.agence}</div></td>
+            <td style="font-size:11px">${tp.chauffeur}</td>
+            <td style="font-size:11px;font-weight:600">${tp.clients.join(' / ')}</td>
+            <td style="font-size:11px">
+              <span style="color:#fbbf24;font-weight:600">${tp.lieuxDep.join(' + ') || tp.villesDep.join(' + ')}</span>
+              <span style="color:var(--txt3)"> ➔ </span>
+              <span style="color:#38bdf8;font-weight:600">${tp.lieuxArriv.join(' + ') || tp.villesArr.join(' + ')}</span>
+            </td>
+            <td style="text-align:center">${statusBadge}</td>
+            <td style="text-align:center;font-size:11px">${tp.tracking}<div style="font-size:10px;color:var(--txt3)">${tp.etatSeg}</div></td>
+            <td>${poiHtml}</td>
+            <td class="mono" style="text-align:right;font-weight:700;color:#4ade80;white-space:nowrap">${Math.round(tp.achat).toLocaleString('fr-FR')} DA</td>
+          </tr>
+        `;
+      }).join('');
+    }
+  }
+}
+window.renderSegmentsErpPage = renderSegmentsErpPage;
+
+// Ouvre la fiche détaillée d'un camion (tous ses voyages + preuves de pointage POI)
+function openSegmentsTruckDetailModal(tracteur) {
+  const comp = window._SEGMENTS_COMPUTED;
+  if (!comp || !Array.isArray(comp.trucks)) return;
+  const tr = comp.trucks.find(t => t.tracteur === tracteur);
+  if (!tr) return;
+
+  const titleEl = document.getElementById('seg-modal-title');
+  const subEl = document.getElementById('seg-modal-subtitle');
+  const sumEl = document.getElementById('seg-modal-summary');
+  const tbody = document.getElementById('seg-modal-tbody');
+  const histEl = document.getElementById('seg-modal-poi-history');
+
+  if (titleEl) titleEl.innerHTML = `🚛 Camion <span class="mono" style="color:#38bdf8">${tr.tracteur}</span> — Chauffeur : <b>${tr.chauffeur}</b> (Équipe ${tr.team} / ${tr.agence})`;
+  if (subEl) subEl.textContent = `Détail des ${tr.totalTrips} voyage(s) réalisé(s) (${tr.rawSegments.length} segment(s) ERP) et contrôle de cohérence avec les pointages POI GPS.`;
+
+  if (sumEl) {
+    sumEl.innerHTML = `
+      <div style="background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:8px 14px;font-size:12px">🔄 Cumul Voyages : <b style="color:#38bdf8">${tr.totalTrips}</b></div>
+      <div style="background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:8px 14px;font-size:12px">📦 Statut CHARGÉ : <b style="color:#fbbf24">${tr.chargeCount}</b> (dont <b style="color:#ef4444">${tr.chargeOver24} &gt; 24h</b>) • Confirmés POI : <b style="color:#34d399">${tr.chargePoiOk}/${tr.chargeCount}</b></div>
+      <div style="background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:8px 14px;font-size:12px">🏁 Statut LIVRÉ : <b style="color:#34d399">${tr.livreCount}</b> • Confirmés POI : <b style="color:#34d399">${tr.livrePoiOk}/${tr.livreCount}</b></div>
+      <div style="background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:8px 14px;font-size:12px">📋 Confirmé / Autres : <b style="color:#c084fc">${tr.confirmeCount + tr.compteRenduCount}</b></div>
+      <div style="background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:8px 14px;font-size:12px">💰 Total ACHAT : <b style="color:#4ade80">${Math.round(tr.totalAchat).toLocaleString('fr-FR')} DA</b> (${Math.round(tr.totalKmExpl).toLocaleString('fr-FR')} km)</div>
+    `;
+  }
+
+  if (tbody) {
+    tbody.innerHTML = tr.trips.map(tp => {
+      const isCharge = tp.etatCmd === 'CHARGE' || tp.tracking === 'CHARGE';
+      const isLivre = !isCharge && (tp.etatCmd === 'LIVRE' || tp.tracking === 'LIVRE');
+
+      let stHtml = `<span style="color:#c084fc;font-weight:700">${tp.etatCmd}</span>`;
+      if (isCharge) {
+        stHtml = `<span style="color:#fbbf24;font-weight:800">📦 CHARGÉ</span><div style="font-size:10px;color:${tp.isChargeOver24 ? '#ef4444' : '#94a3b8'};font-weight:700">${tp.isChargeOver24 ? '🚨 ' : '⏱️ '}${tp.chargeHours}h (Créé: ${tp.dateSeg || '—'})</div>`;
+      } else if (isLivre) {
+        stHtml = `<span style="color:#34d399;font-weight:800">🏁 LIVRÉ</span><div style="font-size:10px;color:#94a3b8">Modif: ${tp.dateSegM || '—'}</div>`;
+      }
+
+      const chargePoiCell = tp.poiChargeCheck
+        ? `<span style="color:${tp.poiChargeCheck.confirmed ? '#34d399' : '#f87171'};font-size:11px;font-weight:600">${tp.poiChargeCheck.label}</span>`
+        : '<span style="color:var(--txt3)">—</span>';
+
+      const livrePoiCell = tp.poiLivreCheck
+        ? `<span style="color:${tp.poiLivreCheck.confirmed ? '#34d399' : '#f87171'};font-size:11px;font-weight:600">${tp.poiLivreCheck.label}</span>`
+        : '<span style="color:var(--txt3)">—</span>';
+
+      return `
+        <tr>
+          <td class="mono" style="font-size:11px">${tp.date || '—'}</td>
+          <td class="mono" style="font-size:11px"><b>${tp.segIds.join(', ')}</b>${tp.isGrouped ? `<div style="font-size:10px;color:#38bdf8">Groupage ${tp.groupage || 'Jumelé'}</div>` : ''}</td>
+          <td style="font-size:11px"><b>${tp.clients.join(' / ')}</b><div style="font-size:10px;color:var(--txt3)">Réf: ${tp.refCmds.join(', ')}</div></td>
+          <td style="font-size:11px"><b style="color:#fbbf24">${tp.lieuxDep.join(' + ')}</b> (${tp.villesDep.join(', ')}) ➔ <b style="color:#38bdf8">${tp.lieuxArriv.join(' + ')}</b> (${tp.villesArr.join(', ')})</td>
+          <td style="text-align:center">${stHtml}</td>
+          <td style="text-align:center;font-size:11px">${tp.tracking} / ${tp.etatSeg}</td>
+          <td>${chargePoiCell}</td>
+          <td>${livrePoiCell}</td>
+          <td class="mono" style="text-align:right;font-weight:700;color:#4ade80">${Math.round(tp.achat).toLocaleString('fr-FR')} DA</td>
+        </tr>
+      `;
+    }).join('');
+  }
+
+  // Afficher tous les pointages POI connus de ce camion dans np_poi_visits
+  const pNorm = normErpPlate(tr.tracteur);
+  const visits = (comp.visitsByPlate && comp.visitsByPlate.get(pNorm)) || [];
+  if (histEl) {
+    if (visits.length === 0) {
+      histEl.innerHTML = `🛰️ <b>Historique POI GPS du camion ${tr.tracteur} :</b> Aucun pointage POI enregistré dans <code>np_poi_visits</code>.`;
+    } else {
+      const vList = visits.slice(0, 8).map(v => {
+        const dStr = v.arrived_at ? new Date(v.arrived_at).toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : '';
+        return `<span style="background:rgba(56,189,248,0.12);border:1px solid rgba(56,189,248,0.3);padding:2px 7px;border-radius:5px;color:#e2e8f0">📍 <b>${v.poi_name}</b> (${dStr})</span>`;
+      }).join(' ');
+      histEl.innerHTML = `🛰️ <b>Derniers pointages POI GPS enregistrés pour ${tr.tracteur} (${visits.length}) :</b> ${vList}`;
+    }
+  }
+
+  const modal = document.getElementById('modal-segments-truck-detail');
+  if (modal) modal.style.display = 'flex';
+}
+window.openSegmentsTruckDetailModal = openSegmentsTruckDetailModal;
+
+// Export Excel du bilan par camion et du détail des segments avec statut POI
+function exportSegmentsErpExcel() {
+  const comp = window._SEGMENTS_COMPUTED;
+  if (!comp || !Array.isArray(comp.trucks) || comp.trucks.length === 0) {
+    showToast('⚠️ Aucune donnée à exporter.', true);
+    return;
+  }
+  const wb = XLSX.utils.book_new();
+
+  const summaryRows = comp.trucks.map(tr => ({
+    'Camion (Tracteur)': tr.tracteur,
+    'Équipe Numiplan': tr.team,
+    'Agence ERP': tr.agence,
+    'Chauffeur': tr.chauffeur,
+    'Cumul Voyages (Dédoublonnés)': tr.totalTrips,
+    'Segments Bruts': tr.rawSegments.length,
+    'Statut CHARGÉ (Total)': tr.chargeCount,
+    'Statut CHARGÉ > 24h': tr.chargeOver24,
+    'Durée Max CHARGÉ (h)': tr.maxChargeHours,
+    'CHARGÉ Confirmé POI': tr.chargePoiOk,
+    'CHARGÉ Non Pointé POI': tr.chargePoiKo,
+    'Statut LIVRÉ (Total)': tr.livreCount,
+    'LIVRÉ Confirmé POI': tr.livrePoiOk,
+    'LIVRÉ Non Pointé POI': tr.livrePoiKo,
+    'Statut CONFIRMÉ': tr.confirmeCount,
+    'Statut Compte Rendu': tr.compteRenduCount,
+    'Tracking PROVISOIRE': tr.trackingCounts['PROVISOIRE'] || 0,
+    'Total ACHAT (DA)': Math.round(tr.totalAchat * 100) / 100,
+    'Total KM Exploitation': Math.round(tr.totalKmExpl * 10) / 10
+  }));
+
+  const detailRows = comp.trips.map(tp => ({
+    'Date Départ': tp.date,
+    'N° Segment(s)': tp.segIds.join(', '),
+    'Groupage': tp.groupage || '',
+    'Camion': tp.tracteur,
+    'Équipe': tp.team,
+    'Agence': tp.agence,
+    'Chauffeur': tp.chauffeur,
+    'Client(s)': tp.clients.join(' / '),
+    'Lieu Départ': tp.lieuxDep.join(' + '),
+    'Ville Départ': tp.villesDep.join(' + '),
+    'Lieu Arrivée': tp.lieuxArriv.join(' + '),
+    'Ville Arrivée': tp.villesArr.join(' + '),
+    'État Commande': tp.etatCmd,
+    'Tracking': tp.tracking,
+    'État Segment': tp.etatSeg,
+    'Durée CHARGÉ (h)': tp.chargeHours || '',
+    'Dépassement > 24h': tp.isChargeOver24 ? 'OUI (>24h)' : 'NON',
+    'Confirmation POI Départ (Chargé)': tp.poiChargeCheck ? tp.poiChargeCheck.label : '',
+    'Confirmation POI Arrivée (Livré)': tp.poiLivreCheck ? tp.poiLivreCheck.label : '',
+    'Montant ACHAT (DA)': Math.round(tp.achat * 100) / 100,
+    'KM Exploitation': Math.round(tp.kmExpl * 10) / 10
+  }));
+
+  const ws1 = XLSX.utils.json_to_sheet(summaryRows);
+  const ws2 = XLSX.utils.json_to_sheet(detailRows);
+  XLSX.utils.book_append_sheet(wb, ws1, 'Cumul Par Camion');
+  XLSX.utils.book_append_sheet(wb, ws2, 'Détail Voyages & POI');
+
+  const todayStr = new Date().toISOString().split('T')[0];
+  XLSX.writeFile(wb, `Numiplan_Bilan_Segments_POI_${todayStr}.xlsx`);
+  showToast('✅ Export Excel généré avec succès !');
+}
+window.exportSegmentsErpExcel = exportSegmentsErpExcel;
 
 </script>
 
