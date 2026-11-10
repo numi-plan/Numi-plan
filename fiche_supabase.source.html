@@ -481,6 +481,25 @@
   function cloneEquipePayload(src) {
     return JSON.parse(JSON.stringify(src));
   }
+  const TRACABILITE_MAX_AGE_MS = 3 * 24 * 60 * 60 * 1000;
+  function purgeTracabilite3Days(list) {
+    if (!Array.isArray(list)) return [];
+    const cutoff = Date.now() - TRACABILITE_MAX_AGE_MS;
+    return list.filter(item => {
+      if (!item) return false;
+      const ts = Number(item.timestamp) || 0;
+      return ts >= cutoff;
+    }).slice(0, 500);
+  }
+  window.purgeTracabilite3Days = purgeTracabilite3Days;
+  cloneEquipePayload = function(src) {
+    if (!src) return src;
+    const copy = JSON.parse(JSON.stringify(src));
+    if (copy && Array.isArray(copy.tracabilite)) {
+      copy.tracabilite = purgeTracabilite3Days(copy.tracabilite);
+    }
+    return copy;
+  };
   window.cloneEquipePayload = cloneEquipePayload;
 
   // FUSION INTELLIGENTE des listes entre local et distant
@@ -1101,6 +1120,7 @@
               window._SEGMENTS_ERP_DATA = payload;
               const badge = document.getElementById('cnt-segments');
               if (badge) badge.textContent = payload.segments.length;
+              if (typeof renderDispo === 'function' && document.getElementById('page-dispo')?.classList.contains('active')) renderDispo();
               if (typeof renderSegmentsErpPage === 'function' && document.getElementById('page-segments') && document.getElementById('page-segments').classList.contains('active')) {
                 renderSegmentsErpPage();
               }
@@ -1795,7 +1815,7 @@
         }
     };
     appendOnly("nc");
-    appendOnly("tracabilite");
+    appendOnly("tracabilite"); if (merged.tracabilite) merged.tracabilite = purgeTracabilite3Days(merged.tracabilite);
     for (let k in local) {
         if (["dispo", "activite", "nc", "tracabilite", "equip", "pannes", "odo", "odo_weeks", "cspc", "bl", "deleted_trucks", "gasoil", "deleted_gasoil"].includes(k)) continue;
         if (typeof local[k] !== "object") {
@@ -1888,7 +1908,7 @@
       console.warn(`[Sync Guard] supabaseUpsertTeam bloqué pour l'équipe ${eq} : attente du chargement cloud initial.`);
       return false;
     }
-    let payloadToSave = payload;
+    let payloadToSave = payload; if (payloadToSave && Array.isArray(payloadToSave.tracabilite) && typeof purgeTracabilite3Days === 'function') { payloadToSave.tracabilite = purgeTracabilite3Days(payloadToSave.tracabilite); }
     if (typeof ensureSupabaseAuth === 'function') {
       await ensureSupabaseAuth();
     }
@@ -3866,6 +3886,7 @@ mark.hl { background: rgba(56,189,248,.25); color: var(--acc); border-radius: 3p
       <option>En panne</option>
       <option value="GEOLOC_OFF">🔴 Géoloc OFF (Inactives)</option>
       <option value="GEOLOC_ON">🟢 Géoloc ON (Actives)</option>
+          <option value="ECART_J1_ERP">&#x1F6A8; Écart J+1 &ne; Ville Arrivée ERP</option>
     </select>
     <select class="filter-input" id="dispo-region-j" onchange="renderDispo()" title="Filtrer par région Lieu Jour">
       <option value="">📍 Lieu Jour (toutes)</option>
@@ -4835,6 +4856,7 @@ mark.hl { background: rgba(56,189,248,.25); color: var(--acc); border-radius: 3p
       <option value="LIVRE_POI_OK">✅ "LIVRÉ" Confirmé par POI</option>
       <option value="LIVRE_POI_KO">⚠️ "LIVRÉ" Non pointé au POI Arrivée</option>
       <option value="HAS_CONFIRME">📋 Ayant statut "CONFIRMÉ" / Autres</option>
+      <option value="ECART_J1_ERP_SEG">&#x1F6A8; Écart Lieu J+1 (Numiplan) &ne; Ville Arrivée (ERP)</option>
       <option value="ANY_POI_KO">🚨 Toute anomalie POI (Chargé ou Livré)</option>
     </select>
 
@@ -4927,6 +4949,7 @@ mark.hl { background: rgba(56,189,248,.25); color: var(--acc); border-radius: 3p
           <th style="cursor:pointer" onclick="sortSegmentsTrucks('tracteur')">Camion (Tracteur) ⇅</th>
           <th style="cursor:pointer" onclick="sortSegmentsTrucks('team')">Éq. / Agence ⇅</th>
           <th style="cursor:pointer" onclick="sortSegmentsTrucks('chauffeur')">Chauffeur (Affrété / Cond.) ⇅</th>
+          <th style="text-align:center;cursor:pointer" onclick="sortSegmentsTrucks('j1Match')">Contrôle Lieu J+1 vs Ville Arriv. ERP &#x21C5;</th>
           <th style="text-align:center;cursor:pointer" onclick="sortSegmentsTrucks('totalTrips')">Cumul Voyages ⇅</th>
           <th style="text-align:center;cursor:pointer" onclick="sortSegmentsTrucks('chargeOver24')">Statut "CHARGÉ" (&amp; &gt;24h) ⇅</th>
           <th style="text-align:center;cursor:pointer" onclick="sortSegmentsTrucks('chargePoiOk')">Confirmation POI "CHARGÉ" ⇅</th>
@@ -6879,13 +6902,13 @@ function tracerAction(menu, type, target, detail, eq = null) {
   // 1. Enregistrement en mémoire dans le DB actif
   if (!DB.tracabilite) DB.tracabilite = [];
   DB.tracabilite.unshift(entry);
-  if (DB.tracabilite.length > 2000) DB.tracabilite.pop();
+  if (typeof purgeTracabilite3Days === 'function') DB.tracabilite = purgeTracabilite3Days(DB.tracabilite);
 
   // 2. Synchronisation dans le DB de l'équipe concernée si différent
   if (targetEq && window['DB_' + targetEq] && window['DB_' + targetEq] !== DB) {
     if (!window['DB_' + targetEq].tracabilite) window['DB_' + targetEq].tracabilite = [];
     window['DB_' + targetEq].tracabilite.unshift(entry);
-    if (window['DB_' + targetEq].tracabilite.length > 2000) window['DB_' + targetEq].tracabilite.pop();
+    if (typeof purgeTracabilite3Days === 'function') window['DB_' + targetEq].tracabilite = purgeTracabilite3Days(window['DB_' + targetEq].tracabilite);
   }
 
   // 3. Rafraîchissement direct du compteur et de la vue si onglet actif
@@ -8207,6 +8230,10 @@ function renderTracabilite() {
   });
 
   // 3. Tri anti-chronologique (plus récent en haut)
+  const cutoff3d = Date.now() - (3 * 24 * 60 * 60 * 1000);
+  const recentDeduped = deduped.filter(t => (Number(t.timestamp) || 0) >= cutoff3d);
+  deduped.length = 0;
+  deduped.push(...recentDeduped);
   deduped.sort((a,b) => (b.timestamp || 0) - (a.timestamp || 0));
 
   // 4. Alimenter dynamiquement le sélecteur d'Utilisateurs s'il n'a qu'une seule option
@@ -8320,7 +8347,7 @@ async function actualiserTracabiliteCloud() {
     const { data, error } = await window.supabase
       .from('np_tracabilite')
       .select('*')
-      .neq('type', 'GPS_SYNC')
+      .neq('type', 'GPS_SYNC').gte('timestamp', String(Date.now() - 3 * 24 * 60 * 60 * 1000))
       .order('timestamp', { ascending: false })
       .limit(250);
       
@@ -8977,6 +9004,9 @@ function renderDispo(force = false) {
         const gDate = r.geolocDate;
         const gVal = (gDate && gDate.startsWith(todayD)) ? (r.geoloc || '') : ((r.geoloc === 'ON' && r.lat && r.lng) ? 'ON' : '');
         if (gVal !== 'ON') return false;
+      } else if (etatF === 'ECART_J1_ERP') {
+        const chk = typeof window.getDispoJ1ErpCheck === 'function' ? window.getDispoJ1ErpCheck(r.v, r.lieuJ1) : null;
+        if (!chk || !chk.hasErp || chk.match) return false;
       } else if (r.etat.trim().toLowerCase() !== etatF.toLowerCase()) {
         return false;
       }
@@ -9090,6 +9120,7 @@ function renderDispo(force = false) {
     <div class="stat-card" style="cursor:pointer;transition:opacity .2s;border-left-color:#38bdf8" onclick="ouvrirModalGeolocToutesEquipes()" title="Voir le bilan de toutes les balises GPS inactives par équipe"><div class="stat-num" style="color:#38bdf8">🛰️</div><div class="stat-lbl" style="color:#38bdf8">Bilan GPS Équipes</div></div>
     <div class="stat-card pur" style="cursor:pointer;transition:opacity .2s" onclick="switchTab('cspc',document.querySelector('[onclick*=\\'cspc\\']'))" title="Voir les véhicules CSPC"><div class="stat-num">${DB.cspc.length}</div><div class="stat-lbl">CSPC</div></div>
     <div class="stat-card" style="cursor:pointer;transition:opacity .2s" onclick="filterByEtat('')" title="Afficher tout"><div class="stat-num">${DB.dispo.length}</div><div class="stat-lbl">Total ↺</div></div>
+    ${(()=>{ const n = (DB && DB.dispo && typeof window.getDispoJ1ErpCheck === "function") ? DB.dispo.filter(x => { const c = window.getDispoJ1ErpCheck(x.v, x.lieuJ1); return c && c.hasErp && !c.match; }).length : 0; const col = n > 0 ? "#f59e0b" : "#22c55e"; return `<div class="stat-card" style="cursor:pointer;transition:opacity .2s;border-left-color:${col}" onclick="filterByEtat(\x27ECART_J1_ERP\x27)" title="Filtrer les camions dont le Lieu J+1 saisi dans Numiplan ne correspond pas à la VILLE ARRIV du fichier Excel ERP"><div class="stat-num" style="color:${col}">${n}</div><div class="stat-lbl" style="color:${col}">📍 Écarts J+1 ≠ ERP</div></div>`; })()}
     <div class="stat-card" style="cursor:pointer;transition:opacity .2s;border-left-color:#a78bfa" onclick="showAnomaliesLieu()" title="Voir les anomalies de lieu J+1"><div class="stat-num" style="color:#a78bfa">${typeof getAnomaliesAPointer === 'function' ? getAnomaliesAPointer().length : 0}</div><div class="stat-lbl" style="color:#a78bfa">⚠️ Anomalies lieu</div></div>
     <div class="${kpiClass}" style="cursor:pointer;transition:opacity .2s;border-left-color:${kpiBorder}" onclick="ouvrirPointageKpiAtelier('TO_POINT')" title="Voir les pannes non pointées pour passage atelier"><div class="stat-num" style="color:${kpiColor}">${kpiCount}</div><div class="stat-lbl" style="color:${kpiColor}">🛠️ KPI Atelier</div></div>
     ${adminKpiCardHtml}
@@ -23910,6 +23941,116 @@ function formatErpDateTimeStr(d) {
 }
 
 // Récupère l'équipe Numiplan et les infos live d'un camion
+
+// ─── CONTRÔLE DE COHÉRENCE LIEU J+1 (NUMIPLAN) VS VILLE ARRIVÉE (FICHIER ERP) ───
+window._ERP_LATEST_BY_PLATE_CACHE = null;
+window._ERP_LATEST_CACHE_REF = null;
+
+function buildErpLatestByPlateMap() {
+  const segData = window._SEGMENTS_ERP_DATA;
+  if (!segData || !Array.isArray(segData.segments)) return new Map();
+  if (window._ERP_LATEST_BY_PLATE_CACHE && window._ERP_LATEST_CACHE_REF === segData.segments) {
+    return window._ERP_LATEST_BY_PLATE_CACHE;
+  }
+  const map = new Map();
+  // Parcourir les segments pour trouver le dernier voyage / segment actif de chaque camion
+  segData.segments.forEach(s => {
+    const p = normErpPlate(s.tracteur);
+    if (!p || !s.villeArr) return;
+    const segNum = parseInt(s.seg, 10) || 0;
+    const dateStr = s.date || '';
+    // Priorité au segment de la date la plus récente (et N° segment le plus élevé)
+    const cur = map.get(p);
+    if (!cur || dateStr > cur.date || (dateStr === cur.date && segNum >= cur.segNum)) {
+      const villesSet = (cur && dateStr === cur.date && s.groupage && s.groupage === cur.groupage)
+        ? Array.from(new Set([...cur.villesArr, s.villeArr.trim().toUpperCase()]))
+        : [s.villeArr.trim().toUpperCase()];
+      map.set(p, {
+        date: dateStr,
+        segNum,
+        segId: s.seg,
+        groupage: s.groupage,
+        villesArr: villesSet,
+        erpVille: villesSet.join(' / '),
+        lieuArriv: s.lieuArriv || '',
+        client: s.client || '',
+        etatCmd: s.etatCmd || s.tracking || '—'
+      });
+    }
+  });
+  window._ERP_LATEST_BY_PLATE_CACHE = map;
+  window._ERP_LATEST_CACHE_REF = segData.segments;
+  return map;
+}
+
+// Synonymes villes / wilayas pour éviter les faux positifs sur les abréviations ou communes
+const WILAYA_CITY_EQUIV = {
+  'SBA': 'SIDI BEL ABBES',
+  'BBA': 'BORDJ BOU ARRERIDJ',
+  'OEB': 'OUM EL BOUAGHI',
+  'ELKHROUB': 'EL KHROUB',
+  'OUED RHIOU': 'OUED-RHIOU'
+};
+
+function citiesMatchJ1Erp(lieuJ1Raw, erpVillesList) {
+  const j1 = normErpStr(lieuJ1Raw);
+  if (!j1 || j1 === '—') return false;
+  const j1Expanded = WILAYA_CITY_EQUIV[j1] || j1;
+
+  for (const vRaw of (erpVillesList || [])) {
+    const v = normErpStr(vRaw);
+    if (!v) continue;
+    const vExpanded = WILAYA_CITY_EQUIV[v] || v;
+    if (j1Expanded === vExpanded) return true;
+    // Tolérer une abréviation d'au moins 4 lettres (ex: "AIN TEMO" pour "AIN TEMOUCHENT")
+    if (j1Expanded.length >= 4 && (vExpanded.startsWith(j1Expanded) || j1Expanded.startsWith(vExpanded) || vExpanded.includes(j1Expanded) || j1Expanded.includes(vExpanded))) {
+      return true;
+    }
+  }
+  return false;
+}
+
+function getDispoJ1ErpCheck(plate, lieuJ1Val) {
+  const p = normErpPlate(plate);
+  if (!p) return null;
+  const map = buildErpLatestByPlateMap();
+  const erp = map.get(p);
+  if (!erp) return { hasErp: false };
+  const isMatch = citiesMatchJ1Erp(lieuJ1Val, erp.villesArr);
+  return {
+    hasErp: true,
+    match: isMatch,
+    lieuJ1: (lieuJ1Val && lieuJ1Val !== '—') ? lieuJ1Val : 'Non renseigné',
+    erpVille: erp.erpVille,
+    villesArr: erp.villesArr,
+    segId: erp.segId,
+    date: erp.date,
+    client: erp.client,
+    etatCmd: erp.etatCmd
+  };
+}
+window.getDispoJ1ErpCheck = getDispoJ1ErpCheck;
+
+function alignerLieuJ1AvecErp(realIdx, newVille) {
+  if (!DB || !Array.isArray(DB.dispo) || !DB.dispo[realIdx]) return;
+  const row = DB.dispo[realIdx];
+  const oldVal = row.lieuJ1 || '—';
+  // Prendre la première ville si groupage multi-villes
+  const cleanVille = String(newVille || '').split('/')[0].trim().toUpperCase();
+  if (!cleanVille) return;
+  row.lieuJ1 = cleanVille;
+  row._lastEditedTs = Date.now();
+  if (typeof tracerAction === 'function') {
+    tracerAction('DISPO', 'Alignement J+1 ERP', row.v, `Lieu J+1 aligné avec VILLE ARRIV ERP : ${oldVal} ➔ ${cleanVille}`);
+  }
+  if (typeof saveData === 'function') saveData();
+  if (typeof renderDispo === 'function') renderDispo(true);
+  if (typeof renderSegmentsErpPage === 'function' && document.getElementById('page-segments')?.classList.contains('active')) {
+    renderSegmentsErpPage();
+  }
+  showToast(`✅ Lieu J+1 du camion ${row.v} mis à jour : ${cleanVille}`);
+}
+window.alignerLieuJ1AvecErp = alignerLieuJ1AvecErp;
 function getTruckNumiplanInfo(plate) {
   const pNorm = normErpPlate(plate);
   if (!pNorm) return { team: '—', chauffeur: '', lieuJ: '', geoloc: 'OFF', lat: null, lng: null };
@@ -23924,7 +24065,7 @@ function getTruckNumiplanInfo(plate) {
           team: eq,
           v: found.v,
           chauffeur: found.chauffeur || '',
-          lieuJ: found.lieuJ || '',
+          lieuJ: found.lieuJ || '', lieuJ1: found.lieuJ1 || '',
           geoloc: liveRow.geoloc || found.geoloc || 'OFF',
           lat: liveRow.lat ?? found.lat ?? null,
           lng: liveRow.lng ?? found.lng ?? null
@@ -24615,6 +24756,10 @@ function renderSegmentsErpPage() {
     if (statusFilter === 'LIVRE_POI_KO') return tr.livrePoiKo > 0;
     if (statusFilter === 'HAS_CONFIRME') return (tr.confirmeCount + tr.compteRenduCount + Object.keys(tr.trackingCounts).length) > 0;
     if (statusFilter === 'ANY_POI_KO') return (tr.chargePoiKo > 0 || tr.livrePoiKo > 0);
+    if (statusFilter === 'ECART_J1_ERP_SEG') {
+      const chk = window.getDispoJ1ErpCheck ? window.getDispoJ1ErpCheck(tr.tracteur, getTruckNumiplanInfo(tr.tracteur).lieuJ1) : null;
+      return Boolean(chk && chk.hasErp && !chk.match);
+    }
     return true;
   });
 
@@ -24779,6 +24924,14 @@ function renderSegmentsErpPage() {
             <td class="mono" style="font-weight:800;color:var(--acc);white-space:nowrap">${gpsDot}${tr.tracteur}${pinLink}</td>
             <td>${teamBadge}<div style="font-size:10px;color:var(--txt3);margin-top:2px">${tr.agence}</div></td>
             <td style="font-weight:600">${tr.chauffeur}</td>
+            <td style="text-align:center">${(()=>{
+              const chk = window.getDispoJ1ErpCheck ? window.getDispoJ1ErpCheck(tr.tracteur, getTruckNumiplanInfo(tr.tracteur).lieuJ1) : null;
+              if (!chk || !chk.hasErp) return '<span style="color:var(--txt3)">—</span>';
+              if (chk.match) {
+                return `<span style="background:rgba(16,185,129,0.18);color:#34d399;border:1px solid rgba(16,185,129,0.4);padding:3px 8px;border-radius:6px;font-size:11px;font-weight:700">✅ J+1 = ${chk.erpVille}</span>`;
+              }
+              return `<div style="background:rgba(239,68,68,0.16);border:1px solid #ef4444;border-radius:6px;padding:3px 7px;font-size:10.5px"><div style="color:#fca5a5;font-weight:800">🚨 J+1 Numiplan : <b>${chk.lieuJ1}</b></div><div style="color:#fbbf24;font-weight:800;margin-top:2px">➔ ERP Ville Arriv : <b>${chk.erpVille}</b></div></div>`;
+            })()}</td>
             <td style="text-align:center">
               <span style="font-size:15px;font-weight:900;color:#38bdf8">${tr.totalTrips}</span>
               ${grpNote}
