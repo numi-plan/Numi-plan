@@ -191,6 +191,24 @@
   }
   window.isRegistreOrDirectionSession = isRegistreOrDirectionSession;
 
+  const ALL_EQUIPES_LIST = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2', 'D1', 'D2'];
+  window.ALL_EQUIPES_LIST = ALL_EQUIPES_LIST;
+
+  function expandTeamLockList(lockStr) {
+    if (!lockStr || lockStr === 'ALL' || lockStr === '*' || lockStr === 'ADMIN') return [...ALL_EQUIPES_LIST];
+    const parts = String(lockStr).split(/[,;\s\/\-]+/).map(x => x.trim().toUpperCase()).filter(Boolean);
+    const out = [];
+    parts.forEach(p => {
+      if (['A1', 'A2', 'B1', 'B2', 'C1', 'C2', 'D1', 'D2'].includes(p)) {
+        out.push(p + '1', p + '2');
+      } else if (ALL_EQUIPES_LIST.includes(p)) {
+        out.push(p);
+      }
+    });
+    return Array.from(new Set(out));
+  }
+  window.expandTeamLockList = expandTeamLockList;
+
   function isTeamAllowed(eq) {
     if (!eq) return false;
     const role = (sessionStorage.getItem('numiplan_user_role') || '').toLowerCase();
@@ -198,7 +216,7 @@
     const lock = sessionStorage.getItem('numiplan_team_lock');
     if (role === 'admin' || user === 'ADMIN' || !lock || lock === 'ADMIN' || lock === 'ALL' || lock === '*') return true;
     if (lock === 'BL' || lock === 'DIR') return false;
-    const allowed = lock.split(/[,;\s\/\-]+/).map(x => x.trim().toUpperCase()).filter(Boolean);
+    const allowed = expandTeamLockList(lock);
     return allowed.includes(String(eq).trim().toUpperCase());
   }
   window.isTeamAllowed = isTeamAllowed;
@@ -209,7 +227,7 @@
   function getCurrentEquipe() {
     const lock = sessionStorage.getItem('numiplan_team_lock');
     if (lock && lock !== 'BL' && lock !== 'DIR') {
-      const allowed = (lock === 'ALL' || lock === '*') ? ['A', 'B', 'C', 'D'] : lock.split(/[,;\s\/\-]+/).map(x => x.trim().toUpperCase()).filter(Boolean);
+      const allowed = (lock === 'ALL' || lock === '*') ? ['A1', 'A2', 'B1', 'B2', 'C1', 'C2', 'D1', 'D2'] : window.expandTeamLockList(lock);
       if (allowed.length > 0) {
         if (typeof window.CURRENT_EQUIPE === 'undefined' || !allowed.includes(window.CURRENT_EQUIPE)) {
           window.CURRENT_EQUIPE = allowed[0];
@@ -218,7 +236,7 @@
         return window.CURRENT_EQUIPE;
       }
     }
-    return (typeof window.CURRENT_EQUIPE !== 'undefined' && window.CURRENT_EQUIPE) ? window.CURRENT_EQUIPE : 'A';
+    return (typeof window.CURRENT_EQUIPE !== 'undefined' && window.CURRENT_EQUIPE) ? window.CURRENT_EQUIPE : 'A1';
   }
   window.getCurrentEquipe = getCurrentEquipe;
 
@@ -383,8 +401,8 @@
   let _fbReady      = false;
   let _fbLoaded     = {};
   let _initialCloudLoadCompleted = {};
-  const EQUIPES = ['A', 'B', 'C', 'D'];
-  const STORAGE_KEY = 'numiplan_data_v4';
+  const EQUIPES = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2', 'D1', 'D2'];
+  const STORAGE_KEY = 'numiplan_data_v5';
 
   let _localStorageSaveTimer = null;
   function scheduleLocalStorageSave(delay = 1000) {
@@ -395,12 +413,10 @@
           version: 4,
           active: getCurrentEquipe(),
           teams: {
-            A: window.DB_A,
-            B: window.DB_B,
-            C: window.DB_C,
-            D: window.DB_D
-            
-            
+            A1: window.DB_A1, A2: window.DB_A2,
+            B1: window.DB_B1, B2: window.DB_B2,
+            C1: window.DB_C1, C2: window.DB_C2,
+            D1: window.DB_D1, D2: window.DB_D2
           }
         }));
       } catch(e) {
@@ -430,7 +446,7 @@
   function getCurrentEquipe() {
     const lock = sessionStorage.getItem('numiplan_team_lock');
     if (lock && lock !== 'BL' && lock !== 'DIR') {
-      const allowed = (lock === 'ALL' || lock === '*') ? ['A', 'B', 'C', 'D'] : lock.split(/[,;\s\/\-]+/).map(x => x.trim().toUpperCase()).filter(Boolean);
+      const allowed = (lock === 'ALL' || lock === '*') ? ['A1', 'A2', 'B1', 'B2', 'C1', 'C2', 'D1', 'D2'] : window.expandTeamLockList(lock);
       if (allowed.length > 0) {
         if (typeof window.CURRENT_EQUIPE === 'undefined' || !allowed.includes(window.CURRENT_EQUIPE)) {
           window.CURRENT_EQUIPE = allowed[0];
@@ -442,7 +458,7 @@
     if (typeof window.CURRENT_EQUIPE !== 'undefined' && window.CURRENT_EQUIPE) {
       return window.CURRENT_EQUIPE;
     }
-    return 'A';
+    return 'A1';
   }
   window.getCurrentEquipe = getCurrentEquipe;
 
@@ -977,7 +993,7 @@
             const rawTeam = String(row.team).toUpperCase().trim();
             let eqList = [];
             if (rawTeam === 'ALL' || rawTeam === '*') {
-              eqList = ['A', 'B', 'C', 'D'];
+              eqList = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2', 'D1', 'D2'];
             } else {
               eqList = rawTeam.split(/[,;\s\/\-]+/).map(x => x.trim()).filter(Boolean);
             }
@@ -1003,7 +1019,7 @@
   // Utilisation directe des dispos en mémoire pour les extensions (0 requête réseau)
   function loadGlobalDispoForExtensions() {
     try {
-      ['A', 'B', 'C', 'D'].forEach(eq => {
+      ['A1', 'A2', 'B1', 'B2', 'C1', 'C2', 'D1', 'D2'].forEach(eq => {
         if (!window['DB_' + eq]) window['DB_' + eq] = { dispo: [] };
       });
       if (typeof safeRenderActiveTeam === 'function') {
@@ -1084,7 +1100,7 @@
         }
       }
 
-      const { data, error } = await supabase.from('numiplan_teams').select('*');
+      const { data, error } = await supabase.from('numiplan_teams').select('*').in('team', ['A1','A2','B1','B2','C1','C2','D1','D2','SHARIK_EDITS','SEGMENTS_ERP']);
       if (error) throw error;
       
       if (data) {
@@ -1232,7 +1248,7 @@
             { event: '*', schema: 'public', table: 'numiplan_teams' },
             payload => {
               if (payload.new && payload.new.team) {
-                const eq = payload.new.team;
+                const eq = payload.new.team; if (['A','B','C','D'].includes(eq)) return; if (['A1', 'A2', 'B1', 'B2', 'C1', 'C2', 'D1', 'D2'].includes(eq)) return;
                 const data = payload.new.payload;
                 if (eq === 'SHARIK_EDITS') {
                   // Ignorer l'écho Supabase si une sauvegarde locale vient d'être faite (< 5 secondes)
@@ -1386,7 +1402,7 @@
       }
       const ids = [];
       const lock = sessionStorage.getItem('numiplan_team_lock');
-      const targetEqs = (lock && lock !== 'BL' && lock !== 'DIR') ? lock.split(/[,;\s\/\-]+/).map(x => x.trim().toUpperCase()).filter(Boolean) : ['A', 'B', 'C', 'D'];
+      const targetEqs = (lock && lock !== 'BL' && lock !== 'DIR') ? window.expandTeamLockList(lock) : ['A1', 'A2', 'B1', 'B2', 'C1', 'C2', 'D1', 'D2'];
       targetEqs.forEach(eq => {
         months.forEach(m => {
           ids.push(eq + '_' + m);
@@ -1464,7 +1480,7 @@
       data.forEach(row => {
         const id = row.id;
         const eq = id.charAt(0);
-        if (!['A', 'B', 'C', 'D'].includes(eq)) return;
+        if (!['A1', 'A2', 'B1', 'B2', 'C1', 'C2', 'D1', 'D2'].includes(eq)) return;
         if (!cache[eq]) cache[eq] = {};
         Object.assign(cache[eq], row.payload);
       });
@@ -2490,7 +2506,7 @@ body.direction-isolated-view #page-admin-direction {
 }
 
 body.direction-isolated-view #header-team-nav-container,
-body.direction-isolated-view #btn-eqA,
+body.direction-isolated-view #btn-eqA1, body.direction-isolated-view #btn-eqA2, body.direction-isolated-view #btn-eqB1, body.direction-isolated-view #btn-eqB2, body.direction-isolated-view #btn-eqC1, body.direction-isolated-view #btn-eqC2, body.direction-isolated-view #btn-eqD1, body.direction-isolated-view #btn-eqD2, body.direction-isolated-view #btn-eqA1, body.direction-isolated-view #btn-eqA2, body.direction-isolated-view #btn-eqB1, body.direction-isolated-view #btn-eqB2, body.direction-isolated-view #btn-eqC1, body.direction-isolated-view #btn-eqC2, body.direction-isolated-view #btn-eqD1, body.direction-isolated-view #btn-eqD2, body.direction-isolated-view #btn-eqA,
 body.direction-isolated-view #btn-eqB,
 body.direction-isolated-view #btn-eqC,
 body.direction-isolated-view #btn-eqD,body.direction-isolated-view #btn-dummy {
@@ -2693,7 +2709,7 @@ body.direction-isolated-view .table-wrap {
     document.documentElement.classList.add('direction-isolated-view');
     
     // Masquer le sélecteur d'équipes en haut
-    const teamNav = document.getElementById('header-team-nav-container') || document.getElementById('btn-eqA')?.parentElement;
+    const teamNav = document.getElementById('header-team-nav-container') || document.getElementById('btn-eqA1')?.parentElement;
     if (teamNav) teamNav.style.setProperty('display', 'none', 'important');
     
     // Mettre à jour le sous-titre de l'en-tête
@@ -2773,8 +2789,8 @@ function applyTeamLockUI(eq) {
     }
     
     const allowedTeams = (!lock || lock === 'ALL' || lock === '*')
-      ? ['A', 'B', 'C', 'D']
-      : lock.split(/[,;\s\/\-]+/).map(x => x.trim().toUpperCase()).filter(Boolean);
+      ? ['A1', 'A2', 'B1', 'B2', 'C1', 'C2', 'D1', 'D2']
+      : window.expandTeamLockList(lock);
 
     const isReadOnly = lock && lock !== 'BL' && lock !== 'DIR' && !allowedTeams.includes(eq);
     
@@ -2822,7 +2838,7 @@ function applyTeamLockUI(eq) {
     });
 
     // 4. Masquer les équipes non autorisées dans le header, badges RAC et archives si verrouillé
-    ['A', 'B', 'C', 'D'].forEach(team => {
+    ['A1', 'A2', 'B1', 'B2', 'C1', 'C2', 'D1', 'D2'].forEach(team => {
       const btnHeader = document.getElementById('btn-eq' + team);
       const btnArchive = document.getElementById('arc-btn-' + team);
       const racBadge = document.getElementById('header-rac-' + team);
@@ -2865,6 +2881,10 @@ function applyTeamLockUI(eq) {
     const isAdm = (typeof isAdmin === 'function' && isAdmin());
     const zapBtn = document.getElementById('btn-admin-zap-anomalies');
     if (zapBtn) zapBtn.style.display = isAdm ? 'inline-flex' : 'none';
+    const chefsBtn = document.getElementById('btn-admin-chefs-equipe');
+    if (chefsBtn) chefsBtn.style.display = isAdm ? 'inline-flex' : 'none';
+    const chefsBtn = document.getElementById('btn-admin-chefs-equipe');
+    if (chefsBtn) chefsBtn.style.display = isAdm ? 'inline-flex' : 'none';
     const zapHeaderBtn = document.getElementById('btn-header-zap-anomalies');
     if (zapHeaderBtn) zapHeaderBtn.style.display = isAdm ? 'inline-flex' : 'none';
     const modalZapBtn = document.getElementById('btn-modal-zap-rex');
@@ -2877,11 +2897,17 @@ function applyTeamLockUI(eq) {
   // =========================================================================
   const TEAM_PASSWORDS = {
     'A': ['SharikA@2026', 'Sharik@2026'],
+    'A1': ['SharikA1@2026', 'SharikA@2026', 'Sharik@2026'],
+    'A2': ['SharikA2@2026', 'SharikA@2026', 'Sharik@2026'],
     'B': ['SharikB@2026', 'Sharik@2026'],
+    'B1': ['SharikB1@2026', 'SharikB@2026', 'Sharik@2026'],
+    'B2': ['SharikB2@2026', 'SharikB@2026', 'Sharik@2026'],
     'C': ['SharikC@2026', 'Sharik@2026'],
+    'C1': ['SharikC1@2026', 'SharikC@2026', 'Sharik@2026'],
+    'C2': ['SharikC2@2026', 'SharikC@2026', 'Sharik@2026'],
     'D': ['SharikD@2026', 'Sharik@2026'],
-    'E': ['SharikE@2026', 'Sharik@2026'],
-    'F': ['SharikF@2026', 'Sharik@2026']
+    'D1': ['SharikD1@2026', 'SharikD@2026', 'Sharik@2026'],
+    'D2': ['SharikD2@2026', 'SharikD@2026', 'Sharik@2026']
   };
 
   async function refreshUserTeamFromSupabase() {
@@ -2909,7 +2935,7 @@ function applyTeamLockUI(eq) {
           if (sbTeam !== currentLock) {
             console.log(`[AUTH] Synchronisation équipe Supabase pour ${uName}: ${currentLock} -> ${sbTeam}`);
             sessionStorage.setItem('numiplan_team_lock', sbTeam);
-            const allowed = (sbTeam === 'ALL' || sbTeam === '*') ? ['A', 'B', 'C', 'D'] : sbTeam.split(/[,;\s\/\-]+/).map(x => x.trim()).filter(Boolean);
+            const allowed = (sbTeam === 'ALL' || sbTeam === '*') ? ['A1', 'A2', 'B1', 'B2', 'C1', 'C2', 'D1', 'D2'] : window.expandTeamLockList(sbTeam);
             if (allowed.length > 0 && !allowed.includes(window.CURRENT_EQUIPE)) {
               if (typeof window.switchEquipe === 'function') window.switchEquipe(allowed[0]);
             }
@@ -2945,8 +2971,8 @@ function applyTeamLockUI(eq) {
         }
         const lock = sessionStorage.getItem('numiplan_team_lock');
         if (lock && lock !== 'BL' && lock !== 'DIR' && typeof window.switchEquipe === 'function') {
-          const allowed = (lock === 'ALL' || lock === '*') ? ['A', 'B', 'C', 'D'] : lock.split(/[,;\s\/\-]+/).map(x => x.trim().toUpperCase()).filter(Boolean);
-          const targetTeam = (allowed.includes(window.CURRENT_EQUIPE)) ? window.CURRENT_EQUIPE : (allowed[0] || 'A');
+          const allowed = (lock === 'ALL' || lock === '*') ? ['A1', 'A2', 'B1', 'B2', 'C1', 'C2', 'D1', 'D2'] : window.expandTeamLockList(lock);
+          const targetTeam = (allowed.includes(window.CURRENT_EQUIPE)) ? window.CURRENT_EQUIPE : (allowed[0] || 'A1');
           window.switchEquipe(targetTeam);
         } else if (typeof applyTeamLockUI === 'function') {
           applyTeamLockUI(typeof window.CURRENT_EQUIPE !== 'undefined' ? window.CURRENT_EQUIPE : 'A');
@@ -3061,9 +3087,9 @@ function applyTeamLockUI(eq) {
       let rawTargetTeam = (sbUser && sbUser.team) ? String(sbUser.team).trim().toUpperCase() : (localDef && localDef.team ? String(localDef.team).trim().toUpperCase() : 'A');
 
       const targetTeams = (rawTargetTeam === 'ALL' || rawTargetTeam === '*')
-        ? ['A', 'B', 'C', 'D']
-        : rawTargetTeam.split(/[,;\s\/\-]+/).map(x => x.trim().toUpperCase()).filter(Boolean);
-      const targetTeam = targetTeams[0] || 'A';
+        ? ['A1', 'A2', 'B1', 'B2', 'C1', 'C2', 'D1', 'D2']
+        : window.expandTeamLockList(rawTargetTeam);
+      const targetTeam = targetTeams[0] || 'A1';
 
       // Validation du mot de passe
       let validTeamPwds = ['Sharik@2026'];
@@ -3178,12 +3204,19 @@ function doLogout() {
     <div class="header-sub">Suivi Chauffeur · Équipe A</div>
   </div>
   <div class="header-right">
-    <div id="header-team-nav-container" style="display:flex;background:var(--bg3);border:1px solid var(--border);border-radius:8px;overflow:hidden">
-      <button id="btn-eqA" onclick="switchEquipe('A')" ondragover="handleTeamDragOver(event)" ondragenter="handleTeamDragEnter(this)" ondragleave="handleTeamDragLeave(this)" ondrop="handleTeamDrop(event, 'A')" style="padding:7px 18px;font-size:11px;font-weight:700;letter-spacing:1px;border:none;cursor:pointer;background:var(--acc);color:#000;transition:all .2s">ÉQUIPE A</button>
-      <button id="btn-eqB" onclick="switchEquipe('B')" ondragover="handleTeamDragOver(event)" ondragenter="handleTeamDragEnter(this)" ondragleave="handleTeamDragLeave(this)" ondrop="handleTeamDrop(event, 'B')" style="padding:7px 18px;font-size:11px;font-weight:700;letter-spacing:1px;border:none;cursor:pointer;background:transparent;color:var(--txt2);transition:all .2s">ÉQUIPE B</button>
-      <button id="btn-eqC" onclick="switchEquipe('C')" ondragover="handleTeamDragOver(event)" ondragenter="handleTeamDragEnter(this)" ondragleave="handleTeamDragLeave(this)" ondrop="handleTeamDrop(event, 'C')" style="padding:7px 18px;font-size:11px;font-weight:700;letter-spacing:1px;border:none;cursor:pointer;background:transparent;color:var(--txt2);transition:all .2s">ÉQUIPE C</button>
-      <button id="btn-eqD" onclick="switchEquipe('D')" ondragover="handleTeamDragOver(event)" ondragenter="handleTeamDragEnter(this)" ondragleave="handleTeamDragLeave(this)" ondrop="handleTeamDrop(event, 'D')" style="padding:7px 18px;font-size:11px;font-weight:700;letter-spacing:1px;border:none;cursor:pointer;background:transparent;color:var(--txt2);transition:all .2s">ÉQUIPE D</button>
+    <div id="header-team-nav-container" style="display:flex;background:var(--bg3);border:1px solid var(--border);border-radius:8px;overflow:hidden;flex-wrap:wrap">
+      <button id="btn-eqA1" onclick="switchEquipe('A1')" ondragover="handleTeamDragOver(event)" ondragenter="handleTeamDragEnter(this)" ondragleave="handleTeamDragLeave(this)" ondrop="handleTeamDrop(event, 'A1')" title="Cliquer pour ouvrir A1 ou glisser un camion ici" style="padding:7px 11px;font-size:11px;font-weight:800;letter-spacing:0.5px;border:none;cursor:pointer;background:var(--acc);color:#000;transition:all .2s">ÉQ. A1</button>
+      <button id="btn-eqA2" onclick="switchEquipe('A2')" ondragover="handleTeamDragOver(event)" ondragenter="handleTeamDragEnter(this)" ondragleave="handleTeamDragLeave(this)" ondrop="handleTeamDrop(event, 'A2')" title="Cliquer pour ouvrir A2 ou glisser un camion ici" style="padding:7px 11px;font-size:11px;font-weight:800;letter-spacing:0.5px;border:none;border-right:1px solid var(--border);cursor:pointer;background:transparent;color:var(--txt2);transition:all .2s">ÉQ. A2</button>
+      <button id="btn-eqB1" onclick="switchEquipe('B1')" ondragover="handleTeamDragOver(event)" ondragenter="handleTeamDragEnter(this)" ondragleave="handleTeamDragLeave(this)" ondrop="handleTeamDrop(event, 'B1')" title="Cliquer pour ouvrir B1 ou glisser un camion ici" style="padding:7px 11px;font-size:11px;font-weight:800;letter-spacing:0.5px;border:none;cursor:pointer;background:transparent;color:var(--txt2);transition:all .2s">ÉQ. B1</button>
+      <button id="btn-eqB2" onclick="switchEquipe('B2')" ondragover="handleTeamDragOver(event)" ondragenter="handleTeamDragEnter(this)" ondragleave="handleTeamDragLeave(this)" ondrop="handleTeamDrop(event, 'B2')" title="Cliquer pour ouvrir B2 ou glisser un camion ici" style="padding:7px 11px;font-size:11px;font-weight:800;letter-spacing:0.5px;border:none;border-right:1px solid var(--border);cursor:pointer;background:transparent;color:var(--txt2);transition:all .2s">ÉQ. B2</button>
+      <button id="btn-eqC1" onclick="switchEquipe('C1')" ondragover="handleTeamDragOver(event)" ondragenter="handleTeamDragEnter(this)" ondragleave="handleTeamDragLeave(this)" ondrop="handleTeamDrop(event, 'C1')" title="Cliquer pour ouvrir C1 ou glisser un camion ici" style="padding:7px 11px;font-size:11px;font-weight:800;letter-spacing:0.5px;border:none;cursor:pointer;background:transparent;color:var(--txt2);transition:all .2s">ÉQ. C1</button>
+      <button id="btn-eqC2" onclick="switchEquipe('C2')" ondragover="handleTeamDragOver(event)" ondragenter="handleTeamDragEnter(this)" ondragleave="handleTeamDragLeave(this)" ondrop="handleTeamDrop(event, 'C2')" title="Cliquer pour ouvrir C2 ou glisser un camion ici" style="padding:7px 11px;font-size:11px;font-weight:800;letter-spacing:0.5px;border:none;border-right:1px solid var(--border);cursor:pointer;background:transparent;color:var(--txt2);transition:all .2s">ÉQ. C2</button>
+      <button id="btn-eqD1" onclick="switchEquipe('D1')" ondragover="handleTeamDragOver(event)" ondragenter="handleTeamDragEnter(this)" ondragleave="handleTeamDragLeave(this)" ondrop="handleTeamDrop(event, 'D1')" title="Cliquer pour ouvrir D1 ou glisser un camion ici" style="padding:7px 11px;font-size:11px;font-weight:800;letter-spacing:0.5px;border:none;cursor:pointer;background:transparent;color:var(--txt2);transition:all .2s">ÉQ. D1</button>
+      <button id="btn-eqD2" onclick="switchEquipe('D2')" ondragover="handleTeamDragOver(event)" ondragenter="handleTeamDragEnter(this)" ondragleave="handleTeamDragLeave(this)" ondrop="handleTeamDrop(event, 'D2')" title="Cliquer pour ouvrir D2 ou glisser un camion ici" style="padding:7px 11px;font-size:11px;font-weight:800;letter-spacing:0.5px;border:none;cursor:pointer;background:transparent;color:var(--txt2);transition:all .2s">ÉQ. D2</button>
     </div>
+    <button id="btn-admin-chefs-equipe" onclick="openAdminChefsEquipeModal()" class="date-badge" style="display:none;cursor:pointer;font-weight:800;align-items:center;justify-content:center;gap:5px;background:rgba(56,189,248,0.15);border:1px solid rgba(56,189,248,0.45);color:#38bdf8" title="Affecter les Chefs d'Équipe aux équipes A1, A2, B1, B2, C1, C2, D1, D2">
+      👥 Chefs d'Équipe
+    </button>
 
     <div style="display:flex; align-items:center; gap:8px;">
       <div class="date-badge" id="todayBadge" style="margin-right:0;"></div>
@@ -3194,7 +3227,7 @@ function doLogout() {
     <button id="theme-toggle-btn" onclick="toggleTheme()" class="date-badge" style="cursor:pointer; font-weight:700; display:flex; align-items:center; justify-content:center; gap:6px; transition:all 0.2s" title="Basculer le mode Sombre / Clair">
       🌓 Mode
     </button>
-    <a href="javascript:(async()=>{const SUPABASE_URL='https://mfljrozyxyfkymzlnsmt.supabase.co';const SUPABASE_KEY='sb_publishable_sMb9uHOr4gpyqmZGrkY-YQ_z90TgNAB';const today=new Date().toISOString().split('T')[0];const syncIso=new Date().toISOString();const normPlate=(s)=>(s||'').replace(/[^A-Z0-9]/gi,'').toUpperCase();try{const isIdeGps=window.location.hostname.includes('idegps.com');const isGeolocDz=window.location.hostname.includes('geoloc.dz');if(!(isIdeGps||isGeolocDz)){alert('❌ Veuillez ouvrir idegps.com/map ou web3.geoloc.dz');return;}let token=sessionStorage.getItem('numiplan_sb_token');let tokenExpiry=sessionStorage.getItem('numiplan_sb_token_expiry');if(!token||!tokenExpiry||Date.now()>parseInt(tokenExpiry)){console.log('🔑 Auth Supabase...');const loginRes=await fetch(SUPABASE_URL+'/auth/v1/token?grant_type=password',{method:'POST',headers:{'apikey':SUPABASE_KEY,'Content-Type':'application/json'},body:JSON.stringify({email:'admin@sharik.numilog.com',password:'Sharik@admin'})});if(!loginRes.ok){const errText=await loginRes.text();if(loginRes.status===429||errText.includes('rate_limit')){throw new Error('Limite de connexions Supabase atteinte (Rate Limit). Veuillez patienter 5 minutes.');}throw new Error('Auth Supabase echouee: '+errText);}const loginData=await loginRes.json();token=loginData.access_token;sessionStorage.setItem('numiplan_sb_token',token);sessionStorage.setItem('numiplan_sb_token_expiry',(Date.now()+3500000).toString());}const supabaseHeaders={'apikey':SUPABASE_KEY,'Authorization':'Bearer '+token,'Content-Type':'application/json'};let fleet=[];let providerName='';if(isIdeGps){providerName='IdeGPS';const params=new URLSearchParams();params.append('driver','1');params.append('user_name',window.mData?.user_name||'K.LAHOUEL');params.append('gps_ids',Object.keys(window.mData?.cars||{}).join(','));const gpsRes=await fetch('https://idegps.com/api/map/position',{method:'POST',body:params});if(!gpsRes.ok)throw new Error('Votre session IdeGPS a expiree. Veuillez vous reconnecter sur le site.');const gpsText=await gpsRes.text();if(gpsText.trim().startsWith('<'))throw new Error('Votre session IdeGPS a expiree.');const result=JSON.parse(gpsText);fleet=(result.fleet||[]).map(car=>{const p=car.position||{};const rawLat=p.LAT??p.latitude??p.lat??null;const rawLng=p.LNG??p.longitude??p.lng??p.LON??p.lon??null;const lat=(rawLat!==null&&rawLat!=='')?parseFloat(rawLat):null;const lng=(rawLng!==null&&rawLng!=='')?parseFloat(rawLng):null;return{immat:(car.gps_alias||'').trim().toUpperCase(),lat:(!isNaN(lat)?lat:null),lng:(!isNaN(lng)?lng:null),gps_date:syncIso};});if(window.mData?window.mData.pois:false){console.log('💾 Synchro POI IdeGPS...');const poisRaw=Object.values(window.mData.pois);const poiList=poisRaw.map(poi=>{if(poi.points?poi.points.length>=2:false){let sumLat=0,sumLng=0,count=0;for(let i=0;poi.points.length>i;i+=2){sumLng+=poi.points[i];sumLat+=poi.points[i+1];count++;}if(count>0){return{name:(poi.name||poi.description||'').trim(),lat:sumLat/count,lng:sumLng/count,radius:Math.max(poi.buffer?parseFloat(poi.buffer):300,200)};}}return null;}).filter(Boolean);const uniquePois=Object.values(poiList.reduce((acc,poi)=>{if(poi.name)acc[poi.name]=poi;return acc;},{}));if(uniquePois.length>0){const resPoi=await fetch(SUPABASE_URL+'/rest/v1/np_pois?on_conflict=name',{method:'POST',headers:{...supabaseHeaders,Prefer:'resolution=merge-duplicates'},body:JSON.stringify(uniquePois)});if(!resPoi.ok){const errText=await resPoi.text();throw new Error('Synchro POI echouee: '+errText);}} } } else if(isGeolocDz){providerName='Geoloc.dz';const apiToken=localStorage.getItem('api_token')||sessionStorage.getItem('api_token')||'';const authHeader=apiToken.startsWith('Bearer ')?apiToken:'Bearer '+apiToken;const xsrfCookie=document.cookie.split('; ').find(row=>row.startsWith('XSRF-TOKEN='));const xsrfToken=xsrfCookie?decodeURIComponent(xsrfCookie.split('=')[1]):'';const res=await fetch('/geoBackend/api/floot/getFloot',{method:'POST',headers:{'Content-Type':'application/json','Authorization':authHeader,'X-XSRF-TOKEN':xsrfToken,'X-Requested-With':'XMLHttpRequest'},body:JSON.stringify({groupes:'[902,924,905]',recherche:'',details:0})});if(!res.ok)throw new Error('Votre session Geoloc.dz a expiree.');const resText=await res.text();if(resText.trim().startsWith('<'))throw new Error('Votre session Geoloc.dz a expiree.');const result=JSON.parse(resText);fleet=(result.data||[]).map(car=>{const lat=car.latitude?parseFloat(car.latitude):null;const lng=car.longitude?parseFloat(car.longitude):null;return{immat:(car.matricule||'').trim().toUpperCase(),lat:(!isNaN(lat)?lat:null),lng:(!isNaN(lng)?lng:null),gps_date:syncIso};});try{const poiRes=await fetch('/geoBackend/api/point/getInterestingPoints',{method:'POST',headers:{'Content-Type':'application/json','Authorization':authHeader,'X-XSRF-TOKEN':xsrfToken,'X-Requested-With':'XMLHttpRequest'},body:JSON.stringify({recherche:'',details:1})});if(poiRes.ok){const poiText=await poiRes.text();if(!poiText.trim().startsWith('<')){const poiResult=JSON.parse(poiText);const poiData=poiResult.data?poiResult.data:poiResult;const poiList=poiData.map(poi=>{if(poi.point_latitude!==null?poi.point_longitude!==null:false){return{name:(poi.point_designation||'').trim(),lat:parseFloat(poi.point_latitude),lng:parseFloat(poi.point_longitude),radius:Math.max(poi.point_radius?parseFloat(poi.point_radius):300,200)};}return null;}).filter(Boolean);const uniquePois=Object.values(poiList.reduce((acc,poi)=>{if(poi.name)acc[poi.name]=poi;return acc;},{}));if(uniquePois.length>0){await fetch(SUPABASE_URL+'/rest/v1/np_pois?on_conflict=name',{method:'POST',headers:{...supabaseHeaders,Prefer:'resolution=merge-duplicates'},body:JSON.stringify(uniquePois)});}}}}catch(e){console.error(e);} } console.log('Reçu '+fleet.length+' camions.');const dispoRes=await fetch(SUPABASE_URL+'/rest/v1/np_dispo?select=v',{headers:supabaseHeaders});if(!dispoRes.ok)throw new Error('Impossible de lire la liste des camions Numiplan');const dbDispos=await dispoRes.json();const activeTrucks={};dbDispos.forEach(row=>{const vRaw=(row.v||'').trim();const vNorm=normPlate(vRaw);if(vNorm)activeTrucks[vNorm]=vRaw;});let updatedCount=0;for(const car of fleet){const cNorm=normPlate(car.immat);const targetV=cNorm?activeTrucks[cNorm]:null;if(!targetV)continue;const hasGPSData=!(car.lat===null||car.lng===null);updatedCount++;const resDispo=await fetch(SUPABASE_URL+'/rest/v1/np_dispo?v=eq.'+encodeURIComponent(targetV),{method:'PATCH',headers:supabaseHeaders,body:JSON.stringify({geoloc:hasGPSData?'ON':'OFF',geoloc_date:car.gps_date||today,lat:car.lat,lng:car.lng})});if(!resDispo.ok){const errText=await resDispo.text();throw new Error('Synchro np_dispo '+targetV+' echouee: '+errText);}}try{const teams=['A', 'B', 'C', 'D'];const logs=teams.map(t=>({team:t,timestamp:String(Date.now()),type:'GPS_SYNC',target:providerName,user_login:'bookmarklet',detail:{provider:providerName,updated_count:updatedCount}}));await fetch(SUPABASE_URL+'/rest/v1/np_tracabilite',{method:'POST',headers:supabaseHeaders,body:JSON.stringify(logs)});}catch(eLog){console.error(eLog);}const timeStr=new Date().toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'});try{let b=document.getElementById('numiplan-gps-banner');if(!b){b=document.createElement('div');b.id='numiplan-gps-banner';b.style.cssText='position:fixed;top:15px;right:15px;z-index:9999999;background:#0f172a;color:#22c55e;border:2px solid #22c55e;border-radius:10px;padding:12px 20px;font-family:sans-serif;font-size:13px;font-weight:700;box-shadow:0 8px 30px rgba(0,0,0,0.6);';document.body.appendChild(b);}b.innerHTML='🛰️ Synchro '+providerName+' Active ('+updatedCount+' camions mis à jour à '+timeStr+')';}catch(eB){}alert('✅ Synchronisation '+providerName+' réussie ! '+updatedCount+' camions actifs mis à jour sur '+fleet.length+' trouvés à '+timeStr+'.');}catch(err){alert('❌ ' + err.message);}})();" class="date-badge" style="cursor:pointer; font-weight:700; text-decoration:none; display:flex; align-items:center; justify-content:center; gap:6px; transition:all 0.2s; background:var(--bg3); border:1px solid var(--border); color:var(--txt);" title="Glissez ce bouton vers votre barre de favoris Chrome pour installer la synchro GPS">
+    <a href="javascript:(async()=>{const SUPABASE_URL='https://mfljrozyxyfkymzlnsmt.supabase.co';const SUPABASE_KEY='sb_publishable_sMb9uHOr4gpyqmZGrkY-YQ_z90TgNAB';const today=new Date().toISOString().split('T')[0];const syncIso=new Date().toISOString();const normPlate=(s)=>(s||'').replace(/[^A-Z0-9]/gi,'').toUpperCase();try{const isIdeGps=window.location.hostname.includes('idegps.com');const isGeolocDz=window.location.hostname.includes('geoloc.dz');if(!(isIdeGps||isGeolocDz)){alert('❌ Veuillez ouvrir idegps.com/map ou web3.geoloc.dz');return;}let token=sessionStorage.getItem('numiplan_sb_token');let tokenExpiry=sessionStorage.getItem('numiplan_sb_token_expiry');if(!token||!tokenExpiry||Date.now()>parseInt(tokenExpiry)){console.log('🔑 Auth Supabase...');const loginRes=await fetch(SUPABASE_URL+'/auth/v1/token?grant_type=password',{method:'POST',headers:{'apikey':SUPABASE_KEY,'Content-Type':'application/json'},body:JSON.stringify({email:'admin@sharik.numilog.com',password:'Sharik@admin'})});if(!loginRes.ok){const errText=await loginRes.text();if(loginRes.status===429||errText.includes('rate_limit')){throw new Error('Limite de connexions Supabase atteinte (Rate Limit). Veuillez patienter 5 minutes.');}throw new Error('Auth Supabase echouee: '+errText);}const loginData=await loginRes.json();token=loginData.access_token;sessionStorage.setItem('numiplan_sb_token',token);sessionStorage.setItem('numiplan_sb_token_expiry',(Date.now()+3500000).toString());}const supabaseHeaders={'apikey':SUPABASE_KEY,'Authorization':'Bearer '+token,'Content-Type':'application/json'};let fleet=[];let providerName='';if(isIdeGps){providerName='IdeGPS';const params=new URLSearchParams();params.append('driver','1');params.append('user_name',window.mData?.user_name||'K.LAHOUEL');params.append('gps_ids',Object.keys(window.mData?.cars||{}).join(','));const gpsRes=await fetch('https://idegps.com/api/map/position',{method:'POST',body:params});if(!gpsRes.ok)throw new Error('Votre session IdeGPS a expiree. Veuillez vous reconnecter sur le site.');const gpsText=await gpsRes.text();if(gpsText.trim().startsWith('<'))throw new Error('Votre session IdeGPS a expiree.');const result=JSON.parse(gpsText);fleet=(result.fleet||[]).map(car=>{const p=car.position||{};const rawLat=p.LAT??p.latitude??p.lat??null;const rawLng=p.LNG??p.longitude??p.lng??p.LON??p.lon??null;const lat=(rawLat!==null&&rawLat!=='')?parseFloat(rawLat):null;const lng=(rawLng!==null&&rawLng!=='')?parseFloat(rawLng):null;return{immat:(car.gps_alias||'').trim().toUpperCase(),lat:(!isNaN(lat)?lat:null),lng:(!isNaN(lng)?lng:null),gps_date:syncIso};});if(window.mData?window.mData.pois:false){console.log('💾 Synchro POI IdeGPS...');const poisRaw=Object.values(window.mData.pois);const poiList=poisRaw.map(poi=>{if(poi.points?poi.points.length>=2:false){let sumLat=0,sumLng=0,count=0;for(let i=0;poi.points.length>i;i+=2){sumLng+=poi.points[i];sumLat+=poi.points[i+1];count++;}if(count>0){return{name:(poi.name||poi.description||'').trim(),lat:sumLat/count,lng:sumLng/count,radius:Math.max(poi.buffer?parseFloat(poi.buffer):300,200)};}}return null;}).filter(Boolean);const uniquePois=Object.values(poiList.reduce((acc,poi)=>{if(poi.name)acc[poi.name]=poi;return acc;},{}));if(uniquePois.length>0){const resPoi=await fetch(SUPABASE_URL+'/rest/v1/np_pois?on_conflict=name',{method:'POST',headers:{...supabaseHeaders,Prefer:'resolution=merge-duplicates'},body:JSON.stringify(uniquePois)});if(!resPoi.ok){const errText=await resPoi.text();throw new Error('Synchro POI echouee: '+errText);}} } } else if(isGeolocDz){providerName='Geoloc.dz';const apiToken=localStorage.getItem('api_token')||sessionStorage.getItem('api_token')||'';const authHeader=apiToken.startsWith('Bearer ')?apiToken:'Bearer '+apiToken;const xsrfCookie=document.cookie.split('; ').find(row=>row.startsWith('XSRF-TOKEN='));const xsrfToken=xsrfCookie?decodeURIComponent(xsrfCookie.split('=')[1]):'';const res=await fetch('/geoBackend/api/floot/getFloot',{method:'POST',headers:{'Content-Type':'application/json','Authorization':authHeader,'X-XSRF-TOKEN':xsrfToken,'X-Requested-With':'XMLHttpRequest'},body:JSON.stringify({groupes:'[902,924,905]',recherche:'',details:0})});if(!res.ok)throw new Error('Votre session Geoloc.dz a expiree.');const resText=await res.text();if(resText.trim().startsWith('<'))throw new Error('Votre session Geoloc.dz a expiree.');const result=JSON.parse(resText);fleet=(result.data||[]).map(car=>{const lat=car.latitude?parseFloat(car.latitude):null;const lng=car.longitude?parseFloat(car.longitude):null;return{immat:(car.matricule||'').trim().toUpperCase(),lat:(!isNaN(lat)?lat:null),lng:(!isNaN(lng)?lng:null),gps_date:syncIso};});try{const poiRes=await fetch('/geoBackend/api/point/getInterestingPoints',{method:'POST',headers:{'Content-Type':'application/json','Authorization':authHeader,'X-XSRF-TOKEN':xsrfToken,'X-Requested-With':'XMLHttpRequest'},body:JSON.stringify({recherche:'',details:1})});if(poiRes.ok){const poiText=await poiRes.text();if(!poiText.trim().startsWith('<')){const poiResult=JSON.parse(poiText);const poiData=poiResult.data?poiResult.data:poiResult;const poiList=poiData.map(poi=>{if(poi.point_latitude!==null?poi.point_longitude!==null:false){return{name:(poi.point_designation||'').trim(),lat:parseFloat(poi.point_latitude),lng:parseFloat(poi.point_longitude),radius:Math.max(poi.point_radius?parseFloat(poi.point_radius):300,200)};}return null;}).filter(Boolean);const uniquePois=Object.values(poiList.reduce((acc,poi)=>{if(poi.name)acc[poi.name]=poi;return acc;},{}));if(uniquePois.length>0){await fetch(SUPABASE_URL+'/rest/v1/np_pois?on_conflict=name',{method:'POST',headers:{...supabaseHeaders,Prefer:'resolution=merge-duplicates'},body:JSON.stringify(uniquePois)});}}}}catch(e){console.error(e);} } console.log('Reçu '+fleet.length+' camions.');const dispoRes=await fetch(SUPABASE_URL+'/rest/v1/np_dispo?select=v',{headers:supabaseHeaders});if(!dispoRes.ok)throw new Error('Impossible de lire la liste des camions Numiplan');const dbDispos=await dispoRes.json();const activeTrucks={};dbDispos.forEach(row=>{const vRaw=(row.v||'').trim();const vNorm=normPlate(vRaw);if(vNorm)activeTrucks[vNorm]=vRaw;});let updatedCount=0;for(const car of fleet){const cNorm=normPlate(car.immat);const targetV=cNorm?activeTrucks[cNorm]:null;if(!targetV)continue;const hasGPSData=!(car.lat===null||car.lng===null);updatedCount++;const resDispo=await fetch(SUPABASE_URL+'/rest/v1/np_dispo?v=eq.'+encodeURIComponent(targetV),{method:'PATCH',headers:supabaseHeaders,body:JSON.stringify({geoloc:hasGPSData?'ON':'OFF',geoloc_date:car.gps_date||today,lat:car.lat,lng:car.lng})});if(!resDispo.ok){const errText=await resDispo.text();throw new Error('Synchro np_dispo '+targetV+' echouee: '+errText);}}try{const teams=['A1', 'A2', 'B1', 'B2', 'C1', 'C2', 'D1', 'D2'];const logs=teams.map(t=>({team:t,timestamp:String(Date.now()),type:'GPS_SYNC',target:providerName,user_login:'bookmarklet',detail:{provider:providerName,updated_count:updatedCount}}));await fetch(SUPABASE_URL+'/rest/v1/np_tracabilite',{method:'POST',headers:supabaseHeaders,body:JSON.stringify(logs)});}catch(eLog){console.error(eLog);}const timeStr=new Date().toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'});try{let b=document.getElementById('numiplan-gps-banner');if(!b){b=document.createElement('div');b.id='numiplan-gps-banner';b.style.cssText='position:fixed;top:15px;right:15px;z-index:9999999;background:#0f172a;color:#22c55e;border:2px solid #22c55e;border-radius:10px;padding:12px 20px;font-family:sans-serif;font-size:13px;font-weight:700;box-shadow:0 8px 30px rgba(0,0,0,0.6);';document.body.appendChild(b);}b.innerHTML='🛰️ Synchro '+providerName+' Active ('+updatedCount+' camions mis à jour à '+timeStr+')';}catch(eB){}alert('✅ Synchronisation '+providerName+' réussie ! '+updatedCount+' camions actifs mis à jour sur '+fleet.length+' trouvés à '+timeStr+'.');}catch(err){alert('❌ ' + err.message);}})();" class="date-badge" style="cursor:pointer; font-weight:700; text-decoration:none; display:flex; align-items:center; justify-content:center; gap:6px; transition:all 0.2s; background:var(--bg3); border:1px solid var(--border); color:var(--txt);" title="Glissez ce bouton vers votre barre de favoris Chrome pour installer la synchro GPS">
       🛰️ Favori GPS
     </a>
   </div>
@@ -3337,10 +3370,14 @@ mark.hl { background: rgba(56,189,248,.25); color: var(--acc); border-radius: 3p
   </div>
   <div class="global-search-hint">TOUTES ÉQUIPES · A B C D · V2.1</div>
   <div style="display:flex;gap:6px;align-items:center;margin-left:auto;flex-wrap:wrap">
-    <div class="rac-badge" id="header-rac-A" title="Roulage à charge - Équipe A" style="color:var(--acc);font-weight:700">A: —</div>
-    <div class="rac-badge" id="header-rac-B" title="Roulage à charge - Équipe B" style="color:var(--grn);font-weight:700">B: —</div>
-    <div class="rac-badge" id="header-rac-C" title="Roulage à charge - Équipe C" style="color:var(--org);font-weight:700">C: —</div>
-    <div class="rac-badge" id="header-rac-D" title="Roulage à charge - Équipe D" style="color:var(--pur);font-weight:700">D: —</div>
+    <div class="rac-badge" id="header-rac-A1" style="color:var(--acc);font-weight:700;font-size:10px;padding:3px 7px">A1: —</div>
+    <div class="rac-badge" id="header-rac-A2" style="color:var(--acc);font-weight:700;font-size:10px;padding:3px 7px">A2: —</div>
+    <div class="rac-badge" id="header-rac-B1" style="color:var(--grn);font-weight:700;font-size:10px;padding:3px 7px">B1: —</div>
+    <div class="rac-badge" id="header-rac-B2" style="color:var(--grn);font-weight:700;font-size:10px;padding:3px 7px">B2: —</div>
+    <div class="rac-badge" id="header-rac-C1" style="color:var(--org);font-weight:700;font-size:10px;padding:3px 7px">C1: —</div>
+    <div class="rac-badge" id="header-rac-C2" style="color:var(--org);font-weight:700;font-size:10px;padding:3px 7px">C2: —</div>
+    <div class="rac-badge" id="header-rac-D1" style="color:var(--pur);font-weight:700;font-size:10px;padding:3px 7px">D1: —</div>
+    <div class="rac-badge" id="header-rac-D2" style="color:var(--pur);font-weight:700;font-size:10px;padding:3px 7px">D2: —</div>
     <div class="rac-badge" id="header-rac-global" title="Roulage à charge - Global" style="color:var(--yel);font-weight:700">Global: —</div>
     <button class="btn btn-save btn-global" onclick="basculerJournee()" title="Basculer Lieu J+1 → Lieu Jour">⏭ Nouvelle journée</button>
     <button class="btn btn-numiflow" onclick="exportNumiflow()">📊 Export Numiflow</button>
@@ -3396,7 +3433,7 @@ mark.hl { background: rgba(56,189,248,.25); color: var(--acc); border-radius: 3p
   function collectResults(q) {
     const results = [];
     const lock = sessionStorage.getItem('numiplan_team_lock');
-    ['A', 'B', 'C', 'D'].forEach(eq => {
+    ['A1', 'A2', 'B1', 'B2', 'C1', 'C2', 'D1', 'D2'].forEach(eq => {
       if (lock && typeof isTeamAllowed === 'function' && !isTeamAllowed(eq)) return;
       const src = window['DB_' + eq] || (window.CURRENT_EQUIPE === eq ? window.DB : null);
       if (!src) return;
@@ -4005,6 +4042,7 @@ mark.hl { background: rgba(56,189,248,.25); color: var(--acc); border-radius: 3p
       </optgroup>
     </select>
     <button class="btn btn-reset" onclick="resetFilters('dispo-search','dispo-etat','dispo-region','dispo-region-j');renderDispo()">↺ Reset</button>
+    <button id="btn-toggle-multi-transfer" class="btn" onclick="toggleMultiTransferMode()" style="background:rgba(56,189,248,0.16);color:#38bdf8;border:1px solid rgba(56,189,248,0.45);font-weight:800;padding:7px 13px;border-radius:8px;cursor:pointer" title="Sélectionner plusieurs camions pour les transférer en 1 seule écriture vers A1, A2, B1, B2, C1, C2, D1, D2">🔄 Transférer Ressources</button>
     <button class="btn btn-add" onclick="openModal('modal-dispo')">＋ Ajouter</button>
     <button id="btn-admin-zap-anomalies" class="btn" onclick="ouvrirModalZapAnomalies()" style="display:none;background:linear-gradient(135deg,rgba(245,158,11,.22),rgba(245,158,11,.1));color:#fbbf24;border:1px solid rgba(245,158,11,.45);padding:7px 14px;border-radius:6px;font-size:11px;font-weight:800;letter-spacing:0.5px;cursor:pointer;transition:all .2s;align-items:center;gap:6px" title="Validation globale des anomalies par le REX (Débloque les chefs d'équipe)">⚡ Zapper Anomalies (REX)</button>
     <label style="display:none !important; align-items:center; gap:6px; cursor:pointer; font-size:12px; margin-left:auto; color:var(--txt2); white-space:nowrap" title="Afficher/Masquer les colonnes d'Assurances TR et RM">
@@ -4015,6 +4053,36 @@ mark.hl { background: rgba(56,189,248,.25); color: var(--acc); border-radius: 3p
   <div style="padding-top:20px">
     <div id="flash-infos-container"></div>
     <div class="stats-row" id="dispo-stats"></div>
+        <div id="multi-transfer-bar" style="display:none;background:linear-gradient(90deg, rgba(56,189,248,0.18) 0%, rgba(15,23,42,0.95) 100%);border:1.5px solid #38bdf8;border-radius:12px;padding:12px 16px;margin-bottom:14px;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px">
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+        <span style="font-size:18px">🔄</span>
+        <div>
+          <div style="font-size:13px;font-weight:800;color:#fff">MODE TRANSFERT GROUPÉ DE RESSOURCES (1 SEULE ÉCRITURE SUPABASE)</div>
+          <div style="font-size:11px;color:#94a3b8">Cochez les camions dans le tableau ci-dessous puis choisissez l'équipe de destination</div>
+        </div>
+        <span id="multi-transfer-count-badge" style="background:#38bdf8;color:#000;font-weight:900;font-size:12px;padding:3px 10px;border-radius:20px">0 sélectionné(s)</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+        <button class="btn btn-reset" onclick="selectMultiTransferPreset('all')" style="padding:5px 10px;font-size:11px">☑️ Tout cocher</button>
+        <button class="btn btn-reset" onclick="selectMultiTransferPreset('half2')" style="padding:5px 10px;font-size:11px" title="Cocher automatiquement la 2e moitié de la liste pour scinder l'équipe en 2">🌓 Cocher 2e moitié (50%)</button>
+        <button class="btn btn-reset" onclick="selectMultiTransferPreset('none')" style="padding:5px 10px;font-size:11px">☐ Tout décocher</button>
+        <span style="color:var(--txt2);font-size:12px;font-weight:700;margin-left:4px">➔ Vers :</span>
+        <select id="multi-transfer-dest-eq" class="filter-input" style="width:130px;font-weight:800;color:#38bdf8;border-color:#38bdf8;padding:6px 10px">
+          <option value="A1">Équipe A1</option>
+          <option value="A2">Équipe A2</option>
+          <option value="B1">Équipe B1</option>
+          <option value="B2">Équipe B2</option>
+          <option value="C1">Équipe C1</option>
+          <option value="C2">Équipe C2</option>
+          <option value="D1">Équipe D1</option>
+          <option value="D2">Équipe D2</option>
+        </select>
+        <button class="btn btn-save" onclick="executerTransfertMultipleDispo()" style="background:#22c55e;color:#000;font-weight:900;padding:7px 14px;border-radius:8px">
+          🚀 Transférer la sélection
+        </button>
+        <button class="btn btn-reset" onclick="toggleMultiTransferMode(false)" style="padding:6px 10px">✕ Fermer</button>
+      </div>
+    </div>
     <div class="sec-title">État du parc véhicules</div>
     <div class="table-wrap">
       <table>
@@ -4251,10 +4319,14 @@ mark.hl { background: rgba(56,189,248,.25); color: var(--acc); border-radius: 3p
     <input type="text" class="filter-input" id="odo-search" placeholder="Véhicule / Chauffeur…" oninput="renderOdo()">
     <select id="odo-filter-team" class="filter-input" onchange="renderOdo()" style="padding:4px 8px;width:140px;margin-left:12px;background:var(--bg3);color:var(--txt);border:1px solid var(--border);border-radius:6px">
       <option value="ALL">Toutes les équipes</option>
-      <option value="A">Équipe A</option>
-      <option value="B">Équipe B</option>
-      <option value="C">Équipe C</option>
-      <option value="D">Équipe D</option>
+      <option value="A1">Équipe A1</option>
+      <option value="A2">Équipe A2</option>
+      <option value="B1">Équipe B1</option>
+      <option value="B2">Équipe B2</option>
+      <option value="C1">Équipe C1</option>
+      <option value="C2">Équipe C2</option>
+      <option value="D1">Équipe D1</option>
+      <option value="D2">Équipe D2</option>
     </select>
     <span style="display:flex;align-items:center;gap:6px;margin-left:12px">
       <span style="font-size:11px;color:var(--txt2)">Du</span>
@@ -4670,10 +4742,14 @@ mark.hl { background: rgba(56,189,248,.25); color: var(--acc); border-radius: 3p
 
     <select id="tracabilite-team-filter" class="filter-input" onchange="renderTracabilite()" style="min-width:130px;background:var(--bg3);color:var(--txt);border:1px solid var(--border);border-radius:8px;padding:8px 12px;outline:none;">
       <option value="">— Toutes les équipes —</option>
-      <option value="A">Équipe A</option>
-      <option value="B">Équipe B</option>
-      <option value="C">Équipe C</option>
-      <option value="D">Équipe D</option>
+      <option value="A1">Équipe A1</option>
+      <option value="A2">Équipe A2</option>
+      <option value="B1">Équipe B1</option>
+      <option value="B2">Équipe B2</option>
+      <option value="C1">Équipe C1</option>
+      <option value="C2">Équipe C2</option>
+      <option value="D1">Équipe D1</option>
+      <option value="D2">Équipe D2</option>
     </select>
 
     <button class="btn btn-save" onclick="actualiserTracabiliteCloud()" style="padding:8px 14px;font-size:12px;display:flex;align-items:center;gap:6px;" title="Synchroniser les traces depuis Supabase Cloud">
@@ -4728,18 +4804,14 @@ mark.hl { background: rgba(56,189,248,.25); color: var(--acc); border-radius: 3p
         <div class="form-group">
           <label style="margin-bottom:8px;display:block;">Équipes ciblées</label>
           <div style="display:flex;gap:16px;background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:10px 14px;">
-            <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-family:monospace;font-size:12px;color:var(--txt2);">
-              <input type="checkbox" name="flash-teams" value="A" checked style="width:auto;cursor:pointer;"> EQ A
-            </label>
-            <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-family:monospace;font-size:12px;color:var(--txt2);">
-              <input type="checkbox" name="flash-teams" value="B" style="width:auto;cursor:pointer;"> EQ B
-            </label>
-            <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-family:monospace;font-size:12px;color:var(--txt2);">
-              <input type="checkbox" name="flash-teams" value="C" style="width:auto;cursor:pointer;"> EQ C
-            </label>
-            <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-family:monospace;font-size:12px;color:var(--txt2);">
-              <input type="checkbox" name="flash-teams" value="D" style="width:auto;cursor:pointer;"> EQ D
-            </label>
+            <label style="display:flex;align-items:center;gap:4px;cursor:pointer;font-family:monospace;font-size:11px;color:var(--txt2);"><input type="checkbox" name="flash-teams" value="A1" checked style="width:auto;cursor:pointer;"> A1</label>
+            <label style="display:flex;align-items:center;gap:4px;cursor:pointer;font-family:monospace;font-size:11px;color:var(--txt2);"><input type="checkbox" name="flash-teams" value="A2" style="width:auto;cursor:pointer;"> A2</label>
+            <label style="display:flex;align-items:center;gap:4px;cursor:pointer;font-family:monospace;font-size:11px;color:var(--txt2);"><input type="checkbox" name="flash-teams" value="B1" style="width:auto;cursor:pointer;"> B1</label>
+            <label style="display:flex;align-items:center;gap:4px;cursor:pointer;font-family:monospace;font-size:11px;color:var(--txt2);"><input type="checkbox" name="flash-teams" value="B2" style="width:auto;cursor:pointer;"> B2</label>
+            <label style="display:flex;align-items:center;gap:4px;cursor:pointer;font-family:monospace;font-size:11px;color:var(--txt2);"><input type="checkbox" name="flash-teams" value="C1" style="width:auto;cursor:pointer;"> C1</label>
+            <label style="display:flex;align-items:center;gap:4px;cursor:pointer;font-family:monospace;font-size:11px;color:var(--txt2);"><input type="checkbox" name="flash-teams" value="C2" style="width:auto;cursor:pointer;"> C2</label>
+            <label style="display:flex;align-items:center;gap:4px;cursor:pointer;font-family:monospace;font-size:11px;color:var(--txt2);"><input type="checkbox" name="flash-teams" value="D1" style="width:auto;cursor:pointer;"> D1</label>
+            <label style="display:flex;align-items:center;gap:4px;cursor:pointer;font-family:monospace;font-size:11px;color:var(--txt2);"><input type="checkbox" name="flash-teams" value="D2" style="width:auto;cursor:pointer;"> D2</label>
           </div>
         </div>
         <button class="btn btn-save" onclick="publierFlashInfo()" style="padding:10px 20px;font-size:12px;display:flex;align-items:center;justify-content:center;gap:8px;">
@@ -4830,10 +4902,14 @@ mark.hl { background: rgba(56,189,248,.25); color: var(--acc); border-radius: 3p
     <select id="seg-filter-team" class="filter-input" style="max-width:155px;font-size:12px" onchange="renderSegmentsErpPage()">
       <option value="ALL">👥 Toutes Équipes</option>
       <option value="ACTIVE">⭐ Équipe Active</option>
-      <option value="A">Équipe A</option>
-      <option value="B">Équipe B</option>
-      <option value="C">Équipe C</option>
-      <option value="D">Équipe D</option>
+      <option value="A1">Équipe A1</option>
+      <option value="A2">Équipe A2</option>
+      <option value="B1">Équipe B1</option>
+      <option value="B2">Équipe B2</option>
+      <option value="C1">Équipe C1</option>
+      <option value="C2">Équipe C2</option>
+      <option value="D1">Équipe D1</option>
+      <option value="D2">Équipe D2</option>
       <option value="HORS_FLOTTE">Hors Équipe / Externe</option>
     </select>
 
@@ -5087,7 +5163,7 @@ mark.hl { background: rgba(56,189,248,.25); color: var(--acc); border-radius: 3p
         const raw = localStorage.getItem('numiplan_data_v2');
         if (raw) {
           const parsed = JSON.parse(raw);
-          const eq = parsed.active || 'A';
+          const eq = parsed.active || 'A1';
           if (lock && (typeof isTeamAllowed === 'function' ? isTeamAllowed(eq) : lock === eq)) {
             const dbEq = parsed.teams && parsed.teams[eq];
             if (dbEq && dbEq.dispo) {
@@ -5200,7 +5276,7 @@ mark.hl { background: rgba(56,189,248,.25); color: var(--acc); border-radius: 3p
 
     <div style="background:rgba(245,158,11,0.08);border:1px solid rgba(245,158,11,0.3);border-radius:10px;padding:12px 16px;margin-bottom:20px;text-align:center;width:100%;box-sizing:border-box">
       <div style="font-size:11px;font-weight:700;color:#f59e0b;margin-bottom:8px">⭐ GLISSEZ CE BOUTON DANS VOTRE BARRE DE FAVORIS :</div>
-      <a href="javascript:(async()=>{const SUPABASE_URL='https://mfljrozyxyfkymzlnsmt.supabase.co';const SUPABASE_KEY='sb_publishable_sMb9uHOr4gpyqmZGrkY-YQ_z90TgNAB';const today=new Date().toISOString().split('T')[0];const syncIso=new Date().toISOString();const normPlate=(s)=>(s||'').replace(/[^A-Z0-9]/gi,'').toUpperCase();try{const isIdeGps=window.location.hostname.includes('idegps.com');const isGeolocDz=window.location.hostname.includes('geoloc.dz');if(!(isIdeGps||isGeolocDz)){alert('❌ Veuillez ouvrir idegps.com/map ou web3.geoloc.dz');return;}let token=sessionStorage.getItem('numiplan_sb_token');let tokenExpiry=sessionStorage.getItem('numiplan_sb_token_expiry');if(!token||!tokenExpiry||Date.now()>parseInt(tokenExpiry)){console.log('🔑 Auth Supabase...');const loginRes=await fetch(SUPABASE_URL+'/auth/v1/token?grant_type=password',{method:'POST',headers:{'apikey':SUPABASE_KEY,'Content-Type':'application/json'},body:JSON.stringify({email:'admin@sharik.numilog.com',password:'Sharik@admin'})});if(!loginRes.ok){const errText=await loginRes.text();if(loginRes.status===429||errText.includes('rate_limit')){throw new Error('Limite de connexions Supabase atteinte (Rate Limit). Veuillez patienter 5 minutes.');}throw new Error('Auth Supabase echouee: '+errText);}const loginData=await loginRes.json();token=loginData.access_token;sessionStorage.setItem('numiplan_sb_token',token);sessionStorage.setItem('numiplan_sb_token_expiry',(Date.now()+3500000).toString());}const supabaseHeaders={'apikey':SUPABASE_KEY,'Authorization':'Bearer '+token,'Content-Type':'application/json'};let fleet=[];let providerName='';if(isIdeGps){providerName='IdeGPS';const params=new URLSearchParams();params.append('driver','1');params.append('user_name',window.mData?.user_name||'K.LAHOUEL');params.append('gps_ids',Object.keys(window.mData?.cars||{}).join(','));const gpsRes=await fetch('https://idegps.com/api/map/position',{method:'POST',body:params});if(!gpsRes.ok)throw new Error('Votre session IdeGPS a expiree. Veuillez vous reconnecter sur le site.');const gpsText=await gpsRes.text();if(gpsText.trim().startsWith('<'))throw new Error('Votre session IdeGPS a expiree.');const result=JSON.parse(gpsText);fleet=(result.fleet||[]).map(car=>{const p=car.position||{};const rawLat=p.LAT??p.latitude??p.lat??null;const rawLng=p.LNG??p.longitude??p.lng??p.LON??p.lon??null;const lat=(rawLat!==null&&rawLat!=='')?parseFloat(rawLat):null;const lng=(rawLng!==null&&rawLng!=='')?parseFloat(rawLng):null;return{immat:(car.gps_alias||'').trim().toUpperCase(),lat:(!isNaN(lat)?lat:null),lng:(!isNaN(lng)?lng:null),gps_date:syncIso};});if(window.mData?window.mData.pois:false){console.log('💾 Synchro POI IdeGPS...');const poisRaw=Object.values(window.mData.pois);const poiList=poisRaw.map(poi=>{if(poi.points?poi.points.length>=2:false){let sumLat=0,sumLng=0,count=0;for(let i=0;poi.points.length>i;i+=2){sumLng+=poi.points[i];sumLat+=poi.points[i+1];count++;}if(count>0){return{name:(poi.name||poi.description||'').trim(),lat:sumLat/count,lng:sumLng/count,radius:Math.max(poi.buffer?parseFloat(poi.buffer):300,200)};}}return null;}).filter(Boolean);const uniquePois=Object.values(poiList.reduce((acc,poi)=>{if(poi.name)acc[poi.name]=poi;return acc;},{}));if(uniquePois.length>0){const resPoi=await fetch(SUPABASE_URL+'/rest/v1/np_pois?on_conflict=name',{method:'POST',headers:{...supabaseHeaders,Prefer:'resolution=merge-duplicates'},body:JSON.stringify(uniquePois)});if(!resPoi.ok){const errText=await resPoi.text();throw new Error('Synchro POI echouee: '+errText);}} } } else if(isGeolocDz){providerName='Geoloc.dz';const apiToken=localStorage.getItem('api_token')||sessionStorage.getItem('api_token')||'';const authHeader=apiToken.startsWith('Bearer ')?apiToken:'Bearer '+apiToken;const xsrfCookie=document.cookie.split('; ').find(row=>row.startsWith('XSRF-TOKEN='));const xsrfToken=xsrfCookie?decodeURIComponent(xsrfCookie.split('=')[1]):'';const res=await fetch('/geoBackend/api/floot/getFloot',{method:'POST',headers:{'Content-Type':'application/json','Authorization':authHeader,'X-XSRF-TOKEN':xsrfToken,'X-Requested-With':'XMLHttpRequest'},body:JSON.stringify({groupes:'[902,924,905]',recherche:'',details:0})});if(!res.ok)throw new Error('Votre session Geoloc.dz a expiree.');const resText=await res.text();if(resText.trim().startsWith('<'))throw new Error('Votre session Geoloc.dz a expiree.');const result=JSON.parse(resText);fleet=(result.data||[]).map(car=>{const lat=car.latitude?parseFloat(car.latitude):null;const lng=car.longitude?parseFloat(car.longitude):null;return{immat:(car.matricule||'').trim().toUpperCase(),lat:(!isNaN(lat)?lat:null),lng:(!isNaN(lng)?lng:null),gps_date:syncIso};});try{const poiRes=await fetch('/geoBackend/api/point/getInterestingPoints',{method:'POST',headers:{'Content-Type':'application/json','Authorization':authHeader,'X-XSRF-TOKEN':xsrfToken,'X-Requested-With':'XMLHttpRequest'},body:JSON.stringify({recherche:'',details:1})});if(poiRes.ok){const poiText=await poiRes.text();if(!poiText.trim().startsWith('<')){const poiResult=JSON.parse(poiText);const poiData=poiResult.data?poiResult.data:poiResult;const poiList=poiData.map(poi=>{if(poi.point_latitude!==null?poi.point_longitude!==null:false){return{name:(poi.point_designation||'').trim(),lat:parseFloat(poi.point_latitude),lng:parseFloat(poi.point_longitude),radius:Math.max(poi.point_radius?parseFloat(poi.point_radius):300,200)};}return null;}).filter(Boolean);const uniquePois=Object.values(poiList.reduce((acc,poi)=>{if(poi.name)acc[poi.name]=poi;return acc;},{}));if(uniquePois.length>0){await fetch(SUPABASE_URL+'/rest/v1/np_pois?on_conflict=name',{method:'POST',headers:{...supabaseHeaders,Prefer:'resolution=merge-duplicates'},body:JSON.stringify(uniquePois)});}}}}catch(e){console.error(e);} } console.log('Reçu '+fleet.length+' camions.');const dispoRes=await fetch(SUPABASE_URL+'/rest/v1/np_dispo?select=v',{headers:supabaseHeaders});if(!dispoRes.ok)throw new Error('Impossible de lire la liste des camions Numiplan');const dbDispos=await dispoRes.json();const activeTrucks={};dbDispos.forEach(row=>{const vRaw=(row.v||'').trim();const vNorm=normPlate(vRaw);if(vNorm)activeTrucks[vNorm]=vRaw;});let updatedCount=0;for(const car of fleet){const cNorm=normPlate(car.immat);const targetV=cNorm?activeTrucks[cNorm]:null;if(!targetV)continue;const hasGPSData=!(car.lat===null||car.lng===null);updatedCount++;const resDispo=await fetch(SUPABASE_URL+'/rest/v1/np_dispo?v=eq.'+encodeURIComponent(targetV),{method:'PATCH',headers:supabaseHeaders,body:JSON.stringify({geoloc:hasGPSData?'ON':'OFF',geoloc_date:car.gps_date||today,lat:car.lat,lng:car.lng})});if(!resDispo.ok){const errText=await resDispo.text();throw new Error('Synchro np_dispo '+targetV+' echouee: '+errText);}}try{const teams=['A', 'B', 'C', 'D'];const logs=teams.map(t=>({team:t,timestamp:String(Date.now()),type:'GPS_SYNC',target:providerName,user_login:'bookmarklet',detail:{provider:providerName,updated_count:updatedCount}}));await fetch(SUPABASE_URL+'/rest/v1/np_tracabilite',{method:'POST',headers:supabaseHeaders,body:JSON.stringify(logs)});}catch(eLog){console.error(eLog);}const timeStr=new Date().toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'});try{let b=document.getElementById('numiplan-gps-banner');if(!b){b=document.createElement('div');b.id='numiplan-gps-banner';b.style.cssText='position:fixed;top:15px;right:15px;z-index:9999999;background:#0f172a;color:#22c55e;border:2px solid #22c55e;border-radius:10px;padding:12px 20px;font-family:sans-serif;font-size:13px;font-weight:700;box-shadow:0 8px 30px rgba(0,0,0,0.6);';document.body.appendChild(b);}b.innerHTML='🛰️ Synchro '+providerName+' Active ('+updatedCount+' camions mis à jour à '+timeStr+')';}catch(eB){}alert('✅ Synchronisation '+providerName+' réussie ! '+updatedCount+' camions actifs mis à jour sur '+fleet.length+' trouvés à '+timeStr+'.');}catch(err){alert('❌ ' + err.message);}})();" class="btn" style="background:#f59e0b;color:#000;font-weight:900;padding:10px 20px;border-radius:8px;text-decoration:none;display:inline-flex;align-items:center;gap:8px;font-size:13px;cursor:grab;box-shadow:0 4px 15px rgba(245,158,11,0.4)" title="Glissez ce bouton vers votre barre de favoris Chrome">
+      <a href="javascript:(async()=>{const SUPABASE_URL='https://mfljrozyxyfkymzlnsmt.supabase.co';const SUPABASE_KEY='sb_publishable_sMb9uHOr4gpyqmZGrkY-YQ_z90TgNAB';const today=new Date().toISOString().split('T')[0];const syncIso=new Date().toISOString();const normPlate=(s)=>(s||'').replace(/[^A-Z0-9]/gi,'').toUpperCase();try{const isIdeGps=window.location.hostname.includes('idegps.com');const isGeolocDz=window.location.hostname.includes('geoloc.dz');if(!(isIdeGps||isGeolocDz)){alert('❌ Veuillez ouvrir idegps.com/map ou web3.geoloc.dz');return;}let token=sessionStorage.getItem('numiplan_sb_token');let tokenExpiry=sessionStorage.getItem('numiplan_sb_token_expiry');if(!token||!tokenExpiry||Date.now()>parseInt(tokenExpiry)){console.log('🔑 Auth Supabase...');const loginRes=await fetch(SUPABASE_URL+'/auth/v1/token?grant_type=password',{method:'POST',headers:{'apikey':SUPABASE_KEY,'Content-Type':'application/json'},body:JSON.stringify({email:'admin@sharik.numilog.com',password:'Sharik@admin'})});if(!loginRes.ok){const errText=await loginRes.text();if(loginRes.status===429||errText.includes('rate_limit')){throw new Error('Limite de connexions Supabase atteinte (Rate Limit). Veuillez patienter 5 minutes.');}throw new Error('Auth Supabase echouee: '+errText);}const loginData=await loginRes.json();token=loginData.access_token;sessionStorage.setItem('numiplan_sb_token',token);sessionStorage.setItem('numiplan_sb_token_expiry',(Date.now()+3500000).toString());}const supabaseHeaders={'apikey':SUPABASE_KEY,'Authorization':'Bearer '+token,'Content-Type':'application/json'};let fleet=[];let providerName='';if(isIdeGps){providerName='IdeGPS';const params=new URLSearchParams();params.append('driver','1');params.append('user_name',window.mData?.user_name||'K.LAHOUEL');params.append('gps_ids',Object.keys(window.mData?.cars||{}).join(','));const gpsRes=await fetch('https://idegps.com/api/map/position',{method:'POST',body:params});if(!gpsRes.ok)throw new Error('Votre session IdeGPS a expiree. Veuillez vous reconnecter sur le site.');const gpsText=await gpsRes.text();if(gpsText.trim().startsWith('<'))throw new Error('Votre session IdeGPS a expiree.');const result=JSON.parse(gpsText);fleet=(result.fleet||[]).map(car=>{const p=car.position||{};const rawLat=p.LAT??p.latitude??p.lat??null;const rawLng=p.LNG??p.longitude??p.lng??p.LON??p.lon??null;const lat=(rawLat!==null&&rawLat!=='')?parseFloat(rawLat):null;const lng=(rawLng!==null&&rawLng!=='')?parseFloat(rawLng):null;return{immat:(car.gps_alias||'').trim().toUpperCase(),lat:(!isNaN(lat)?lat:null),lng:(!isNaN(lng)?lng:null),gps_date:syncIso};});if(window.mData?window.mData.pois:false){console.log('💾 Synchro POI IdeGPS...');const poisRaw=Object.values(window.mData.pois);const poiList=poisRaw.map(poi=>{if(poi.points?poi.points.length>=2:false){let sumLat=0,sumLng=0,count=0;for(let i=0;poi.points.length>i;i+=2){sumLng+=poi.points[i];sumLat+=poi.points[i+1];count++;}if(count>0){return{name:(poi.name||poi.description||'').trim(),lat:sumLat/count,lng:sumLng/count,radius:Math.max(poi.buffer?parseFloat(poi.buffer):300,200)};}}return null;}).filter(Boolean);const uniquePois=Object.values(poiList.reduce((acc,poi)=>{if(poi.name)acc[poi.name]=poi;return acc;},{}));if(uniquePois.length>0){const resPoi=await fetch(SUPABASE_URL+'/rest/v1/np_pois?on_conflict=name',{method:'POST',headers:{...supabaseHeaders,Prefer:'resolution=merge-duplicates'},body:JSON.stringify(uniquePois)});if(!resPoi.ok){const errText=await resPoi.text();throw new Error('Synchro POI echouee: '+errText);}} } } else if(isGeolocDz){providerName='Geoloc.dz';const apiToken=localStorage.getItem('api_token')||sessionStorage.getItem('api_token')||'';const authHeader=apiToken.startsWith('Bearer ')?apiToken:'Bearer '+apiToken;const xsrfCookie=document.cookie.split('; ').find(row=>row.startsWith('XSRF-TOKEN='));const xsrfToken=xsrfCookie?decodeURIComponent(xsrfCookie.split('=')[1]):'';const res=await fetch('/geoBackend/api/floot/getFloot',{method:'POST',headers:{'Content-Type':'application/json','Authorization':authHeader,'X-XSRF-TOKEN':xsrfToken,'X-Requested-With':'XMLHttpRequest'},body:JSON.stringify({groupes:'[902,924,905]',recherche:'',details:0})});if(!res.ok)throw new Error('Votre session Geoloc.dz a expiree.');const resText=await res.text();if(resText.trim().startsWith('<'))throw new Error('Votre session Geoloc.dz a expiree.');const result=JSON.parse(resText);fleet=(result.data||[]).map(car=>{const lat=car.latitude?parseFloat(car.latitude):null;const lng=car.longitude?parseFloat(car.longitude):null;return{immat:(car.matricule||'').trim().toUpperCase(),lat:(!isNaN(lat)?lat:null),lng:(!isNaN(lng)?lng:null),gps_date:syncIso};});try{const poiRes=await fetch('/geoBackend/api/point/getInterestingPoints',{method:'POST',headers:{'Content-Type':'application/json','Authorization':authHeader,'X-XSRF-TOKEN':xsrfToken,'X-Requested-With':'XMLHttpRequest'},body:JSON.stringify({recherche:'',details:1})});if(poiRes.ok){const poiText=await poiRes.text();if(!poiText.trim().startsWith('<')){const poiResult=JSON.parse(poiText);const poiData=poiResult.data?poiResult.data:poiResult;const poiList=poiData.map(poi=>{if(poi.point_latitude!==null?poi.point_longitude!==null:false){return{name:(poi.point_designation||'').trim(),lat:parseFloat(poi.point_latitude),lng:parseFloat(poi.point_longitude),radius:Math.max(poi.point_radius?parseFloat(poi.point_radius):300,200)};}return null;}).filter(Boolean);const uniquePois=Object.values(poiList.reduce((acc,poi)=>{if(poi.name)acc[poi.name]=poi;return acc;},{}));if(uniquePois.length>0){await fetch(SUPABASE_URL+'/rest/v1/np_pois?on_conflict=name',{method:'POST',headers:{...supabaseHeaders,Prefer:'resolution=merge-duplicates'},body:JSON.stringify(uniquePois)});}}}}catch(e){console.error(e);} } console.log('Reçu '+fleet.length+' camions.');const dispoRes=await fetch(SUPABASE_URL+'/rest/v1/np_dispo?select=v',{headers:supabaseHeaders});if(!dispoRes.ok)throw new Error('Impossible de lire la liste des camions Numiplan');const dbDispos=await dispoRes.json();const activeTrucks={};dbDispos.forEach(row=>{const vRaw=(row.v||'').trim();const vNorm=normPlate(vRaw);if(vNorm)activeTrucks[vNorm]=vRaw;});let updatedCount=0;for(const car of fleet){const cNorm=normPlate(car.immat);const targetV=cNorm?activeTrucks[cNorm]:null;if(!targetV)continue;const hasGPSData=!(car.lat===null||car.lng===null);updatedCount++;const resDispo=await fetch(SUPABASE_URL+'/rest/v1/np_dispo?v=eq.'+encodeURIComponent(targetV),{method:'PATCH',headers:supabaseHeaders,body:JSON.stringify({geoloc:hasGPSData?'ON':'OFF',geoloc_date:car.gps_date||today,lat:car.lat,lng:car.lng})});if(!resDispo.ok){const errText=await resDispo.text();throw new Error('Synchro np_dispo '+targetV+' echouee: '+errText);}}try{const teams=['A1', 'A2', 'B1', 'B2', 'C1', 'C2', 'D1', 'D2'];const logs=teams.map(t=>({team:t,timestamp:String(Date.now()),type:'GPS_SYNC',target:providerName,user_login:'bookmarklet',detail:{provider:providerName,updated_count:updatedCount}}));await fetch(SUPABASE_URL+'/rest/v1/np_tracabilite',{method:'POST',headers:supabaseHeaders,body:JSON.stringify(logs)});}catch(eLog){console.error(eLog);}const timeStr=new Date().toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'});try{let b=document.getElementById('numiplan-gps-banner');if(!b){b=document.createElement('div');b.id='numiplan-gps-banner';b.style.cssText='position:fixed;top:15px;right:15px;z-index:9999999;background:#0f172a;color:#22c55e;border:2px solid #22c55e;border-radius:10px;padding:12px 20px;font-family:sans-serif;font-size:13px;font-weight:700;box-shadow:0 8px 30px rgba(0,0,0,0.6);';document.body.appendChild(b);}b.innerHTML='🛰️ Synchro '+providerName+' Active ('+updatedCount+' camions mis à jour à '+timeStr+')';}catch(eB){}alert('✅ Synchronisation '+providerName+' réussie ! '+updatedCount+' camions actifs mis à jour sur '+fleet.length+' trouvés à '+timeStr+'.');}catch(err){alert('❌ ' + err.message);}})();" class="btn" style="background:#f59e0b;color:#000;font-weight:900;padding:10px 20px;border-radius:8px;text-decoration:none;display:inline-flex;align-items:center;gap:8px;font-size:13px;cursor:grab;box-shadow:0 4px 15px rgba(245,158,11,0.4)" title="Glissez ce bouton vers votre barre de favoris Chrome">
         🌟 Favori GPS (Glissez-moi)
       </a>
     </div>
@@ -6088,7 +6164,7 @@ mark.hl { background: rgba(56,189,248,.25); color: var(--acc); border-radius: 3p
 // ═══════════════════════════════════════════════════════════════
 // DATA (pré-chargé depuis le fichier original)
 // ═══════════════════════════════════════════════════════════════
-const STORAGE_KEY = 'numiplan_data_v4';
+const STORAGE_KEY = 'numiplan_data_v5';
 const ARCHIVE_KEY = 'numiplan_archives_v2';
 
 
@@ -6128,7 +6204,7 @@ function normalizeOdoDate(dStr) {
 }
 
 function alignOdoWeeksGlobal() {
-  const EQUIPES = ['A', 'B', 'C', 'D'];
+  const EQUIPES = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2', 'D1', 'D2'];
   const allWeeks = new Set();
   
   // 1. Gather all weeks from all databases
@@ -6461,12 +6537,12 @@ function getTeamRACStatsForWeek(db, lastWeekIdx) {
 
 function updateHeaderRAC() {
   const lock = sessionStorage.getItem('numiplan_team_lock');
-  const curEq = typeof CURRENT_EQUIPE !== 'undefined' ? CURRENT_EQUIPE : 'A';
+  const curEq = typeof CURRENT_EQUIPE !== 'undefined' ? CURRENT_EQUIPE : 'A1';
   
   let totalFact = 0;
   let totalOdo = 0;
   
-  ['A', 'B', 'C', 'D'].forEach(eq => {
+  ['A1', 'A2', 'B1', 'B2', 'C1', 'C2', 'D1', 'D2'].forEach(eq => {
     const db = (eq === curEq && typeof window.DB !== 'undefined') ? window.DB : window['DB_' + eq];
     const stats = getTeamRACStats(db);
     totalFact += stats.fact;
@@ -6546,14 +6622,13 @@ function cloneTeamData(src, fallback = emptyTeamData()) {
 window.cloneTeamData = cloneTeamData;
 
 function ensureTeamCaches() {
-  window.DB_A = cloneTeamData(window.DB_A, emptyTeamData());
-  window.DB_B = cloneTeamData(window.DB_B, emptyTeamData());
-  window.DB_C = cloneTeamData(window.DB_C, emptyTeamData());
-  window.DB_D = cloneTeamData(window.DB_D, emptyTeamData());
+  ['A1', 'A2', 'B1', 'B2', 'C1', 'C2', 'D1', 'D2'].forEach(eq => {
+    window['DB_' + eq] = cloneTeamData(window['DB_' + eq], emptyTeamData());
+  });
 }
 
 function restaurerDonneesInitialesDispo() {
-  const eq = (typeof window.CURRENT_EQUIPE !== 'undefined') ? window.CURRENT_EQUIPE : 'A';
+  const eq = (typeof window.CURRENT_EQUIPE !== 'undefined') ? window.CURRENT_EQUIPE : 'A1';
   if (confirm(`Voulez-vous restaurer la liste par défaut des camions/chauffeurs pour l'Équipe ${eq} ?\nCette opération remplacera la liste de disponibilité actuelle par la liste initiale, mais conservera toutes vos autres données (pannes, non-conformités, odomètres, etc.).`)) {
     const initData = emptyTeamData() || INITIAL_DATA_A; DB.dispo = JSON.parse(JSON.stringify(initData.dispo));
     if (window['DB_' + eq]) {
@@ -6612,7 +6687,7 @@ function handleTeamDrop(event, destEq) {
   }
 
   const immat = event.dataTransfer.getData('text/plain');
-  const srcEq = (typeof CURRENT_EQUIPE !== 'undefined') ? CURRENT_EQUIPE : 'A';
+  const srcEq = (typeof CURRENT_EQUIPE !== 'undefined') ? CURRENT_EQUIPE : 'A1';
 
   if (!immat) return;
   if (srcEq === destEq) return;
@@ -6637,7 +6712,7 @@ function handleTeamDrop(event, destEq) {
   // Déterminer s'il s'agit d'un chauffeur en extension (possède >= 2 camions DIFFÉRENTS globalement)
   let isExtension = false;
   if (chauffeurName && chauffeurName !== '—' && !chauffeurName.includes('MANQUE CHAUFFEUR')) {
-    const teams = ['A', 'B', 'C', 'D'];
+    const teams = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2', 'D1', 'D2'];
     const uniqueTrucks = new Set();
     teams.forEach(eq => {
       const db = window['DB_' + eq];
@@ -6880,7 +6955,7 @@ function tracerAction(menu, type, target, detail, eq = null) {
   const username = (sessionStorage.getItem('numiplan_username') || 'OPERATEUR').toUpperCase().trim();
   const user_login = username.toLowerCase();
   const operator = getOperatorRole();
-  const targetEq = eq || window.CURRENT_EQUIPE || 'A';
+  const targetEq = eq || window.CURRENT_EQUIPE || 'A1';
   const detailStr = (typeof detail === 'object') ? JSON.stringify(detail) : String(detail || '');
   const targetStr = String(target || '—').trim();
   const menuStr = String(menu || 'GENERAL').toUpperCase().trim();
@@ -7965,7 +8040,7 @@ function renderGlobalBLAlerts() {
   const months = ['mars','avril','mai','juin','juil','aout','sep','oct','nov','dec'];
   const alerts = [];
 
-  ['A', 'B', 'C', 'D'].forEach(eq => {
+  ['A1', 'A2', 'B1', 'B2', 'C1', 'C2', 'D1', 'D2'].forEach(eq => {
     // Appliquer le filtre par équipe dès le départ pour de meilleures performances
     if (qTeam && eq !== qTeam) return;
 
@@ -8202,7 +8277,7 @@ window.renderGlobalBLAlerts = renderGlobalBLAlerts;
 function renderTracabilite() {
   // 1. Rassembler les traces de toutes les équipes (A, B, C, D) + DB actif
   const allTraces = [];
-  ['A', 'B', 'C', 'D'].forEach(eq => {
+  ['A1', 'A2', 'B1', 'B2', 'C1', 'C2', 'D1', 'D2'].forEach(eq => {
     const dbEq = (eq === CURRENT_EQUIPE && typeof DB !== 'undefined') ? DB : window['DB_' + eq];
     if (dbEq && Array.isArray(dbEq.tracabilite)) {
       dbEq.tracabilite.forEach(item => {
@@ -8213,7 +8288,7 @@ function renderTracabilite() {
   if (DB && Array.isArray(DB.tracabilite)) {
     DB.tracabilite.forEach(item => {
       if (!allTraces.some(t => t.timestamp === item.timestamp && t.target === item.target && t.type === item.type)) {
-        allTraces.push({ ...item, team: item.team || CURRENT_EQUIPE || 'A' });
+        allTraces.push({ ...item, team: item.team || CURRENT_EQUIPE || 'A1' });
       }
     });
   }
@@ -8365,7 +8440,7 @@ async function actualiserTracabiliteCloud() {
           target: row.target || detailObj.target || '—',
           operator: detailObj.operator || row.user_login || 'Opérateur',
           user_login: row.user_login || detailObj.user_login || '',
-          team: row.team || detailObj.team || 'A',
+          team: row.team || detailObj.team || 'A1',
           detail: detailObj.detail || row.target || ''
         };
         if (!DB.tracabilite.some(t => t.timestamp === entry.timestamp && t.target === entry.target)) {
@@ -8423,21 +8498,21 @@ function obtenirJustification(titre) {
 
 function loadDB() {
   ensureTeamCaches();
-  let active = (typeof CURRENT_EQUIPE !== 'undefined' && CURRENT_EQUIPE) ? CURRENT_EQUIPE : 'A';
+  let active = (typeof CURRENT_EQUIPE !== 'undefined' && CURRENT_EQUIPE) ? CURRENT_EQUIPE : 'A1';
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (raw) {
       const parsed = JSON.parse(raw);
       if (parsed && parsed.teams && typeof parsed.teams === 'object') {
-        ['A', 'B', 'C', 'D'].forEach(eq => {
+        ['A1', 'A2', 'B1', 'B2', 'C1', 'C2', 'D1', 'D2'].forEach(eq => {
           if (parsed.teams[eq] && parsed.teams[eq].dispo) {
             window['DB_' + eq] = cloneTeamData(parsed.teams[eq], emptyTeamData());
           }
         });
-        if (parsed.active && ['A', 'B', 'C', 'D'].includes(parsed.active)) active = parsed.active;
+        if (parsed.active && ['A1', 'A2', 'B1', 'B2', 'C1', 'C2', 'D1', 'D2'].includes(parsed.active)) active = parsed.active;
       } else if (parsed && parsed.dispo) {
         // Ancien format (1 seul blob) : en pratique = dernière équipe sauvegardée (souvent D)
-        const legacyEq = (parsed._savedEquipe && ['A', 'B', 'C', 'D'].includes(parsed._savedEquipe))
+        const legacyEq = (parsed._savedEquipe && ['A1', 'A2', 'B1', 'B2', 'C1', 'C2', 'D1', 'D2'].includes(parsed._savedEquipe))
           ? parsed._savedEquipe : 'D';
         window['DB_' + legacyEq] = cloneTeamData(parsed, emptyTeamData());
         active = 'A'; // au démarrage on affiche toujours l'équipe A
@@ -8449,12 +8524,12 @@ function loadDB() {
   // VERROUILLAGE STRICT : si la session est liée à une équipe (ex: HOUSSAM.A -> C), priorité absolue à l'équipe autorisée
   const sessLock = sessionStorage.getItem('numiplan_team_lock');
   if (sessLock && sessLock !== 'BL' && sessLock !== 'DIR') {
-    const allowed = (sessLock === 'ALL' || sessLock === '*') ? ['A', 'B', 'C', 'D'] : sessLock.split(/[,;\s\/\-]+/).map(x => x.trim().toUpperCase()).filter(Boolean);
+    const allowed = (sessLock === 'ALL' || sessLock === '*') ? ['A1', 'A2', 'B1', 'B2', 'C1', 'C2', 'D1', 'D2'] : window.expandTeamLockList(sessLock);
     if (allowed.length > 0 && !allowed.includes(active)) {
       active = allowed[0];
     }
   }
-  ['A', 'B', 'C', 'D'].forEach(eq => {
+  ['A1', 'A2', 'B1', 'B2', 'C1', 'C2', 'D1', 'D2'].forEach(eq => {
     window['DB_' + eq] = cloneTeamData(window['DB_' + eq], emptyTeamData());
   });
   
@@ -8493,7 +8568,7 @@ function loadDB() {
 // Fonction exposée au module Firebase pour sync propre sans casser la référence
 // data = { A: { '2025-01-01': {dispo,pannes,...}, ... }, B: {...}, ... }
 window._syncArchives = function(data) {
-  ['A', 'B', 'C', 'D'].forEach(function(eq) {
+  ['A1', 'A2', 'B1', 'B2', 'C1', 'C2', 'D1', 'D2'].forEach(function(eq) {
     if (!data[eq]) return;
     if (!ARCHIVES[eq]) ARCHIVES[eq] = {};
     Object.keys(data[eq]).forEach(function(dateKey) {
@@ -8514,13 +8589,13 @@ function saveDB() {
     console.warn('[Sync Guard] saveDB bloqué : attente du chargement cloud initial.');
     return;
   }
-  const eq = CURRENT_EQUIPE || 'A';
+  const eq = CURRENT_EQUIPE || 'A1';
   const lock = sessionStorage.getItem('numiplan_team_lock');
   const role = (sessionStorage.getItem('numiplan_user_role') || '').toLowerCase();
   const username = (sessionStorage.getItem('numiplan_username') || '').toUpperCase();
   const isAdminUser = (role === 'admin' || username === 'ADMIN' || !lock || lock === 'ADMIN' || (typeof isAdmin === 'function' && isAdmin()) || (typeof isRegistreOrDirectionSession === 'function' && isRegistreOrDirectionSession()));
   if (lock && lock !== 'BL' && lock !== 'DIR' && !isAdminUser) {
-    const allowed = (lock === 'ALL' || lock === '*') ? ['A', 'B', 'C', 'D'] : lock.split(/[,;\s\/\-]+/).map(x => x.trim().toUpperCase()).filter(Boolean);
+    const allowed = (lock === 'ALL' || lock === '*') ? ['A1', 'A2', 'B1', 'B2', 'C1', 'C2', 'D1', 'D2'] : window.expandTeamLockList(lock);
     if (allowed.length > 0 && !allowed.includes(eq)) {
       if (typeof showToast === 'function') {
         showToast('⚠️ Lecture seule — modifications de l\'Équipe ' + allowed.join(',') + ' autorisées uniquement', true);
@@ -8576,13 +8651,13 @@ function saveDB() {
 }
 
 function saveArchives() {
-  const eq = CURRENT_EQUIPE || 'A';
+  const eq = CURRENT_EQUIPE || 'A1';
   const lock = sessionStorage.getItem('numiplan_team_lock');
   const role = (sessionStorage.getItem('numiplan_user_role') || '').toLowerCase();
   const username = (sessionStorage.getItem('numiplan_username') || '').toUpperCase();
   const isAdminUser = (role === 'admin' || username === 'ADMIN' || !lock || lock === 'ADMIN' || (typeof isAdmin === 'function' && isAdmin()) || (typeof isRegistreOrDirectionSession === 'function' && isRegistreOrDirectionSession()));
   if (lock && lock !== 'BL' && lock !== 'DIR' && !isAdminUser) {
-    const allowed = (lock === 'ALL' || lock === '*') ? ['A', 'B', 'C', 'D'] : lock.split(/[,;\s\/\-]+/).map(x => x.trim().toUpperCase()).filter(Boolean);
+    const allowed = (lock === 'ALL' || lock === '*') ? ['A1', 'A2', 'B1', 'B2', 'C1', 'C2', 'D1', 'D2'] : window.expandTeamLockList(lock);
     if (allowed.length > 0 && !allowed.includes(eq)) {
       if (typeof showToast === 'function') {
         showToast('⚠️ Lecture seule — archivage bloqué pour l\'Équipe ' + eq, true);
@@ -8741,7 +8816,7 @@ function openModal(id, editIdx=-1) {
     document.getElementById('f-odo-chauffeur').value = '';
     document.getElementById('f-odo-km-facture').value = '';
     const teamEl = document.getElementById('odo-edit-team');
-    if (teamEl) teamEl.value = window.CURRENT_EQUIPE || 'A';
+    if (teamEl) teamEl.value = window.CURRENT_EQUIPE || 'A1';
     buildOdoWeekInputs();
   }
   if (id === 'modal-odo-export') initOdoExportModal();
@@ -8909,7 +8984,7 @@ function switchTab(name, btn) {
 function updateDataLists() {
   const vehicles = new Set();
   const chauffeurs = new Set();
-  const EQUIPES = ['A', 'B', 'C', 'D'];
+  const EQUIPES = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2', 'D1', 'D2'];
 
   EQUIPES.forEach(eq => {
     const db = (eq === CURRENT_EQUIPE && typeof window.DB !== 'undefined') ? window.DB : window['DB_' + eq];
@@ -8967,7 +9042,11 @@ function renderDispo(force = false) {
   const isAdm = (typeof window.isAdmin === 'function' ? window.isAdmin() : !sessionStorage.getItem('numiplan_team_lock'));
   const zapBtn = document.getElementById('btn-admin-zap-anomalies');
   if (zapBtn) zapBtn.style.display = isAdm ? 'inline-flex' : 'none';
-  const zapHeaderBtn = document.getElementById('btn-header-zap-anomalies');
+  const chefsBtn = document.getElementById('btn-admin-chefs-equipe');
+    if (chefsBtn) chefsBtn.style.display = isAdm ? 'inline-flex' : 'none';
+    const chefsBtn = document.getElementById('btn-admin-chefs-equipe');
+    if (chefsBtn) chefsBtn.style.display = isAdm ? 'inline-flex' : 'none';
+    const zapHeaderBtn = document.getElementById('btn-header-zap-anomalies');
   if (zapHeaderBtn) zapHeaderBtn.style.display = isAdm ? 'inline-flex' : 'none';
   if (typeof rebuildOrientationBejaiaState === 'function') rebuildOrientationBejaiaState();
   if (typeof rebuildOrientationBrandtState === 'function') rebuildOrientationBrandtState();
@@ -9132,7 +9211,7 @@ function renderDispo(force = false) {
   
   // Compter le nombre d'occurrences globales de chaque chauffeur dans TOUTES les équipes pour identifier les extensions
   const driverCounts = {};
-  const teams = ['A', 'B', 'C', 'D'];
+  const teams = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2', 'D1', 'D2'];
   teams.forEach(eq => {
     const db = window['DB_' + eq];
     if (db && db.dispo) {
@@ -9283,7 +9362,7 @@ function renderDispo(force = false) {
     }
 
     return `<tr style="${rowBg}" draggable="${isDraggable}" ondragstart="if(sessionStorage.getItem('numiplan_team_lock') !== 'BL' && sessionStorage.getItem('numiplan_team_lock') !== 'DIR'){ handleDispoDragStart(event, '${r.v}') }else{ event.preventDefault(); }" ondragend="handleDispoDragEnd(this)">
-      <td class="mono" style="color:var(--acc);font-size:10px;white-space:nowrap">${r.v}${r.gasoil ? ' <span style="color:var(--yel);font-size:11px" title="Besoin dotation gasoil actif">⛽</span>' : ''}${(()=>{ const gDate = r.geolocDate; const todayD = today(); const gVal = (gDate && gDate.startsWith(todayD)) ? (r.geoloc||'') : ((r.geoloc==='ON' && r.lat && r.lng) ? 'ON' : ''); let badge = ''; if(gVal==='ON') badge = ' <span onclick="toggleGeoloc('+realIdx+')" style="color:#22c55e;font-size:11px;cursor:pointer" title="Géoloc ON — cliquer pour changer">🟢</span>'; else if(gVal==='OFF') badge = ' <span onclick="toggleGeoloc('+realIdx+')" style="color:#ef4444;font-size:11px;cursor:pointer" title="Géoloc OFF — cliquer pour changer">🔴</span>'; else badge = ' <span onclick="toggleGeoloc('+realIdx+')" style="color:var(--txt3);font-size:11px;cursor:pointer" title="Géoloc non pointée aujourd\'hui — cliquer pour pointer">⚫</span>'; if(r.lat && r.lng) { badge += ` <a href="https://www.google.com/maps/search/?api=1&query=${r.lat},${r.lng}" target="_blank" style="text-decoration:none;font-size:11px;margin-left:2px;" title="Voir la position GPS sur Google Maps (Coordonnées : ${r.lat}, ${r.lng})">📍</a>`; } return badge; })()}</td>
+      <td class="mono" style="color:var(--acc);font-size:10px;white-space:nowrap">${window._MULTI_TRANSFER_MODE ? `<input type="checkbox" class="dispo-multi-chk" value="${r.v}" ${window._MULTI_TRANSFER_SELECTED && window._MULTI_TRANSFER_SELECTED.has(r.v) ? "checked" : ""} onchange="onMultiTransferChkChange(this)" style="width:15px;height:15px;vertical-align:middle;margin-right:6px;accent-color:#38bdf8;cursor:pointer">` : ""}${r.v}${r.gasoil ? ' <span style="color:var(--yel);font-size:11px" title="Besoin dotation gasoil actif">⛽</span>' : ''}${(()=>{ const gDate = r.geolocDate; const todayD = today(); const gVal = (gDate && gDate.startsWith(todayD)) ? (r.geoloc||'') : ((r.geoloc==='ON' && r.lat && r.lng) ? 'ON' : ''); let badge = ''; if(gVal==='ON') badge = ' <span onclick="toggleGeoloc('+realIdx+')" style="color:#22c55e;font-size:11px;cursor:pointer" title="Géoloc ON — cliquer pour changer">🟢</span>'; else if(gVal==='OFF') badge = ' <span onclick="toggleGeoloc('+realIdx+')" style="color:#ef4444;font-size:11px;cursor:pointer" title="Géoloc OFF — cliquer pour changer">🔴</span>'; else badge = ' <span onclick="toggleGeoloc('+realIdx+')" style="color:var(--txt3);font-size:11px;cursor:pointer" title="Géoloc non pointée aujourd\'hui — cliquer pour pointer">⚫</span>'; if(r.lat && r.lng) { badge += ` <a href="https://www.google.com/maps/search/?api=1&query=${r.lat},${r.lng}" target="_blank" style="text-decoration:none;font-size:11px;margin-left:2px;" title="Voir la position GPS sur Google Maps (Coordonnées : ${r.lat}, ${r.lng})">📍</a>`; } return badge; })()}</td>
       <td>${stateBadge(r.etat)}</td>
       <td style="white-space:nowrap; vertical-align: middle;">${chauffeurCellContent}</td>
       <td class="mono" style="white-space:nowrap"><span class="cell-edit" contenteditable="true" data-field="hor" data-idx="${realIdx}" onblur="saveInline(this)" onkeydown="if(event.key==='Enter'){event.preventDefault();this.blur()}">${horaire(r.hor)||'—'}</span></td>
@@ -9375,7 +9454,7 @@ function getDriverActiveTrucks(driverName, excludeTruck = '') {
   const exNorm = (excludeTruck || '').trim().toUpperCase();
   const trucksSet = new Set();
 
-  ['A', 'B', 'C', 'D'].forEach(eq => {
+  ['A1', 'A2', 'B1', 'B2', 'C1', 'C2', 'D1', 'D2'].forEach(eq => {
     let db = (eq === window.CURRENT_EQUIPE && typeof window.DB !== 'undefined') ? window.DB : window['DB_' + eq];
     if (!db && typeof window.cloneTeamData === 'function') {
       try {
@@ -9921,7 +10000,7 @@ function saveDispo() {
           try {
             if (typeof ensureSupabaseAuth === 'function') await ensureSupabaseAuth();
             await window.supabase.from('np_dispo').upsert({
-              team: CURRENT_EQUIPE || 'A',
+              team: CURRENT_EQUIPE || 'A1',
               v: obj.v,
               chauffeur: obj.chauffeur || '',
               etat: obj.etat || 'DISPONIBLE',
@@ -9956,7 +10035,7 @@ function saveDispo() {
           delArr = delArr.filter(t => (t||'').trim().toUpperCase() !== truckUpper);
           localStorage.setItem('numiplan_deleted_trucks', JSON.stringify(delArr));
         } catch(e) {}
-        ['A', 'B', 'C', 'D'].forEach(eq => {
+        ['A1', 'A2', 'B1', 'B2', 'C1', 'C2', 'D1', 'D2'].forEach(eq => {
           const tDb = window['DB_' + eq];
           if (tDb && Array.isArray(tDb.deleted_trucks)) {
             tDb.deleted_trucks = tDb.deleted_trucks.filter(t => (t||'').trim().toUpperCase() !== truckUpper);
@@ -10900,7 +10979,7 @@ function showVehicleProfile(immat) {
 
   // Historique dans les archives
   const histFromArchives = [];
-  const eqArch = CURRENT_EQUIPE || 'A';
+  const eqArch = CURRENT_EQUIPE || 'A1';
   const teamArchives = ARCHIVES[eqArch] || {};
   Object.entries(teamArchives).sort().forEach(([date,snap])=>{
     const d = (snap.dispo||[]).find(r=>r.v===immat);
@@ -11029,7 +11108,7 @@ function showVehicleProfile(immat) {
 // ARCHIVES
 // ═══════════════════════════════════════════════════════════════
 function archiveToday() {
-  const eq = typeof window.CURRENT_EQUIPE !== 'undefined' ? window.CURRENT_EQUIPE : 'A';
+  const eq = typeof window.CURRENT_EQUIPE !== 'undefined' ? window.CURRENT_EQUIPE : 'A1';
   const lock = sessionStorage.getItem('numiplan_team_lock');
   if (lock && typeof isTeamAllowed === 'function' && !isTeamAllowed(eq)) {
     if (typeof showToast === 'function') {
@@ -11059,7 +11138,7 @@ function archiveToday() {
 }
 
 function clearAllArchives() {
-  const eq = CURRENT_EQUIPE || 'A';
+  const eq = CURRENT_EQUIPE || 'A1';
   if (!confirm(`Supprimer toutes les archives de l'Équipe ${eq} ? Cette action est irréversible.`)) return;
   ARCHIVES[eq] = {};
   saveArchives(); renderArchives(); showToast(`🗑 Archives Équipe ${eq} vidées`);
@@ -11086,7 +11165,7 @@ let _arcEq = 'A'; // équipe affichée dans les archives
 
 function setArchiveEq(eq) {
   _arcEq = eq;
-  ['A', 'B', 'C', 'D'].forEach(e => {
+  ['A1', 'A2', 'B1', 'B2', 'C1', 'C2', 'D1', 'D2'].forEach(e => {
     const btn = document.getElementById('arc-btn-'+e);
     if (!btn) return;
     if (e === eq) {
@@ -11108,11 +11187,11 @@ function renderArchives() {
   const filterDateEl = document.getElementById('archive-filter-date');
   if (!filterDateEl) return;
   const filterDate = filterDateEl.value;
-  const eq = _arcEq || 'A';
+  const eq = _arcEq || 'A1';
   const arcEq = ARCHIVES[eq] || {};
 
   // Compter les archives disponibles par équipe pour les badges
-  ['A', 'B', 'C', 'D'].forEach(e => {
+  ['A1', 'A2', 'B1', 'B2', 'C1', 'C2', 'D1', 'D2'].forEach(e => {
     const btn = document.getElementById('arc-btn-'+e);
     if (!btn) return;
     const n = Object.keys(ARCHIVES[e]||{}).length;
@@ -11128,7 +11207,7 @@ function renderArchives() {
   document.getElementById('archive-stats').innerHTML = `
     <div class="stat-card pur"><div class="stat-num">${Object.keys(arcEq).length}</div><div class="stat-lbl">Jours archivés (Éq. ${eq})</div></div>
     <div class="stat-card"><div class="stat-num">${entries.length}</div><div class="stat-lbl">Affichés</div></div>
-    ${['A', 'B', 'C', 'D'].map(e=>`<div class="stat-card" style="cursor:pointer;border-left-color:${e===eq?'var(--acc)':'var(--border)'}" onclick="setArchiveEq('${e}')"><div class="stat-num" style="font-size:18px">${Object.keys(ARCHIVES[e]||{}).length}</div><div class="stat-lbl">Éq. ${e}</div></div>`).join('')}`;
+    ${['A1', 'A2', 'B1', 'B2', 'C1', 'C2', 'D1', 'D2'].map(e=>`<div class="stat-card" style="cursor:pointer;border-left-color:${e===eq?'var(--acc)':'var(--border)'}" onclick="setArchiveEq('${e}')"><div class="stat-num" style="font-size:18px">${Object.keys(ARCHIVES[e]||{}).length}</div><div class="stat-lbl">Éq. ${e}</div></div>`).join('')}`;
 
   const list = document.getElementById('archives-list');
   if (!entries.length) {
@@ -11453,7 +11532,7 @@ function saveBL() {
 // RENDER: ODOMÈTRE
 // ═══════════════════════════════════════════════════════════════
 function getGlobalOdoWeeks() {
-  const EQUIPES = ['A', 'B', 'C', 'D'];
+  const EQUIPES = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2', 'D1', 'D2'];
   const weeksSet = new Set();
   EQUIPES.forEach(eq => {
     const db = (eq === (window.CURRENT_EQUIPE||'A') && typeof window.DB !== 'undefined') ? window.DB : window['DB_' + eq];
@@ -11902,7 +11981,7 @@ function getVehicleAnomalyKm(immat, motifName, startVal, endVal, forcedTeam) {
   const anomalies = [];
   const activeEq = getCurrentEquipe();
   const activeDb = typeof window.DB !== 'undefined' ? window.DB : null;
-  const EQUIPES = ['A', 'B', 'C', 'D'];
+  const EQUIPES = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2', 'D1', 'D2'];
   
   EQUIPES.forEach(eq => {
     if (forcedTeam && forcedTeam !== eq) return;
@@ -11950,7 +12029,7 @@ function renderOdo() {
   const lock = sessionStorage.getItem('numiplan_team_lock');
   const isAdminForced = selectTeamEl && selectTeamEl.getAttribute('data-admin-forced') === 'true';
   if (!isAdminForced && lock && lock !== 'DIR' && lock !== 'BL' && selectTeamEl) {
-    const allowed = (lock === 'ALL' || lock === '*') ? ['A', 'B', 'C', 'D'] : lock.split(/[,;\s\/\-]+/).map(x => x.trim().toUpperCase()).filter(Boolean);
+    const allowed = (lock === 'ALL' || lock === '*') ? ['A1', 'A2', 'B1', 'B2', 'C1', 'C2', 'D1', 'D2'] : window.expandTeamLockList(lock);
     if (allowed.length === 1) {
       selectTeamEl.value = allowed[0];
       selectTeamEl.disabled = true;
@@ -11972,7 +12051,7 @@ function renderOdo() {
   }
 
   const filterTeam = selectTeamEl ? selectTeamEl.value : 'ALL';
-  const EQUIPES = ['A', 'B', 'C', 'D'];
+  const EQUIPES = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2', 'D1', 'D2'];
   const activeEq = getCurrentEquipe();
   const activeDb = typeof window.DB !== 'undefined' ? window.DB : null;
   
@@ -12253,14 +12332,14 @@ function editOdo(teamOrIdx, maybeIdx) {
     idx = maybeIdx !== undefined ? maybeIdx : -1;
   } else {
     idx = teamOrIdx;
-    team = window.CURRENT_EQUIPE || 'A';
+    team = window.CURRENT_EQUIPE || 'A1';
   }
   
   if (typeof alignOdoWeeksGlobal === 'function') {
     alignOdoWeeksGlobal();
   }
   
-  const targetDb = (team === (window.CURRENT_EQUIPE || 'A') && typeof window.DB !== 'undefined') 
+  const targetDb = (team === (window.CURRENT_EQUIPE || 'A1') && typeof window.DB !== 'undefined') 
     ? window.DB 
     : window['DB_' + team];
     
@@ -12321,16 +12400,16 @@ function deleteOdo(teamOrIdx, maybeIdx) {
     idx = maybeIdx !== undefined ? maybeIdx : -1;
   } else {
     idx = teamOrIdx;
-    team = window.CURRENT_EQUIPE || 'A';
+    team = window.CURRENT_EQUIPE || 'A1';
   }
   
-  const targetDb = (team === (window.CURRENT_EQUIPE || 'A') && typeof window.DB !== 'undefined') 
+  const targetDb = (team === (window.CURRENT_EQUIPE || 'A1') && typeof window.DB !== 'undefined') 
     ? window.DB 
     : window['DB_' + team];
     
   if (targetDb && Array.isArray(targetDb.odo) && targetDb.odo[idx]) {
     targetDb.odo.splice(idx, 1);
-    if (team === (window.CURRENT_EQUIPE || 'A')) {
+    if (team === (window.CURRENT_EQUIPE || 'A1')) {
       saveDB();
     } else if (typeof saveTeamDB === 'function') {
       saveTeamDB(team, targetDb);
@@ -12355,10 +12434,10 @@ function saveOdo() {
   
   if (!targetTeam) {
     const teamMap = typeof buildTracteurEquipeMap === 'function' ? buildTracteurEquipeMap() : {};
-    targetTeam = teamMap[v.toUpperCase()] || (window.CURRENT_EQUIPE || 'A');
+    targetTeam = teamMap[v.toUpperCase()] || (window.CURRENT_EQUIPE || 'A1');
   }
   
-  const targetDb = (targetTeam === (window.CURRENT_EQUIPE || 'A') && typeof window.DB !== 'undefined') 
+  const targetDb = (targetTeam === (window.CURRENT_EQUIPE || 'A1') && typeof window.DB !== 'undefined') 
     ? window.DB 
     : window['DB_' + targetTeam];
     
@@ -12428,7 +12507,7 @@ function saveOdo() {
     tracerAction('ODOMETRE', isEdit ? 'MODIFICATION_ODO' : 'SAISIE_ODO', v, `Semaines renseignées: ${vals.filter(x=>x!==null).length} | Km Facturé: ${kmFacture !== null ? kmFacture : '—'}`, targetTeam);
   }
 
-  if (targetTeam === (window.CURRENT_EQUIPE || 'A')) {
+  if (targetTeam === (window.CURRENT_EQUIPE || 'A1')) {
     saveDB();
   } else if (typeof saveTeamDB === 'function') {
     saveTeamDB(targetTeam, targetDb);
@@ -12485,7 +12564,7 @@ function importKmFacture(input) {
         const raw = XLSX.utils.sheet_to_json(ws);
 
         const teamMap = typeof buildTracteurEquipeMap === 'function' ? buildTracteurEquipeMap() : {};
-        const EQUIPS = ['A', 'B', 'C', 'D'];
+        const EQUIPS = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2', 'D1', 'D2'];
 
         // 1. Écraser et remettre à zéro TOUS les km facturés existants sur toutes les équipes
         EQUIPS.forEach(eq => {
@@ -12671,7 +12750,7 @@ function importKmFacture(input) {
 
 
 function openOdoRacHistoryModal() {
-  const currentEq = typeof window.CURRENT_EQUIPE !== 'undefined' ? window.CURRENT_EQUIPE : 'A';
+  const currentEq = typeof window.CURRENT_EQUIPE !== 'undefined' ? window.CURRENT_EQUIPE : 'A1';
   document.getElementById('h-rac-team').value = currentEq;
   onRacHistoryTeamChange();
   openModal('modal-odo-rac-history');
@@ -13438,7 +13517,7 @@ function saveIncidentLivraison() {
   }
   // Dédoublonnage propre des emails
   emailDest = Array.from(new Set(emailDest.split(';').map(e => e.trim()).filter(Boolean))).join(';');
-  const equipe = typeof CURRENT_EQUIPE !== 'undefined' ? CURRENT_EQUIPE : 'A';
+  const equipe = typeof CURRENT_EQUIPE !== 'undefined' ? CURRENT_EQUIPE : 'A1';
   const dateStr = new Date(debut).toLocaleString('fr-FR', {
     weekday: 'long', day: '2-digit', month: 'long', year: 'numeric',
     hour: '2-digit', minute: '2-digit'
@@ -13831,7 +13910,7 @@ function pointerAnomalieItem(key, immat, extraChauffeur = '', extraLieu = '') {
     const r = DB.dispo.find(x => x.v === immat);
     if (r) {
       if (!DB.anomaliesPointees) DB.anomaliesPointees = {};
-      const eq = typeof window.CURRENT_EQUIPE !== 'undefined' ? window.CURRENT_EQUIPE : 'A';
+      const eq = typeof window.CURRENT_EQUIPE !== 'undefined' ? window.CURRENT_EQUIPE : 'A1';
       DB.anomaliesPointees[r.v + '_' + today()] = {
         motif, detail, justif,
         ts: new Date().toISOString(),
@@ -13882,7 +13961,7 @@ function pointerAnomalieItem(key, immat, extraChauffeur = '', extraLieu = '') {
     }
   } else if (key.startsWith('viol_')) {
     if (!DB.anomaliesPointees) DB.anomaliesPointees = {};
-    const eq = typeof window.CURRENT_EQUIPE !== 'undefined' ? window.CURRENT_EQUIPE : 'A';
+    const eq = typeof window.CURRENT_EQUIPE !== 'undefined' ? window.CURRENT_EQUIPE : 'A1';
     const pkey = 'viol_' + immat + '_' + extraChauffeur + '_' + extraLieu.trim().toUpperCase() + '_' + today();
     DB.anomaliesPointees[pkey] = {
       motif: 'Blacklist',
@@ -14172,7 +14251,7 @@ function validerToutPointage() {
   document.getElementById('modal-pointage-anomalies').style.display = 'none';
   _setActionsBloqueesPointage(false);
   if (typeof tracerAction === 'function') {
-    tracerAction('POINTAGE', 'VALIDATION_POINTAGE', `Équipe ${window.CURRENT_EQUIPE || 'A'}`, 'Pointage matinal validé — toutes anomalies traitées', window.CURRENT_EQUIPE);
+    tracerAction('POINTAGE', 'VALIDATION_POINTAGE', `Équipe ${window.CURRENT_EQUIPE || 'A1'}`, 'Pointage matinal validé — toutes anomalies traitées', window.CURRENT_EQUIPE);
   }
   showToast('✅ Pointage terminé — toutes les anomalies ont été traitées');
   renderDispo(true);
@@ -14208,9 +14287,9 @@ function actualiserApercuZapAnomalies() {
   const choice = sel.value;
   let targetTeams = [];
   if (choice === 'CURRENT') {
-    targetTeams = [window.CURRENT_EQUIPE || 'A'];
+    targetTeams = [window.CURRENT_EQUIPE || 'A1'];
   } else if (choice === 'ALL') {
-    targetTeams = ['A', 'B', 'C', 'D'];
+    targetTeams = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2', 'D1', 'D2'];
   } else {
     targetTeams = [choice];
   }
@@ -14219,7 +14298,7 @@ function actualiserApercuZapAnomalies() {
   let html = '';
   
   targetTeams.forEach(eq => {
-    const isCurrent = (eq === (window.CURRENT_EQUIPE || 'A'));
+    const isCurrent = (eq === (window.CURRENT_EQUIPE || 'A1'));
     const tDB = isCurrent ? window.DB : (window['DB_' + eq] || (typeof emptyTeamData === 'function' ? emptyTeamData() : { dispo: [] }));
     const anoms = (typeof getAnomaliesAPointer === 'function') ? getAnomaliesAPointer(tDB) : [];
     const viols = (typeof getBlacklistViolations === 'function') ? getBlacklistViolations(tDB) : [];
@@ -14285,7 +14364,7 @@ async function zapperAnomaliesPourEquipe(eq) {
   }
   
   const todayStr = (typeof today === 'function') ? today() : new Date().toISOString().split('T')[0];
-  const isCurrent = (eq === (window.CURRENT_EQUIPE || 'A'));
+  const isCurrent = (eq === (window.CURRENT_EQUIPE || 'A1'));
   const targetDB = isCurrent ? window.DB : (window['DB_' + eq] || (typeof cloneTeamData === 'function' ? cloneTeamData(window['DB_' + eq], emptyTeamData()) : { dispo: [] }));
   if (!targetDB || !targetDB.dispo) return 0;
   
@@ -14427,9 +14506,9 @@ async function confirmerZapAnomaliesRex() {
   const choice = sel ? sel.value : 'CURRENT';
   let targetTeams = [];
   if (choice === 'CURRENT') {
-    targetTeams = [window.CURRENT_EQUIPE || 'A'];
+    targetTeams = [window.CURRENT_EQUIPE || 'A1'];
   } else if (choice === 'ALL') {
-    targetTeams = ['A', 'B', 'C', 'D'];
+    targetTeams = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2', 'D1', 'D2'];
   } else {
     targetTeams = [choice];
   }
@@ -14468,7 +14547,7 @@ async function adminZapperAnomaliesDirect() {
     return;
   }
   
-  const eq = window.CURRENT_EQUIPE || 'A';
+  const eq = window.CURRENT_EQUIPE || 'A1';
   if (!confirm(`⚡ Valider immédiatement toutes les anomalies de l'Équipe ${eq} avec la mention "pointage REX validé" ?\n\nLe chef d'équipe sera instantanément débloqué.`)) return;
   
   const nb = await zapperAnomaliesPourEquipe(eq);
@@ -14499,7 +14578,7 @@ function renderHistoriqueAnomalies() {
 
   // Collecter toutes les anomalies pointées de toutes les équipes
   const all = [];
-  ['A', 'B', 'C', 'D'].forEach(eq => {
+  ['A1', 'A2', 'B1', 'B2', 'C1', 'C2', 'D1', 'D2'].forEach(eq => {
     const dbEq = window['DB_' + eq] || (eq === (window.CURRENT_EQUIPE||'A') ? window.DB : null);
     if (!dbEq || !dbEq.anomaliesPointees) return;
     Object.entries(dbEq.anomaliesPointees).forEach(([k, v]) => {
@@ -14508,7 +14587,7 @@ function renderHistoriqueAnomalies() {
   });
   // Aussi DB actif
   if (window.DB && window.DB.anomaliesPointees) {
-    const eq = window.CURRENT_EQUIPE || 'A';
+    const eq = window.CURRENT_EQUIPE || 'A1';
     Object.entries(window.DB.anomaliesPointees).forEach(([k, v]) => {
       if (!all.find(a => a.key === k)) all.push({ ...v, equipe: v.equipe || eq, key: k });
     });
@@ -14806,7 +14885,7 @@ function updateGpsModalUI() {
 
     <div style="background:rgba(245,158,11,0.08);border:1px solid rgba(245,158,11,0.3);border-radius:10px;padding:12px 16px;margin-bottom:16px;text-align:center;width:100%;box-sizing:border-box">
       <div style="font-size:11px;font-weight:700;color:#f59e0b;margin-bottom:8px">⭐ GLISSEZ CE BOUTON DANS VOTRE BARRE DE FAVORIS :</div>
-      <a href="javascript:(async()=>{const SUPABASE_URL='https://mfljrozyxyfkymzlnsmt.supabase.co';const SUPABASE_KEY='sb_publishable_sMb9uHOr4gpyqmZGrkY-YQ_z90TgNAB';const today=new Date().toISOString().split('T')[0];const syncIso=new Date().toISOString();const normPlate=(s)=>(s||'').replace(/[^A-Z0-9]/gi,'').toUpperCase();try{const isIdeGps=window.location.hostname.includes('idegps.com');const isGeolocDz=window.location.hostname.includes('geoloc.dz');if(!(isIdeGps||isGeolocDz)){alert('❌ Veuillez ouvrir idegps.com/map ou web3.geoloc.dz');return;}let token=sessionStorage.getItem('numiplan_sb_token');let tokenExpiry=sessionStorage.getItem('numiplan_sb_token_expiry');if(!token||!tokenExpiry||Date.now()>parseInt(tokenExpiry)){console.log('🔑 Auth Supabase...');const loginRes=await fetch(SUPABASE_URL+'/auth/v1/token?grant_type=password',{method:'POST',headers:{'apikey':SUPABASE_KEY,'Content-Type':'application/json'},body:JSON.stringify({email:'admin@sharik.numilog.com',password:'Sharik@admin'})});if(!loginRes.ok){const errText=await loginRes.text();if(loginRes.status===429||errText.includes('rate_limit')){throw new Error('Limite de connexions Supabase atteinte (Rate Limit). Veuillez patienter 5 minutes.');}throw new Error('Auth Supabase echouee: '+errText);}const loginData=await loginRes.json();token=loginData.access_token;sessionStorage.setItem('numiplan_sb_token',token);sessionStorage.setItem('numiplan_sb_token_expiry',(Date.now()+3500000).toString());}const supabaseHeaders={'apikey':SUPABASE_KEY,'Authorization':'Bearer '+token,'Content-Type':'application/json'};let fleet=[];let providerName='';if(isIdeGps){providerName='IdeGPS';const params=new URLSearchParams();params.append('driver','1');params.append('user_name',window.mData?.user_name||'K.LAHOUEL');params.append('gps_ids',Object.keys(window.mData?.cars||{}).join(','));const gpsRes=await fetch('https://idegps.com/api/map/position',{method:'POST',body:params});if(!gpsRes.ok)throw new Error('Votre session IdeGPS a expiree. Veuillez vous reconnecter sur le site.');const gpsText=await gpsRes.text();if(gpsText.trim().startsWith('<'))throw new Error('Votre session IdeGPS a expiree.');const result=JSON.parse(gpsText);fleet=(result.fleet||[]).map(car=>{const p=car.position||{};const rawLat=p.LAT??p.latitude??p.lat??null;const rawLng=p.LNG??p.longitude??p.lng??p.LON??p.lon??null;const lat=(rawLat!==null&&rawLat!=='')?parseFloat(rawLat):null;const lng=(rawLng!==null&&rawLng!=='')?parseFloat(rawLng):null;return{immat:(car.gps_alias||'').trim().toUpperCase(),lat:(!isNaN(lat)?lat:null),lng:(!isNaN(lng)?lng:null),gps_date:syncIso};});if(window.mData?window.mData.pois:false){console.log('💾 Synchro POI IdeGPS...');const poisRaw=Object.values(window.mData.pois);const poiList=poisRaw.map(poi=>{if(poi.points?poi.points.length>=2:false){let sumLat=0,sumLng=0,count=0;for(let i=0;poi.points.length>i;i+=2){sumLng+=poi.points[i];sumLat+=poi.points[i+1];count++;}if(count>0){return{name:(poi.name||poi.description||'').trim(),lat:sumLat/count,lng:sumLng/count,radius:Math.max(poi.buffer?parseFloat(poi.buffer):300,200)};}}return null;}).filter(Boolean);const uniquePois=Object.values(poiList.reduce((acc,poi)=>{if(poi.name)acc[poi.name]=poi;return acc;},{}));if(uniquePois.length>0){const resPoi=await fetch(SUPABASE_URL+'/rest/v1/np_pois?on_conflict=name',{method:'POST',headers:{...supabaseHeaders,Prefer:'resolution=merge-duplicates'},body:JSON.stringify(uniquePois)});if(!resPoi.ok){const errText=await resPoi.text();throw new Error('Synchro POI echouee: '+errText);}} } } else if(isGeolocDz){providerName='Geoloc.dz';const apiToken=localStorage.getItem('api_token')||sessionStorage.getItem('api_token')||'';const authHeader=apiToken.startsWith('Bearer ')?apiToken:'Bearer '+apiToken;const xsrfCookie=document.cookie.split('; ').find(row=>row.startsWith('XSRF-TOKEN='));const xsrfToken=xsrfCookie?decodeURIComponent(xsrfCookie.split('=')[1]):'';const res=await fetch('/geoBackend/api/floot/getFloot',{method:'POST',headers:{'Content-Type':'application/json','Authorization':authHeader,'X-XSRF-TOKEN':xsrfToken,'X-Requested-With':'XMLHttpRequest'},body:JSON.stringify({groupes:'[902,924,905]',recherche:'',details:0})});if(!res.ok)throw new Error('Votre session Geoloc.dz a expiree.');const resText=await res.text();if(resText.trim().startsWith('<'))throw new Error('Votre session Geoloc.dz a expiree.');const result=JSON.parse(resText);fleet=(result.data||[]).map(car=>{const lat=car.latitude?parseFloat(car.latitude):null;const lng=car.longitude?parseFloat(car.longitude):null;return{immat:(car.matricule||'').trim().toUpperCase(),lat:(!isNaN(lat)?lat:null),lng:(!isNaN(lng)?lng:null),gps_date:syncIso};});try{const poiRes=await fetch('/geoBackend/api/point/getInterestingPoints',{method:'POST',headers:{'Content-Type':'application/json','Authorization':authHeader,'X-XSRF-TOKEN':xsrfToken,'X-Requested-With':'XMLHttpRequest'},body:JSON.stringify({recherche:'',details:1})});if(poiRes.ok){const poiText=await poiRes.text();if(!poiText.trim().startsWith('<')){const poiResult=JSON.parse(poiText);const poiData=poiResult.data?poiResult.data:poiResult;const poiList=poiData.map(poi=>{if(poi.point_latitude!==null?poi.point_longitude!==null:false){return{name:(poi.point_designation||'').trim(),lat:parseFloat(poi.point_latitude),lng:parseFloat(poi.point_longitude),radius:Math.max(poi.point_radius?parseFloat(poi.point_radius):300,200)};}return null;}).filter(Boolean);const uniquePois=Object.values(poiList.reduce((acc,poi)=>{if(poi.name)acc[poi.name]=poi;return acc;},{}));if(uniquePois.length>0){await fetch(SUPABASE_URL+'/rest/v1/np_pois?on_conflict=name',{method:'POST',headers:{...supabaseHeaders,Prefer:'resolution=merge-duplicates'},body:JSON.stringify(uniquePois)});}}}}catch(e){console.error(e);} } console.log('Reçu '+fleet.length+' camions.');const dispoRes=await fetch(SUPABASE_URL+'/rest/v1/np_dispo?select=v',{headers:supabaseHeaders});if(!dispoRes.ok)throw new Error('Impossible de lire la liste des camions Numiplan');const dbDispos=await dispoRes.json();const activeTrucks={};dbDispos.forEach(row=>{const vRaw=(row.v||'').trim();const vNorm=normPlate(vRaw);if(vNorm)activeTrucks[vNorm]=vRaw;});let updatedCount=0;for(const car of fleet){const cNorm=normPlate(car.immat);const targetV=cNorm?activeTrucks[cNorm]:null;if(!targetV)continue;const hasGPSData=!(car.lat===null||car.lng===null);updatedCount++;const resDispo=await fetch(SUPABASE_URL+'/rest/v1/np_dispo?v=eq.'+encodeURIComponent(targetV),{method:'PATCH',headers:supabaseHeaders,body:JSON.stringify({geoloc:hasGPSData?'ON':'OFF',geoloc_date:car.gps_date||today,lat:car.lat,lng:car.lng})});if(!resDispo.ok){const errText=await resDispo.text();throw new Error('Synchro np_dispo '+targetV+' echouee: '+errText);}}try{const teams=['A', 'B', 'C', 'D'];const logs=teams.map(t=>({team:t,timestamp:String(Date.now()),type:'GPS_SYNC',target:providerName,user_login:'bookmarklet',detail:{provider:providerName,updated_count:updatedCount}}));await fetch(SUPABASE_URL+'/rest/v1/np_tracabilite',{method:'POST',headers:supabaseHeaders,body:JSON.stringify(logs)});}catch(eLog){console.error(eLog);}const timeStr=new Date().toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'});try{let b=document.getElementById('numiplan-gps-banner');if(!b){b=document.createElement('div');b.id='numiplan-gps-banner';b.style.cssText='position:fixed;top:15px;right:15px;z-index:9999999;background:#0f172a;color:#22c55e;border:2px solid #22c55e;border-radius:10px;padding:12px 20px;font-family:sans-serif;font-size:13px;font-weight:700;box-shadow:0 8px 30px rgba(0,0,0,0.6);';document.body.appendChild(b);}b.innerHTML='🛰️ Synchro '+providerName+' Active ('+updatedCount+' camions mis à jour à '+timeStr+')';}catch(eB){}alert('✅ Synchronisation '+providerName+' réussie ! '+updatedCount+' camions actifs mis à jour sur '+fleet.length+' trouvés à '+timeStr+'.');}catch(err){alert('❌ ' + err.message);}})();" class="btn" style="background:#f59e0b;color:#000;font-weight:900;padding:10px 20px;border-radius:8px;text-decoration:none;display:inline-flex;align-items:center;gap:8px;font-size:13px;cursor:grab;box-shadow:0 4px 15px rgba(245,158,11,0.4)" title="Glissez ce bouton vers votre barre de favoris Chrome">
+      <a href="javascript:(async()=>{const SUPABASE_URL='https://mfljrozyxyfkymzlnsmt.supabase.co';const SUPABASE_KEY='sb_publishable_sMb9uHOr4gpyqmZGrkY-YQ_z90TgNAB';const today=new Date().toISOString().split('T')[0];const syncIso=new Date().toISOString();const normPlate=(s)=>(s||'').replace(/[^A-Z0-9]/gi,'').toUpperCase();try{const isIdeGps=window.location.hostname.includes('idegps.com');const isGeolocDz=window.location.hostname.includes('geoloc.dz');if(!(isIdeGps||isGeolocDz)){alert('❌ Veuillez ouvrir idegps.com/map ou web3.geoloc.dz');return;}let token=sessionStorage.getItem('numiplan_sb_token');let tokenExpiry=sessionStorage.getItem('numiplan_sb_token_expiry');if(!token||!tokenExpiry||Date.now()>parseInt(tokenExpiry)){console.log('🔑 Auth Supabase...');const loginRes=await fetch(SUPABASE_URL+'/auth/v1/token?grant_type=password',{method:'POST',headers:{'apikey':SUPABASE_KEY,'Content-Type':'application/json'},body:JSON.stringify({email:'admin@sharik.numilog.com',password:'Sharik@admin'})});if(!loginRes.ok){const errText=await loginRes.text();if(loginRes.status===429||errText.includes('rate_limit')){throw new Error('Limite de connexions Supabase atteinte (Rate Limit). Veuillez patienter 5 minutes.');}throw new Error('Auth Supabase echouee: '+errText);}const loginData=await loginRes.json();token=loginData.access_token;sessionStorage.setItem('numiplan_sb_token',token);sessionStorage.setItem('numiplan_sb_token_expiry',(Date.now()+3500000).toString());}const supabaseHeaders={'apikey':SUPABASE_KEY,'Authorization':'Bearer '+token,'Content-Type':'application/json'};let fleet=[];let providerName='';if(isIdeGps){providerName='IdeGPS';const params=new URLSearchParams();params.append('driver','1');params.append('user_name',window.mData?.user_name||'K.LAHOUEL');params.append('gps_ids',Object.keys(window.mData?.cars||{}).join(','));const gpsRes=await fetch('https://idegps.com/api/map/position',{method:'POST',body:params});if(!gpsRes.ok)throw new Error('Votre session IdeGPS a expiree. Veuillez vous reconnecter sur le site.');const gpsText=await gpsRes.text();if(gpsText.trim().startsWith('<'))throw new Error('Votre session IdeGPS a expiree.');const result=JSON.parse(gpsText);fleet=(result.fleet||[]).map(car=>{const p=car.position||{};const rawLat=p.LAT??p.latitude??p.lat??null;const rawLng=p.LNG??p.longitude??p.lng??p.LON??p.lon??null;const lat=(rawLat!==null&&rawLat!=='')?parseFloat(rawLat):null;const lng=(rawLng!==null&&rawLng!=='')?parseFloat(rawLng):null;return{immat:(car.gps_alias||'').trim().toUpperCase(),lat:(!isNaN(lat)?lat:null),lng:(!isNaN(lng)?lng:null),gps_date:syncIso};});if(window.mData?window.mData.pois:false){console.log('💾 Synchro POI IdeGPS...');const poisRaw=Object.values(window.mData.pois);const poiList=poisRaw.map(poi=>{if(poi.points?poi.points.length>=2:false){let sumLat=0,sumLng=0,count=0;for(let i=0;poi.points.length>i;i+=2){sumLng+=poi.points[i];sumLat+=poi.points[i+1];count++;}if(count>0){return{name:(poi.name||poi.description||'').trim(),lat:sumLat/count,lng:sumLng/count,radius:Math.max(poi.buffer?parseFloat(poi.buffer):300,200)};}}return null;}).filter(Boolean);const uniquePois=Object.values(poiList.reduce((acc,poi)=>{if(poi.name)acc[poi.name]=poi;return acc;},{}));if(uniquePois.length>0){const resPoi=await fetch(SUPABASE_URL+'/rest/v1/np_pois?on_conflict=name',{method:'POST',headers:{...supabaseHeaders,Prefer:'resolution=merge-duplicates'},body:JSON.stringify(uniquePois)});if(!resPoi.ok){const errText=await resPoi.text();throw new Error('Synchro POI echouee: '+errText);}} } } else if(isGeolocDz){providerName='Geoloc.dz';const apiToken=localStorage.getItem('api_token')||sessionStorage.getItem('api_token')||'';const authHeader=apiToken.startsWith('Bearer ')?apiToken:'Bearer '+apiToken;const xsrfCookie=document.cookie.split('; ').find(row=>row.startsWith('XSRF-TOKEN='));const xsrfToken=xsrfCookie?decodeURIComponent(xsrfCookie.split('=')[1]):'';const res=await fetch('/geoBackend/api/floot/getFloot',{method:'POST',headers:{'Content-Type':'application/json','Authorization':authHeader,'X-XSRF-TOKEN':xsrfToken,'X-Requested-With':'XMLHttpRequest'},body:JSON.stringify({groupes:'[902,924,905]',recherche:'',details:0})});if(!res.ok)throw new Error('Votre session Geoloc.dz a expiree.');const resText=await res.text();if(resText.trim().startsWith('<'))throw new Error('Votre session Geoloc.dz a expiree.');const result=JSON.parse(resText);fleet=(result.data||[]).map(car=>{const lat=car.latitude?parseFloat(car.latitude):null;const lng=car.longitude?parseFloat(car.longitude):null;return{immat:(car.matricule||'').trim().toUpperCase(),lat:(!isNaN(lat)?lat:null),lng:(!isNaN(lng)?lng:null),gps_date:syncIso};});try{const poiRes=await fetch('/geoBackend/api/point/getInterestingPoints',{method:'POST',headers:{'Content-Type':'application/json','Authorization':authHeader,'X-XSRF-TOKEN':xsrfToken,'X-Requested-With':'XMLHttpRequest'},body:JSON.stringify({recherche:'',details:1})});if(poiRes.ok){const poiText=await poiRes.text();if(!poiText.trim().startsWith('<')){const poiResult=JSON.parse(poiText);const poiData=poiResult.data?poiResult.data:poiResult;const poiList=poiData.map(poi=>{if(poi.point_latitude!==null?poi.point_longitude!==null:false){return{name:(poi.point_designation||'').trim(),lat:parseFloat(poi.point_latitude),lng:parseFloat(poi.point_longitude),radius:Math.max(poi.point_radius?parseFloat(poi.point_radius):300,200)};}return null;}).filter(Boolean);const uniquePois=Object.values(poiList.reduce((acc,poi)=>{if(poi.name)acc[poi.name]=poi;return acc;},{}));if(uniquePois.length>0){await fetch(SUPABASE_URL+'/rest/v1/np_pois?on_conflict=name',{method:'POST',headers:{...supabaseHeaders,Prefer:'resolution=merge-duplicates'},body:JSON.stringify(uniquePois)});}}}}catch(e){console.error(e);} } console.log('Reçu '+fleet.length+' camions.');const dispoRes=await fetch(SUPABASE_URL+'/rest/v1/np_dispo?select=v',{headers:supabaseHeaders});if(!dispoRes.ok)throw new Error('Impossible de lire la liste des camions Numiplan');const dbDispos=await dispoRes.json();const activeTrucks={};dbDispos.forEach(row=>{const vRaw=(row.v||'').trim();const vNorm=normPlate(vRaw);if(vNorm)activeTrucks[vNorm]=vRaw;});let updatedCount=0;for(const car of fleet){const cNorm=normPlate(car.immat);const targetV=cNorm?activeTrucks[cNorm]:null;if(!targetV)continue;const hasGPSData=!(car.lat===null||car.lng===null);updatedCount++;const resDispo=await fetch(SUPABASE_URL+'/rest/v1/np_dispo?v=eq.'+encodeURIComponent(targetV),{method:'PATCH',headers:supabaseHeaders,body:JSON.stringify({geoloc:hasGPSData?'ON':'OFF',geoloc_date:car.gps_date||today,lat:car.lat,lng:car.lng})});if(!resDispo.ok){const errText=await resDispo.text();throw new Error('Synchro np_dispo '+targetV+' echouee: '+errText);}}try{const teams=['A1', 'A2', 'B1', 'B2', 'C1', 'C2', 'D1', 'D2'];const logs=teams.map(t=>({team:t,timestamp:String(Date.now()),type:'GPS_SYNC',target:providerName,user_login:'bookmarklet',detail:{provider:providerName,updated_count:updatedCount}}));await fetch(SUPABASE_URL+'/rest/v1/np_tracabilite',{method:'POST',headers:supabaseHeaders,body:JSON.stringify(logs)});}catch(eLog){console.error(eLog);}const timeStr=new Date().toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'});try{let b=document.getElementById('numiplan-gps-banner');if(!b){b=document.createElement('div');b.id='numiplan-gps-banner';b.style.cssText='position:fixed;top:15px;right:15px;z-index:9999999;background:#0f172a;color:#22c55e;border:2px solid #22c55e;border-radius:10px;padding:12px 20px;font-family:sans-serif;font-size:13px;font-weight:700;box-shadow:0 8px 30px rgba(0,0,0,0.6);';document.body.appendChild(b);}b.innerHTML='🛰️ Synchro '+providerName+' Active ('+updatedCount+' camions mis à jour à '+timeStr+')';}catch(eB){}alert('✅ Synchronisation '+providerName+' réussie ! '+updatedCount+' camions actifs mis à jour sur '+fleet.length+' trouvés à '+timeStr+'.');}catch(err){alert('❌ ' + err.message);}})();" class="btn" style="background:#f59e0b;color:#000;font-weight:900;padding:10px 20px;border-radius:8px;text-decoration:none;display:inline-flex;align-items:center;gap:8px;font-size:13px;cursor:grab;box-shadow:0 4px 15px rgba(245,158,11,0.4)" title="Glissez ce bouton vers votre barre de favoris Chrome">
         🌟 Favori GPS (Glissez-moi)
       </a>
     </div>
@@ -14935,7 +15014,7 @@ function checkPointageRequired() {
   }
 
   // 4. Si l'équipe active n'est pas celle verrouillée (mode lecture seule), pas de blocage
-  const eq = typeof window.CURRENT_EQUIPE !== 'undefined' ? window.CURRENT_EQUIPE : 'A';
+  const eq = typeof window.CURRENT_EQUIPE !== 'undefined' ? window.CURRENT_EQUIPE : 'A1';
   const isReadOnly = lock !== eq;
   if (isReadOnly) {
     _setActionsBloqueesPointage(false);
@@ -15203,7 +15282,7 @@ function shouldUpdateLieuJ1Initial(r, newVal) {
   if (!r.lieuJ1_initial || r.lieuJ1_initial === '—') return true;
   if (!newVal || newVal === '—') return true;
 
-  const eq = typeof window.CURRENT_EQUIPE !== 'undefined' ? window.CURRENT_EQUIPE : 'A';
+  const eq = typeof window.CURRENT_EQUIPE !== 'undefined' ? window.CURRENT_EQUIPE : 'A1';
   const basculeKey = 'numiplan_last_bascule_' + eq;
   const lastBascule = DB.last_bascule || localStorage.getItem(basculeKey);
   if (!lastBascule) return false;
@@ -15241,7 +15320,7 @@ window.isBlAlertPending = isBlAlertPending;
 
 function alignDriversBlTeams() {
   if (typeof CURRENT_EQUIPE === 'undefined') return;
-  const teams = ['A', 'B', 'C', 'D'];
+  const teams = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2', 'D1', 'D2'];
   
   // 1. Map each unique driver to their current team based on dispo
   const driverToActiveTeam = {};
@@ -15458,7 +15537,7 @@ function validerReponseBL(idx, chauffeur, month) {
     return;
   }
   
-  const eq = typeof window.CURRENT_EQUIPE !== 'undefined' ? window.CURRENT_EQUIPE : 'A';
+  const eq = typeof window.CURRENT_EQUIPE !== 'undefined' ? window.CURRENT_EQUIPE : 'A1';
   if (DB && DB.bl) {
     const row = DB.bl.find(r => r.chauffeur.toUpperCase() === chauffeur.toUpperCase());
     if (row) {
@@ -15514,7 +15593,7 @@ window.ouvrirPointageKpiAtelier = ouvrirPointageKpiAtelier;
 function ouvrirListeExtensions() {
   const extDrivers = new Map();
   const driverCounts = {};
-  const teams = ['A', 'B', 'C', 'D'];
+  const teams = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2', 'D1', 'D2'];
   teams.forEach(eq => {
     const db = window['DB_' + eq];
     if (db && db.dispo) {
@@ -15528,7 +15607,7 @@ function ouvrirListeExtensions() {
     }
   });
   
-  const currentEq = CURRENT_EQUIPE || 'A';
+  const currentEq = CURRENT_EQUIPE || 'A1';
   const currentEqDb = window['DB_' + currentEq];
   const currentEqDrivers = new Set();
   if (currentEqDb && currentEqDb.dispo) {
@@ -15546,7 +15625,7 @@ function ouvrirListeExtensions() {
     }
   }
   
-  const team = CURRENT_EQUIPE || 'A';
+  const team = CURRENT_EQUIPE || 'A1';
   const teamSpan = document.getElementById('ext-team-name');
   if (teamSpan) teamSpan.textContent = team;
   
@@ -15604,7 +15683,7 @@ function renderKpiPointageList() {
   const closeBtn = document.getElementById('kpi-close-btn');
   if (closeBtn) {
     const lock = sessionStorage.getItem('numiplan_team_lock');
-    const eq = typeof window.CURRENT_EQUIPE !== 'undefined' ? window.CURRENT_EQUIPE : 'A';
+    const eq = typeof window.CURRENT_EQUIPE !== 'undefined' ? window.CURRENT_EQUIPE : 'A1';
     const isBlocked = lock && (typeof isTeamAllowed === 'function' ? isTeamAllowed(eq) : lock === eq) && getBlockingKpis().length > 0;
     const shiftState = getKpiShiftState();
     if (isBlocked && !shiftState.isCloseAllowed) {
@@ -15755,7 +15834,7 @@ window.voirHistoriqueKpi = voirHistoriqueKpi;
 // Lieu J+1 devient Lieu Jour, Lieu J+1 se vide
 // ═══════════════════════════════════════════════════════════════
 function basculerJournee() {
-  const eq = typeof window.CURRENT_EQUIPE !== 'undefined' ? window.CURRENT_EQUIPE : 'A';
+  const eq = typeof window.CURRENT_EQUIPE !== 'undefined' ? window.CURRENT_EQUIPE : 'A1';
   const lock = sessionStorage.getItem('numiplan_team_lock');
   if (lock && typeof isTeamAllowed === 'function' && !isTeamAllowed(eq)) {
     if (typeof showToast === 'function') {
@@ -15836,7 +15915,7 @@ function basculerJournee() {
 }
 
 function _doBascule() {
-  const eq = typeof window.CURRENT_EQUIPE !== 'undefined' ? window.CURRENT_EQUIPE : 'A';
+  const eq = typeof window.CURRENT_EQUIPE !== 'undefined' ? window.CURRENT_EQUIPE : 'A1';
   const todayStr = today();
   
   // ── ARCHIVAGE AUTOMATIQUE DU JOUR AVANT LA BASCULE ──
@@ -15891,7 +15970,7 @@ function _doBascule() {
 
 // Auto-proposition de bascule si nouvelle journée — par équipe
 function checkBascule() {
-  const eq = typeof window.CURRENT_EQUIPE !== 'undefined' ? window.CURRENT_EQUIPE : 'A';
+  const eq = typeof window.CURRENT_EQUIPE !== 'undefined' ? window.CURRENT_EQUIPE : 'A1';
   const basculeKey = 'numiplan_last_bascule_' + eq;
   const lastDate = localStorage.getItem(basculeKey);
   const dbLastBascule = (DB && DB.last_bascule) || (window['DB_' + eq] && window['DB_' + eq].last_bascule);
@@ -15943,7 +16022,7 @@ function saveInlineInput(el) {
   if (oldVal !== val && typeof tracerAction === 'function') {
     tracerAction('DISPO', 'MODIF_' + field.toUpperCase(), immat, `${field === 'lieuJ' ? 'Lieu Jour' : 'Lieu J+1'} : "${oldVal || '—'}" ➔ "${val}"`, window.CURRENT_EQUIPE);
   }
-  const currentTeam = window.CURRENT_EQUIPE || 'A';
+  const currentTeam = window.CURRENT_EQUIPE || 'A1';
   if (!window._lastLocalSaveTs) window._lastLocalSaveTs = {};
   window._lastLocalSaveTs[currentTeam] = nowTs;
   window._lastUserInteractionTs = nowTs;
@@ -15994,7 +16073,7 @@ function saveInline(el) {
       tracerAction('DISPO', 'MODIF_' + field.toUpperCase(), immat, `${field} : "${oldVal || '—'}" ➔ "${val}"`, window.CURRENT_EQUIPE);
     }
   }
-  const currentTeam = window.CURRENT_EQUIPE || 'A';
+  const currentTeam = window.CURRENT_EQUIPE || 'A1';
   if (!window._lastLocalSaveTs) window._lastLocalSaveTs = {};
   window._lastLocalSaveTs[currentTeam] = nowTs;
   window._lastUserInteractionTs = nowTs;
@@ -16411,19 +16490,26 @@ const _origSavePanne = savePanne;
 // ════════════════════════════════════════════════════════════
 // DONNÉES PAR ÉQUIPE (caches locaux)
 // ════════════════════════════════════════════════════════════
-const DB_B = emptyTeamData();
-const DB_A = emptyTeamData();
-window.DB_A = DB_A;
-const DB_C = emptyTeamData();
-const DB_D = emptyTeamData();
+const DB_A1 = emptyTeamData(); window.DB_A1 = DB_A1;
+const DB_A2 = emptyTeamData(); window.DB_A2 = DB_A2;
+const DB_B1 = emptyTeamData(); window.DB_B1 = DB_B1;
+const DB_B2 = emptyTeamData(); window.DB_B2 = DB_B2;
+const DB_C1 = emptyTeamData(); window.DB_C1 = DB_C1;
+const DB_C2 = emptyTeamData(); window.DB_C2 = DB_C2;
+const DB_D1 = emptyTeamData(); window.DB_D1 = DB_D1;
+const DB_D2 = emptyTeamData(); window.DB_D2 = DB_D2;
+const DB_A = DB_A1; window.DB_A = DB_A1;
+const DB_B = DB_B1; window.DB_B = DB_B1;
+const DB_C = DB_C1; window.DB_C = DB_C1;
+const DB_D = DB_D1; window.DB_D = DB_D1;
 
-let CURRENT_EQUIPE = 'A';
-window.CURRENT_EQUIPE = 'A';
+let CURRENT_EQUIPE = 'A1';
+window.CURRENT_EQUIPE = 'A1';
 
 function switchEquipe(eq) {
   const lock = sessionStorage.getItem('numiplan_team_lock');
   if (lock && lock !== 'BL' && lock !== 'DIR') {
-    const allowed = (lock === 'ALL' || lock === '*') ? ['A', 'B', 'C', 'D'] : lock.split(/[,;\s\/\-]+/).map(x => x.trim().toUpperCase()).filter(Boolean);
+    const allowed = (lock === 'ALL' || lock === '*') ? ['A1', 'A2', 'B1', 'B2', 'C1', 'C2', 'D1', 'D2'] : window.expandTeamLockList(lock);
     if (allowed.length > 0 && !allowed.includes(eq)) {
       console.warn(`[AUTH] Changement vers l'équipe ${eq} bloqué par Supabase (autorisé: ${allowed.join(',')}) -> redirection vers ${allowed[0]}`);
       eq = allowed[0];
@@ -16466,7 +16552,7 @@ function switchEquipe(eq) {
   if (PERF_RAW && PERF_RAW.length > 0) setTimeout(buildPerfRows, 50);
 
   // Update buttons
-  ['A', 'B', 'C', 'D'].forEach(e => {
+  ['A1', 'A2', 'B1', 'B2', 'C1', 'C2', 'D1', 'D2'].forEach(e => {
     const btn = document.getElementById('btn-eq'+e);
     if (!btn) return;
     btn.style.background = eq===e ? 'var(--acc)' : 'transparent';
@@ -16564,7 +16650,7 @@ async function exportNumiflow() {
 
   // ── ARCHIVAGE AUTOMATIQUE avant export ──────────────────────────
   const _d    = today();
-  const _eq   = CURRENT_EQUIPE || 'A';
+  const _eq   = CURRENT_EQUIPE || 'A1';
   const _snap = {
     dispo:      JSON.parse(JSON.stringify(DB.dispo   || [])),
     pannes:     JSON.parse(JSON.stringify(DB.pannes  || [])),
@@ -16596,7 +16682,7 @@ async function exportNumiflow() {
     });
   }
 
-  const equipe = CURRENT_EQUIPE || 'A';
+  const equipe = CURRENT_EQUIPE || 'A1';
   const rows = DB.dispo || [];
 
   // En-têtes exactes du canvas
@@ -16694,7 +16780,7 @@ async function exportNumiflow() {
       `✅ <b>Fichier téléchargé</b>&nbsp;: <code style="font-size:11px">DISPO_EQ${equipe}_${todayStr}.xlsx</code><br><br>${_archMsg}`;
   }
   // ── Marquer l'export comme effectué pour cette journée (par équipe) ──
-  const _exportKey = 'numiplan_last_export_' + (CURRENT_EQUIPE || 'A');
+  const _exportKey = 'numiplan_last_export_' + (CURRENT_EQUIPE || 'A1');
   localStorage.setItem(_exportKey, today());
 
   // ── Lancement automatique de l'extraction complète des données ──────
@@ -16780,7 +16866,7 @@ async function exportAllData() {
     XLSX.utils.book_append_sheet(wb, ws, name);
   }
 
-  ['A', 'B', 'C', 'D'].forEach(eq => {
+  ['A1', 'A2', 'B1', 'B2', 'C1', 'C2', 'D1', 'D2'].forEach(eq => {
     const src = sources[eq];
     if (!src) return;
 
@@ -16960,7 +17046,7 @@ async function exportAllData() {
   const metaWs = XLSX.utils.aoa_to_sheet([
     ['NUMILOG — Extraction complète des données'],
     ['Date export', new Date().toLocaleString('fr-FR')],
-    ['Équipes exportées', ['A', 'B', 'C', 'D'].filter(eq => sources[eq]).join(', ')],
+    ['Équipes exportées', ['A1', 'A2', 'B1', 'B2', 'C1', 'C2', 'D1', 'D2'].filter(eq => sources[eq]).join(', ')],
     [''],
     ['Feuilles incluses'],
     ['Dispo_A/B/C/D', 'Disponibilité véhicules — tous champs'],
@@ -17074,7 +17160,7 @@ async function runOdoExport() {
   if (isNaN(fi) || isNaN(ti) || ti < fi) return;
 
   const fmtW = w => new Date(w).toLocaleDateString('fr-FR', {day:'2-digit', month:'short', year:'numeric'});
-  const eq   = CURRENT_EQUIPE || 'A';
+  const eq   = CURRENT_EQUIPE || 'A1';
 
   const headers = ['Véhicule', 'Chauffeur', 'KM au ' + fmtW(weeks[fi]), 'KM au ' + fmtW(weeks[ti]), 'KM Parcourus', 'Orientation (KM)', 'A son compte (KM)', 'Autorisé (KM)', 'Statut'];
   const rows = [];
@@ -17142,7 +17228,7 @@ function buildTracteurEquipeMap() {
   const map = {};
   const dbs = { A: typeof DB_A!=='undefined'?DB_A:{}, B: typeof DB_B!=='undefined'?DB_B:{},
                 C: typeof DB_C!=='undefined'?DB_C:{}, D: typeof DB_D!=='undefined'?DB_D:{}, E: typeof DB_E!=='undefined'?DB_E:{}, F: typeof DB_F!=='undefined'?DB_F:{} };
-  ['A', 'B', 'C', 'D'].forEach(eq => {
+  ['A1', 'A2', 'B1', 'B2', 'C1', 'C2', 'D1', 'D2'].forEach(eq => {
     const db = window['DB_'+eq] || dbs[eq];
     if (!db || !db.dispo) return;
     db.dispo.forEach(r => { if (r.v) map[r.v] = eq; });
@@ -17240,7 +17326,7 @@ function buildPerfRows() {
   const weekEl = document.getElementById('perf-sel-week');
   if (!weekEl) return;
   const teMap  = buildTracteurEquipeMap();
-  const curEq  = (typeof window.CURRENT_EQUIPE!=='undefined') ? window.CURRENT_EQUIPE : 'A';
+  const curEq  = (typeof window.CURRENT_EQUIPE!=='undefined') ? window.CURRENT_EQUIPE : 'A1';
   const eqSet  = getEqTracteurs(curEq);
 
   // Filtre semaine
@@ -17483,7 +17569,7 @@ function checkKmBeforeExport() {
   if (new Date().getDay() !== 6) return true;
 
   // Vérifier uniquement l'équipe qui exporte
-  const _eq = (typeof window.CURRENT_EQUIPE !== 'undefined') ? window.CURRENT_EQUIPE : 'A';
+  const _eq = (typeof window.CURRENT_EQUIPE !== 'undefined') ? window.CURRENT_EQUIPE : 'A1';
   const _dbs = { A: typeof DB_A!=='undefined'?DB_A:null, B: typeof DB_B!=='undefined'?DB_B:null,
                  C: typeof DB_C!=='undefined'?DB_C:null, D: typeof DB_D!=='undefined'?DB_D:null, E: typeof DB_E!=='undefined'?DB_E:null, F: typeof DB_F!=='undefined'?DB_F:null };
   const _db = window['DB_'+_eq] || _dbs[_eq];
@@ -17538,7 +17624,7 @@ function getKmMissingByEquipe() {
     D: typeof DB_D !== 'undefined' ? DB_D : null,
   };
   const result = {};
-  ['A', 'B', 'C', 'D'].forEach(eq => {
+  ['A1', 'A2', 'B1', 'B2', 'C1', 'C2', 'D1', 'D2'].forEach(eq => {
     const db = window['DB_'+eq] || dbs[eq];
     if (!db || !db.dispo) { result[eq] = { missing: 0, total: 0 }; return; }
     const total = db.dispo.length;
@@ -17557,7 +17643,7 @@ function showKmHorairePopup() {
   const totalMissing = Object.values(stats).reduce((s, e) => s + e.missing, 0);
   if (totalMissing === 0) return; // tout OK, pas de popup
 
-  const rows = ['A', 'B', 'C', 'D'].map(eq => {
+  const rows = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2', 'D1', 'D2'].map(eq => {
     const { missing, total } = stats[eq];
     const pct = total > 0 ? Math.round((total - missing) / total * 100) : 100;
     const color = missing === 0 ? '#22c55e' : missing < 5 ? '#fbbf24' : '#ef4444';
@@ -17619,7 +17705,7 @@ function renderAnalytics() {
   const dateToStr = document.getElementById('an-date-to')?.value || '';
 
   const getChauffeurForVehicle = (vKey) => {
-    const teams = ['A', 'B', 'C', 'D'];
+    const teams = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2', 'D1', 'D2'];
     // 1. Try dispo tables first
     for (let eq of teams) {
       const db = (eq === CURRENT_EQUIPE && typeof DB !== 'undefined') ? DB : window['DB_' + eq];
@@ -17775,7 +17861,7 @@ function renderAnalytics() {
 
   // Collect and scan all tracabilite logs across all teams
   let allTracLogs = [];
-  const teams = ['A', 'B', 'C', 'D'];
+  const teams = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2', 'D1', 'D2'];
   teams.forEach(eq => {
     const db = (eq === CURRENT_EQUIPE && typeof DB !== 'undefined') ? DB : window['DB_' + eq];
     if (db && db.tracabilite) {
@@ -17917,7 +18003,7 @@ function renderAdminFlashList() {
   if (!body) return;
   
   const map = {};
-  ['A', 'B', 'C', 'D'].forEach(eq => {
+  ['A1', 'A2', 'B1', 'B2', 'C1', 'C2', 'D1', 'D2'].forEach(eq => {
     const db = window['DB_' + eq] || (eq === CURRENT_EQUIPE ? DB : null);
     if (db && db.flashInfos) {
       db.flashInfos.forEach(f => {
@@ -17964,7 +18050,7 @@ window.renderAdminFlashList = renderAdminFlashList;
 function supprimerFlashInfo(flashId) {
   if (!confirm('Supprimer ce Flash Info ? Il sera supprimé pour toutes les équipes cibles.')) return;
   
-  ['A', 'B', 'C', 'D'].forEach(eq => {
+  ['A1', 'A2', 'B1', 'B2', 'C1', 'C2', 'D1', 'D2'].forEach(eq => {
     const db = window['DB_' + eq] || (eq === CURRENT_EQUIPE ? DB : null);
     if (db && db.flashInfos) {
       const idx = db.flashInfos.findIndex(f => f.id === flashId);
@@ -18038,7 +18124,7 @@ function renderFlashInfos() {
   const container = document.getElementById('flash-infos-container');
   if (!container) return;
   
-  const eq = CURRENT_EQUIPE || 'A';
+  const eq = CURRENT_EQUIPE || 'A1';
   if (!DB.flashInfos) DB.flashInfos = [];
   
   const lock = sessionStorage.getItem('numiplan_team_lock');
@@ -18150,7 +18236,7 @@ function renderFlashInfos() {
 window.renderFlashInfos = renderFlashInfos;
 
 function emargerFlash(flashId) {
-  const eq = CURRENT_EQUIPE || 'A';
+  const eq = CURRENT_EQUIPE || 'A1';
   const flash = (DB.flashInfos || []).find(f => f.id === flashId);
   if (!flash) return;
   
@@ -18291,7 +18377,7 @@ window.ouvrirComplianceDashboard = function() {
 };
 
 window.renderComplianceDashboard = function() {
-  const teams = ['A', 'B', 'C', 'D'];
+  const teams = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2', 'D1', 'D2'];
   const body = document.getElementById('compliance-dashboard-body');
   if (!body) return;
   const cdDateFrom = document.getElementById('cd-date-from') ? document.getElementById('cd-date-from').value : '';
@@ -18457,7 +18543,7 @@ function verifierImmobilisationsActives(forceShow = false) {
   const activeImmos = DB.incidentsLivraison.filter(im => im.type === 'Immobilisation chez le client' && !im.fin);
   if (activeImmos.length === 0) return;
   
-  const eq = CURRENT_EQUIPE || 'A';
+  const eq = CURRENT_EQUIPE || 'A1';
   const now = Date.now();
   const lastShown = sessionStorage.getItem('immo_alert_last_shown_' + eq);
   
@@ -18514,7 +18600,7 @@ function verifierCspcNonTraite(forceShow = false) {
   });
   if (untreatedCspc.length === 0) return;
   
-  const eq = CURRENT_EQUIPE || 'A';
+  const eq = CURRENT_EQUIPE || 'A1';
   const now = Date.now();
   const lastShown = sessionStorage.getItem('cspc_alert_last_shown_' + eq);
   
@@ -18716,7 +18802,7 @@ function populateHistoryDateSelect() {
   const select = document.getElementById('history-date-select');
   if (!select) return;
   
-  const eq = typeof window.CURRENT_EQUIPE !== 'undefined' ? window.CURRENT_EQUIPE : 'A';
+  const eq = typeof window.CURRENT_EQUIPE !== 'undefined' ? window.CURRENT_EQUIPE : 'A1';
   const teamArchives = ARCHIVES[eq] || {};
   const dates = Object.keys(teamArchives).sort().reverse();
   
@@ -18736,7 +18822,7 @@ function populateHistoryDateSelect() {
 window.populateHistoryDateSelect = populateHistoryDateSelect;
 
 function selectHistoryDate(dateKey) {
-  const eq = typeof window.CURRENT_EQUIPE !== 'undefined' ? window.CURRENT_EQUIPE : 'A';
+  const eq = typeof window.CURRENT_EQUIPE !== 'undefined' ? window.CURRENT_EQUIPE : 'A1';
   if (!dateKey) {
     HISTORY_MODE = false;
     HISTORY_DATA = null;
@@ -18930,7 +19016,7 @@ async function renderPoiPage() {
   if (isRenderingPoiPage) return;
   isRenderingPoiPage = true;
   
-  const activeTeam = typeof window.CURRENT_EQUIPE !== 'undefined' ? window.CURRENT_EQUIPE : 'A';
+  const activeTeam = typeof window.CURRENT_EQUIPE !== 'undefined' ? window.CURRENT_EQUIPE : 'A1';
   if (!activeTeam) {
     isRenderingPoiPage = false;
     return;
@@ -19146,7 +19232,7 @@ async function saveNewPoi() {
   }
 }
 
-window.syncLiveGpsFromNpDispo = async function() { try { const normP = s => (s || '').replace(/[^A-Z0-9]/gi, '').toUpperCase(); const liveDispos = await poiSupabaseFetch('np_dispo?select=v,geoloc,geoloc_date,lat,lng'); if (!liveDispos || !liveDispos.length) return []; const activeGps = new Set(); const todayStr = new Date().toISOString().split('T')[0]; const todayTime = new Date(todayStr).getTime(); const liveMap = {}; liveDispos.forEach(d => { if (!d || !d.v) return; liveMap[normP(d.v)] = d; if (d.geoloc_date) { const gpsTime = new Date(d.geoloc_date).getTime(); const diffDays = Math.round((todayTime - gpsTime) / (1000 * 60 * 60 * 24)); if (diffDays <= 2) activeGps.add(d.v.trim().toUpperCase()); } }); window.ACTIVE_GPS_TRUCKS = activeGps; const teams = ['A', 'B', 'C', 'D']; let activeModified = false; teams.forEach(eq => { const db = (eq === window.CURRENT_EQUIPE && typeof window.DB !== 'undefined') ? window.DB : window['DB_' + eq]; if (db && db.dispo) { db.dispo.forEach(r => { if (!r || !r.v) return; const matchingLive = liveMap[normP(r.v)]; if (matchingLive) { const newGeoloc = matchingLive.geoloc || 'OFF'; const newGeolocDate = matchingLive.geoloc_date || null; const newLat = matchingLive.lat !== undefined ? matchingLive.lat : null; const newLng = matchingLive.lng !== undefined ? matchingLive.lng : null; if (r.geoloc !== newGeoloc || r.geolocDate !== newGeolocDate || r.lat !== newLat || r.lng !== newLng) { r.geoloc = newGeoloc; r.geolocDate = newGeolocDate; r.lat = newLat; r.lng = newLng; if (eq === window.CURRENT_EQUIPE) activeModified = true; } } }); } }); if (activeModified && typeof renderDispo === 'function') renderDispo(); return liveDispos; } catch (err) { console.warn('Erreur syncLiveGpsFromNpDispo:', err); return []; } };
+window.syncLiveGpsFromNpDispo = async function() { try { const normP = s => (s || '').replace(/[^A-Z0-9]/gi, '').toUpperCase(); const liveDispos = await poiSupabaseFetch('np_dispo?select=v,geoloc,geoloc_date,lat,lng'); if (!liveDispos || !liveDispos.length) return []; const activeGps = new Set(); const todayStr = new Date().toISOString().split('T')[0]; const todayTime = new Date(todayStr).getTime(); const liveMap = {}; liveDispos.forEach(d => { if (!d || !d.v) return; liveMap[normP(d.v)] = d; if (d.geoloc_date) { const gpsTime = new Date(d.geoloc_date).getTime(); const diffDays = Math.round((todayTime - gpsTime) / (1000 * 60 * 60 * 24)); if (diffDays <= 2) activeGps.add(d.v.trim().toUpperCase()); } }); window.ACTIVE_GPS_TRUCKS = activeGps; const teams = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2', 'D1', 'D2']; let activeModified = false; teams.forEach(eq => { const db = (eq === window.CURRENT_EQUIPE && typeof window.DB !== 'undefined') ? window.DB : window['DB_' + eq]; if (db && db.dispo) { db.dispo.forEach(r => { if (!r || !r.v) return; const matchingLive = liveMap[normP(r.v)]; if (matchingLive) { const newGeoloc = matchingLive.geoloc || 'OFF'; const newGeolocDate = matchingLive.geoloc_date || null; const newLat = matchingLive.lat !== undefined ? matchingLive.lat : null; const newLng = matchingLive.lng !== undefined ? matchingLive.lng : null; if (r.geoloc !== newGeoloc || r.geolocDate !== newGeolocDate || r.lat !== newLat || r.lng !== newLng) { r.geoloc = newGeoloc; r.geolocDate = newGeolocDate; r.lat = newLat; r.lng = newLng; if (eq === window.CURRENT_EQUIPE) activeModified = true; } } }); } }); if (activeModified && typeof renderDispo === 'function') renderDispo(); return liveDispos; } catch (err) { console.warn('Erreur syncLiveGpsFromNpDispo:', err); return []; } };
 async function checkPoiAlerts() {
   if (isRegistreOrDirectionSession()) return;
   const _uRole = sessionStorage.getItem('numiplan_user_role');
@@ -19201,7 +19287,7 @@ async function checkPoiAlerts() {
 
       // Fusionner les données GPS en direct dans toutes les équipes locales en mémoire (window.DB_A à DB_F)
       if (liveDispos && liveDispos.length > 0) {
-        const teams = ['A', 'B', 'C', 'D'];
+        const teams = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2', 'D1', 'D2'];
         let activeModified = false;
         
         teams.forEach(eq => {
@@ -19297,7 +19383,7 @@ async function checkPoiAlerts() {
           // Résolution automatique du chauffeur pour traçabilité et alerte
           let resolvedDriver = v.chauffeur || '';
           if (!resolvedDriver && v.v) {
-            const allTeams = ['A', 'B', 'C', 'D'];
+            const allTeams = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2', 'D1', 'D2'];
             for (const eq of allTeams) {
               const eqDb = window['DB_' + eq] || (eq === window.CURRENT_EQUIPE ? window.DB : null);
               if (eqDb && Array.isArray(eqDb.dispo)) {
@@ -19351,7 +19437,7 @@ async function checkPoiAlerts() {
           }
         }
       } else if (v.duration_hours >= 2.0) {
-        const activeTeam = typeof window.CURRENT_EQUIPE !== 'undefined' ? window.CURRENT_EQUIPE : 'A';
+        const activeTeam = typeof window.CURRENT_EQUIPE !== 'undefined' ? window.CURRENT_EQUIPE : 'A1';
         if (!v.team || v.team === activeTeam) {
           // Mode harcèlement pour immobilisation > 2h (toutes les 30 minutes)
           const nowPoiMs = Date.now();
@@ -19369,7 +19455,7 @@ async function checkPoiAlerts() {
     }
     
     // Update sidebar badge for long stays (> 2h)
-    const currentActiveTeam = typeof window.CURRENT_EQUIPE !== 'undefined' ? window.CURRENT_EQUIPE : 'A';
+    const currentActiveTeam = typeof window.CURRENT_EQUIPE !== 'undefined' ? window.CURRENT_EQUIPE : 'A1';
     const activeVisits = await poiSupabaseFetch(`np_poi_visits?select=id,v&team=eq.${currentActiveTeam}&left_at=is.null&duration_hours=gte.2`);
     let totalAlerts = 0;
     if (activeVisits) {
@@ -19586,7 +19672,7 @@ window.addEventListener('load', () => {
 function openGpsDiagnosticModal() {
   // Construire la liste de tous les camions existants pour la liste déroulante
   const allVehiclesMap = new Map();
-  const EQUIPES = ['A', 'B', 'C', 'D'];
+  const EQUIPES = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2', 'D1', 'D2'];
   EQUIPES.forEach(eq => {
     const db = (eq === window.CURRENT_EQUIPE && typeof window.DB !== 'undefined') ? window.DB : window['DB_' + eq];
     if (db && db.dispo) {
@@ -19654,7 +19740,7 @@ async function runGpsDiagnostic() {
   }
 
   // Résolution intelligente par saisie partielle (ex: "000779" -> "000779-514-16")
-  const EQUIPES = ['A', 'B', 'C', 'D'];
+  const EQUIPES = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2', 'D1', 'D2'];
   let candidateVehicles = [];
   EQUIPES.forEach(eq => {
     const db = (eq === window.CURRENT_EQUIPE && typeof window.DB !== 'undefined') ? window.DB : window['DB_' + eq];
@@ -19980,7 +20066,7 @@ function showBlacklistAlertModal(truck, client, time, team, driver) {
   // 1. Résolution automatique du nom du chauffeur en temps réel
   let chauffeurName = driver || '';
   if (!chauffeurName && truck) {
-    const teams = ['A', 'B', 'C', 'D'];
+    const teams = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2', 'D1', 'D2'];
     for (const eq of teams) {
       try {
         const db = window['DB_' + eq] || (eq === window.CURRENT_EQUIPE ? window.DB : null);
@@ -20160,7 +20246,7 @@ window.confirmCspcAcknowledgment = function() {
     return;
   }
   const operator = (sessionStorage.getItem('numiplan_username') || getOperatorRole() || 'Chef').toUpperCase().trim();
-  const eq = typeof CURRENT_EQUIPE !== 'undefined' ? CURRENT_EQUIPE : 'A';
+  const eq = typeof CURRENT_EQUIPE !== 'undefined' ? CURRENT_EQUIPE : 'A1';
   
   if (typeof logMouvement === 'function') {
     logMouvement('ACQUITTEMENT_CSPC', 'PROGRAMME', `Équipe ${eq}`, `Alerte CSPC non traité formellement prise en compte par ${operator}`);
@@ -20236,7 +20322,7 @@ function exportPoiHistoryToExcel() {
   const link = document.createElement("a");
   link.setAttribute("href", url);
   
-  const activeTeam = typeof window.CURRENT_EQUIPE !== 'undefined' ? window.CURRENT_EQUIPE : 'A';
+  const activeTeam = typeof window.CURRENT_EQUIPE !== 'undefined' ? window.CURRENT_EQUIPE : 'A1';
   const today = new Date().toISOString().split('T')[0];
   link.setAttribute("download", `historique_immobilisations_Equipe_${activeTeam}_${today}.csv`);
   document.body.appendChild(link);
@@ -20247,7 +20333,7 @@ function exportPoiHistoryToExcel() {
 // --- ALERTE PANNES À CHARGE ---
 async function checkLoadedBreakdowns() {
   try {
-    const activeTeam = typeof window.CURRENT_EQUIPE !== 'undefined' ? window.CURRENT_EQUIPE : 'A';
+    const activeTeam = typeof window.CURRENT_EQUIPE !== 'undefined' ? window.CURRENT_EQUIPE : 'A1';
     const isUserAdmin = isAdmin();
     
     // 1. Fetch all loaded pannes
@@ -20453,7 +20539,7 @@ window.filterByGeoloc = filterByGeoloc;
 
 function ouvrirModalGeolocToutesEquipes() {
   const todayD = today();
-  const EQUIPES = ['A', 'B', 'C', 'D'];
+  const EQUIPES = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2', 'D1', 'D2'];
   const teamOffData = {};
   let totalOff = 0;
   let totalOn = 0;
@@ -20791,7 +20877,7 @@ function ajouterDemandeValidationDirection(type, targetType, target, motif, team
     targetType: targetType,
     target: target,
     motif: motif || '',
-    team: team || window.CURRENT_EQUIPE || 'A',
+    team: team || window.CURRENT_EQUIPE || 'A1',
     user: user || sessionStorage.getItem('numiplan_username') || 'REX',
     status: 'PENDING'
   };
@@ -21256,7 +21342,7 @@ function buildConsolidatedRegistreData() {
   });
 
   // 3. Consolider en temps réel l'intégralité des chauffeurs et camions depuis Numiplan (Source de vérité)
-  const EQUIPES = ['A', 'B', 'C', 'D'];
+  const EQUIPES = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2', 'D1', 'D2'];
   const numiplanActiveDrivers = {};
   const numiplanDriverTrucks = {}; // chauffeur normalisé -> Set de camions
   const lastSortieTruckTraceMap = new Map();
@@ -21628,7 +21714,7 @@ function buildConsolidatedRegistreData() {
 
   // 5. Calcul EXACT et STRICT aligné à 100% sur la somme des badges Numiplan
   const allTeamDriverOccurrences = {};
-  const teamsList = ['A', 'B', 'C', 'D'];
+  const teamsList = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2', 'D1', 'D2'];
   const globalUniqueAllDrivers = new Set();
   const globalUniqueExtDrivers = new Set();
   let globalTotalCamions = 0;
@@ -21905,7 +21991,7 @@ async function validerLiaisonSuggestion(editKey, targetName, targetV, targetRm) 
   }
 
   // Si la remorque n'était pas passée, la chercher immédiatement dans toutes les équipes Numiplan
-  const EQUIPES = ['A', 'B', 'C', 'D'];
+  const EQUIPES = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2', 'D1', 'D2'];
   if (!targetRm) {
     EQUIPES.forEach(eq => {
       try {
@@ -21987,7 +22073,7 @@ async function refuserLiaisonSuggestion(registryName, numiplanName, targetV, tar
   }
 
   // Chercher la remorque si manquante
-  const EQUIPES = ['A', 'B', 'C', 'D'];
+  const EQUIPES = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2', 'D1', 'D2'];
   let finalRm = targetRm;
   if (!finalRm) {
     EQUIPES.forEach(eq => {
@@ -22198,7 +22284,7 @@ async function deleteAdminSharikLine() {
   };
   const targetNorm = norm(driverName);
 
-  ['A', 'B', 'C', 'D'].forEach(eq => {
+  ['A1', 'A2', 'B1', 'B2', 'C1', 'C2', 'D1', 'D2'].forEach(eq => {
     const db = (eq === window.CURRENT_EQUIPE && typeof window.DB !== 'undefined') ? window.DB : window['DB_' + eq];
     if (db && Array.isArray(db.dispo)) {
       const prevLength = db.dispo.length;
@@ -22281,7 +22367,7 @@ function saveAdminSharikEdit() {
       delArr = delArr.filter(t => (t||'').trim().toUpperCase() !== trUpper);
       localStorage.setItem('numiplan_deleted_trucks', JSON.stringify(delArr));
     } catch(e) {}
-    ['A', 'B', 'C', 'D'].forEach(eq => {
+    ['A1', 'A2', 'B1', 'B2', 'C1', 'C2', 'D1', 'D2'].forEach(eq => {
       const tDb = (eq === window.CURRENT_EQUIPE && typeof window.DB !== 'undefined') ? window.DB : window['DB_' + eq];
       if (tDb) {
         if (Array.isArray(tDb.deleted_trucks)) {
@@ -22355,7 +22441,7 @@ function exporterExcelLogsMouvements() {
     showToast('⚠️ SheetJS non chargé', true);
     return;
   }
-  const EQUIPES = ['A', 'B', 'C', 'D'];
+  const EQUIPES = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2', 'D1', 'D2'];
   const data = [['Date & Heure', 'Type Mouvement', 'Cible', 'Équipe', 'Motif / Justification', 'Utilisateur']];
   
   EQUIPES.forEach(eq => {
@@ -22400,7 +22486,7 @@ function renderAdminNcConsolidation() {
 
   const allNc = [];
   const driverNcCounts = {};
-  const EQUIPES = ['A', 'B', 'C', 'D'];
+  const EQUIPES = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2', 'D1', 'D2'];
 
   EQUIPES.forEach(eq => {
     const db = (eq === window.CURRENT_EQUIPE && typeof window.DB !== 'undefined') ? window.DB : window['DB_' + eq];
@@ -22514,7 +22600,7 @@ window.renderAdminNcConsolidation = renderAdminNcConsolidation;
 function renderAdminSinistres() {
   const q = (document.getElementById('admin-sin-search')?.value || '').trim().toLowerCase();
   const allIncidents = [];
-  const EQUIPES = ['A', 'B', 'C', 'D'];
+  const EQUIPES = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2', 'D1', 'D2'];
 
   EQUIPES.forEach(eq => {
     const db = (eq === window.CURRENT_EQUIPE && typeof window.DB !== 'undefined') ? window.DB : window['DB_' + eq];
@@ -22778,7 +22864,7 @@ window.renderAdminBalanceComptable = renderAdminBalanceComptable;
 function rebuildOrientationBejaiaState() {
   window._ORIENTATION_BEJAIA_STATE = {};
   const todayStr = today();
-  const teams = ['A', 'B', 'C', 'D'];
+  const teams = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2', 'D1', 'D2'];
   let allLogs = [];
   
   teams.forEach(eq => {
@@ -22932,7 +23018,7 @@ function renderOrientationBejaiaPage() {
   rebuildOrientationBejaiaState();
   
   let allLogs = [];
-  const teams = ['A', 'B', 'C', 'D'];
+  const teams = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2', 'D1', 'D2'];
   
   teams.forEach(eq => {
     const db = (eq === CURRENT_EQUIPE && typeof DB !== 'undefined') ? DB : window['DB_' + eq];
@@ -23048,7 +23134,7 @@ function exportOrientationBejaiaExcel() {
   rebuildOrientationBejaiaState();
   
   let allLogs = [];
-  const teams = ['A', 'B', 'C', 'D'];
+  const teams = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2', 'D1', 'D2'];
   
   teams.forEach(eq => {
     const db = (eq === CURRENT_EQUIPE && typeof DB !== 'undefined') ? DB : window['DB_' + eq];
@@ -23107,7 +23193,7 @@ function rebuildSpeedExcessState() {
   window._SPEED_EXCESS_TOTAL_COUNTS = {};
   
   const todayStr = today();
-  const teams = ['A', 'B', 'C', 'D'];
+  const teams = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2', 'D1', 'D2'];
   let allLogs = [];
   
   teams.forEach(eq => {
@@ -23241,7 +23327,7 @@ function renderSpeedExcessPage() {
   rebuildSpeedExcessState();
   
   let allLogs = [];
-  const teams = ['A', 'B', 'C', 'D'];
+  const teams = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2', 'D1', 'D2'];
   teams.forEach(eq => {
     const db = (eq === CURRENT_EQUIPE && typeof DB !== 'undefined') ? DB : window['DB_' + eq];
     if (db && db.tracabilite) {
@@ -23346,7 +23432,7 @@ function exportSpeedExcessExcel() {
   rebuildSpeedExcessState();
   
   let allLogs = [];
-  const teams = ['A', 'B', 'C', 'D'];
+  const teams = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2', 'D1', 'D2'];
   teams.forEach(eq => {
     const db = (eq === CURRENT_EQUIPE && typeof DB !== 'undefined') ? DB : window['DB_' + eq];
     if (db && db.tracabilite) {
@@ -23461,7 +23547,7 @@ window.WILAYA_BRANDT_DISTANCES = {
 function rebuildOrientationBrandtState() {
   window._ORIENTATION_BRANDT_STATE = {};
   const todayStr = today();
-  const teams = ['A', 'B', 'C', 'D'];
+  const teams = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2', 'D1', 'D2'];
   let allLogs = [];
   
   teams.forEach(eq => {
@@ -23615,7 +23701,7 @@ function renderOrientationBrandtPage() {
   rebuildOrientationBrandtState();
   
   let allLogs = [];
-  const teams = ['A', 'B', 'C', 'D'];
+  const teams = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2', 'D1', 'D2'];
   
   teams.forEach(eq => {
     const db = (eq === CURRENT_EQUIPE && typeof DB !== 'undefined') ? DB : window['DB_' + eq];
@@ -23731,7 +23817,7 @@ function exportOrientationBrandtExcel() {
   rebuildOrientationBrandtState();
   
   let allLogs = [];
-  const teams = ['A', 'B', 'C', 'D'];
+  const teams = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2', 'D1', 'D2'];
   
   teams.forEach(eq => {
     const db = (eq === CURRENT_EQUIPE && typeof DB !== 'undefined') ? DB : window['DB_' + eq];
@@ -24054,7 +24140,7 @@ window.alignerLieuJ1AvecErp = alignerLieuJ1AvecErp;
 function getTruckNumiplanInfo(plate) {
   const pNorm = normErpPlate(plate);
   if (!pNorm) return { team: '—', chauffeur: '', lieuJ: '', geoloc: 'OFF', lat: null, lng: null };
-  const teams = ['A', 'B', 'C', 'D'];
+  const teams = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2', 'D1', 'D2'];
   for (const eq of teams) {
     const dbEq = (eq === (typeof getCurrentEquipe === 'function' ? getCurrentEquipe() : '') && window.DB) ? window.DB : window['DB_' + eq];
     if (dbEq && Array.isArray(dbEq.dispo)) {
@@ -24533,7 +24619,7 @@ function renderSegmentsErpPage() {
   const agenceFilter = document.getElementById('seg-filter-agence')?.value || 'ALL';
   const statusFilter = document.getElementById('seg-filter-status')?.value || 'ALL';
   const searchVal = normErpStr(document.getElementById('seg-search')?.value || '');
-  const activeEq = typeof getCurrentEquipe === 'function' ? getCurrentEquipe() : 'A';
+  const activeEq = typeof getCurrentEquipe === 'function' ? getCurrentEquipe() : 'A1';
 
   // 1. Filtrer les segments par Date & Agence & Équipe
   const filteredSegments = allSegments.filter(s => {
@@ -24545,8 +24631,8 @@ function renderSegmentsErpPage() {
 
     const tInfo = getTruckNumiplanInfo(s.tracteur);
     if (teamFilter === 'ACTIVE' && tInfo.team !== activeEq) return false;
-    if (['A', 'B', 'C', 'D'].includes(teamFilter) && tInfo.team !== teamFilter) return false;
-    if (teamFilter === 'HORS_FLOTTE' && ['A', 'B', 'C', 'D'].includes(tInfo.team)) return false;
+    if (['A1', 'A2', 'B1', 'B2', 'C1', 'C2', 'D1', 'D2'].includes(teamFilter) && tInfo.team !== teamFilter) return false;
+    if (teamFilter === 'HORS_FLOTTE' && ['A1', 'A2', 'B1', 'B2', 'C1', 'C2', 'D1', 'D2'].includes(tInfo.team)) return false;
 
     if (searchVal) {
       const hay = normErpStr(`${s.tracteur} ${s.affrete} ${s.cond1} ${tInfo.chauffeur} ${s.client} ${s.lieuDep} ${s.lieuArriv} ${s.villeDep} ${s.villeArr} ${s.seg} ${s.groupage} ${s.refCmd}`);
@@ -24858,7 +24944,7 @@ function renderSegmentsErpPage() {
           ? `<a href="https://www.google.com/maps?q=${tr.lat},${tr.lng}" target="_blank" title="Voir position temps réel sur Google Maps" style="text-decoration:none;margin-left:5px">📍</a>`
           : '';
 
-        const teamBadge = ['A', 'B', 'C', 'D'].includes(tr.team)
+        const teamBadge = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2', 'D1', 'D2'].includes(tr.team)
           ? `<span style="background:rgba(56,189,248,0.18);color:#38bdf8;border:1px solid rgba(56,189,248,0.4);padding:2px 7px;border-radius:6px;font-weight:800;font-size:11px">Éq. ${tr.team}</span>`
           : `<span style="background:rgba(148,163,184,0.15);color:#94a3b8;padding:2px 7px;border-radius:6px;font-size:10px">${tr.agence}</span>`;
 
@@ -25160,6 +25246,290 @@ function exportSegmentsErpExcel() {
   showToast('✅ Export Excel généré avec succès !');
 }
 window.exportSegmentsErpExcel = exportSegmentsErpExcel;
+
+// ══════════════════════════════════════════════════════════════════════════════
+// TRANSFERT MULTIPLE DE RESSOURCES (1 SEULE ÉCRITURE SUPABASE) & AFFECTATION CHEFS D'ÉQUIPE (A1..D2)
+// ══════════════════════════════════════════════════════════════════════════════
+window._MULTI_TRANSFER_MODE = false;
+window._MULTI_TRANSFER_SELECTED = new Set();
+
+function toggleMultiTransferMode(forceState) {
+  const lock = sessionStorage.getItem('numiplan_team_lock');
+  if (lock === 'BL' || lock === 'DIR') {
+    showToast('⚠️ Action refusée en mode lecture seule', true);
+    return;
+  }
+  window._MULTI_TRANSFER_MODE = (typeof forceState === 'boolean') ? forceState : !window._MULTI_TRANSFER_MODE;
+  if (!window._MULTI_TRANSFER_MODE) {
+    window._MULTI_TRANSFER_SELECTED.clear();
+  } else {
+    // Proposer par défaut la sous-équipe jumelle (ex: si on est sur A1 -> proposer A2)
+    const cur = window.CURRENT_EQUIPE || 'A1';
+    const destSel = document.getElementById('multi-transfer-dest-eq');
+    if (destSel) {
+      const twinMap = { 'A1': 'A2', 'A2': 'A1', 'B1': 'B2', 'B2': 'B1', 'C1': 'C2', 'C2': 'C1', 'D1': 'D2', 'D2': 'D1' };
+      destSel.value = twinMap[cur] || 'A2';
+    }
+  }
+  const bar = document.getElementById('multi-transfer-bar');
+  if (bar) bar.style.display = window._MULTI_TRANSFER_MODE ? 'flex' : 'none';
+  updateMultiTransferCountBadge();
+  if (typeof renderDispo === 'function') renderDispo(true);
+}
+window.toggleMultiTransferMode = toggleMultiTransferMode;
+
+function onMultiTransferChkChange(chk) {
+  if (!chk || !chk.value) return;
+  if (chk.checked) window._MULTI_TRANSFER_SELECTED.add(chk.value);
+  else window._MULTI_TRANSFER_SELECTED.delete(chk.value);
+  updateMultiTransferCountBadge();
+}
+window.onMultiTransferChkChange = onMultiTransferChkChange;
+
+function updateMultiTransferCountBadge() {
+  const b = document.getElementById('multi-transfer-count-badge');
+  if (b) b.textContent = `${window._MULTI_TRANSFER_SELECTED.size} sélectionné(s)`;
+}
+
+function selectMultiTransferPreset(mode) {
+  if (!DB || !Array.isArray(DB.dispo)) return;
+  window._MULTI_TRANSFER_SELECTED.clear();
+  if (mode === 'all') {
+    DB.dispo.forEach(r => { if (r && r.v) window._MULTI_TRANSFER_SELECTED.add(r.v); });
+  } else if (mode === 'half2') {
+    const halfIdx = Math.floor(DB.dispo.length / 2);
+    DB.dispo.slice(halfIdx).forEach(r => { if (r && r.v) window._MULTI_TRANSFER_SELECTED.add(r.v); });
+  }
+  updateMultiTransferCountBadge();
+  if (typeof renderDispo === 'function') renderDispo(true);
+}
+window.selectMultiTransferPreset = selectMultiTransferPreset;
+
+async function executerTransfertMultipleDispo() {
+  const srcEq = window.CURRENT_EQUIPE || 'A1';
+  const destEq = document.getElementById('multi-transfer-dest-eq')?.value || '';
+  if (!destEq || destEq === srcEq) {
+    showToast('⚠️ Veuillez choisir une équipe de destination différente de l\'équipe actuelle (' + srcEq + ').', true);
+    return;
+  }
+  const selectedImmats = Array.from(window._MULTI_TRANSFER_SELECTED);
+  if (selectedImmats.length === 0) {
+    showToast('⚠️ Veuillez cocher au moins un camion à transférer.', true);
+    return;
+  }
+
+  const srcData = window['DB_' + srcEq];
+  const destData = window['DB_' + destEq];
+  if (!srcData || !destData) {
+    showToast('⚠️ Données d\'équipe non chargées.', true);
+    return;
+  }
+
+  if (!confirm(`Confirmer le transfert groupé de ${selectedImmats.length} camion(s) de l'Équipe ${srcEq} vers l'Équipe ${destEq} ?\n\n(Cette opération transfère les camions et leurs dossiers associés en 1 seule écriture Supabase par équipe)`)) {
+    return;
+  }
+
+  const immatSet = new Set(selectedImmats.map(x => x.trim().toUpperCase()));
+  const transferredChauffeurs = new Set();
+  const vehObjsToTransfer = [];
+
+  // 1. Extraire les véhicules de srcData.dispo
+  const remainingDispo = [];
+  (srcData.dispo || []).forEach(v => {
+    const vNorm = (v.v || '').trim().toUpperCase();
+    if (immatSet.has(vNorm)) {
+      vehObjsToTransfer.push(v);
+      const ch = (v.chauffeur || '').trim().toUpperCase();
+      if (ch && ch !== '—' && !ch.includes('MANQUE CHAUFFEUR')) transferredChauffeurs.add(ch);
+    } else {
+      remainingDispo.push(v);
+    }
+  });
+  srcData.dispo = remainingDispo;
+
+  // Vérifier si un chauffeur transféré a encore un autre camion resté dans srcData
+  const stillInSrcChauffeurs = new Set(
+    remainingDispo.map(v => (v.chauffeur || '').trim().toUpperCase()).filter(Boolean)
+  );
+
+  if (!Array.isArray(destData.dispo)) destData.dispo = [];
+  vehObjsToTransfer.forEach(veh => {
+    const existingIdx = destData.dispo.findIndex(x => x.v === veh.v);
+    if (existingIdx !== -1) destData.dispo[existingIdx] = veh;
+    else destData.dispo.push(veh);
+  });
+
+  // Helper pour transférer les listes liées en mémoire
+  function moveLinkedItems(listName, matchFn) {
+    if (!Array.isArray(srcData[listName])) return;
+    const keep = [];
+    const move = [];
+    srcData[listName].forEach(item => {
+      if (matchFn(item)) move.push(item);
+      else keep.push(item);
+    });
+    srcData[listName] = keep;
+    if (move.length > 0) {
+      if (!Array.isArray(destData[listName])) destData[listName] = [];
+      destData[listName] = destData[listName].concat(move);
+    }
+  }
+
+  moveLinkedItems('pannes', p => immatSet.has((p.immat || '').trim().toUpperCase()));
+  moveLinkedItems('gasoil', g => immatSet.has((g.vehicule || '').trim().toUpperCase()));
+  moveLinkedItems('equip', e => immatSet.has((e.tr || '').trim().toUpperCase()));
+  moveLinkedItems('activite', a => immatSet.has((a.tr || '').trim().toUpperCase()));
+  moveLinkedItems('odo', o => immatSet.has((o.v || '').trim().toUpperCase()));
+  moveLinkedItems('cspc', c => immatSet.has((c.v || '').trim().toUpperCase()));
+  moveLinkedItems('nc', r => {
+    const sh = (r.sharik || '').trim().toUpperCase();
+    return sh && transferredChauffeurs.has(sh) && !stillInSrcChauffeurs.has(sh);
+  });
+  moveLinkedItems('bl', b => {
+    const ch = (b.chauffeur || '').trim().toUpperCase();
+    return ch && transferredChauffeurs.has(ch) && !stillInSrcChauffeurs.has(ch);
+  });
+  moveLinkedItems('blacklist', b => {
+    const ch = (b.chauffeur || '').trim().toUpperCase();
+    return ch && transferredChauffeurs.has(ch) && !stillInSrcChauffeurs.has(ch);
+  });
+
+  // Synchroniser DB actif
+  Object.keys(DB).forEach(k => delete DB[k]);
+  Object.assign(DB, cloneTeamData(srcData, emptyTeamData()));
+
+  // 1 seule trace globale pour ne pas saturer np_tracabilite
+  if (typeof tracerAction === 'function') {
+    tracerAction('TRANSFERT', 'TRANSFERT_GROUPE', `${vehObjsToTransfer.length} camions`, `Transfert groupé de ${vehObjsToTransfer.length} camion(s) de ${srcEq} vers ${destEq} : ${selectedImmats.slice(0, 8).join(', ')}${selectedImmats.length > 8 ? '...' : ''}`, destEq);
+  }
+
+  // Sauvegarder en 1 seule requête par équipe vers Supabase numiplan_teams
+  saveTeamDB(srcEq, srcData);
+  saveTeamDB(destEq, destData);
+
+  // Mettre à jour le champ team dans np_dispo en 1 seule requête groupée
+  if (window.supabase && selectedImmats.length > 0) {
+    window.supabase.from('np_dispo').update({ team: destEq }).in('v', selectedImmats).then(() => {}).catch(() => {});
+  }
+
+  window._MULTI_TRANSFER_SELECTED.clear();
+  toggleMultiTransferMode(false);
+  renderDispo(true);
+  if (typeof updateHeaderRAC === 'function') updateHeaderRAC();
+  showToast(`✅ ${vehObjsToTransfer.length} camion(s) transférés de ${srcEq} vers ${destEq} en 1 seule synchro Cloud !`);
+}
+window.executerTransfertMultipleDispo = executerTransfertMultipleDispo;
+
+// ─── GESTION DES AFFECTATIONS DES CHEFS D'ÉQUIPE (A1, A2, B1, B2, C1, C2, D1, D2) ───
+async function openAdminChefsEquipeModal() {
+  let modal = document.getElementById('modal-admin-chefs-equipe');
+  if (!modal) {
+    modal = document.createElement('div');
+    modal.id = 'modal-admin-chefs-equipe';
+    modal.className = 'modal-overlay';
+    modal.style.zIndex = '100020';
+    modal.innerHTML = `
+      <div class="modal" style="width:780px;max-width:96vw;max-height:88vh;display:flex;flex-direction:column;background:var(--bg2);border:1.5px solid #38bdf8;border-radius:16px;padding:22px">
+        <div style="display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid var(--border);padding-bottom:12px;margin-bottom:14px">
+          <div>
+            <h3 style="margin:0;font-size:16px;color:#38bdf8">👥 Affectation des Chefs d'Équipe aux 8 Équipes (A1..D2)</h3>
+            <div style="font-size:11px;color:var(--txt2);margin-top:4px">Choisissez quelle(s) équipe(s) chaque chef d'équipe gère (ex: A1, A2, B1, B2, C1, C2, D1, D2 ou A1,A2)</div>
+          </div>
+          <button class="del-btn" onclick="closeModal('modal-admin-chefs-equipe')" style="background:none;border:none;color:var(--txt2);font-size:22px;cursor:pointer">✕</button>
+        </div>
+        <div class="table-wrap" style="flex:1;overflow-y:auto">
+          <table>
+            <thead>
+              <tr>
+                <th>Identifiant (Login)</th>
+                <th>Nom Chef d'Équipe</th>
+                <th>Équipe(s) Autorisée(s)</th>
+                <th>Sélection Rapide</th>
+              </tr>
+            </thead>
+            <tbody id="admin-chefs-equipe-tbody"></tbody>
+          </table>
+        </div>
+        <div style="margin-top:16px;display:flex;justify-content:space-between;align-items:center">
+          <span style="font-size:11px;color:var(--txt3)">💡 Une seule écriture Supabase est effectuée lorsque vous cliquez sur Enregistrer.</span>
+          <div style="display:flex;gap:10px">
+            <button class="btn btn-reset" onclick="closeModal('modal-admin-chefs-equipe')">Fermer</button>
+            <button class="btn btn-save" onclick="saveAdminChefsEquipeToSupabase()" style="background:#38bdf8;color:#000;font-weight:800">💾 Enregistrer dans Supabase</button>
+          </div>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(modal);
+  }
+
+  const tbody = document.getElementById('admin-chefs-equipe-tbody');
+  if (tbody) tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;padding:20px">Chargement des utilisateurs depuis Supabase...</td></tr>';
+  modal.style.display = 'flex';
+
+  let users = [];
+  if (window.supabase) {
+    const { data } = await window.supabase.from('np_users').select('*').order('login');
+    if (Array.isArray(data) && data.length > 0) users = data;
+  }
+  if (users.length === 0) {
+    users = (window.DEFAULT_NUMIPLAN_USERS || []).map(u => ({ ...u }));
+  }
+  window._EDITING_NP_USERS = users;
+
+  const presets = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2', 'D1', 'D2', 'A1,A2', 'B1,B2', 'C1,C2', 'D1,D2', 'A1,A2,B1,B2', 'C1,C2,D1,D2', 'ALL'];
+  if (tbody) {
+    tbody.innerHTML = users.filter(u => !['admin', 'registre', 'blacklist'].includes((u.login || '').toLowerCase())).map((u, idx) => {
+      const curTeam = String(u.team || 'A1').toUpperCase();
+      const opts = presets.map(p => `<option value="${p}" ${curTeam === p ? 'selected' : ''}>${p}</option>`).join('');
+      return `
+        <tr>
+          <td class="mono" style="font-weight:700;color:#38bdf8">${u.login}</td>
+          <td style="font-weight:700">${u.nom || u.login.toUpperCase()}</td>
+          <td>
+            <input type="text" id="chef-team-inp-${idx}" data-login="${u.login}" value="${curTeam}" class="filter-input" style="width:150px;font-weight:800;text-transform:uppercase">
+          </td>
+          <td>
+            <select class="filter-input" style="width:160px;font-size:11px" onchange="document.getElementById('chef-team-inp-${idx}').value=this.value">
+              <option value="">— Choisir —</option>
+              ${opts}
+            </select>
+          </td>
+        </tr>
+      `;
+    }).join('');
+  }
+}
+window.openAdminChefsEquipeModal = openAdminChefsEquipeModal;
+
+async function saveAdminChefsEquipeToSupabase() {
+  const inputs = document.querySelectorAll('[id^="chef-team-inp-"]');
+  if (!inputs.length) return;
+  const updates = [];
+  inputs.forEach(inp => {
+    const login = inp.dataset.login;
+    const team = (inp.value || 'A1').trim().toUpperCase();
+    if (login) updates.push({ login, team });
+  });
+
+  try {
+    showToast('⏳ Enregistrement des affectations Chefs d\'équipe...');
+    if (window.supabase) {
+      for (const u of updates) {
+        await window.supabase.from('np_users').update({ team: u.team }).eq('login', u.login);
+        if (window._SUPABASE_USERS) {
+          const found = window._SUPABASE_USERS.find(x => x.login && x.login.toLowerCase() === u.login.toLowerCase());
+          if (found) found.team = u.team;
+        }
+      }
+    }
+    closeModal('modal-admin-chefs-equipe');
+    showToast('✅ Affectations des Chefs d\'Équipe enregistrées dans Supabase !');
+  } catch (e) {
+    console.error('Erreur saveAdminChefsEquipeToSupabase:', e);
+    showToast('❌ Erreur lors de la sauvegarde : ' + e.message, true);
+  }
+}
+window.saveAdminChefsEquipeToSupabase = saveAdminChefsEquipeToSupabase;
 
 </script>
 
