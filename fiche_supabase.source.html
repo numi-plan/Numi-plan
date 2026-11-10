@@ -199,7 +199,7 @@
     const parts = String(lockStr).split(/[,;\s\/\-]+/).map(x => x.trim().toUpperCase()).filter(Boolean);
     const out = [];
     parts.forEach(p => {
-      if (['A1', 'A2', 'B1', 'B2', 'C1', 'C2', 'D1', 'D2'].includes(p)) {
+      if (/^[ABCD]$/.test(p)) {
         out.push(p + '1', p + '2');
       } else if (ALL_EQUIPES_LIST.includes(p)) {
         out.push(p);
@@ -242,9 +242,9 @@
 
   function emptyTeamData() {
     return {
-      dispo: [], pannes: [], nc: [], gasoil: [], equip: [], activite: [],
-      bl: [], odo: [], odo_weeks: [], cspc_archives: [],
-      cspc: [], blacklist: [],
+      dispo: [], pannes: [], nc: [], equip: [], activite: [],
+      odo: [], odo_weeks: [], cspc_archives: [],
+      cspc: [],
       tracabilite: [], flashInfos: [], anomaliesPointees: {},
       clientModifs: [], incidents: [], incidentsLivraison: []
     };
@@ -464,9 +464,9 @@
 
   function emptyTeamData() {
     return {
-      dispo: [], pannes: [], nc: [], gasoil: [], equip: [], activite: [],
-      bl: [], odo: [], odo_weeks: [], cspc_archives: [],
-      cspc: [], blacklist: [], deleted_trucks: [], deleted_cspc: [], deleted_gasoil: [],
+      dispo: [], pannes: [], nc: [], equip: [], activite: [],
+      odo: [], odo_weeks: [], cspc_archives: [],
+      cspc: [], deleted_trucks: [], deleted_cspc: [],
       tracabilite: [], flashInfos: [], anomaliesPointees: {},
       clientModifs: [], incidents: [], incidentsLivraison: []
     };
@@ -511,8 +511,17 @@
   cloneEquipePayload = function(src) {
     if (!src) return src;
     const copy = JSON.parse(JSON.stringify(src));
-    if (copy && Array.isArray(copy.tracabilite)) {
-      copy.tracabilite = purgeTracabilite3Days(copy.tracabilite);
+    if (copy && typeof copy === 'object') {
+      delete copy.gasoil;
+      delete copy.bl;
+      delete copy.blacklist;
+      delete copy.deleted_gasoil;
+      delete copy.perfRaw;
+      delete copy.perfFileName;
+      delete copy.perfImportTs;
+      if (Array.isArray(copy.tracabilite)) {
+        copy.tracabilite = purgeTracabilite3Days(copy.tracabilite);
+      }
     }
     return copy;
   };
@@ -719,13 +728,13 @@
     mergeList('dispo', r => r.v);
     mergeList('pannes', r => (r.immat + '|' + r.date + '|' + r.desc));
     mergeList('nc', r => r.n);
-    mergeGasoilList();
+    // mergeGasoilList disabled
     mergeList('equip', r => r.tr);
     mergeList('activite', r => r.tr);
-    mergeList('bl', r => r.chauffeur);
+    // mergeList bl disabled
     mergeList('odo', r => r.v);
     mergeList('cspc', r => r.v);
-    mergeList('blacklist', r => (r.chauffeur + '|' + r.destination));
+    // mergeList blacklist disabled
 
     return merged;
   }
@@ -891,28 +900,18 @@
         if (typeof renderPannes === 'function') renderPannes();
       }
       if (typeof updatePannesBadge === 'function') updatePannesBadge();
-      if (typeof updateGasoilBadge === 'function') updateGasoilBadge();
       if (activeTab === 'nc' || forceAll) {
         if (typeof renderNC === 'function') renderNC();
-      }
-      if (activeTab === 'gasoil' || forceAll) {
-        if (typeof renderGasoil === 'function') renderGasoil();
       }
       if (activeTab === 'equip' || forceAll) {
         if (typeof renderEquip === 'function') renderEquip();
         if (typeof renderActivite === 'function') renderActivite();
-      }
-      if (activeTab === 'bl' || forceAll) {
-        if (typeof renderBL === 'function') renderBL();
       }
       if (activeTab === 'odo' || forceAll) {
         if (typeof renderOdo === 'function') renderOdo();
       }
       if (activeTab === 'cspc' || forceAll) {
         if (typeof renderCSPC === 'function') renderCSPC();
-      }
-      if (activeTab === 'blacklist' || forceAll) {
-        if (typeof renderBlacklist === 'function') renderBlacklist();
       }
       if (activeTab === 'tracabilite' || forceAll) {
         if (typeof renderTracabilite === 'function') renderTracabilite();
@@ -923,9 +922,6 @@
       if (activeTab === 'incidents-livraison' || forceAll) {
         if (typeof renderIncidentsLivraisonPage === 'function') renderIncidentsLivraisonPage();
       }
-      if (activeTab === 'analytics' || forceAll) {
-        if (typeof renderAnalytics === 'function') renderAnalytics();
-      }
       if (activeTab === 'poi' || forceAll) {
         if (typeof renderPoiPage === 'function') renderPoiPage();
       }
@@ -934,10 +930,8 @@
       }
 
       // Shared lightweight notifications and widgets
-      if (typeof renderBLAlerts === 'function') renderBLAlerts();
       if (typeof renderFlashInfos === 'function') renderFlashInfos();
       if (typeof updateDataLists === 'function') updateDataLists();
-      if (typeof window.setupBlacklistListeners === 'function') window.setupBlacklistListeners();
       if (typeof checkPointageRequired === 'function') checkPointageRequired();
 
       if (typeof DB !== 'undefined' && DB.perfRaw && DB.perfRaw.length && DB.perfImportTs !== _prevPerfTs) {
@@ -1248,7 +1242,7 @@
             { event: '*', schema: 'public', table: 'numiplan_teams' },
             payload => {
               if (payload.new && payload.new.team) {
-                const eq = payload.new.team; if (['A','B','C','D'].includes(eq)) return; if (['A1', 'A2', 'B1', 'B2', 'C1', 'C2', 'D1', 'D2'].includes(eq)) return;
+                const eq = payload.new.team; if (/^[ABCD]$/.test(eq)) return;
                 const data = payload.new.payload;
                 if (eq === 'SHARIK_EDITS') {
                   // Ignorer l'écho Supabase si une sauvegarde locale vient d'être faite (< 5 secondes)
@@ -1710,11 +1704,11 @@
     mergeArray("pannes", "immat");
     mergeArray("odo", "v");
     mergeArray("cspc", "v");
-    mergeArray("bl", "chauffeur");
+    // mergeArray bl disabled
 
     // Fusion intelligente du Gasoil
     (() => {
-        if (!local.gasoil && !cloud.gasoil) return;
+        return; // gasoil sync disabled
         const localList = local.gasoil || [];
         const cloudList = cloud.gasoil || [];
         const baseList = safeBase.gasoil || [];
@@ -2883,8 +2877,6 @@ function applyTeamLockUI(eq) {
     if (zapBtn) zapBtn.style.display = isAdm ? 'inline-flex' : 'none';
     const chefsBtn = document.getElementById('btn-admin-chefs-equipe');
     if (chefsBtn) chefsBtn.style.display = isAdm ? 'inline-flex' : 'none';
-    const chefsBtn = document.getElementById('btn-admin-chefs-equipe');
-    if (chefsBtn) chefsBtn.style.display = isAdm ? 'inline-flex' : 'none';
     const zapHeaderBtn = document.getElementById('btn-header-zap-anomalies');
     if (zapHeaderBtn) zapHeaderBtn.style.display = isAdm ? 'inline-flex' : 'none';
     const modalZapBtn = document.getElementById('btn-modal-zap-rex');
@@ -3449,17 +3441,9 @@ mark.hl { background: rgba(56,189,248,.25); color: var(--acc); border-radius: 3p
         if ([r.sharik, r.immat, r.obs, r.chgt].some(f => match(f, q)))
           results.push({ eq, tab:'nc', icon:'⚠️', title: r.immat||r.sharik||'—', sub: [r.sharik, r.type, r.obs].filter(Boolean).join(' · '), tabLabel:'Non-conformités', searchKey: r.immat || r.sharik || '' });
       });
-      (src.gasoil||[]).forEach(r => {
-        if ([r.immat, r.chauffeur, r.agence, r.site].some(f => match(f, q)))
-          results.push({ eq, tab:'gasoil', icon:'⛽', title: r.immat||'—', sub: [r.chauffeur, r.agence, r.site, r.date].filter(Boolean).join(' · '), tabLabel:'Gasoil', searchKey: r.immat || r.chauffeur || '' });
-      });
       (src.activite||[]).forEach(r => {
         if ([r.chauffeur, r.site, r.v].some(f => match(f, q)))
           results.push({ eq, tab:'activite', icon:'📋', title: r.v||r.chauffeur||'—', sub: [r.chauffeur, r.site, r.etat].filter(Boolean).join(' · '), tabLabel:'Activité Sharik', searchKey: r.v || r.chauffeur || '' });
-      });
-      (src.bl||[]).forEach(r => {
-        if ([r.v, r.chauffeur, r.agence].some(f => match(f, q)))
-          results.push({ eq, tab:'bl', icon:'📄', title: r.v||'—', sub: [r.chauffeur, r.agence, r.depot].filter(Boolean).join(' · '), tabLabel:'Suivi BL', searchKey: r.v || r.chauffeur || '' });
       });
       if (!lock) {
         (src.odo||[]).forEach(r => {
@@ -3630,13 +3614,9 @@ mark.hl { background: rgba(56,189,248,.25); color: var(--acc); border-radius: 3p
   </button>
   <button class="tab-btn" onclick="switchTab('pannes',this)">🔧 Pannes <span class="tab-count red" id="cnt-pannes" style="display:none;">—</span></button>
   <button class="tab-btn" onclick="switchTab('nc',this)">⚠️ Non-conformités <span class="tab-count" id="cnt-nc" style="display:none;">—</span></button>
-  <button class="tab-btn" id="tab-gasoil" onclick="switchTab('gasoil',this)">⛽ Gasoil <span class="tab-count yel" id="cnt-gasoil" style="display:none;">—</span></button>
   <button class="tab-btn" onclick="switchTab('equip',this)">🔩 Équipements <span class="tab-count" id="cnt-equip">—</span></button>
-  <button class="tab-btn" onclick="switchTab('bl',this)">📄 Suivi BL</button>
   <button class="tab-btn" id="tab-odo" onclick="switchTab('odo',this)">🛣️ Odomètre <span class="tab-count" id="cnt-odo" style="display:none;">—</span></button>
   <button class="tab-btn" onclick="switchTab('cspc',this)">🔷 CSPC <span class="tab-count" id="cnt-cspc">—</span></button>
-  <button class="tab-btn" onclick="switchTab('analytics',this)">📊 Analyses</button>
-  <button class="tab-btn" id="tab-blacklist" onclick="if(typeof switchTab==='function')switchTab('blacklist',this)">🚫 Blacklist <span class="tab-count" id="cnt-blacklist" style="background:#f87171">—</span></button>
   <button class="tab-btn" id="tab-incidents-livraison" onclick="switchTab('incidents-livraison',this)">🚨 Incidents Livraison <span class="tab-count" id="cnt-incidents-livraison" style="background:#ef4444">—</span></button>
   <button class="tab-btn" onclick="switchTab('tracabilite',this)">📜 Traçabilité <span class="tab-count" id="cnt-tracabilite" style="display:none;">—</span></button>
   <button class="tab-btn" id="tab-flashinfo" onclick="switchTab('flashinfo',this)">📢 Flash Info</button>
@@ -9042,8 +9022,6 @@ function renderDispo(force = false) {
   const isAdm = (typeof window.isAdmin === 'function' ? window.isAdmin() : !sessionStorage.getItem('numiplan_team_lock'));
   const zapBtn = document.getElementById('btn-admin-zap-anomalies');
   if (zapBtn) zapBtn.style.display = isAdm ? 'inline-flex' : 'none';
-  const chefsBtn = document.getElementById('btn-admin-chefs-equipe');
-    if (chefsBtn) chefsBtn.style.display = isAdm ? 'inline-flex' : 'none';
     const chefsBtn = document.getElementById('btn-admin-chefs-equipe');
     if (chefsBtn) chefsBtn.style.display = isAdm ? 'inline-flex' : 'none';
     const zapHeaderBtn = document.getElementById('btn-header-zap-anomalies');
@@ -9362,7 +9340,7 @@ function renderDispo(force = false) {
     }
 
     return `<tr style="${rowBg}" draggable="${isDraggable}" ondragstart="if(sessionStorage.getItem('numiplan_team_lock') !== 'BL' && sessionStorage.getItem('numiplan_team_lock') !== 'DIR'){ handleDispoDragStart(event, '${r.v}') }else{ event.preventDefault(); }" ondragend="handleDispoDragEnd(this)">
-      <td class="mono" style="color:var(--acc);font-size:10px;white-space:nowrap">${window._MULTI_TRANSFER_MODE ? `<input type="checkbox" class="dispo-multi-chk" value="${r.v}" ${window._MULTI_TRANSFER_SELECTED && window._MULTI_TRANSFER_SELECTED.has(r.v) ? "checked" : ""} onchange="onMultiTransferChkChange(this)" style="width:15px;height:15px;vertical-align:middle;margin-right:6px;accent-color:#38bdf8;cursor:pointer">` : ""}${r.v}${r.gasoil ? ' <span style="color:var(--yel);font-size:11px" title="Besoin dotation gasoil actif">⛽</span>' : ''}${(()=>{ const gDate = r.geolocDate; const todayD = today(); const gVal = (gDate && gDate.startsWith(todayD)) ? (r.geoloc||'') : ((r.geoloc==='ON' && r.lat && r.lng) ? 'ON' : ''); let badge = ''; if(gVal==='ON') badge = ' <span onclick="toggleGeoloc('+realIdx+')" style="color:#22c55e;font-size:11px;cursor:pointer" title="Géoloc ON — cliquer pour changer">🟢</span>'; else if(gVal==='OFF') badge = ' <span onclick="toggleGeoloc('+realIdx+')" style="color:#ef4444;font-size:11px;cursor:pointer" title="Géoloc OFF — cliquer pour changer">🔴</span>'; else badge = ' <span onclick="toggleGeoloc('+realIdx+')" style="color:var(--txt3);font-size:11px;cursor:pointer" title="Géoloc non pointée aujourd\'hui — cliquer pour pointer">⚫</span>'; if(r.lat && r.lng) { badge += ` <a href="https://www.google.com/maps/search/?api=1&query=${r.lat},${r.lng}" target="_blank" style="text-decoration:none;font-size:11px;margin-left:2px;" title="Voir la position GPS sur Google Maps (Coordonnées : ${r.lat}, ${r.lng})">📍</a>`; } return badge; })()}</td>
+      <td class="mono" style="color:var(--acc);font-size:10px;white-space:nowrap">${window._MULTI_TRANSFER_MODE ? `<input type="checkbox" class="dispo-multi-chk" value="${r.v}" ${window._MULTI_TRANSFER_SELECTED && window._MULTI_TRANSFER_SELECTED.has(r.v) ? "checked" : ""} onchange="onMultiTransferChkChange(this)" style="width:15px;height:15px;vertical-align:middle;margin-right:6px;accent-color:#38bdf8;cursor:pointer">` : ""}${r.v}${(()=>{ const gDate = r.geolocDate; const todayD = today(); const gVal = (gDate && gDate.startsWith(todayD)) ? (r.geoloc||'') : ((r.geoloc==='ON' && r.lat && r.lng) ? 'ON' : ''); let badge = ''; if(gVal==='ON') badge = ' <span onclick="toggleGeoloc('+realIdx+')" style="color:#22c55e;font-size:11px;cursor:pointer" title="Géoloc ON — cliquer pour changer">🟢</span>'; else if(gVal==='OFF') badge = ' <span onclick="toggleGeoloc('+realIdx+')" style="color:#ef4444;font-size:11px;cursor:pointer" title="Géoloc OFF — cliquer pour changer">🔴</span>'; else badge = ' <span onclick="toggleGeoloc('+realIdx+')" style="color:var(--txt3);font-size:11px;cursor:pointer" title="Géoloc non pointée aujourd\'hui — cliquer pour pointer">⚫</span>'; if(r.lat && r.lng) { badge += ` <a href="https://www.google.com/maps/search/?api=1&query=${r.lat},${r.lng}" target="_blank" style="text-decoration:none;font-size:11px;margin-left:2px;" title="Voir la position GPS sur Google Maps (Coordonnées : ${r.lat}, ${r.lng})">📍</a>`; } return badge; })()}</td>
       <td>${stateBadge(r.etat)}</td>
       <td style="white-space:nowrap; vertical-align: middle;">${chauffeurCellContent}</td>
       <td class="mono" style="white-space:nowrap"><span class="cell-edit" contenteditable="true" data-field="hor" data-idx="${realIdx}" onblur="saveInline(this)" onkeydown="if(event.key==='Enter'){event.preventDefault();this.blur()}">${horaire(r.hor)||'—'}</span></td>
@@ -9385,7 +9363,6 @@ function renderDispo(force = false) {
       <td class="col-assurance" style="display:none !important;">${buildAssuranceCell(r, realIdx, 'dispo', 'rm')}</td>
       <td style="white-space:nowrap">
         ${r.cspc ? '<button class=\"del-btn\" style=\"color:var(--pur);font-size:10px;padding:1px 6px;border:1px solid rgba(167,139,250,.5);border-radius:4px;background:rgba(167,139,250,.15)\" onclick=\"undeclCSPC('+realIdx+')\" title=\"Retirer du programme CSPC\">🔷 CSPC ✕</button>' : '<button class=\"del-btn\" style=\"color:var(--pur);font-size:10px;padding:1px 5px;border:1px solid rgba(167,139,250,.3);border-radius:4px\" onclick=\"declCSPC('+realIdx+')\" title=\"Déclarer CSPC\">🔷</button>'}
-        ${r.gasoil ? '<button class=\"del-btn\" style=\"color:var(--yel);font-size:10px;padding:1px 6px;border:1px solid rgba(251,191,36,.5);border-radius:4px;background:rgba(251,191,36,.18)\" onclick=\"undeclGasoil('+realIdx+')\" title=\"Retirer le besoin de dotation gasoil\">⛽ Gasoil ✕</button>' : '<button class=\"del-btn\" style=\"color:var(--yel);font-size:10px;padding:1px 5px;border:1px solid rgba(251,191,36,.3);border-radius:4px\" onclick=\"declGasoil('+realIdx+')\" title=\"Déclarer besoin dotation gasoil\">⛽</button>'}
         <button class="del-btn" style="color:var(--grn)" onclick="setEtat(${realIdx},'DISPONIBLE')" title="Disponible">✅</button>
         <button class="del-btn" style="color:var(--acc)" onclick="setEtat(${realIdx},'En mission')" title="En mission">🚛</button>
         <button class="del-btn" style="color:#ef4444" onclick="openIncidentLivraisonModal(${realIdx})" title="Incident de livraison">🚨</button>
@@ -16622,15 +16599,11 @@ DB.dispo.forEach(r => {
 renderDispo();
 renderPannes();
 renderNC();
-renderGasoil();
 renderEquip();
 renderActivite();
 checkAssuranceAlerts();
-initPerfFromDB();
-renderBL();
 renderOdo();
 renderCSPC();
-renderBLAlerts();
 renderTracabilite();
 renderFlashInfos();
 checkPointageRequired();
