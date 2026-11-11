@@ -1133,6 +1133,9 @@
               if (typeof renderSegmentsErpPage === 'function' && document.getElementById('page-segments') && document.getElementById('page-segments').classList.contains('active')) {
                 renderSegmentsErpPage();
               }
+              if (typeof renderFicheSharikPage === 'function' && document.getElementById('page-fiche-sharik') && document.getElementById('page-fiche-sharik').classList.contains('active')) {
+                renderFicheSharikPage();
+              }
             }
             return;
           }
@@ -1395,7 +1398,8 @@
       }
       const ids = [];
       const lock = sessionStorage.getItem('numiplan_team_lock');
-      const targetEqs = (lock && lock !== 'BL' && lock !== 'DIR') ? window.expandTeamLockList(lock) : ['A1', 'A2', 'B1', 'B2', 'C1', 'C2', 'D1', 'D2'];
+      const baseEqs = (lock && lock !== 'BL' && lock !== 'DIR') ? window.expandTeamLockList(lock) : ['A1', 'A2', 'B1', 'B2', 'C1', 'C2', 'D1', 'D2'];
+      const targetEqs = Array.from(new Set([...baseEqs, ...baseEqs.map(e => e.charAt(0))]));
       targetEqs.forEach(eq => {
         months.forEach(m => {
           ids.push(eq + '_' + m);
@@ -1413,7 +1417,8 @@
       if (data) {
         data.forEach(row => {
           const id = row.id;
-          const eq = id.charAt(0);
+          const rawEq = id.split('_')[0];
+          const eq = /^[ABCD]$/.test(rawEq) ? (rawEq + '1') : rawEq;
           if (!cache[eq]) cache[eq] = {};
           Object.assign(cache[eq], row.payload);
         });
@@ -3638,6 +3643,7 @@ mark.hl { background: rgba(56,189,248,.25); color: var(--acc); border-radius: 3p
   <button class="tab-btn" id="tab-flashinfo" onclick="switchTab('flashinfo',this)">📢 Flash Info</button>
   <button class="tab-btn" id="tab-poi" onclick="switchTab('poi',this)">🛰️ Suivi POI <span class="tab-count red" id="cnt-poi-alerts" style="display:none;background:#ef4444">—</span></button>
   <button class="tab-btn" id="tab-segments" onclick="switchTab('segments',this)" style="border-color:rgba(56,189,248,.4)">&#x1F4E6; Voyages &amp; Segments <span class="tab-count" id="cnt-segments" style="background:#38bdf8;color:#000">-</span></button>
+  <button class="tab-btn" id="tab-fiche-sharik" onclick="switchTab('fiche-sharik',this)" style="border-color:rgba(16,185,129,.45)">🪪 Fiche Sharik <span class="tab-count" id="cnt-fiche-sharik" style="background:#10b981;color:#000">—</span></button>
   <button class="tab-btn" onclick="ouvrirHistoriqueAnomalies()" style="color:#fbbf24;border-color:rgba(251,191,36,.3)">📊 Historique Anomalies</button>
 </div>
 
@@ -5095,6 +5101,115 @@ mark.hl { background: rgba(56,189,248,.25); color: var(--acc); border-radius: 3p
       <button class="btn btn-reset" onclick="closeModal('modal-segments-truck-detail')">Fermer</button>
     </div>
   </div>
+</div>
+<!-- ══════════════ FICHE SHARIK (PEDIGRÉ COMPLET DU CHAUFFEUR) ══════════════ -->
+<div id="page-fiche-sharik" class="page">
+  <!-- Barre Supérieure -->
+  <div class="filter-bar" style="background:linear-gradient(90deg, rgba(16,185,129,0.16) 0%, rgba(15,23,42,0.92) 100%);border:1px solid rgba(16,185,129,0.42);border-bottom:2px solid #10b981;padding:14px 18px;border-radius:12px;margin-bottom:16px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px">
+    <div style="display:flex;align-items:center;gap:12px">
+      <div style="width:44px;height:44px;border-radius:10px;background:rgba(16,185,129,0.2);border:1px solid rgba(16,185,129,0.45);display:flex;align-items:center;justify-content:center;font-size:24px">🪪</div>
+      <div>
+        <div style="font-size:15px;font-weight:800;color:#fff;letter-spacing:0.4px;display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+          <span>FICHE SHARIK — PEDIGRÉ, CA, DISPONIBILITÉ &amp; NON-CONFORMITÉS</span>
+          <span id="sharik-cloud-badge" style="font-size:10px;padding:2px 8px;border-radius:10px;background:rgba(16,185,129,0.18);color:#34d399;border:1px solid rgba(16,185,129,0.4);font-weight:700">🎯 Objectif CA : 471 500 DA / mois</span>
+        </div>
+        <div id="sharik-source-info" style="font-size:11px;color:#94a3b8;margin-top:3px">
+          Synchronisé avec Voyages &amp; Segments (CA &amp; Voyages), Non-Conformités, Odomètre (RAC) et Disponibilité.
+        </div>
+      </div>
+    </div>
+
+    <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+      <button class="btn" onclick="refreshFicheSharikSources(true)" style="background:rgba(56,189,248,0.15);color:#38bdf8;border:1px solid rgba(56,189,248,0.4);font-weight:700;padding:8px 12px" title="Recharger Segments ERP et Archives depuis Supabase">
+        🔄 Actualiser Cloud
+      </button>
+      <button class="btn btn-extract" onclick="exportFicheSharikExcel()" style="padding:8px 12px;font-weight:700">
+        📊 Exporter Excel
+      </button>
+    </div>
+  </div>
+
+  <!-- Barre de Filtres & Sélection du Sharik -->
+  <div class="filter-bar" style="margin-bottom:16px;padding:12px 16px;background:var(--bg2);border:1px solid var(--border);border-radius:12px;display:flex;flex-wrap:wrap;gap:10px;align-items:center">
+    <select id="sharik-select-driver" class="filter-input" style="max-width:255px;font-size:12px;font-weight:700;border-color:rgba(16,185,129,0.45)" onchange="selectSharikPedigree(this.value)">
+      <option value="">🪪 Tous les Shariks (Vue Synthèse)</option>
+    </select>
+
+    <div style="display:flex;align-items:center;gap:6px">
+      <label style="font-size:11px;font-weight:700;color:var(--txt2)">🗓️ Mois :</label>
+      <select id="sharik-filter-month" class="filter-input" style="max-width:155px;font-size:12px" onchange="onSharikMonthFilterChange()">
+        <option value="ALL">Tous les mois</option>
+      </select>
+    </div>
+
+    <div style="display:flex;align-items:center;gap:6px">
+      <label style="font-size:11px;font-weight:700;color:var(--txt2)">Du :</label>
+      <input type="date" id="sharik-date-from" class="filter-input" style="width:132px;padding:6px 8px;font-size:12px" onchange="renderFicheSharikPage()">
+      <label style="font-size:11px;font-weight:700;color:var(--txt2)">Au :</label>
+      <input type="date" id="sharik-date-to" class="filter-input" style="width:132px;padding:6px 8px;font-size:12px" onchange="renderFicheSharikPage()">
+    </div>
+
+    <select id="sharik-filter-team" class="filter-input" style="max-width:145px;font-size:12px" onchange="renderFicheSharikPage()">
+      <option value="ALL">👥 Toutes Équipes</option>
+      <option value="ACTIVE">⭐ Équipe Active</option>
+      <option value="A1">Équipe A1</option>
+      <option value="A2">Équipe A2</option>
+      <option value="B1">Équipe B1</option>
+      <option value="B2">Équipe B2</option>
+      <option value="C1">Équipe C1</option>
+      <option value="C2">Équipe C2</option>
+      <option value="D1">Équipe D1</option>
+      <option value="D2">Équipe D2</option>
+    </select>
+
+    <select id="sharik-filter-perf" class="filter-input" style="max-width:190px;font-size:12px" onchange="renderFicheSharikPage()">
+      <option value="ALL">🔍 Tous les profils</option>
+      <option value="OBJ_OK">✅ Objectif CA atteint (≥ 100%)</option>
+      <option value="OBJ_KO">📉 Sous objectif CA (&lt; 100%)</option>
+      <option value="HAS_NC">⚠️ Ayant des Non-Conformités</option>
+      <option value="HAS_PANNE">🔧 Ayant été en panne</option>
+    </select>
+
+    <input type="text" id="sharik-search" class="filter-input" placeholder="🔎 Rechercher Sharik, camion, code..." style="flex:1;min-width:180px;font-size:12px" oninput="renderFicheSharikPage()">
+
+    <button class="btn btn-reset" onclick="resetFicheSharikFilters()" style="padding:6px 12px;font-size:11px">↺ Reset</button>
+  </div>
+
+  <!-- Cartes KPI Globales -->
+  <div id="sharik-global-kpis" style="display:grid;grid-template-columns:repeat(auto-fit, minmax(195px, 1fr));gap:12px;margin-bottom:18px"></div>
+
+  <!-- VUE LISTE SYNTHÉTIQUE DE TOUS LES SHARIKS -->
+  <div id="sharik-list-view">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;flex-wrap:wrap;gap:8px">
+      <div style="font-size:12px;font-weight:700;color:var(--txt2)">
+        🪪 Cliquez sur un Sharik pour afficher sa <b>Fiche Pedigré Complète</b> (<span id="sharik-count-label">0</span> Sharik(s))
+      </div>
+      <div style="font-size:11px;color:var(--txt3)">
+        Objectif CA mensuel de référence : <b style="color:#4ade80">471 500 DA / mois</b>
+      </div>
+    </div>
+    <div class="table-wrap" style="max-height:66vh;overflow-y:auto">
+      <table>
+        <thead>
+          <tr>
+            <th style="cursor:pointer" onclick="sortFicheSharik('name')">Sharik (Chauffeur) ⇅</th>
+            <th style="cursor:pointer" onclick="sortFicheSharik('team')">Équipe ⇅</th>
+            <th>Camion(s) / Tracteur(s)</th>
+            <th style="text-align:center;cursor:pointer" onclick="sortFicheSharik('tripsCount')">Voyages Réalisés ⇅</th>
+            <th style="cursor:pointer" onclick="sortFicheSharik('caGenere')">CA Généré vs Objectif (471 500 DA/m) ⇅</th>
+            <th style="text-align:center;cursor:pointer" onclick="sortFicheSharik('ncCount')">Non-Conformités ⇅</th>
+            <th style="text-align:center;cursor:pointer" onclick="sortFicheSharik('racPct')">Roulage à charge ⇅</th>
+            <th style="text-align:center;cursor:pointer" onclick="sortFicheSharik('dispoRate')">Taux de Disponibilité (Dispo / Mission / Panne) ⇅</th>
+            <th style="text-align:center">Pedigré</th>
+          </tr>
+        </thead>
+        <tbody id="sharik-list-tbody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- VUE FICHE PEDIGRÉ INDIVIDUELLE DU SHARIK -->
+  <div id="sharik-pedigree-view" style="display:none"></div>
 </div>
 </div><!-- /page-area -->
 </div><!-- /app-layout -->
@@ -8974,6 +9089,7 @@ function switchTab(name, btn) {
   if (name === 'incidents-livraison' && typeof renderIncidentsLivraisonPage === 'function') renderIncidentsLivraisonPage();
   if (name === 'poi' && typeof renderPoiPage === 'function') renderPoiPage();
   if (name === 'segments' && typeof renderSegmentsErpPage === 'function') renderSegmentsErpPage();
+  if (name === 'fiche-sharik' && typeof renderFicheSharikPage === 'function') renderFicheSharikPage();
   checkBascule();
 }
 
@@ -25531,6 +25647,978 @@ async function saveAdminChefsEquipeToSupabase() {
   }
 }
 window.saveAdminChefsEquipeToSupabase = saveAdminChefsEquipeToSupabase;
+
+// ══════════════════════════════════════════════════════════════════════════════
+// MODULE FICHE SHARIK (PEDIGRÉ COMPLET DU CHAUFFEUR / SHARIK)
+// Sources : Voyages & Segments (CA + Voyages), NC, Odomètre (RAC), Dispo/Archives/Traçabilité
+// ══════════════════════════════════════════════════════════════════════════════
+const SHARIK_OBJECTIF_CA_MENSUEL = 471500;
+window._SHARIK_SELECTED_CANON = '';
+window._SHARIK_SORT = { col: 'caGenere', asc: false };
+window._SHARIK_COMPUTED = [];
+window._SHARIK_SOURCES_LOADED = false;
+
+async function refreshFicheSharikSources(forceRefresh = false) {
+  const badge = document.getElementById('sharik-cloud-badge');
+  if (badge) badge.textContent = '⏳ Synchro Segments & Archives...';
+  try {
+    if ((!window._SEGMENTS_ERP_DATA || forceRefresh) && window.supabase) {
+      const { data: segRow, error: segErr } = await window.supabase
+        .from('numiplan_teams')
+        .select('payload')
+        .eq('team', 'SEGMENTS_ERP')
+        .maybeSingle();
+      if (!segErr && segRow && segRow.payload && Array.isArray(segRow.payload.segments)) {
+        window._SEGMENTS_ERP_DATA = segRow.payload;
+      }
+    }
+    if (forceRefresh) window._archivesLoaded = false;
+    if (typeof window._reloadArchives === 'function' && (!window._archivesLoaded || forceRefresh)) {
+      window._archivesLoaded = true;
+      await window._reloadArchives();
+    }
+    window._SHARIK_SOURCES_LOADED = true;
+  } catch (e) {
+    console.warn('[Fiche Sharik] Erreur chargement sources Cloud:', e);
+  } finally {
+    if (badge) badge.textContent = '🎯 Objectif CA : 471 500 DA / mois';
+    renderFicheSharikPage();
+  }
+}
+window.refreshFicheSharikSources = refreshFicheSharikSources;
+
+function getSharikCanonical(name) {
+  const raw = String(name || '').trim().toUpperCase();
+  if (!raw || raw === '—' || raw === '-' || raw.includes('MANQUE CHAUFFEUR') || raw.includes('NON RENSEIGNE') || raw === 'DISPONIBLE' || raw === 'EN PANNE' || raw === 'INDISPONIBLE' || raw === 'AC/DC' || raw === 'SANS CHAUFFEUR') {
+    return '';
+  }
+  if (typeof getCanonicalDriverName === 'function') {
+    return getCanonicalDriverName(raw);
+  }
+  return raw.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^A-Z0-9]+/g, ' ').replace(/\s+\d+$/, '').trim().split(' ').sort().join(' ');
+}
+
+function getAllTeamDbsSharik() {
+  const activeEq = typeof getCurrentEquipe === 'function' ? getCurrentEquipe() : 'A1';
+  const out = [];
+  ['A1', 'A2', 'B1', 'B2', 'C1', 'C2', 'D1', 'D2'].forEach(eq => {
+    const db = (eq === activeEq && typeof window.DB !== 'undefined' && window.DB) ? window.DB : window['DB_' + eq];
+    if (db) out.push({ eq, db });
+  });
+  return out;
+}
+
+function populateSharikMonthOptions(segments) {
+  const sel = document.getElementById('sharik-filter-month');
+  if (!sel) return;
+  const prev = sel.value;
+  const monthSet = new Set();
+  const nowYm = new Date().toISOString().slice(0, 7);
+  monthSet.add(nowYm);
+  (segments || []).forEach(s => {
+    if (s && s.date && /^\d{4}-\d{2}/.test(s.date)) {
+      monthSet.add(s.date.slice(0, 7));
+    }
+  });
+  const sorted = Array.from(monthSet).sort().reverse();
+  const opts = ['<option value="ALL">Tous les mois</option>'].concat(
+    sorted.map(m => {
+      const [y, mo] = m.split('-');
+      const d = new Date(parseInt(y, 10), parseInt(mo, 10) - 1, 1);
+      const lbl = isNaN(d.getTime()) ? m : d.toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' });
+      return `<option value="${m}">${lbl.charAt(0).toUpperCase() + lbl.slice(1)} (${m})</option>`;
+    })
+  );
+  sel.innerHTML = opts.join('');
+  if (prev && Array.from(sel.options).some(o => o.value === prev)) {
+    sel.value = prev;
+  } else if (!window._SHARIK_MONTH_INITIALIZED) {
+    window._SHARIK_MONTH_INITIALIZED = true;
+    const dataMonths = sorted.filter(m => (segments || []).some(s => s.date && s.date.startsWith(m)));
+    sel.value = dataMonths[0] || 'ALL';
+  }
+}
+
+function onSharikMonthFilterChange() {
+  const fromEl = document.getElementById('sharik-date-from');
+  const toEl = document.getElementById('sharik-date-to');
+  if (fromEl) fromEl.value = '';
+  if (toEl) toEl.value = '';
+  renderFicheSharikPage();
+}
+window.onSharikMonthFilterChange = onSharikMonthFilterChange;
+
+function resetFicheSharikFilters() {
+  const mSel = document.getElementById('sharik-filter-month');
+  const fromEl = document.getElementById('sharik-date-from');
+  const toEl = document.getElementById('sharik-date-to');
+  const teamEl = document.getElementById('sharik-filter-team');
+  const perfEl = document.getElementById('sharik-filter-perf');
+  const searchEl = document.getElementById('sharik-search');
+  if (fromEl) fromEl.value = '';
+  if (toEl) toEl.value = '';
+  if (teamEl) teamEl.value = 'ALL';
+  if (perfEl) perfEl.value = 'ALL';
+  if (searchEl) searchEl.value = '';
+  if (mSel) mSel.value = 'ALL';
+  window._SHARIK_SELECTED_CANON = '';
+  const drvSel = document.getElementById('sharik-select-driver');
+  if (drvSel) drvSel.value = '';
+  renderFicheSharikPage();
+}
+window.resetFicheSharikFilters = resetFicheSharikFilters;
+
+function sortFicheSharik(col) {
+  if (window._SHARIK_SORT.col === col) {
+    window._SHARIK_SORT.asc = !window._SHARIK_SORT.asc;
+  } else {
+    window._SHARIK_SORT.col = col;
+    window._SHARIK_SORT.asc = (col === 'name' || col === 'team');
+  }
+  renderFicheSharikPage();
+}
+window.sortFicheSharik = sortFicheSharik;
+
+function selectSharikPedigree(canon) {
+  window._SHARIK_SELECTED_CANON = canon || '';
+  const drvSel = document.getElementById('sharik-select-driver');
+  if (drvSel && drvSel.value !== window._SHARIK_SELECTED_CANON) {
+    drvSel.value = window._SHARIK_SELECTED_CANON;
+  }
+  renderSharikPedigreeOrList();
+}
+window.selectSharikPedigree = selectSharikPedigree;
+
+function computeAllSharikProfiles() {
+  const segData = window._SEGMENTS_ERP_DATA;
+  const allSegments = (segData && Array.isArray(segData.segments)) ? segData.segments : [];
+  populateSharikMonthOptions(allSegments);
+
+  const monthVal = document.getElementById('sharik-filter-month')?.value || 'ALL';
+  const dateFromRaw = document.getElementById('sharik-date-from')?.value || '';
+  const dateToRaw = document.getElementById('sharik-date-to')?.value || '';
+  const activeFrom = dateFromRaw || (monthVal !== 'ALL' ? `${monthVal}-01` : '');
+  const activeTo = dateToRaw || (monthVal !== 'ALL' ? `${monthVal}-31` : '');
+  const inDateRange = (dStr) => {
+    if (!activeFrom && !activeTo) return true;
+    const d = String(dStr || '').slice(0, 10);
+    if (!d) return false;
+    if (activeFrom && d < activeFrom) return false;
+    if (activeTo && d > activeTo) return false;
+    return true;
+  };
+
+  // Nombre de mois couverts pour l'objectif CA (471 500 DA / mois)
+  let nbMonths = 1;
+  if (dateFromRaw && dateToRaw) {
+    const d1 = new Date(dateFromRaw + 'T00:00:00');
+    const d2 = new Date(dateToRaw + 'T00:00:00');
+    if (!isNaN(d1) && !isNaN(d2) && d2 >= d1) {
+      nbMonths = Math.max(1, (d2.getFullYear() - d1.getFullYear()) * 12 + (d2.getMonth() - d1.getMonth()) + 1);
+    }
+  } else if (monthVal === 'ALL') {
+    const segMonths = new Set(allSegments.map(s => (s.date || '').slice(0, 7)).filter(m => /^\d{4}-\d{2}$/.test(m)));
+    nbMonths = Math.max(1, segMonths.size);
+  }
+  const objectifCA = SHARIK_OBJECTIF_CA_MENSUEL * nbMonths;
+
+  const profiles = new Map(); // canon -> profile object
+  const plateToCanon = new Map(); // normalized plate -> canon (primary driver in dispo)
+
+  const ensureProfile = (displayName, eqHint = '') => {
+    const canon = getSharikCanonical(displayName);
+    if (!canon) return null;
+    if (!profiles.has(canon)) {
+      profiles.set(canon, {
+        canon,
+        name: String(displayName || '').trim().toUpperCase(),
+        team: eqHint || '—',
+        teamsSet: new Set(eqHint ? [eqHint] : []),
+        plates: new Set(),
+        liveDispoRows: [],
+        regInfo: null,
+        // Voyages & CA (depuis Voyages & Segments)
+        segments: [],
+        tripsMap: new Map(),
+        trips: [],
+        tripsCount: 0,
+        caGenere: 0,
+        kmExpl: 0,
+        objectifCA,
+        nbMonths,
+        caRate: 0,
+        // Non-conformités
+        ncs: [],
+        ncCount: 0,
+        // Roulage à charge (Odomètre)
+        odoRows: [],
+        kmParcourus: 0,
+        kmFacture: 0,
+        racPct: null,
+        // Disponibilité (Disponible vs En mission vs En panne)
+        dispoCount: 0,
+        missionCount: 0,
+        panneDispoCount: 0,
+        dispoEvents: [],
+        seenDispoKeys: new Set(),
+        dispoRate: null,
+        opRate: null,
+        // Pannes déclarées
+        pannes: [],
+        panneCount: 0
+      });
+    } else {
+      const p = profiles.get(canon);
+      if (eqHint) {
+        if (!p.team || p.team === '—') p.team = eqHint;
+        p.teamsSet.add(eqHint);
+      }
+    }
+    return profiles.get(canon);
+  };
+
+  // 1. Dispo en direct (équipes A1..D2) -> construit la base des Shariks & plaques
+  const teamDbs = getAllTeamDbsSharik();
+  teamDbs.forEach(({ eq, db }) => {
+    (db.dispo || []).forEach(r => {
+      if (!r) return;
+      const p = ensureProfile(r.chauffeur, eq);
+      if (!p) return;
+      const plateNorm = typeof normErpPlate === 'function' ? normErpPlate(r.v) : String(r.v || '').replace(/[^A-Z0-9]/gi, '').toUpperCase();
+      if (plateNorm) {
+        p.plates.add(r.v.trim().toUpperCase());
+        if (!plateToCanon.has(plateNorm)) plateToCanon.set(plateNorm, p.canon);
+      }
+      p.liveDispoRows.push({ ...r, _team: eq });
+    });
+  });
+
+  // 2. Registre Entrées / Sorties (infos complémentaires : code tiers, contrat, téléphone, date entrée)
+  const regLists = [
+    ...(Array.isArray(window._ADMIN_SHARIK_ENTREES_SORTIES) ? window._ADMIN_SHARIK_ENTREES_SORTIES : []),
+    ...(window._ADMIN_SHARIK_CUSTOM_EDITS && Array.isArray(window._ADMIN_SHARIK_CUSTOM_EDITS.new_drivers) ? window._ADMIN_SHARIK_CUSTOM_EDITS.new_drivers : [])
+  ];
+  regLists.forEach(reg => {
+    if (!reg || !reg.sharik) return;
+    const canon = getSharikCanonical(reg.sharik);
+    if (canon && profiles.has(canon)) {
+      const p = profiles.get(canon);
+      if (!p.regInfo) p.regInfo = reg;
+    }
+  });
+
+  // 3. Non-conformités (toutes équipes A1..D2, filtrées par période si active)
+  const seenNcKeys = new Set();
+  teamDbs.forEach(({ eq, db }) => {
+    (db.nc || []).forEach(r => {
+      if (!r || !inDateRange(r.date)) return;
+      let p = r.sharik ? ensureProfile(r.sharik, eq) : null;
+      if (!p && r.v) {
+        const pNorm = typeof normErpPlate === 'function' ? normErpPlate(r.v) : String(r.v || '').replace(/[^A-Z0-9]/gi, '').toUpperCase();
+        if (plateToCanon.has(pNorm)) p = profiles.get(plateToCanon.get(pNorm));
+      }
+      if (!p) return;
+      const ncSig = `${p.canon}|${r.n || ''}|${r.date || ''}|${r.chgt || r.fausse || r.refus || r.autorise || r.autre || ''}`;
+      if (seenNcKeys.has(ncSig)) return;
+      seenNcKeys.add(ncSig);
+      p.ncs.push({ ...r, _team: eq });
+    });
+  });
+
+  // 4. Roulage à charge (Odomètre DB_*.odo)
+  const seenOdoPlates = new Set();
+  teamDbs.forEach(({ eq, db }) => {
+    const weeks = Array.isArray(db.odo_weeks) ? db.odo_weeks : [];
+    (db.odo || []).forEach(r => {
+      if (!r) return;
+      const pNorm = typeof normErpPlate === 'function' ? normErpPlate(r.v) : String(r.v || '').replace(/[^A-Z0-9]/gi, '').toUpperCase();
+      let p = r.chauffeur ? ensureProfile(r.chauffeur, eq) : null;
+      if (!p && pNorm && plateToCanon.has(pNorm)) {
+        p = profiles.get(plateToCanon.get(pNorm));
+      }
+      if (!p) return;
+      if (pNorm && seenOdoPlates.has(`${p.canon}|${pNorm}`)) return;
+      if (pNorm) seenOdoPlates.add(`${p.canon}|${pNorm}`);
+
+      // Filtrer semaines si date range actif et semaines compatibles YYYY-MM-DD
+      const weekIndices = [];
+      weeks.forEach((w, idx) => {
+        if (!activeFrom && !activeTo) { weekIndices.push(idx); return; }
+        if (/^\d{4}-\d{2}-\d{2}/.test(String(w || ''))) {
+          if (inDateRange(String(w).slice(0, 10))) weekIndices.push(idx);
+        } else {
+          weekIndices.push(idx);
+        }
+      });
+      const idxsToUse = weekIndices.length >= 2 ? weekIndices : weeks.map((_, i) => i);
+      const validEntries = [];
+      idxsToUse.forEach(i => {
+        const val = r.vals ? parseFloat(r.vals[i]) : NaN;
+        if (!isNaN(val) && val > 1000) validEntries.push({ idx: i, val });
+      });
+      let deltaVal = 0;
+      if (validEntries.length >= 2) {
+        const d = validEntries[validEntries.length - 1].val - validEntries[0].val;
+        if (d > 0 && d <= 100000) deltaVal = d;
+      }
+      let kmFact = 0;
+      if (Array.isArray(r.kmFactures)) {
+        let sumWeekly = 0;
+        idxsToUse.forEach(i => {
+          const kf = parseFloat(r.kmFactures[i]);
+          if (!isNaN(kf) && kf > 0) sumWeekly += kf;
+        });
+        if (sumWeekly > 0) kmFact = sumWeekly;
+      }
+      if (kmFact === 0 && r.kmFacture !== undefined && r.kmFacture !== null) {
+        const kfSingle = parseFloat(r.kmFacture);
+        if (!isNaN(kfSingle) && kfSingle > 0) kmFact = kfSingle;
+      }
+      p.odoRows.push({ v: r.v, deltaVal, kmFact, team: eq });
+      if (deltaVal > 0) p.kmParcourus += deltaVal;
+      if (kmFact > 0) p.kmFacture += kmFact;
+    });
+  });
+
+  // 5. Voyages & CA généré (depuis Voyages & Segments -> window._SEGMENTS_ERP_DATA)
+  allSegments.forEach(s => {
+    if (!s) return;
+    if (s.etatCmd === 'ANNULE' || s.etatSeg === 'ANNULE') return;
+    if (!inDateRange(s.date)) return;
+
+    const pNorm = typeof normErpPlate === 'function' ? normErpPlate(s.tracteur) : String(s.tracteur || '').replace(/[^A-Z0-9]/gi, '').toUpperCase();
+    let p = null;
+    if (s.affrete) p = ensureProfile(s.affrete);
+    if (!p && s.cond1) p = ensureProfile(s.cond1);
+    if (!p && pNorm && plateToCanon.has(pNorm)) {
+      p = profiles.get(plateToCanon.get(pNorm));
+    }
+    if (!p) return;
+
+    if (s.tracteur) p.plates.add(s.tracteur.trim().toUpperCase());
+    p.segments.push(s);
+    p.caGenere += (Number(s.achat) || 0);
+    p.kmExpl += (Number(s.kmExpl) || 0);
+
+    const plateOrDriver = pNorm || p.canon;
+    let tripKey = '';
+    if (s.groupage) {
+      tripKey = `GRP_${plateOrDriver}_${s.groupage}`;
+    } else if (s.jumlage === 'OUI') {
+      tripKey = `JUM_${plateOrDriver}_${s.date}_${s.lieuDep}`;
+    } else {
+      tripKey = `SEG_${s.seg || Math.random()}`;
+    }
+
+    if (!p.tripsMap.has(tripKey)) {
+      p.tripsMap.set(tripKey, {
+        tripKey,
+        date: s.date,
+        segIds: [s.seg].filter(Boolean),
+        groupage: s.groupage,
+        tracteur: s.tracteur || '—',
+        clients: [s.client].filter(Boolean),
+        lieuxDep: [s.lieuDep || s.villeDep].filter(Boolean),
+        lieuxArr: [s.lieuArriv || s.villeArr].filter(Boolean),
+        etatCmd: s.etatCmd || s.tracking || '—',
+        achat: Number(s.achat) || 0,
+        kmExpl: Number(s.kmExpl) || 0
+      });
+    } else {
+      const tp = p.tripsMap.get(tripKey);
+      if (s.seg && !tp.segIds.includes(s.seg)) tp.segIds.push(s.seg);
+      if (s.client && !tp.clients.includes(s.client)) tp.clients.push(s.client);
+      if (s.lieuDep && !tp.lieuxDep.includes(s.lieuDep)) tp.lieuxDep.push(s.lieuDep);
+      if (s.lieuArriv && !tp.lieuxArr.includes(s.lieuArriv)) tp.lieuxArr.push(s.lieuArriv);
+      tp.achat += (Number(s.achat) || 0);
+      tp.kmExpl += (Number(s.kmExpl) || 0);
+    }
+  });
+
+  // 6. Taux de disponibilité : Archives quotidiennes (ARCHIVES) + État live du jour + Changements d'état Traçabilité
+  const recordDispoState = (p, dateKey, plateStr, rawEtat, sourceLabel) => {
+    if (!p || !rawEtat) return;
+    const el = String(rawEtat).trim().toLowerCase();
+    let bucket = '';
+    if (el.includes('panne')) bucket = 'PANNE';
+    else if (el.includes('mission')) bucket = 'MISSION';
+    else if (el === 'disponible' || el.includes('dispo')) bucket = 'DISPO';
+    if (!bucket) return;
+
+    const plateNorm = typeof normErpPlate === 'function' ? normErpPlate(plateStr) : String(plateStr || '').replace(/[^A-Z0-9]/gi, '').toUpperCase();
+    const dedupKey = `${dateKey}|${plateNorm || p.canon}|${sourceLabel === 'TRACE' ? ('TRACE_' + bucket + '_' + dateKey) : 'SNAP'}`;
+    if (sourceLabel !== 'TRACE' && p.seenDispoKeys.has(dedupKey)) return;
+    if (sourceLabel === 'TRACE') {
+      const snapKey = `${dateKey}|${plateNorm || p.canon}|SNAP`;
+      if (p.seenDispoKeys.has(snapKey + '_' + bucket)) return;
+      if (p.seenDispoKeys.has(dedupKey)) return;
+      p.seenDispoKeys.add(dedupKey);
+    } else {
+      p.seenDispoKeys.add(dedupKey);
+      p.seenDispoKeys.add(dedupKey + '_' + bucket);
+    }
+
+    if (bucket === 'DISPO') p.dispoCount++;
+    else if (bucket === 'MISSION') p.missionCount++;
+    else if (bucket === 'PANNE') p.panneDispoCount++;
+
+    p.dispoEvents.push({ date: dateKey, plate: plateStr || '—', etat: rawEtat, bucket, source: sourceLabel });
+  };
+
+  // 6a. Archives journalières (numiplan_archives + localStorage)
+  const arcObj = window.ARCHIVES || {};
+  Object.entries(arcObj).forEach(([eqKey, daysMap]) => {
+    if (!daysMap || typeof daysMap !== 'object') return;
+    Object.entries(daysMap).forEach(([dateKey, snap]) => {
+      if (!inDateRange(dateKey)) return;
+      const dispoArr = (snap && Array.isArray(snap.dispo)) ? snap.dispo : [];
+      dispoArr.forEach(row => {
+        if (!row) return;
+        const pNorm = typeof normErpPlate === 'function' ? normErpPlate(row.v) : String(row.v || '').replace(/[^A-Z0-9]/gi, '').toUpperCase();
+        let p = row.chauffeur ? ensureProfile(row.chauffeur, /^[ABCD]$/.test(eqKey) ? (eqKey + '1') : eqKey) : null;
+        if (!p && pNorm && plateToCanon.has(pNorm)) p = profiles.get(plateToCanon.get(pNorm));
+        if (!p) return;
+        recordDispoState(p, dateKey, row.v, row.etat, 'Archive');
+      });
+    });
+  });
+
+  // 6b. Disponibilité live du jour (DB_*.dispo)
+  const todayStr = typeof today === 'function' ? today() : new Date().toISOString().slice(0, 10);
+  if (inDateRange(todayStr)) {
+    teamDbs.forEach(({ eq, db }) => {
+      (db.dispo || []).forEach(row => {
+        if (!row) return;
+        const pNorm = typeof normErpPlate === 'function' ? normErpPlate(row.v) : String(row.v || '').replace(/[^A-Z0-9]/gi, '').toUpperCase();
+        let p = row.chauffeur ? profiles.get(getSharikCanonical(row.chauffeur)) : null;
+        if (!p && pNorm && plateToCanon.has(pNorm)) p = profiles.get(plateToCanon.get(pNorm));
+        if (!p) return;
+        recordDispoState(p, todayStr, row.v, row.etat, 'Direct');
+      });
+    });
+  }
+
+  // 6c. Déclarations de changement d'état dans DB_*.tracabilite
+  teamDbs.forEach(({ eq, db }) => {
+    (db.tracabilite || []).forEach(tr => {
+      if (!tr || tr.type !== 'CHANGEMENT_ETAT') return;
+      const dStr = String(tr.date || '').slice(0, 10);
+      if (dStr && !inDateRange(dStr)) return;
+      const pNorm = typeof normErpPlate === 'function' ? normErpPlate(tr.target) : String(tr.target || '').replace(/[^A-Z0-9]/gi, '').toUpperCase();
+      if (!pNorm || !plateToCanon.has(pNorm)) return;
+      const p = profiles.get(plateToCanon.get(pNorm));
+      const m = String(tr.detail || '').match(/➔\s*"?([^"|]+)"?/);
+      if (m && m[1]) {
+        recordDispoState(p, dStr || todayStr, tr.target, m[1].trim(), 'TRACE');
+      }
+    });
+  });
+
+  // 6d. Pannes déclarées (DB_*.pannes) liées au Sharik ou à son camion
+  const seenPanneSig = new Set();
+  teamDbs.forEach(({ eq, db }) => {
+    (db.pannes || []).forEach(pn => {
+      if (!pn) return;
+      if (pn.date && /^\d{4}-\d{2}-\d{2}/.test(pn.date) && !inDateRange(pn.date)) return;
+      let p = pn.chauffeur ? profiles.get(getSharikCanonical(pn.chauffeur)) : null;
+      if (!p && pn.immat) {
+        const parts = String(pn.immat).split(/[\/,;]+/).map(s => typeof normErpPlate === 'function' ? normErpPlate(s) : s.replace(/[^A-Z0-9]/gi, '').toUpperCase()).filter(Boolean);
+        for (const pt of parts) {
+          if (plateToCanon.has(pt)) { p = profiles.get(plateToCanon.get(pt)); break; }
+        }
+      }
+      if (!p) return;
+      const sig = `${p.canon}|${pn.date || ''}|${pn.di || ''}|${pn.immat || ''}|${(pn.desc || '').slice(0, 40)}`;
+      if (seenPanneSig.has(sig)) return;
+      seenPanneSig.add(sig);
+      p.pannes.push({ ...pn, _team: eq });
+    });
+  });
+
+  // Finaliser les calculs par Sharik
+  const list = Array.from(profiles.values()).map(p => {
+    p.trips = Array.from(p.tripsMap.values()).sort((a, b) => String(b.date || '').localeCompare(String(a.date || '')));
+    p.tripsCount = p.trips.length;
+    p.ncCount = p.ncs.length;
+    p.ncs.sort((a, b) => String(b.date || '').localeCompare(String(a.date || '')));
+    p.panneCount = p.pannes.length;
+    p.caRate = p.objectifCA > 0 ? (p.caGenere / p.objectifCA) * 100 : 0;
+    p.racPct = (p.kmParcourus > 0 && p.kmFacture > 0) ? (p.kmFacture / p.kmParcourus) * 100 : null;
+    const totalDispoDecl = p.dispoCount + p.missionCount + p.panneDispoCount;
+    p.totalDispoDecl = totalDispoDecl;
+    p.dispoRate = totalDispoDecl > 0 ? (p.dispoCount / totalDispoDecl) * 100 : null;
+    p.opRate = totalDispoDecl > 0 ? ((p.dispoCount + p.missionCount) / totalDispoDecl) * 100 : null;
+    p.platesArr = Array.from(p.plates);
+    p.teamsArr = Array.from(p.teamsSet);
+    return p;
+  });
+
+  return { list, objectifCA, nbMonths, monthVal, activeFrom, activeTo };
+}
+
+function renderFicheSharikPage() {
+  if (!window._SHARIK_SOURCES_LOADED) {
+    refreshFicheSharikSources(false);
+  }
+  const { list, objectifCA, nbMonths, monthVal } = computeAllSharikProfiles();
+
+  const cntBadge = document.getElementById('cnt-fiche-sharik');
+  if (cntBadge) cntBadge.textContent = list.length;
+
+  const infoEl = document.getElementById('sharik-source-info');
+  if (infoEl) {
+    const segCount = (window._SEGMENTS_ERP_DATA && Array.isArray(window._SEGMENTS_ERP_DATA.segments)) ? window._SEGMENTS_ERP_DATA.segments.length : 0;
+    const arcCount = Object.values(window.ARCHIVES || {}).reduce((acc, m) => acc + Object.keys(m || {}).length, 0);
+    infoEl.innerHTML = `📦 Source Voyages &amp; CA : <b style="color:#38bdf8">${segCount}</b> segment(s) ERP • 🗂️ Relevés Disponibilité : <b style="color:#34d399">${arcCount}</b> archive(s) + Direct • 🎯 Objectif période : <b style="color:#4ade80">${objectifCA.toLocaleString('fr-FR')} DA</b> (${nbMonths} mois × 471 500 DA)`;
+  }
+
+  // Peupler la liste déroulante des Shariks
+  const drvSel = document.getElementById('sharik-select-driver');
+  if (drvSel) {
+    const curSel = window._SHARIK_SELECTED_CANON || '';
+    const sortedAlpha = list.slice().sort((a, b) => a.name.localeCompare(b.name));
+    drvSel.innerHTML = '<option value="">🪪 Tous les Shariks (Vue Synthèse)</option>' +
+      sortedAlpha.map(p => `<option value="${p.canon}">${p.name} (${p.team !== '—' ? 'Éq. ' + p.team : 'Externe'} · ${p.tripsCount} voy.)</option>`).join('');
+    if (curSel && sortedAlpha.some(p => p.canon === curSel)) drvSel.value = curSel;
+  }
+
+  // Filtrage
+  const teamFilter = document.getElementById('sharik-filter-team')?.value || 'ALL';
+  const perfFilter = document.getElementById('sharik-filter-perf')?.value || 'ALL';
+  const searchVal = (document.getElementById('sharik-search')?.value || '').trim().toUpperCase();
+  const activeEq = typeof getCurrentEquipe === 'function' ? getCurrentEquipe() : 'A1';
+
+  let filtered = list.filter(p => {
+    if (teamFilter === 'ACTIVE' && p.team !== activeEq && !p.teamsArr.includes(activeEq)) return false;
+    if (['A1', 'A2', 'B1', 'B2', 'C1', 'C2', 'D1', 'D2'].includes(teamFilter) && p.team !== teamFilter && !p.teamsArr.includes(teamFilter)) return false;
+    if (perfFilter === 'OBJ_OK' && p.caGenere < objectifCA) return false;
+    if (perfFilter === 'OBJ_KO' && p.caGenere >= objectifCA) return false;
+    if (perfFilter === 'HAS_NC' && p.ncCount === 0) return false;
+    if (perfFilter === 'HAS_PANNE' && p.panneCount === 0 && p.panneDispoCount === 0) return false;
+    if (searchVal) {
+      const hay = `${p.name} ${p.team} ${p.platesArr.join(' ')} ${p.regInfo ? (p.regInfo.code || '') : ''}`.toUpperCase();
+      if (!hay.includes(searchVal)) return false;
+    }
+    return true;
+  });
+
+  // Tri
+  const { col, asc } = window._SHARIK_SORT;
+  filtered.sort((a, b) => {
+    let va = a[col], vb = b[col];
+    if (typeof va === 'string' || typeof vb === 'string') {
+      return asc ? String(va || '').localeCompare(String(vb || '')) : String(vb || '').localeCompare(String(va || ''));
+    }
+    va = (va === null || va === undefined) ? -1 : Number(va);
+    vb = (vb === null || vb === undefined) ? -1 : Number(vb);
+    return asc ? (va - vb) : (vb - va);
+  });
+
+  window._SHARIK_COMPUTED = filtered;
+  window._SHARIK_ALL_COMPUTED = list;
+
+  // Cartes KPI Globales
+  const kpiContainer = document.getElementById('sharik-global-kpis');
+  if (kpiContainer) {
+    const sumTrips = filtered.reduce((s, p) => s + p.tripsCount, 0);
+    const sumCA = filtered.reduce((s, p) => s + p.caGenere, 0);
+    const sumObj = filtered.length * objectifCA;
+    const globalCaRate = sumObj > 0 ? Math.round((sumCA / sumObj) * 100) : 0;
+    const objReachedCount = filtered.filter(p => p.caGenere >= objectifCA).length;
+    const sumNC = filtered.reduce((s, p) => s + p.ncCount, 0);
+    const sumDispo = filtered.reduce((s, p) => s + p.dispoCount, 0);
+    const sumMission = filtered.reduce((s, p) => s + p.missionCount, 0);
+    const sumPanne = filtered.reduce((s, p) => s + p.panneDispoCount, 0);
+    const totalDecl = sumDispo + sumMission + sumPanne;
+    const avgDispoRate = totalDecl > 0 ? ((sumDispo / totalDecl) * 100).toFixed(1) : '—';
+    const sumKmP = filtered.reduce((s, p) => s + p.kmParcourus, 0);
+    const sumKmF = filtered.reduce((s, p) => s + p.kmFacture, 0);
+    const avgRac = (sumKmP > 0 && sumKmF > 0) ? ((sumKmF / sumKmP) * 100).toFixed(1) + '%' : '—';
+
+    kpiContainer.innerHTML = `
+      <div style="background:var(--bg2);border:1px solid var(--border);border-left:4px solid #10b981;border-radius:12px;padding:12px 14px">
+        <div style="font-size:11px;color:#34d399;font-weight:700;text-transform:uppercase">🪪 Shariks Analysés</div>
+        <div style="font-size:24px;font-weight:900;color:#34d399;margin-top:6px">${filtered.length}</div>
+        <div style="font-size:11px;color:var(--txt3);margin-top:4px">${objReachedCount} ayant atteint l'objectif CA</div>
+      </div>
+      <div style="background:var(--bg2);border:1px solid var(--border);border-left:4px solid #38bdf8;border-radius:12px;padding:12px 14px">
+        <div style="font-size:11px;color:#38bdf8;font-weight:700;text-transform:uppercase">📦 Voyages Réalisés</div>
+        <div style="font-size:24px;font-weight:900;color:#38bdf8;margin-top:6px">${sumTrips.toLocaleString('fr-FR')}</div>
+        <div style="font-size:11px;color:var(--txt3);margin-top:4px">Source : Voyages &amp; Segments ERP</div>
+      </div>
+      <div style="background:var(--bg2);border:1px solid var(--border);border-left:4px solid #4ade80;border-radius:12px;padding:12px 14px">
+        <div style="font-size:11px;color:#4ade80;font-weight:700;text-transform:uppercase">💰 CA Généré vs Objectif</div>
+        <div style="font-size:20px;font-weight:900;color:#4ade80;margin-top:6px">${Math.round(sumCA).toLocaleString('fr-FR')} DA</div>
+        <div style="font-size:11px;color:var(--txt3);margin-top:4px">${globalCaRate}% de ${Math.round(sumObj).toLocaleString('fr-FR')} DA</div>
+      </div>
+      <div style="background:var(--bg2);border:1px solid var(--border);border-left:4px solid #ef4444;border-radius:12px;padding:12px 14px">
+        <div style="font-size:11px;color:#f87171;font-weight:700;text-transform:uppercase">⚠️ Non-Conformités</div>
+        <div style="font-size:24px;font-weight:900;color:#f87171;margin-top:6px">${sumNC}</div>
+        <div style="font-size:11px;color:var(--txt3);margin-top:4px">Faits enregistrés sur la sélection</div>
+      </div>
+      <div style="background:var(--bg2);border:1px solid var(--border);border-left:4px solid #a78bfa;border-radius:12px;padding:12px 14px">
+        <div style="font-size:11px;color:#c084fc;font-weight:700;text-transform:uppercase">📊 Dispo &amp; Roulage à charge</div>
+        <div style="font-size:20px;font-weight:900;color:#c084fc;margin-top:6px">${avgDispoRate !== '—' ? avgDispoRate + '%' : '—'} <span style="font-size:12px;color:var(--txt2)">Dispo · RAC ${avgRac}</span></div>
+        <div style="font-size:11px;color:var(--txt3);margin-top:4px">✅ ${sumDispo} Dispo · 🚛 ${sumMission} Mission · 🔧 ${sumPanne} Panne</div>
+      </div>
+    `;
+  }
+
+  renderSharikPedigreeOrList();
+}
+window.renderFicheSharikPage = renderFicheSharikPage;
+
+function renderSharikPedigreeOrList() {
+  const listView = document.getElementById('sharik-list-view');
+  const pedView = document.getElementById('sharik-pedigree-view');
+  const selCanon = window._SHARIK_SELECTED_CANON || '';
+
+  if (selCanon) {
+    const p = (window._SHARIK_ALL_COMPUTED || []).find(x => x.canon === selCanon);
+    if (p && listView && pedView) {
+      listView.style.display = 'none';
+      pedView.style.display = 'block';
+      renderSingleSharikPedigree(p, pedView);
+      return;
+    }
+  }
+
+  if (pedView) pedView.style.display = 'none';
+  if (listView) listView.style.display = 'block';
+
+  const filtered = window._SHARIK_COMPUTED || [];
+  const countLbl = document.getElementById('sharik-count-label');
+  if (countLbl) countLbl.textContent = filtered.length;
+
+  const tbody = document.getElementById('sharik-list-tbody');
+  if (!tbody) return;
+  if (filtered.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;padding:28px;color:var(--txt3)">Aucun Sharik ne correspond aux filtres sélectionnés.</td></tr>';
+    return;
+  }
+
+  tbody.innerHTML = filtered.map(p => {
+    const teamBadge = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2', 'D1', 'D2'].includes(p.team)
+      ? `<span style="background:rgba(56,189,248,0.18);color:#38bdf8;border:1px solid rgba(56,189,248,0.4);padding:2px 7px;border-radius:6px;font-weight:800;font-size:11px">Éq. ${p.team}</span>`
+      : `<span style="background:rgba(148,163,184,0.15);color:#94a3b8;padding:2px 7px;border-radius:6px;font-size:10px">${p.team}</span>`;
+
+    const extBadge = p.platesArr.length > 1
+      ? `<span style="margin-left:4px;font-size:10px;background:rgba(167,139,250,0.2);color:#c084fc;padding:1px 6px;border-radius:5px;font-weight:700">Extension (${p.platesArr.length})</span>`
+      : '';
+
+    const platesHtml = p.platesArr.length > 0
+      ? p.platesArr.map(pl => `<span class="mono" style="background:rgba(255,255,255,0.06);padding:2px 6px;border-radius:4px;font-size:11px;color:var(--acc)">${pl}</span>`).join(' ')
+      : '<span style="color:var(--txt3)">—</span>';
+
+    const pct = Math.round(p.caRate);
+    const barW = Math.min(100, Math.max(0, pct));
+    const caColor = pct >= 100 ? '#4ade80' : pct >= 70 ? '#fbbf24' : '#f87171';
+    const ecart = Math.round(p.caGenere - p.objectifCA);
+    const ecartStr = (ecart >= 0 ? '+' : '') + ecart.toLocaleString('fr-FR') + ' DA';
+
+    const ncHtml = p.ncCount > 0
+      ? `<span style="background:rgba(239,68,68,0.2);color:#f87171;border:1px solid rgba(239,68,68,0.45);padding:3px 9px;border-radius:6px;font-size:12px;font-weight:800">⚠️ ${p.ncCount}</span>`
+      : '<span style="color:#34d399;font-weight:700">0</span>';
+
+    const racHtml = p.racPct !== null
+      ? `<span style="font-weight:800;color:${p.racPct >= 50 ? '#34d399' : p.racPct >= 40 ? '#fbbf24' : '#f87171'}">${p.racPct.toFixed(1)}%</span><div style="font-size:10px;color:var(--txt3)">${Math.round(p.kmFacture).toLocaleString('fr-FR')} / ${Math.round(p.kmParcourus).toLocaleString('fr-FR')} km</div>`
+      : (p.kmExpl > 0 ? `<span style="color:var(--txt3)">—</span><div style="font-size:10px;color:var(--txt3)">ERP: ${Math.round(p.kmExpl).toLocaleString('fr-FR')} km</div>` : '<span style="color:var(--txt3)">—</span>');
+
+    const dispoHtml = p.totalDispoDecl > 0
+      ? `<div style="font-weight:800;color:${p.dispoRate >= 50 ? '#34d399' : '#fbbf24'}">${p.dispoRate.toFixed(1)}% Dispo</div>
+         <div style="font-size:10px;color:var(--txt3);white-space:nowrap">✅ ${p.dispoCount} · 🚛 ${p.missionCount} · 🔧 ${p.panneDispoCount}</div>`
+      : '<span style="color:var(--txt3)">—</span>';
+
+    return `
+      <tr style="cursor:pointer" onclick="selectSharikPedigree('${p.canon.replace(/'/g, "\\'")}')">
+        <td style="font-weight:700;color:#f8fafc">${p.name}${extBadge}${p.regInfo && p.regInfo.code ? `<div style="font-size:10px;color:var(--txt3)">Code: ${p.regInfo.code}${p.regInfo.contrat ? ' · ' + p.regInfo.contrat : ''}</div>` : ''}</td>
+        <td>${teamBadge}</td>
+        <td><div style="display:flex;gap:4px;flex-wrap:wrap">${platesHtml}</div></td>
+        <td style="text-align:center"><span style="font-size:15px;font-weight:900;color:#38bdf8">${p.tripsCount}</span><div style="font-size:10px;color:var(--txt3)">${p.segments.length} seg.</div></td>
+        <td style="min-width:210px">
+          <div style="display:flex;justify-content:space-between;align-items:baseline;font-size:12px">
+            <b class="mono" style="color:${caColor}">${Math.round(p.caGenere).toLocaleString('fr-FR')} DA</b>
+            <span style="font-size:11px;font-weight:800;color:${caColor}">${pct}%</span>
+          </div>
+          <div style="width:100%;height:6px;background:rgba(255,255,255,0.08);border-radius:4px;overflow:hidden;margin:4px 0">
+            <div style="width:${barW}%;height:100%;background:${caColor}"></div>
+          </div>
+          <div style="font-size:10px;color:var(--txt3)">Obj: ${p.objectifCA.toLocaleString('fr-FR')} DA (<span style="color:${caColor}">${ecartStr}</span>)</div>
+        </td>
+        <td style="text-align:center">${ncHtml}</td>
+        <td style="text-align:center">${racHtml}</td>
+        <td style="text-align:center">${dispoHtml}</td>
+        <td style="text-align:center">
+          <button class="btn" onclick="event.stopPropagation();selectSharikPedigree('${p.canon.replace(/'/g, "\\'")}')" style="background:rgba(16,185,129,0.18);color:#34d399;border:1px solid rgba(16,185,129,0.45);padding:5px 10px;font-size:11px;font-weight:700;border-radius:6px">
+            🪪 Pedigré
+          </button>
+        </td>
+      </tr>
+    `;
+  }).join('');
+}
+
+function renderSingleSharikPedigree(p, container) {
+  const pct = Math.round(p.caRate);
+  const barW = Math.min(100, Math.max(0, pct));
+  const caColor = pct >= 100 ? '#4ade80' : pct >= 70 ? '#fbbf24' : '#f87171';
+  const ecart = Math.round(p.caGenere - p.objectifCA);
+  const ecartStr = (ecart >= 0 ? '+' : '') + ecart.toLocaleString('fr-FR') + ' DA';
+
+  const totalDecl = p.totalDispoDecl;
+  const pctDispo = totalDecl > 0 ? Math.round((p.dispoCount / totalDecl) * 100) : 0;
+  const pctMission = totalDecl > 0 ? Math.round((p.missionCount / totalDecl) * 100) : 0;
+  const pctPanne = totalDecl > 0 ? Math.max(0, 100 - pctDispo - pctMission) : 0;
+
+  const ncTypeSummary = { chgt: 0, fausse: 0, refus: 0, autorise: 0, autre: 0 };
+  p.ncs.forEach(r => {
+    if (r.chgt) ncTypeSummary.chgt++;
+    else if (r.fausse) ncTypeSummary.fausse++;
+    else if (r.refus) ncTypeSummary.refus++;
+    else if (r.autorise) ncTypeSummary.autorise++;
+    else ncTypeSummary.autre++;
+  });
+
+  const regBadges = [];
+  if (p.regInfo) {
+    if (p.regInfo.code) regBadges.push(`<span>🆔 Code Tiers : <b>${p.regInfo.code}</b></span>`);
+    if (p.regInfo.contrat) regBadges.push(`<span>📄 Contrat : <b>${p.regInfo.contrat}</b></span>`);
+    if (p.regInfo.tel || p.regInfo.telephone) regBadges.push(`<span>📞 Tél : <b>${p.regInfo.tel || p.regInfo.telephone}</b></span>`);
+    if (p.regInfo.dateEntree) regBadges.push(`<span>📅 Entrée : <b>${p.regInfo.dateEntree}</b></span>`);
+  }
+
+  const ncRowsHtml = p.ncs.length > 0
+    ? p.ncs.map(r => {
+        let type = '', detail = '';
+        if (r.chgt) { type = '<span class="badge badge-manque">Chgt compte</span>'; detail = r.chgt; }
+        else if (r.autorise) { type = '<span class="badge badge-grn">Chgt autorisé</span>'; detail = r.autorise; }
+        else if (r.fausse) { type = '<span class="badge badge-panne">Fausse décl.</span>'; detail = r.fausse; }
+        else if (r.refus) { type = '<span class="badge badge-mission">Refus travail</span>'; detail = r.refus; }
+        else { type = '<span class="badge" style="background:rgba(251,191,36,.15);color:#fbbf24">Autre</span>'; detail = r.autre || '—'; }
+        return `
+          <tr>
+            <td class="mono">${r.date || '—'}</td>
+            <td class="mono" style="color:var(--txt3)">${r.n || '—'}</td>
+            <td class="mono" style="color:var(--acc)">${r.v || '—'}</td>
+            <td>${type}</td>
+            <td style="font-weight:600;color:#f8fafc">${detail}</td>
+            <td>${r.mise ? `<span class="badge badge-panne">${r.mise}</span>` : '—'}</td>
+            <td style="font-size:11px;color:var(--txt2)">${r.cet || '—'} (Éq. ${r._team})</td>
+          </tr>
+        `;
+      }).join('')
+    : '<tr><td colspan="7" style="text-align:center;padding:20px;color:#34d399;font-weight:700">✅ Aucune non-conformité enregistrée pour ce Sharik sur la période.</td></tr>';
+
+  const tripRowsHtml = p.trips.length > 0
+    ? p.trips.slice(0, 100).map(tp => `
+        <tr>
+          <td class="mono" style="font-size:11px">${tp.date || '—'}</td>
+          <td class="mono" style="font-size:11px">${tp.segIds.join(', ')}${tp.groupage ? `<div style="font-size:10px;color:#38bdf8">${tp.groupage}</div>` : ''}</td>
+          <td class="mono" style="color:var(--acc);font-size:11px">${tp.tracteur}</td>
+          <td style="font-size:11px;font-weight:600">${tp.clients.join(' / ') || '—'}</td>
+          <td style="font-size:11px"><span style="color:#fbbf24">${tp.lieuxDep.join(' + ') || '—'}</span> ➔ <span style="color:#38bdf8">${tp.lieuxArr.join(' + ') || '—'}</span></td>
+          <td style="text-align:center;font-size:11px">${tp.etatCmd}</td>
+          <td class="mono" style="text-align:right;font-weight:700;color:#4ade80">${Math.round(tp.achat).toLocaleString('fr-FR')} DA</td>
+        </tr>
+      `).join('')
+    : '<tr><td colspan="7" style="text-align:center;padding:20px;color:var(--txt3)">Aucun voyage trouvé dans Voyages &amp; Segments sur la période sélectionnée.</td></tr>';
+
+  const panneRowsHtml = p.pannes.length > 0
+    ? p.pannes.slice(0, 50).map(pn => `
+        <tr>
+          <td class="mono" style="font-size:11px">${pn.date || '—'}</td>
+          <td class="mono" style="color:var(--acc);font-size:11px">${pn.immat || '—'}</td>
+          <td class="mono" style="font-size:11px">${pn.di || '—'}</td>
+          <td style="font-size:11px">${pn.desc || '—'}</td>
+          <td style="font-size:11px">${pn.charge === 'OUI' ? '🔴 En charge' : 'À vide'}</td>
+        </tr>
+      `).join('')
+    : '<tr><td colspan="5" style="text-align:center;padding:16px;color:#34d399">✅ Aucune panne enregistrée.</td></tr>';
+
+  container.innerHTML = `
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;flex-wrap:wrap;gap:10px">
+      <button class="btn" onclick="selectSharikPedigree('')" style="background:rgba(255,255,255,0.08);color:var(--txt);font-weight:700;padding:8px 14px;border-radius:8px">
+        ← Retour à tous les Shariks
+      </button>
+      <button class="btn" onclick="printSharikPedigree()" style="background:rgba(56,189,248,0.16);color:#38bdf8;border:1px solid rgba(56,189,248,0.45);font-weight:700;padding:8px 14px;border-radius:8px">
+        🖨️ Imprimer / PDF Fiche Pedigré
+      </button>
+    </div>
+
+    <!-- Carte d'identité Pedigré -->
+    <div id="sharik-pedigree-printable" style="background:var(--bg2);border:1px solid rgba(16,185,129,0.45);border-radius:16px;padding:20px;margin-bottom:16px">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:16px;border-bottom:1px solid var(--border);padding-bottom:16px;margin-bottom:18px">
+        <div style="display:flex;align-items:center;gap:14px">
+          <div style="width:58px;height:58px;border-radius:14px;background:linear-gradient(135deg,#10b981,#0284c7);display:flex;align-items:center;justify-content:center;font-size:28px;font-weight:900;color:#fff;box-shadow:0 8px 20px rgba(16,185,129,0.25)">🪪</div>
+          <div>
+            <div style="font-size:11px;color:#34d399;font-weight:800;letter-spacing:1.2px;text-transform:uppercase">FICHE PEDIGRÉ SHARIK · ÉQUIPE ${p.teamsArr.join(' / ') || p.team}</div>
+            <h2 style="margin:2px 0 6px 0;font-size:22px;font-weight:900;color:#fff">${p.name}</h2>
+            <div style="display:flex;gap:14px;flex-wrap:wrap;font-size:12px;color:var(--txt2)">
+              <span>🚛 Tracteur(s) : <b class="mono" style="color:#38bdf8">${p.platesArr.join(', ') || '—'}</b></span>
+              ${regBadges.join('')}
+            </div>
+          </div>
+        </div>
+        <div style="text-align:right">
+          <div style="font-size:11px;color:var(--txt3);text-transform:uppercase;font-weight:700">Objectif Mensuel Référence</div>
+          <div style="font-size:20px;font-weight:900;color:#4ade80">471 500 DA / mois</div>
+          <div style="font-size:11px;color:var(--txt2)">Période : ${p.nbMonths} mois (${p.objectifCA.toLocaleString('fr-FR')} DA)</div>
+        </div>
+      </div>
+
+      <!-- 5 Blocs Métriques du Pedigré -->
+      <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(220px, 1fr));gap:14px;margin-bottom:20px">
+        <!-- 1. Voyages Réalisés -->
+        <div style="background:var(--bg3);border:1px solid var(--border);border-top:3px solid #38bdf8;border-radius:12px;padding:14px">
+          <div style="font-size:11px;color:#38bdf8;font-weight:800;text-transform:uppercase">📦 Voyages Réalisés</div>
+          <div style="font-size:28px;font-weight:900;color:#fff;margin:6px 0">${p.tripsCount} <span style="font-size:13px;color:var(--txt2);font-weight:600">voyage(s)</span></div>
+          <div style="font-size:11px;color:var(--txt3)">${p.segments.length} segment(s) ERP • ${Math.round(p.kmExpl).toLocaleString('fr-FR')} km expl.</div>
+        </div>
+
+        <!-- 2. CA Généré vs Objectif -->
+        <div style="background:var(--bg3);border:1px solid var(--border);border-top:3px solid ${caColor};border-radius:12px;padding:14px">
+          <div style="font-size:11px;color:${caColor};font-weight:800;text-transform:uppercase">💰 CA Généré vs Objectif</div>
+          <div style="font-size:22px;font-weight:900;color:${caColor};margin:6px 0">${Math.round(p.caGenere).toLocaleString('fr-FR')} DA</div>
+          <div style="width:100%;height:7px;background:rgba(255,255,255,0.08);border-radius:4px;overflow:hidden;margin-bottom:6px">
+            <div style="width:${barW}%;height:100%;background:${caColor}"></div>
+          </div>
+          <div style="font-size:11px;color:var(--txt2)"><b>${pct}%</b> de ${p.objectifCA.toLocaleString('fr-FR')} DA (<span style="color:${caColor};font-weight:700">${ecartStr}</span>)</div>
+        </div>
+
+        <!-- 3. Non-Conformités -->
+        <div style="background:var(--bg3);border:1px solid var(--border);border-top:3px solid #ef4444;border-radius:12px;padding:14px">
+          <div style="font-size:11px;color:#f87171;font-weight:800;text-transform:uppercase">⚠️ Non-Conformités</div>
+          <div style="font-size:28px;font-weight:900;color:${p.ncCount > 0 ? '#f87171' : '#34d399'};margin:6px 0">${p.ncCount} <span style="font-size:13px;color:var(--txt2);font-weight:600">fait(s)</span></div>
+          <div style="font-size:11px;color:var(--txt3)">Chgt: ${ncTypeSummary.chgt} · Fausse: ${ncTypeSummary.fausse} · Refus: ${ncTypeSummary.refus} · Autorisé: ${ncTypeSummary.autorise}</div>
+        </div>
+
+        <!-- 4. Roulage à charge -->
+        <div style="background:var(--bg3);border:1px solid var(--border);border-top:3px solid #f59e0b;border-radius:12px;padding:14px">
+          <div style="font-size:11px;color:#fbbf24;font-weight:800;text-transform:uppercase">🛣️ Roulage à Charge (RAC)</div>
+          <div style="font-size:28px;font-weight:900;color:${p.racPct !== null ? (p.racPct >= 50 ? '#34d399' : p.racPct >= 40 ? '#fbbf24' : '#f87171') : 'var(--txt3)'};margin:6px 0">${p.racPct !== null ? p.racPct.toFixed(1) + '%' : '—'}</div>
+          <div style="font-size:11px;color:var(--txt3)">${p.kmParcourus > 0 ? `${Math.round(p.kmFacture).toLocaleString('fr-FR')} km fact. / ${Math.round(p.kmParcourus).toLocaleString('fr-FR')} km odo` : 'Aucun relevé odomètre facturé'}</div>
+        </div>
+
+        <!-- 5. Taux de Disponibilité -->
+        <div style="background:var(--bg3);border:1px solid var(--border);border-top:3px solid #a78bfa;border-radius:12px;padding:14px">
+          <div style="font-size:11px;color:#c084fc;font-weight:800;text-transform:uppercase">📊 Taux de Disponibilité</div>
+          <div style="font-size:26px;font-weight:900;color:#fff;margin:6px 0">${p.dispoRate !== null ? p.dispoRate.toFixed(1) + '%' : '—'} <span style="font-size:11px;color:#34d399;font-weight:700">${p.opRate !== null ? '(' + p.opRate.toFixed(1) + '% hors panne)' : ''}</span></div>
+          <div style="display:flex;height:7px;border-radius:4px;overflow:hidden;background:rgba(255,255,255,0.08);margin-bottom:6px">
+            <div style="width:${pctDispo}%;background:#22c55e" title="Disponible: ${p.dispoCount}"></div>
+            <div style="width:${pctMission}%;background:#38bdf8" title="En mission: ${p.missionCount}"></div>
+            <div style="width:${pctPanne}%;background:#ef4444" title="En panne: ${p.panneDispoCount}"></div>
+          </div>
+          <div style="font-size:11px;color:var(--txt2)">✅ Dispo: <b>${p.dispoCount}</b> · 🚛 Mission: <b>${p.missionCount}</b> · 🔧 Panne: <b>${p.panneDispoCount}</b></div>
+        </div>
+      </div>
+
+      <!-- Détail des Non-Conformités -->
+      <div style="margin-bottom:20px">
+        <h3 style="margin:0 0 10px 0;font-size:14px;color:#f87171;display:flex;align-items:center;gap:8px">⚠️ Détail des Non-Conformités (${p.ncCount})</h3>
+        <div class="table-wrap" style="max-height:260px;overflow-y:auto">
+          <table>
+            <thead>
+              <tr>
+                <th>Date</th>
+                <th>N°</th>
+                <th>Camion</th>
+                <th>Type NC</th>
+                <th>Détail des faits</th>
+                <th>Mise à pied / Sanction</th>
+                <th>Saisi par</th>
+              </tr>
+            </thead>
+            <tbody>${ncRowsHtml}</tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Détail des Voyages & CA (Voyages & Segments) -->
+      <div style="margin-bottom:20px">
+        <h3 style="margin:0 0 10px 0;font-size:14px;color:#38bdf8;display:flex;align-items:center;gap:8px">📦 Voyages Réalisés &amp; CA Généré (${p.tripsCount} voyage(s) · ${Math.round(p.caGenere).toLocaleString('fr-FR')} DA)</h3>
+        <div class="table-wrap" style="max-height:280px;overflow-y:auto">
+          <table>
+            <thead>
+              <tr>
+                <th>Date</th>
+                <th>Segment / Groupage</th>
+                <th>Tracteur</th>
+                <th>Client</th>
+                <th>Trajet (Départ ➔ Arrivée)</th>
+                <th style="text-align:center">Statut</th>
+                <th style="text-align:right">CA / ACHAT (DA)</th>
+              </tr>
+            </thead>
+            <tbody>${tripRowsHtml}</tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Historique Pannes déclarées -->
+      <div>
+        <h3 style="margin:0 0 10px 0;font-size:14px;color:#fbbf24;display:flex;align-items:center;gap:8px">🔧 Historique des Pannes liées (${p.panneCount})</h3>
+        <div class="table-wrap" style="max-height:200px;overflow-y:auto">
+          <table>
+            <thead>
+              <tr>
+                <th>Date</th>
+                <th>Véhicule</th>
+                <th>N° DI</th>
+                <th>Description panne</th>
+                <th>Charge</th>
+              </tr>
+            </thead>
+            <tbody>${panneRowsHtml}</tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function printSharikPedigree() {
+  const el = document.getElementById('sharik-pedigree-printable');
+  if (!el) return;
+  const w = window.open('', '_blank', 'width=1050,height=800');
+  if (!w) { window.print(); return; }
+  w.document.write(`<!DOCTYPE html><html lang="fr"><head><meta charset="utf-8"><title>Fiche Pedigré Sharik</title><style>body{font-family:sans-serif;background:#fff;color:#0f172a;padding:20px} table{width:100%;border-collapse:collapse;margin-top:6px;font-size:12px} th,td{border:1px solid #cbd5e1;padding:6px 8px;text-align:left} th{background:#f1f5f9} h2,h3{color:#0f172a} .badge{padding:2px 6px;border-radius:4px;background:#e2e8f0;font-size:11px}</style></head><body>${el.innerHTML}</body></html>`);
+  w.document.close();
+  setTimeout(() => { w.focus(); w.print(); }, 250);
+}
+window.printSharikPedigree = printSharikPedigree;
+
+function exportFicheSharikExcel() {
+  const list = window._SHARIK_COMPUTED || [];
+  if (!list.length) {
+    showToast('⚠️ Aucun Sharik à exporter.', true);
+    return;
+  }
+  const summaryRows = list.map(p => ({
+    'Sharik': p.name,
+    'Équipe': p.teamsArr.join(', ') || p.team,
+    'Camion(s)': p.platesArr.join(', '),
+    'Voyages Réalisés': p.tripsCount,
+    'Segments ERP': p.segments.length,
+    'CA Généré (DA)': Math.round(p.caGenere * 100) / 100,
+    'Objectif Période (DA)': p.objectifCA,
+    'Atteinte Objectif (%)': Math.round(p.caRate * 10) / 10,
+    'Nb Non-Conformités': p.ncCount,
+    'Roulage à charge (%)': p.racPct !== null ? Math.round(p.racPct * 10) / 10 : '',
+    'KM Parcourus Odo': Math.round(p.kmParcourus),
+    'KM Facturés Odo': Math.round(p.kmFacture),
+    'Taux Dispo (%)': p.dispoRate !== null ? Math.round(p.dispoRate * 10) / 10 : '',
+    'Déclaré Disponible (fois)': p.dispoCount,
+    'Déclaré En mission (fois)': p.missionCount,
+    'Déclaré En panne (fois)': p.panneDispoCount
+  }));
+  const wb = XLSX.utils.book_new();
+  const ws = XLSX.utils.json_to_sheet(summaryRows);
+  XLSX.utils.book_append_sheet(wb, ws, 'Fiche Sharik');
+  const todayStr = new Date().toISOString().split('T')[0];
+  XLSX.writeFile(wb, `Numiplan_Fiche_Sharik_${todayStr}.xlsx`);
+  showToast('✅ Export Excel Fiche Sharik généré !');
+}
+window.exportFicheSharikExcel = exportFicheSharikExcel;
 
 </script>
 
