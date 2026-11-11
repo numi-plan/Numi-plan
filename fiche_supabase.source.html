@@ -242,9 +242,9 @@
 
   function emptyTeamData() {
     return {
-      dispo: [], pannes: [], nc: [], equip: [], activite: [],
-      odo: [], odo_weeks: [], cspc_archives: [],
-      cspc: [],
+      dispo: [], pannes: [], nc: [], gasoil: [], equip: [], activite: [],
+      bl: [], odo: [], odo_weeks: [], cspc_archives: [],
+      cspc: [], blacklist: [],
       tracabilite: [], flashInfos: [], anomaliesPointees: {},
       clientModifs: [], incidents: [], incidentsLivraison: []
     };
@@ -432,12 +432,10 @@
         version: 4,
         active: getCurrentEquipe(),
         teams: {
-          A: window.DB_A,
-          B: window.DB_B,
-          C: window.DB_C,
-          D: window.DB_D
-          
-          
+          A1: window.DB_A1, A2: window.DB_A2,
+          B1: window.DB_B1, B2: window.DB_B2,
+          C1: window.DB_C1, C2: window.DB_C2,
+          D1: window.DB_D1, D2: window.DB_D2
         }
       }));
     } catch(e) {}
@@ -464,9 +462,9 @@
 
   function emptyTeamData() {
     return {
-      dispo: [], pannes: [], nc: [], equip: [], activite: [],
-      odo: [], odo_weeks: [], cspc_archives: [],
-      cspc: [], deleted_trucks: [], deleted_cspc: [],
+      dispo: [], pannes: [], nc: [], gasoil: [], equip: [], activite: [],
+      bl: [], odo: [], odo_weeks: [], cspc_archives: [],
+      cspc: [], blacklist: [], deleted_trucks: [], deleted_cspc: [], deleted_gasoil: [],
       tracabilite: [], flashInfos: [], anomaliesPointees: {},
       clientModifs: [], incidents: [], incidentsLivraison: []
     };
@@ -1076,6 +1074,7 @@
   // Chargement Initial depuis Supabase (Toutes les équipes sont synchronisées pour TOUS les utilisateurs)
   window._cloudSyncReady = false;
   let _isLoadingInitialTeams = false;
+  window.loadInitialTeams = loadInitialTeams;
   async function loadInitialTeams() {
     if (_isLoadingInitialTeams) return;
     _isLoadingInitialTeams = true;
@@ -3015,9 +3014,12 @@ function applyTeamLockUI(eq) {
 
       // Cas B : ADMIN (Superviseur Admin)
       const isAdminMatch = (uClean === 'ADMIN' && (
-        pClean === 'Sharik@admin' || pClean.toLowerCase() === 'sharik@admin' ||
-        pClean === 'Sharik@2026' || pClean.toLowerCase() === 'sharik@2026' ||
-        pClean === 'Admin@2026' || pClean.toLowerCase() === 'admin@2026'
+        pClean.toLowerCase() === 'sharik@admin' ||
+        pClean.toLowerCase() === 'sharik@2026' ||
+        pClean.toLowerCase() === 'admin@2026' ||
+        pClean.toLowerCase() === 'rexsharik@2026' ||
+        pClean.toLowerCase() === 'numilog@26' ||
+        pClean.toLowerCase() === 'direx'
       ));
 
       if (isAdminMatch) {
@@ -3025,8 +3027,15 @@ function applyTeamLockUI(eq) {
         sessionStorage.setItem('numiplan_username', 'ADMIN');
         sessionStorage.setItem('numiplan_user_role', 'admin');
         sessionStorage.removeItem('numiplan_team_lock');
-        document.getElementById('login-screen').style.display = 'none';
-        window.location.reload();
+        const loginScr = document.getElementById('login-screen');
+        if (loginScr) loginScr.style.display = 'none';
+        if (typeof startSessionTimers === 'function') startSessionTimers();
+        if (typeof window.reconnectRealtimeChannel === 'function') window.reconnectRealtimeChannel();
+        if (typeof window.loadInitialTeams === 'function') window.loadInitialTeams();
+        const eq = (typeof window.CURRENT_EQUIPE !== 'undefined' && window.CURRENT_EQUIPE) ? window.CURRENT_EQUIPE : 'A1';
+        if (typeof window.switchEquipe === 'function') window.switchEquipe(eq);
+        if (typeof window.applyTeamLockUI === 'function') window.applyTeamLockUI(eq);
+        if (typeof window.checkPointageRequired === 'function') window.checkPointageRequired();
         return;
       }
 
@@ -3125,8 +3134,15 @@ function applyTeamLockUI(eq) {
         } catch(eStore) {}
       }
 
-      document.getElementById('login-screen').style.display = 'none';
-      window.location.reload();
+      restoreSubmitBtn();
+      const loginScr = document.getElementById('login-screen');
+      if (loginScr) loginScr.style.display = 'none';
+      if (typeof startSessionTimers === 'function') startSessionTimers();
+      if (typeof window.reconnectRealtimeChannel === 'function') window.reconnectRealtimeChannel();
+      if (typeof window.loadInitialTeams === 'function') window.loadInitialTeams();
+      if (typeof window.switchEquipe === 'function') window.switchEquipe(targetTeam);
+      if (typeof window.applyTeamLockUI === 'function') window.applyTeamLockUI(targetTeam);
+      if (typeof window.checkPointageRequired === 'function') window.checkPointageRequired();
     } catch(fatalErr) {
       console.error("Erreur checkPassword:", fatalErr);
       if (typeof restoreSubmitBtn === 'function') restoreSubmitBtn();
@@ -4913,6 +4929,8 @@ mark.hl { background: rgba(56,189,248,.25); color: var(--acc); border-radius: 3p
       <option value="LIVRE_POI_KO">⚠️ "LIVRÉ" Non pointé au POI Arrivée</option>
       <option value="HAS_CONFIRME">📋 Ayant statut "CONFIRMÉ" / Autres</option>
       <option value="ECART_J1_ERP_SEG">&#x1F6A8; Écart Lieu J+1 (Numiplan) &ne; Ville Arrivée (ERP)</option>
+      <option value="HAS_PANNE">🔧 Ayant au moins 1 panne</option>
+      <option value="PANNE_3PLUS">🔴 Pannes récurrentes (&ge; 3 pannes)</option>
       <option value="ANY_POI_KO">🚨 Toute anomalie POI (Chargé ou Livré)</option>
     </select>
 
@@ -5007,6 +5025,7 @@ mark.hl { background: rgba(56,189,248,.25); color: var(--acc); border-radius: 3p
           <th style="cursor:pointer" onclick="sortSegmentsTrucks('chauffeur')">Chauffeur (Affrété / Cond.) ⇅</th>
           <th style="text-align:center;cursor:pointer" onclick="sortSegmentsTrucks('j1Match')">Contrôle Lieu J+1 vs Ville Arriv. ERP &#x21C5;</th>
           <th style="text-align:center;cursor:pointer" onclick="sortSegmentsTrucks('totalTrips')">Cumul Voyages ⇅</th>
+          <th style="text-align:center;cursor:pointer" onclick="sortSegmentsTrucks('panneCount')">🔧 Pannes ⇅</th>
           <th style="text-align:center;cursor:pointer" onclick="sortSegmentsTrucks('chargeOver24')">Statut "CHARGÉ" (&amp; &gt;24h) ⇅</th>
           <th style="text-align:center;cursor:pointer" onclick="sortSegmentsTrucks('chargePoiOk')">Confirmation POI "CHARGÉ" ⇅</th>
           <th style="text-align:center;cursor:pointer" onclick="sortSegmentsTrucks('livreCount')">Statut "LIVRÉ" ⇅</th>
@@ -9079,58 +9098,9 @@ function renderDispo(force = false) {
     else if (e === 'disponible') c.dispo++;
     else if (e.includes('panne')) c.panne++;
   });
-  const kpiCount = DB.pannes.filter(r => r.kpi === 'NON' && r.kpiDate && r.kpiDate < today() && r.kpiLastPointageDate !== today()).length;
-  const kpiClass = kpiCount > 0 ? 'stat-card blink-kpi-card' : 'stat-card';
-  const kpiColor = kpiCount > 0 ? '#f87171' : 'var(--txt3)';
-  const kpiBorder = kpiCount > 0 ? '#f87171' : 'var(--border)';
-
-  const todayStr = today();
-  const passCount = (DB && DB.pannes) ? DB.pannes.filter(r => r.kpiLastPointageDate === todayStr && r.kpiPassage === 'OUI').length : 0;
-  const nonPassCount = (DB && DB.pannes) ? DB.pannes.filter(r => r.kpiLastPointageDate === todayStr && r.kpiPassage === 'NON').length : 0;
-  
-  let adminKpiCardHtml = '';
-  let adminBlCardHtml = '';
   let adminExtensionsCardHtml = '';
-  let adminComplianceCardHtml = '';
   const isAdmDispo = (typeof window.isAdmin === 'function') ? window.isAdmin() : !sessionStorage.getItem('numiplan_team_lock');
   if (isAdmDispo) {
-    adminKpiCardHtml = `
-    <div class="stat-card green" style="cursor:pointer;transition:opacity .2s;border-left-color:#22c55e" onclick="ouvrirPointageKpiAtelier('OUI')" title="Voir les pannes pointées OUI (Passé à l'atelier)">
-      <div class="stat-num" style="color:#22c55e">${passCount}</div>
-      <div class="stat-lbl" style="color:#22c55e">Passés Éq. ${CURRENT_EQUIPE}</div>
-    </div>
-    <div class="stat-card red" style="cursor:pointer;transition:opacity .2s;border-left-color:#ef4444" onclick="ouvrirPointageKpiAtelier('NON')" title="Voir les pannes pointées NON (Non passé à l'atelier)">
-      <div class="stat-num" style="color:#ef4444">${nonPassCount}</div>
-      <div class="stat-lbl" style="color:#ef4444">Non Passés Éq. ${CURRENT_EQUIPE}</div>
-    </div>`;
-
-    // Calculate missingBlDriversCount
-    const months = ['mars','avril','mai','juin','juil','aout','sep','oct','nov','dec'];
-    const nowCheck = new Date();
-    let missingBlDriversCount = 0;
-    if (DB && DB.bl) {
-      DB.bl.forEach(r => {
-        let hasMissing = false;
-        months.forEach(m => {
-          const val = (r[m] || '').trim().toLowerCase();
-          if (val !== 'déposer' && val !== 'depose' && val !== 'restitue') {
-            const status = checkBLMonthStatus(m, nowCheck);
-            if (status === 'due' || status === 'late') {
-              hasMissing = true;
-            }
-          }
-        });
-        if (hasMissing) {
-          missingBlDriversCount++;
-        }
-      });
-    }
-
-    adminBlCardHtml = `
-    <div class="stat-card" style="cursor:pointer;transition:opacity .2s;border-left-color:#fbbf24" onclick="switchTab('bl',document.querySelector('[onclick*=\\'bl\\']'))" title="Voir les BL manquants de l'équipe active">
-      <div class="stat-num" style="color:#fbbf24">${missingBlDriversCount}</div>
-      <div class="stat-lbl" style="color:#fbbf24">BL Manquants Éq. ${CURRENT_EQUIPE}</div>
-    </div>`;
 
     // Calculate unique extension drivers count (drivers with > 1 truck in DB.dispo)
     const extDrivers = new Set();
@@ -9179,9 +9149,6 @@ function renderDispo(force = false) {
     <div class="stat-card" style="cursor:pointer;transition:opacity .2s" onclick="filterByEtat('')" title="Afficher tout"><div class="stat-num">${DB.dispo.length}</div><div class="stat-lbl">Total ↺</div></div>
     ${(()=>{ const n = (DB && DB.dispo && typeof window.getDispoJ1ErpCheck === "function") ? DB.dispo.filter(x => { const c = window.getDispoJ1ErpCheck(x.v, x.lieuJ1); return c && c.hasErp && !c.match; }).length : 0; const col = n > 0 ? "#f59e0b" : "#22c55e"; return `<div class="stat-card" style="cursor:pointer;transition:opacity .2s;border-left-color:${col}" onclick="filterByEtat('ECART_J1_ERP')" title="Filtrer les camions dont le Lieu J+1 saisi dans Numiplan ne correspond pas à la VILLE ARRIV du fichier Excel ERP"><div class="stat-num" style="color:${col}">${n}</div><div class="stat-lbl" style="color:${col}">📍 Écarts J+1 ≠ ERP</div></div>`; })()}
     <div class="stat-card" style="cursor:pointer;transition:opacity .2s;border-left-color:#a78bfa" onclick="showAnomaliesLieu()" title="Voir les anomalies de lieu J+1"><div class="stat-num" style="color:#a78bfa">${typeof getAnomaliesAPointer === 'function' ? getAnomaliesAPointer().length : 0}</div><div class="stat-lbl" style="color:#a78bfa">⚠️ Anomalies lieu</div></div>
-    <div class="${kpiClass}" style="cursor:pointer;transition:opacity .2s;border-left-color:${kpiBorder}" onclick="ouvrirPointageKpiAtelier('TO_POINT')" title="Voir les pannes non pointées pour passage atelier"><div class="stat-num" style="color:${kpiColor}">${kpiCount}</div><div class="stat-lbl" style="color:${kpiColor}">🛠️ KPI Atelier</div></div>
-    ${adminKpiCardHtml}
-    ${adminBlCardHtml}
     ${adminExtensionsCardHtml}`;
   document.getElementById('cnt-dispo').textContent = data.length;
   if (typeof updatePannesBadge === 'function') updatePannesBadge();
@@ -9666,7 +9633,7 @@ async function deleteDispo(idx) {
     localStorage.setItem(STORAGE_KEY, JSON.stringify({
       version: 4,
       active: eq,
-      teams: { A: window.DB_A, B: window.DB_B, C: window.DB_C, D: window.DB_D   }
+      teams: { A1: window.DB_A1, A2: window.DB_A2, B1: window.DB_B1, B2: window.DB_B2, C1: window.DB_C1, C2: window.DB_C2, D1: window.DB_D1, D2: window.DB_D2 }
     }));
   } catch(e) {}
   
@@ -10648,7 +10615,10 @@ Ce message a été généré automatiquement par SHARIK.`
 // RENDER: GASOIL
 // ═══════════════════════════════════════════════════════════════
 function renderGasoil() {
-  const q = document.getElementById('gasoil-search').value;
+  if (!DB.gasoil) DB.gasoil = [];
+  const searchEl = document.getElementById('gasoil-search');
+  if (!searchEl) return;
+  const q = searchEl.value;
   let data = DB.gasoil.filter(r => matchQ(r,q) && inRange(r.date,'gasoil-date-from','gasoil-date-to'));
   const pleins = data.filter(r=>r.operation==='PLEIN').length;
 
@@ -11454,7 +11424,10 @@ function saveActivite() {
 // RENDER: SUIVI BL
 // ═══════════════════════════════════════════════════════════════
 function renderBL() {
-  const q = document.getElementById('bl-search').value;
+  if (!DB.bl) DB.bl = [];
+  const searchEl = document.getElementById('bl-search');
+  if (!searchEl) return;
+  const q = searchEl.value;
   let data = DB.bl.filter(r => !q || r.chauffeur.toLowerCase().includes(q.toLowerCase()));
   const months = ['mars','avril','mai','juin','juil','aout','sep','oct','nov','dec'];
   const body = document.getElementById('bl-body');
@@ -12690,12 +12663,10 @@ function importKmFacture(input) {
             version: 4,
             active: CURRENT_EQUIPE,
             teams: {
-              A: window.DB_A,
-              B: window.DB_B,
-              C: window.DB_C,
-              D: window.DB_D
-              
-              
+              A1: window.DB_A1, A2: window.DB_A2,
+              B1: window.DB_B1, B2: window.DB_B2,
+              C1: window.DB_C1, C2: window.DB_C2,
+              D1: window.DB_D1, D2: window.DB_D2
             }
           }));
         } catch(e) { console.warn('LocalStorage multi-team save error', e); }
@@ -16545,10 +16516,9 @@ function switchEquipe(eq) {
   
   // Re-render all tabs
   _arcEq = eq;
-  renderDispo(); renderPannes(); renderNC(); renderGasoil();
-  renderEquip(); renderActivite(); renderBL(); renderOdo(); renderCSPC();
-  renderBLAlerts(); renderTracabilite(); renderFlashInfos(); renderArchives();
-  if (typeof renderAnalytics === 'function') renderAnalytics();
+  renderDispo(); renderPannes(); renderNC();
+  renderEquip(); renderActivite(); renderOdo(); renderCSPC();
+  renderTracabilite(); renderFlashInfos(); renderArchives();
 
   // Appliquer le verrouillage d'interface si en mode lecture seule
   if (typeof window.applyTeamLockUI === 'function') {
@@ -24585,6 +24555,32 @@ function renderSegmentsErpPage() {
     visitsByPlate.get(p).push(v);
   });
 
+  // Indexer les pannes enregistrées dans Numiplan (toutes équipes A1..D2) par plaque normalisée
+  const pannesByPlate = new Map();
+  const seenPanneSigByPlate = new Map();
+  const _activeEqNow = typeof getCurrentEquipe === 'function' ? getCurrentEquipe() : '';
+  ['A1', 'A2', 'B1', 'B2', 'C1', 'C2', 'D1', 'D2'].forEach(eq => {
+    const dbEq = (eq === _activeEqNow && typeof window.DB !== 'undefined' && window.DB) ? window.DB : window['DB_' + eq];
+    if (!dbEq || !Array.isArray(dbEq.pannes)) return;
+    dbEq.pannes.forEach(pn => {
+      if (!pn || !pn.immat) return;
+      const parts = String(pn.immat).split(/[\/,;]+/).map(s => normErpPlate(s)).filter(Boolean);
+      parts.forEach(pNorm => {
+        if (!pannesByPlate.has(pNorm)) {
+          pannesByPlate.set(pNorm, []);
+          seenPanneSigByPlate.set(pNorm, new Set());
+        }
+        const sig = `${pn.date || ''}|${pn.di || ''}|${(pn.desc || '').trim().slice(0, 50)}`;
+        const sigSet = seenPanneSigByPlate.get(pNorm);
+        if (sigSet.has(sig)) return;
+        sigSet.add(sig);
+        const dtObj = parseErpDateTime(pn.date);
+        const isoDate = dtObj ? dtObj.toISOString().split('T')[0] : (String(pn.date || '').match(/^\d{4}-\d{2}-\d{2}$/) ? pn.date : '');
+        pannesByPlate.get(pNorm).push({ ...pn, _team: eq, _isoDate: isoDate });
+      });
+    });
+  });
+
   // Lecture des filtres
   const dateFrom = document.getElementById('seg-date-from')?.value || '';
   const dateTo = document.getElementById('seg-date-to')?.value || '';
@@ -24635,6 +24631,9 @@ function renderSegmentsErpPage() {
         tripsMap: new Map(),
         trips: [],
         totalTrips: 0,
+        panneCount: 0,
+        pannePeriodCount: 0,
+        pannesList: [],
         groupedSegmentsCount: 0,
         chargeCount: 0,
         chargeOver24: 0,
@@ -24726,6 +24725,12 @@ function renderSegmentsErpPage() {
   trucksMap.forEach(tr => {
     const pNorm = normErpPlate(tr.tracteur);
     const truckVisits = visitsByPlate.get(pNorm) || [];
+    const truckPannes = (pannesByPlate.get(pNorm) || []).slice().sort((a, b) => String(b._isoDate || b.date || '').localeCompare(String(a._isoDate || a.date || '')));
+    tr.pannesList = truckPannes;
+    tr.panneCount = truckPannes.length;
+    tr.pannePeriodCount = (dateFrom || dateTo)
+      ? truckPannes.filter(pn => (!dateFrom || (pn._isoDate && pn._isoDate >= dateFrom)) && (!dateTo || (pn._isoDate && pn._isoDate <= dateTo))).length
+      : truckPannes.length;
     const tInfo = { team: tr.team, lat: tr.lat, lng: tr.lng, geoloc: tr.geoloc };
 
     tr.trips = Array.from(tr.tripsMap.values());
@@ -24814,6 +24819,8 @@ function renderSegmentsErpPage() {
     if (statusFilter === 'LIVRE_POI_OK') return tr.livrePoiOk > 0;
     if (statusFilter === 'LIVRE_POI_KO') return tr.livrePoiKo > 0;
     if (statusFilter === 'HAS_CONFIRME') return (tr.confirmeCount + tr.compteRenduCount + Object.keys(tr.trackingCounts).length) > 0;
+    if (statusFilter === 'HAS_PANNE') return tr.panneCount > 0;
+    if (statusFilter === 'PANNE_3PLUS') return tr.panneCount >= 3;
     if (statusFilter === 'ANY_POI_KO') return (tr.chargePoiKo > 0 || tr.livrePoiKo > 0);
     if (statusFilter === 'ECART_J1_ERP_SEG') {
       const chk = window.getDispoJ1ErpCheck ? window.getDispoJ1ErpCheck(tr.tracteur, getTruckNumiplanInfo(tr.tracteur).lieuJ1) : null;
@@ -24907,7 +24914,7 @@ function renderSegmentsErpPage() {
   const trucksTbody = document.getElementById('seg-trucks-tbody');
   if (trucksTbody) {
     if (trucksList.length === 0) {
-      trucksTbody.innerHTML = `<tr><td colspan="11" style="text-align:center;padding:28px;color:var(--txt3)">Aucun camion ne correspond aux filtres sélectionnés.</td></tr>`;
+      trucksTbody.innerHTML = `<tr><td colspan="13" style="text-align:center;padding:28px;color:var(--txt3)">Aucun camion ne correspond aux filtres sélectionnés.</td></tr>`;
     } else {
       trucksTbody.innerHTML = trucksList.map(tr => {
         const gpsDot = tr.geoloc === 'ON'
@@ -24995,6 +25002,17 @@ function renderSegmentsErpPage() {
               <span style="font-size:15px;font-weight:900;color:#38bdf8">${tr.totalTrips}</span>
               ${grpNote}
             </td>
+            <td style="text-align:center">${(()=>{
+              if (tr.panneCount === 0) return '<span style="color:var(--txt3)">0</span>';
+              const isRec = tr.panneCount >= 3;
+              const bg = isRec ? 'rgba(239,68,68,0.22)' : 'rgba(245,158,11,0.18)';
+              const col = isRec ? '#f87171' : '#fbbf24';
+              const brd = isRec ? 'rgba(239,68,68,0.5)' : 'rgba(245,158,11,0.45)';
+              const subPeriod = ((dateFrom || dateTo) && tr.pannePeriodCount !== tr.panneCount)
+                ? `<div style="font-size:10px;color:#94a3b8;margin-top:2px">(${tr.pannePeriodCount} sur période)</div>`
+                : '';
+              return `<span onclick="openSegmentsTruckDetailModal('${tr.tracteur}')" title="Voir l'historique des pannes de ce camion" style="cursor:pointer;background:${bg};color:${col};border:1px solid ${brd};padding:3px 9px;border-radius:6px;font-size:12px;font-weight:800;display:inline-block">🔧 ${tr.panneCount}×</span>${subPeriod}`;
+            })()}</td>
             <td style="text-align:center">${chargeHtml}</td>
             <td style="text-align:center">${chargePoiHtml}</td>
             <td style="text-align:center">${livreHtml}</td>
@@ -25091,6 +25109,7 @@ function openSegmentsTruckDetailModal(tracteur) {
   if (sumEl) {
     sumEl.innerHTML = `
       <div style="background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:8px 14px;font-size:12px">🔄 Cumul Voyages : <b style="color:#38bdf8">${tr.totalTrips}</b></div>
+      <div style="background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:8px 14px;font-size:12px">🔧 Pannes enregistrées : <b style="color:${tr.panneCount >= 3 ? '#f87171' : tr.panneCount > 0 ? '#fbbf24' : '#34d399'}">${tr.panneCount}</b></div>
       <div style="background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:8px 14px;font-size:12px">📦 Statut CHARGÉ : <b style="color:#fbbf24">${tr.chargeCount}</b> (dont <b style="color:#ef4444">${tr.chargeOver24} &gt; 24h</b>) • Confirmés POI : <b style="color:#34d399">${tr.chargePoiOk}/${tr.chargeCount}</b></div>
       <div style="background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:8px 14px;font-size:12px">🏁 Statut LIVRÉ : <b style="color:#34d399">${tr.livreCount}</b> • Confirmés POI : <b style="color:#34d399">${tr.livrePoiOk}/${tr.livreCount}</b></div>
       <div style="background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:8px 14px;font-size:12px">📋 Confirmé / Autres : <b style="color:#c084fc">${tr.confirmeCount + tr.compteRenduCount}</b></div>
@@ -25138,15 +25157,23 @@ function openSegmentsTruckDetailModal(tracteur) {
   const pNorm = normErpPlate(tr.tracteur);
   const visits = (comp.visitsByPlate && comp.visitsByPlate.get(pNorm)) || [];
   if (histEl) {
+    let outHtml = '';
+    if (tr.pannesList && tr.pannesList.length > 0) {
+      const pItems = tr.pannesList.slice(0, 6).map(pn => `<span style="background:rgba(245,158,11,0.12);border:1px solid rgba(245,158,11,0.35);padding:2px 7px;border-radius:5px;color:#fde68a">🔧 <b>${pn.date || '—'}</b>${pn.di ? ' (' + pn.di + ')' : ''} : ${(pn.desc || 'Panne').slice(0, 45)}</span>`).join(' ');
+      outHtml += `<div style="margin-bottom:6px">🔧 <b>Pannes du camion ${tr.tracteur} (${tr.panneCount}) :</b> ${pItems}${tr.panneCount > 6 ? ' <i>… +' + (tr.panneCount - 6) + ' autre(s)</i>' : ''}</div>`;
+    } else {
+      outHtml += `<div style="margin-bottom:6px">🔧 <b>Pannes du camion ${tr.tracteur} :</b> Aucune panne enregistrée.</div>`;
+    }
     if (visits.length === 0) {
-      histEl.innerHTML = `🛰️ <b>Historique POI GPS du camion ${tr.tracteur} :</b> Aucun pointage POI enregistré dans <code>np_poi_visits</code>.`;
+      outHtml += `<div>🛰️ <b>Historique POI GPS du camion ${tr.tracteur} :</b> Aucun pointage POI enregistré dans <code>np_poi_visits</code>.</div>`;
     } else {
       const vList = visits.slice(0, 8).map(v => {
         const dStr = v.arrived_at ? new Date(v.arrived_at).toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : '';
         return `<span style="background:rgba(56,189,248,0.12);border:1px solid rgba(56,189,248,0.3);padding:2px 7px;border-radius:5px;color:#e2e8f0">📍 <b>${v.poi_name}</b> (${dStr})</span>`;
       }).join(' ');
-      histEl.innerHTML = `🛰️ <b>Derniers pointages POI GPS enregistrés pour ${tr.tracteur} (${visits.length}) :</b> ${vList}`;
+      outHtml += `<div>🛰️ <b>Derniers pointages POI GPS enregistrés pour ${tr.tracteur} (${visits.length}) :</b> ${vList}</div>`;
     }
+    histEl.innerHTML = outHtml;
   }
 
   const modal = document.getElementById('modal-segments-truck-detail');
@@ -25169,6 +25196,7 @@ function exportSegmentsErpExcel() {
     'Agence ERP': tr.agence,
     'Chauffeur': tr.chauffeur,
     'Cumul Voyages (Dédoublonnés)': tr.totalTrips,
+    'Nb Pannes': tr.panneCount,
     'Segments Bruts': tr.rawSegments.length,
     'Statut CHARGÉ (Total)': tr.chargeCount,
     'Statut CHARGÉ > 24h': tr.chargeOver24,
