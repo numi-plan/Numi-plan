@@ -1093,7 +1093,7 @@
         }
       }
 
-      const { data, error } = await supabase.from('numiplan_teams').select('*').in('team', ['A1','A2','B1','B2','C1','C2','D1','D2','SHARIK_EDITS','SEGMENTS_ERP']);
+      const { data, error } = await supabase.from('numiplan_teams').select('*').in('team', ['A1','A2','B1','B2','C1','C2','D1','D2','SHARIK_EDITS','SEGMENTS_ERP','WEEKLY_REPORT']);
       if (error) throw error;
       
       if (data) {
@@ -1135,6 +1135,17 @@
               }
               if (typeof renderFicheSharikPage === 'function' && document.getElementById('page-fiche-sharik') && document.getElementById('page-fiche-sharik').classList.contains('active')) {
                 renderFicheSharikPage();
+              }
+            }
+            return;
+          }
+          if (eq === 'WEEKLY_REPORT') {
+            if (payload && typeof payload === 'object') {
+              window._WEEKLY_REPORT_DATA = payload;
+              if (typeof updateWeeklyBadgeAndHeader === 'function') updateWeeklyBadgeAndHeader();
+              else if (typeof updateHeaderRAC === 'function') updateHeaderRAC();
+              if (typeof renderWeeklyReportPage === 'function' && document.getElementById('page-weekly') && document.getElementById('page-weekly').classList.contains('active')) {
+                renderWeeklyReportPage();
               }
             }
             return;
@@ -3644,6 +3655,7 @@ mark.hl { background: rgba(56,189,248,.25); color: var(--acc); border-radius: 3p
   <button class="tab-btn" id="tab-poi" onclick="switchTab('poi',this)">🛰️ Suivi POI <span class="tab-count red" id="cnt-poi-alerts" style="display:none;background:#ef4444">—</span></button>
   <button class="tab-btn" id="tab-segments" onclick="switchTab('segments',this)" style="border-color:rgba(56,189,248,.4)">&#x1F4E6; Voyages &amp; Segments <span class="tab-count" id="cnt-segments" style="background:#38bdf8;color:#000">-</span></button>
   <button class="tab-btn" id="tab-fiche-sharik" onclick="switchTab('fiche-sharik',this)" style="border-color:rgba(16,185,129,.45)">🪪 Fiche Sharik <span class="tab-count" id="cnt-fiche-sharik" style="background:#10b981;color:#000">—</span></button>
+  <button class="tab-btn" id="tab-weekly" onclick="switchTab('weekly',this)" style="border-color:rgba(245,158,11,.45)">📊 Bilan Weekly <span class="tab-count" id="cnt-weekly" style="background:#f59e0b;color:#000">—</span></button>
   <button class="tab-btn" onclick="ouvrirHistoriqueAnomalies()" style="color:#fbbf24;border-color:rgba(251,191,36,.3)">📊 Historique Anomalies</button>
 </div>
 
@@ -3923,6 +3935,8 @@ mark.hl { background: rgba(56,189,248,.25); color: var(--acc); border-radius: 3p
       <option>En mission</option>
       <option>DISPONIBLE</option>
       <option>En panne</option>
+      <option>Non exploitable</option>
+      <option>Suspendu</option>
       <option value="GEOLOC_OFF">🔴 Géoloc OFF (Inactives)</option>
       <option value="GEOLOC_ON">🟢 Géoloc ON (Actives)</option>
           <option value="ECART_J1_ERP">&#x1F6A8; Écart J+1 &ne; Ville Arrivée ERP</option>
@@ -4876,6 +4890,10 @@ mark.hl { background: rgba(56,189,248,.25); color: var(--acc); border-radius: 3p
       <button class="btn btn-save" onclick="document.getElementById('seg-excel-input').click()" style="background:#38bdf8;color:#0f172a;font-weight:800;padding:8px 14px;display:inline-flex;align-items:center;gap:6px">
         📥 Importer Fichier Segments (.xlsx)
       </button>
+      <input type="file" id="weekly-excel-input" accept=".xlsx,.xls" style="display:none" onchange="importWeeklyExcel(this)">
+      <button class="btn btn-save" onclick="document.getElementById('weekly-excel-input').click()" style="background:#f59e0b;color:#0f172a;font-weight:800;padding:8px 14px;display:inline-flex;align-items:center;gap:6px" title="Importer le fichier Weekly (ex: WEEKLY S1 NOV.xlsx) pour les compteurs RAC et le menu Bilan Weekly">
+        📅 Importer Weekly (.xlsx)
+      </button>
       <button class="btn" onclick="refreshSegmentsPoiData(true)" style="background:rgba(16,185,129,0.15);color:#34d399;border:1px solid rgba(16,185,129,0.4);font-weight:700;padding:8px 12px" title="Recalculer la confirmation POI avec les derniers pointages GPS">
         🛰️ Recalculer POI
       </button>
@@ -5210,6 +5228,57 @@ mark.hl { background: rgba(56,189,248,.25); color: var(--acc); border-radius: 3p
 
   <!-- VUE FICHE PEDIGRÉ INDIVIDUELLE DU SHARIK -->
   <div id="sharik-pedigree-view" style="display:none"></div>
+</div>
+<!-- ══════════════ PAGE BILAN WEEKLY ══════════════ -->
+<div id="page-weekly" class="page">
+  <div style="background:linear-gradient(135deg,rgba(245,158,11,0.14),rgba(56,189,248,0.08));border:1px solid rgba(245,158,11,0.35);border-radius:14px;padding:16px 20px;margin-bottom:16px;display:flex;flex-wrap:wrap;gap:14px;align-items:center;justify-content:space-between">
+    <div>
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+        <span style="font-size:20px">📊</span>
+        <span style="font-size:15px;font-weight:900;letter-spacing:.5px;color:#fbbf24">BILAN WEEKLY — SUIVI HEBDOMADAIRE (PIS / UTL / TMS / PITT)</span>
+        <span id="weekly-status-badge" style="font-size:11px;font-weight:700;padding:3px 10px;border-radius:20px;background:rgba(148,163,184,0.18);color:var(--txt2)">Aucun fichier importé</span>
+      </div>
+      <div id="weekly-meta-info" style="font-size:12px;color:var(--txt2);margin-top:6px">
+        Importez votre fichier <b>WEEKLY (.xlsx)</b> (ici ou depuis <b>Voyages &amp; Segments</b>). Les compteurs RAC en haut se réinitialisent automatiquement à <b>0.0%</b> chaque lundi.
+      </div>
+    </div>
+    <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+      <button class="btn btn-save" onclick="document.getElementById('weekly-excel-input').click()" style="background:#f59e0b;color:#0f172a;font-weight:800;padding:8px 14px;display:inline-flex;align-items:center;gap:6px">
+        📅 Importer Weekly (.xlsx)
+      </button>
+      <button class="btn btn-extract" onclick="exportWeeklySummaryExcel()" style="padding:8px 12px;font-weight:700">
+        📊 Exporter Synthèse Excel
+      </button>
+      <button class="btn btn-reset" onclick="resetWeeklyCountersManual()" style="padding:8px 12px;font-weight:700" title="Remettre les compteurs Weekly à 0 manuellement">
+        🔄 Remettre à 0
+      </button>
+    </div>
+  </div>
+
+  <!-- Cartes KPI Weekly -->
+  <div id="weekly-kpi-cards" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:12px;margin-bottom:16px"></div>
+
+  <!-- Sous-onglets du Bilan Weekly -->
+  <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px;align-items:center;justify-content:space-between">
+    <div style="display:flex;flex-wrap:wrap;gap:8px">
+      <button class="btn" id="wtab-pis" onclick="switchWeeklySubTab('pis')" style="background:rgba(56,189,248,0.2);color:#38bdf8;border:1px solid rgba(56,189,248,0.5);font-weight:800;padding:7px 14px">🛣️ PIS — RAC &amp; KM</button>
+      <button class="btn" id="wtab-utl" onclick="switchWeeklySubTab('utl')" style="background:var(--bg2);color:var(--txt2);border:1px solid var(--border);font-weight:700;padding:7px 14px">🚛 UTL — Utilisation Flotte</button>
+      <button class="btn" id="wtab-tms" onclick="switchWeeklySubTab('tms')" style="background:var(--bg2);color:var(--txt2);border:1px solid var(--border);font-weight:700;padding:7px 14px">📦 TMS — Commandes &amp; CA</button>
+      <button class="btn" id="wtab-pitt" onclick="switchWeeklySubTab('pitt')" style="background:var(--bg2);color:var(--txt2);border:1px solid var(--border);font-weight:700;padding:7px 14px">📈 PITT — Synthèse Activités</button>
+    </div>
+    <div id="weekly-filter-controls" style="display:flex;flex-wrap:wrap;gap:8px;align-items:center">
+      <select id="weekly-filter-team" class="filter-input" style="max-width:155px;font-size:12px;padding:6px 10px" onchange="renderWeeklySubTab()">
+        <option value="">Toutes Équipes</option>
+        <option value="A1">Éq. A1</option><option value="A2">Éq. A2</option>
+        <option value="B1">Éq. B1</option><option value="B2">Éq. B2</option>
+        <option value="C1">Éq. C1</option><option value="C2">Éq. C2</option>
+        <option value="D1">Éq. D1</option><option value="D2">Éq. D2</option>
+      </select>
+      <input type="text" id="weekly-search" class="filter-input" placeholder="🔎 Filtrer camion, chauffeur, client…" style="width:230px;font-size:12px;padding:6px 10px" oninput="renderWeeklySubTab()">
+    </div>
+  </div>
+
+  <div id="weekly-content-area"></div>
 </div>
 </div><!-- /page-area -->
 </div><!-- /app-layout -->
@@ -5659,7 +5728,7 @@ mark.hl { background: rgba(56,189,248,.25); color: var(--acc); border-radius: 3p
       <div class="form-group"><label>Immatriculation</label><input id="f-dispo-v" placeholder="000900-514-16"></div>
       <div class="form-group"><label>État</label>
         <select id="f-dispo-etat">
-          <option>En mission</option><option>DISPONIBLE</option><option>En panne</option>
+          <option>En mission</option><option>DISPONIBLE</option><option>En panne</option><option>Non exploitable</option><option>Suspendu</option>
         </select></div>
       <div class="form-group"><label>Type</label>
         <select id="f-dispo-type"><option>TRACTEUR</option><option>REMORQUE</option><option>CELLULE</option></select></div>
@@ -6650,6 +6719,65 @@ function getTeamRACStatsForWeek(db, lastWeekIdx) {
 }
 
 function updateHeaderRAC() {
+  const lock = sessionStorage.getItem('numiplan_team_lock');
+  const curEq = typeof CURRENT_EQUIPE !== 'undefined' ? CURRENT_EQUIPE : 'A1';
+  const activeWeekly = typeof getActiveWeeklyReport === 'function' ? getActiveWeeklyReport() : null;
+  const teamStats = (activeWeekly && typeof computeWeeklyPisTeamStats === 'function')
+    ? computeWeeklyPisTeamStats(activeWeekly)
+    : null;
+
+  ['A1', 'A2', 'B1', 'B2', 'C1', 'C2', 'D1', 'D2'].forEach(eq => {
+    const st = teamStats && teamStats.byTeam ? teamStats.byTeam[eq] : null;
+    const eqRac = (st && st.ecart > 0) ? (st.facture / st.ecart) * 100 : 0;
+    const eqRacStr = `${eqRac.toFixed(1)}%`;
+
+    const el = document.getElementById('header-rac-' + eq);
+    if (el) {
+      el.innerHTML = `Éq. ${eq}: ${eqRacStr}`;
+      el.title = activeWeekly
+        ? `RAC Weekly (${activeWeekly.fileName || 'Weekly'}): ${Math.round(st ? st.facture : 0).toLocaleString('fr-FR')} / ${Math.round(st ? st.ecart : 0).toLocaleString('fr-FR')} km`
+        : 'Remis à 0 chaque lundi — Importez le fichier Weekly (.xlsx)';
+      if (lock && lock !== 'BL') {
+        const allowedThisEq = typeof isTeamAllowed === 'function' ? isTeamAllowed(eq) : (eq === lock);
+        if (allowedThisEq) {
+          el.style.removeProperty('display');
+          el.style.border = '1.5px solid var(--acc)';
+          el.style.boxShadow = '0 0 6px rgba(56,189,248,0.4)';
+        } else {
+          el.style.setProperty('display', 'none', 'important');
+        }
+      } else {
+        el.style.removeProperty('display');
+        if (eq === curEq) {
+          el.style.border = '1px solid var(--acc)';
+          el.style.boxShadow = '0 0 4px rgba(56,189,248,0.4)';
+        } else {
+          el.style.border = '1px solid var(--border)';
+          el.style.boxShadow = 'none';
+        }
+      }
+    }
+  });
+
+  const gStats = teamStats ? teamStats.global : null;
+  const globalRac = (activeWeekly && gStats && gStats.ecart > 0) ? (gStats.facture / gStats.ecart) * 100 : 0;
+  const globalRacStr = `${globalRac.toFixed(1)}%`;
+
+  const elGlobal = document.getElementById('header-rac-global');
+  if (elGlobal) {
+    elGlobal.innerHTML = `Global: ${globalRacStr}`;
+    elGlobal.title = activeWeekly
+      ? `RAC Global Weekly (${activeWeekly.fileName || 'Weekly'}): ${Math.round(gStats ? gStats.facture : 0).toLocaleString('fr-FR')} / ${Math.round(gStats ? gStats.ecart : 0).toLocaleString('fr-FR')} km`
+      : 'Remis à 0 chaque lundi — Importez le fichier Weekly (.xlsx)';
+    if (lock && lock !== 'BL') {
+      elGlobal.style.setProperty('display', 'none', 'important');
+    } else {
+      elGlobal.style.removeProperty('display');
+    }
+  }
+}
+
+function _legacyUpdateHeaderRAC_unused() {
   const lock = sessionStorage.getItem('numiplan_team_lock');
   const curEq = typeof CURRENT_EQUIPE !== 'undefined' ? CURRENT_EQUIPE : 'A1';
   
@@ -8807,6 +8935,8 @@ function stateBadge(etat) {
   if (e.includes('mission')) return `<span class="badge badge-mission">🚛 En mission</span>`;
   if (e === 'disponible') return `<span class="badge badge-dispo">✅ Disponible</span>`;
   if (e.includes('panne')) return `<span class="badge badge-panne">🔧 En panne</span>`;
+  if (e.includes('exploitable')) return `<span class="badge" style="background:rgba(148,163,184,0.18);color:#cbd5e1;border:1px solid rgba(148,163,184,0.45)">⛔ Non exploitable</span>`;
+  if (e.includes('suspendu')) return `<span class="badge" style="background:rgba(249,115,22,0.18);color:#fb923c;border:1px solid rgba(249,115,22,0.5)">⏸️ Suspendu</span>`;
   if (e.includes('manque')) return `<span class="badge badge-manque">👤 Manque chauffeur</span>`;
   return `<span class="badge">${etat}</span>`;
 }
@@ -9090,6 +9220,7 @@ function switchTab(name, btn) {
   if (name === 'poi' && typeof renderPoiPage === 'function') renderPoiPage();
   if (name === 'segments' && typeof renderSegmentsErpPage === 'function') renderSegmentsErpPage();
   if (name === 'fiche-sharik' && typeof renderFicheSharikPage === 'function') renderFicheSharikPage();
+  if (name === 'weekly' && typeof renderWeeklyReportPage === 'function') renderWeeklyReportPage();
   checkBascule();
 }
 
@@ -9207,12 +9338,14 @@ function renderDispo(force = false) {
     if (regionJF && !matchRegion(r.lieuJ, regionJF)) return false;
     return true;
   });
-  const c = {mission:0,dispo:0,panne:0};
+  const c = {mission:0,dispo:0,panne:0,nonExploitable:0,suspendu:0};
   DB.dispo.forEach(r => {
-    const e = r.etat.trim().toLowerCase();
+    const e = (r.etat || '').trim().toLowerCase();
     if (e.includes('mission')) c.mission++;
     else if (e === 'disponible') c.dispo++;
     else if (e.includes('panne')) c.panne++;
+    else if (e.includes('exploitable')) c.nonExploitable++;
+    else if (e.includes('suspendu')) c.suspendu++;
   });
   let adminExtensionsCardHtml = '';
   const isAdmDispo = (typeof window.isAdmin === 'function') ? window.isAdmin() : !sessionStorage.getItem('numiplan_team_lock');
@@ -9259,6 +9392,8 @@ function renderDispo(force = false) {
     <div class="stat-card blue" style="cursor:pointer;transition:opacity .2s" onclick="filterByEtat('En mission')" title="Filtrer En mission"><div class="stat-num">${c.mission}</div><div class="stat-lbl">En mission</div></div>
     <div class="stat-card green" style="cursor:pointer;transition:opacity .2s" onclick="filterByEtat('DISPONIBLE')" title="Filtrer Disponible"><div class="stat-num">${c.dispo}</div><div class="stat-lbl">Disponible</div></div>
     <div class="stat-card red" style="cursor:pointer;transition:opacity .2s" onclick="filterByEtat('En panne')" title="Filtrer En panne"><div class="stat-num">${c.panne}</div><div class="stat-lbl">En panne</div></div>
+    <div class="stat-card" style="cursor:pointer;transition:opacity .2s;border-left-color:#94a3b8" onclick="filterByEtat('Non exploitable')" title="Filtrer Non exploitable"><div class="stat-num" style="color:#cbd5e1">${c.nonExploitable}</div><div class="stat-lbl" style="color:#94a3b8">⛔ Non exploitable</div></div>
+    <div class="stat-card" style="cursor:pointer;transition:opacity .2s;border-left-color:#f97316" onclick="filterByEtat('Suspendu')" title="Filtrer Suspendu"><div class="stat-num" style="color:#fb923c">${c.suspendu}</div><div class="stat-lbl" style="color:#fb923c">⏸️ Suspendu</div></div>
     <div class="stat-card red" style="cursor:pointer;transition:opacity .2s;border-left-color:#ef4444" onclick="filterByGeoloc('GEOLOC_OFF')" title="Filtrer les camions avec Géoloc OFF de l'équipe ${CURRENT_EQUIPE}"><div class="stat-num" style="color:#ef4444">${geoOffCount}</div><div class="stat-lbl" style="color:#ef4444">🔴 Géoloc OFF</div></div>
     <div class="stat-card" style="cursor:pointer;transition:opacity .2s;border-left-color:#38bdf8" onclick="ouvrirModalGeolocToutesEquipes()" title="Voir le bilan de toutes les balises GPS inactives par équipe"><div class="stat-num" style="color:#38bdf8">🛰️</div><div class="stat-lbl" style="color:#38bdf8">Bilan GPS Équipes</div></div>
     <div class="stat-card pur" style="cursor:pointer;transition:opacity .2s" onclick="switchTab('cspc',document.querySelector('[onclick*=\\'cspc\\']'))" title="Voir les véhicules CSPC"><div class="stat-num">${DB.cspc.length}</div><div class="stat-lbl">CSPC</div></div>
@@ -9448,6 +9583,8 @@ function renderDispo(force = false) {
         ${r.cspc ? '<button class=\"del-btn\" style=\"color:var(--pur);font-size:10px;padding:1px 6px;border:1px solid rgba(167,139,250,.5);border-radius:4px;background:rgba(167,139,250,.15)\" onclick=\"undeclCSPC('+realIdx+')\" title=\"Retirer du programme CSPC\">🔷 CSPC ✕</button>' : '<button class=\"del-btn\" style=\"color:var(--pur);font-size:10px;padding:1px 5px;border:1px solid rgba(167,139,250,.3);border-radius:4px\" onclick=\"declCSPC('+realIdx+')\" title=\"Déclarer CSPC\">🔷</button>'}
         <button class="del-btn" style="color:var(--grn)" onclick="setEtat(${realIdx},'DISPONIBLE')" title="Disponible">✅</button>
         <button class="del-btn" style="color:var(--acc)" onclick="setEtat(${realIdx},'En mission')" title="En mission">🚛</button>
+        <button class="del-btn" style="color:#94a3b8" onclick="setEtat(${realIdx},'Non exploitable')" title="Non exploitable">⛔</button>
+        <button class="del-btn" style="color:#fb923c" onclick="setEtat(${realIdx},'Suspendu')" title="Suspendu">⏸️</button>
         <button class="del-btn" style="color:#ef4444" onclick="openIncidentLivraisonModal(${realIdx})" title="Incident de livraison">🚨</button>
         <button class="del-btn" style="color:var(--red)" onclick="declPanne(${realIdx})" title="Panne">🔧</button>
         <button class="del-btn" style="color:var(--org)" onclick="declNC(${realIdx})" title="Non-conformité">⚠️</button>
@@ -9483,7 +9620,7 @@ function renderDispo(force = false) {
 function editDispo(idx) {
   const r = DB.dispo[idx];
   document.getElementById('f-dispo-v').value = r.v||'';
-  document.getElementById('f-dispo-etat').value = r.etat||'';
+  (()=>{ const sel = document.getElementById('f-dispo-etat'); if(!sel) return; const raw = (r.etat||'').trim(); const opt = Array.from(sel.options).find(o => o.value.toLowerCase() === raw.toLowerCase() || o.text.toLowerCase() === raw.toLowerCase()); sel.value = opt ? opt.value : raw; })();
   document.getElementById('f-dispo-type').value = r.type||'TRACTEUR';
   document.getElementById('f-dispo-chauffeur').value = r.chauffeur||'';
   document.getElementById('f-dispo-hor').value = horaire(r.hor)||'';
@@ -19092,13 +19229,32 @@ async function renderPoiPage() {
   if (adminBlock) adminBlock.style.display = isUserAdmin ? "block" : "none";
 
   try {
-    // 1. Récupération parallèle & ultra-rapide
-    const [pois, activeVisits, historyVisits, dispos] = await Promise.all([
+    // Construire l'ensemble des plaques appartenant à l'équipe active (A1..D2) pour ne jamais dépendre d'un ancien tag A/B/C/D
+    const parentTeam = activeTeam.charAt(0);
+    const activeTeamDb = (activeTeam === window.CURRENT_EQUIPE && typeof window.DB !== 'undefined' && window.DB) ? window.DB : window['DB_' + activeTeam];
+    const activeTeamPlates = new Set(
+      ((activeTeamDb && Array.isArray(activeTeamDb.dispo)) ? activeTeamDb.dispo : [])
+        .map(r => (r && r.v) ? r.v.trim().toUpperCase() : '')
+        .filter(Boolean)
+    );
+    const belongsToActiveTeam = (row) => {
+      if (!row) return false;
+      const vKey = (row.v || '').trim().toUpperCase();
+      if (activeTeamPlates.size > 0) return activeTeamPlates.has(vKey);
+      return row.team === activeTeam || row.team === parentTeam;
+    };
+
+    // 1. Récupération parallèle & ultra-rapide (inclut l'équipe A1..D2 et son parent legacy A..D)
+    const [pois, rawActiveVisits, rawHistoryVisits, rawDispos] = await Promise.all([
       getPoisCached(),
-      poiSupabaseFetch(`np_poi_visits?select=*&team=eq.${activeTeam}&left_at=is.null&order=arrived_at.desc`),
-      poiSupabaseFetch(`np_poi_visits?select=*&team=eq.${activeTeam}&left_at=not.is.null&order=left_at.desc&limit=1000`),
-      poiSupabaseFetch(`np_dispo?select=v,geoloc,geoloc_date,etat,chauffeur,lat,lng&team=eq.${activeTeam}`).catch(() => null)
+      poiSupabaseFetch(`np_poi_visits?select=*&left_at=is.null&order=arrived_at.desc`),
+      poiSupabaseFetch(`np_poi_visits?select=*&team=in.(${activeTeam},${parentTeam})&left_at=not.is.null&order=left_at.desc&limit=1000`),
+      poiSupabaseFetch(`np_dispo?select=v,team,geoloc,geoloc_date,etat,chauffeur,lat,lng`).catch(() => null)
     ]);
+
+    const activeVisits = (rawActiveVisits || []).filter(belongsToActiveTeam);
+    const historyVisits = (rawHistoryVisits || []).filter(belongsToActiveTeam);
+    const dispos = rawDispos ? rawDispos.filter(belongsToActiveTeam) : null;
 
     window.POI_HISTORY_DATA = historyVisits || [];
     
@@ -19497,7 +19653,9 @@ async function checkPoiAlerts() {
         }
       } else if (v.duration_hours >= 2.0) {
         const activeTeam = typeof window.CURRENT_EQUIPE !== 'undefined' ? window.CURRENT_EQUIPE : 'A1';
-        if (!v.team || v.team === activeTeam) {
+        const activeDb = (activeTeam === window.CURRENT_EQUIPE && typeof window.DB !== 'undefined' && window.DB) ? window.DB : window['DB_' + activeTeam];
+        const inActiveDispo = activeDb && Array.isArray(activeDb.dispo) && activeDb.dispo.some(r => r && r.v && v.v && r.v.trim().toUpperCase() === v.v.trim().toUpperCase());
+        if (!v.team || v.team === activeTeam || inActiveDispo) {
           // Mode harcèlement pour immobilisation > 2h (toutes les 30 minutes)
           const nowPoiMs = Date.now();
           let lastPoiWarningTime = parseInt(localStorage.getItem(`poi_warning_time_${v.id}`) || sessionStorage.getItem(`poi_warning_time_${v.id}`) || '0');
@@ -25840,6 +25998,7 @@ function computeAllSharikProfiles() {
         // Voyages & CA (depuis Voyages & Segments)
         segments: [],
         tripsMap: new Map(),
+        truckStatsMap: new Map(),
         trips: [],
         tripsCount: 0,
         caGenere: 0,
@@ -25886,7 +26045,11 @@ function computeAllSharikProfiles() {
       if (!p) return;
       const plateNorm = typeof normErpPlate === 'function' ? normErpPlate(r.v) : String(r.v || '').replace(/[^A-Z0-9]/gi, '').toUpperCase();
       if (plateNorm) {
-        p.plates.add(r.v.trim().toUpperCase());
+        const cleanV = r.v.trim().toUpperCase();
+        p.plates.add(cleanV);
+        if (!p.truckStatsMap.has(cleanV)) {
+          p.truckStatsMap.set(cleanV, { plate: cleanV, segmentsCount: 0, tripsSet: new Set(), caGenere: 0, kmExpl: 0 });
+        }
         if (!plateToCanon.has(plateNorm)) plateToCanon.set(plateNorm, p.canon);
       }
       p.liveDispoRows.push({ ...r, _team: eq });
@@ -25995,10 +26158,13 @@ function computeAllSharikProfiles() {
     }
     if (!p) return;
 
-    if (s.tracteur) p.plates.add(s.tracteur.trim().toUpperCase());
+    const segPlate = s.tracteur ? s.tracteur.trim().toUpperCase() : 'NON AFFECTÉ';
+    if (s.tracteur) p.plates.add(segPlate);
     p.segments.push(s);
-    p.caGenere += (Number(s.achat) || 0);
-    p.kmExpl += (Number(s.kmExpl) || 0);
+    const segAchat = Number(s.achat) || 0;
+    const segKm = Number(s.kmExpl) || 0;
+    p.caGenere += segAchat;
+    p.kmExpl += segKm;
 
     const plateOrDriver = pNorm || p.canon;
     let tripKey = '';
@@ -26009,6 +26175,15 @@ function computeAllSharikProfiles() {
     } else {
       tripKey = `SEG_${s.seg || Math.random()}`;
     }
+
+    if (!p.truckStatsMap.has(segPlate)) {
+      p.truckStatsMap.set(segPlate, { plate: segPlate, segmentsCount: 0, tripsSet: new Set(), caGenere: 0, kmExpl: 0 });
+    }
+    const tsEntry = p.truckStatsMap.get(segPlate);
+    tsEntry.segmentsCount++;
+    tsEntry.caGenere += segAchat;
+    tsEntry.kmExpl += segKm;
+    tsEntry.tripsSet.add(tripKey);
 
     if (!p.tripsMap.has(tripKey)) {
       p.tripsMap.set(tripKey, {
@@ -26142,14 +26317,30 @@ function computeAllSharikProfiles() {
     p.ncCount = p.ncs.length;
     p.ncs.sort((a, b) => String(b.date || '').localeCompare(String(a.date || '')));
     p.panneCount = p.pannes.length;
+    p.platesArr = Array.from(p.plates);
+    p.teamsArr = Array.from(p.teamsSet);
+    p.truckCount = Math.max(1, p.platesArr.length);
+    p.isExtension = p.platesArr.length > 1;
+    p.objectifPerTruck = SHARIK_OBJECTIF_CA_MENSUEL * nbMonths;
+    p.objectifCA = p.objectifPerTruck * p.truckCount;
     p.caRate = p.objectifCA > 0 ? (p.caGenere / p.objectifCA) * 100 : 0;
+    p.truckStats = Array.from(p.truckStatsMap.values())
+      .filter(ts => ts.plate !== 'NON AFFECTÉ' || ts.segmentsCount > 0)
+      .map(ts => ({
+        plate: ts.plate,
+        tripsCount: ts.tripsSet.size,
+        segmentsCount: ts.segmentsCount,
+        caGenere: ts.caGenere,
+        kmExpl: ts.kmExpl,
+        objectifCA: p.objectifPerTruck,
+        caRate: p.objectifPerTruck > 0 ? (ts.caGenere / p.objectifPerTruck) * 100 : 0
+      }))
+      .sort((a, b) => b.caGenere - a.caGenere);
     p.racPct = (p.kmParcourus > 0 && p.kmFacture > 0) ? (p.kmFacture / p.kmParcourus) * 100 : null;
     const totalDispoDecl = p.dispoCount + p.missionCount + p.panneDispoCount;
     p.totalDispoDecl = totalDispoDecl;
     p.dispoRate = totalDispoDecl > 0 ? (p.dispoCount / totalDispoDecl) * 100 : null;
     p.opRate = totalDispoDecl > 0 ? ((p.dispoCount + p.missionCount) / totalDispoDecl) * 100 : null;
-    p.platesArr = Array.from(p.plates);
-    p.teamsArr = Array.from(p.teamsSet);
     return p;
   });
 
@@ -26191,8 +26382,8 @@ function renderFicheSharikPage() {
   let filtered = list.filter(p => {
     if (teamFilter === 'ACTIVE' && p.team !== activeEq && !p.teamsArr.includes(activeEq)) return false;
     if (['A1', 'A2', 'B1', 'B2', 'C1', 'C2', 'D1', 'D2'].includes(teamFilter) && p.team !== teamFilter && !p.teamsArr.includes(teamFilter)) return false;
-    if (perfFilter === 'OBJ_OK' && p.caGenere < objectifCA) return false;
-    if (perfFilter === 'OBJ_KO' && p.caGenere >= objectifCA) return false;
+    if (perfFilter === 'OBJ_OK' && p.caGenere < p.objectifCA) return false;
+    if (perfFilter === 'OBJ_KO' && p.caGenere >= p.objectifCA) return false;
     if (perfFilter === 'HAS_NC' && p.ncCount === 0) return false;
     if (perfFilter === 'HAS_PANNE' && p.panneCount === 0 && p.panneDispoCount === 0) return false;
     if (searchVal) {
@@ -26222,9 +26413,9 @@ function renderFicheSharikPage() {
   if (kpiContainer) {
     const sumTrips = filtered.reduce((s, p) => s + p.tripsCount, 0);
     const sumCA = filtered.reduce((s, p) => s + p.caGenere, 0);
-    const sumObj = filtered.length * objectifCA;
+    const sumObj = filtered.reduce((s, p) => s + p.objectifCA, 0);
     const globalCaRate = sumObj > 0 ? Math.round((sumCA / sumObj) * 100) : 0;
-    const objReachedCount = filtered.filter(p => p.caGenere >= objectifCA).length;
+    const objReachedCount = filtered.filter(p => p.caGenere >= p.objectifCA).length;
     const sumNC = filtered.reduce((s, p) => s + p.ncCount, 0);
     const sumDispo = filtered.reduce((s, p) => s + p.dispoCount, 0);
     const sumMission = filtered.reduce((s, p) => s + p.missionCount, 0);
@@ -26335,7 +26526,7 @@ function renderSharikPedigreeOrList() {
         <td>${teamBadge}</td>
         <td><div style="display:flex;gap:4px;flex-wrap:wrap">${platesHtml}</div></td>
         <td style="text-align:center"><span style="font-size:15px;font-weight:900;color:#38bdf8">${p.tripsCount}</span><div style="font-size:10px;color:var(--txt3)">${p.segments.length} seg.</div></td>
-        <td style="min-width:210px">
+        <td style="min-width:255px">
           <div style="display:flex;justify-content:space-between;align-items:baseline;font-size:12px">
             <b class="mono" style="color:${caColor}">${Math.round(p.caGenere).toLocaleString('fr-FR')} DA</b>
             <span style="font-size:11px;font-weight:800;color:${caColor}">${pct}%</span>
@@ -26343,14 +26534,28 @@ function renderSharikPedigreeOrList() {
           <div style="width:100%;height:6px;background:rgba(255,255,255,0.08);border-radius:4px;overflow:hidden;margin:4px 0">
             <div style="width:${barW}%;height:100%;background:${caColor}"></div>
           </div>
-          <div style="font-size:10px;color:var(--txt3)">Obj: ${p.objectifCA.toLocaleString('fr-FR')} DA (<span style="color:${caColor}">${ecartStr}</span>)</div>
+          <div style="font-size:10px;color:var(--txt3)">Obj${p.isExtension ? ` (${p.truckCount} cam. × ${p.objectifPerTruck.toLocaleString('fr-FR')})` : ''}: ${p.objectifCA.toLocaleString('fr-FR')} DA (<span style="color:${caColor}">${ecartStr}</span>)</div>
+          ${p.isExtension && p.truckStats && p.truckStats.length > 0 ? `
+            <div style="margin-top:6px;padding-top:6px;border-top:1px dashed rgba(255,255,255,0.14);display:flex;flex-direction:column;gap:3px">
+              ${p.truckStats.map(ts => {
+                const tPct = Math.round(ts.caRate);
+                const tCol = tPct >= 100 ? '#4ade80' : tPct >= 70 ? '#fbbf24' : '#38bdf8';
+                return `<div style="display:flex;justify-content:space-between;align-items:center;font-size:10.5px;background:rgba(255,255,255,0.03);padding:2px 6px;border-radius:4px">
+                  <span class="mono" style="color:#cbd5e1">🚛 ${ts.plate} <span style="color:var(--txt3)">(${ts.tripsCount}v)</span></span>
+                  <span class="mono" style="font-weight:700;color:${tCol}">${Math.round(ts.caGenere).toLocaleString('fr-FR')} DA <span style="font-size:9.5px;opacity:.85">(${tPct}%)</span></span>
+                </div>`;
+              }).join('')}
+            </div>` : ''}
         </td>
         <td style="text-align:center">${ncHtml}</td>
         <td style="text-align:center">${racHtml}</td>
         <td style="text-align:center">${dispoHtml}</td>
-        <td style="text-align:center">
-          <button class="btn" onclick="event.stopPropagation();selectSharikPedigree('${p.canon.replace(/'/g, "\\'")}')" style="background:rgba(16,185,129,0.18);color:#34d399;border:1px solid rgba(16,185,129,0.45);padding:5px 10px;font-size:11px;font-weight:700;border-radius:6px">
+        <td style="text-align:center;white-space:nowrap">
+          <button class="btn" onclick="event.stopPropagation();selectSharikPedigree('${p.canon.replace(/'/g, "\\'")}')" style="background:rgba(16,185,129,0.18);color:#34d399;border:1px solid rgba(16,185,129,0.45);padding:5px 9px;font-size:11px;font-weight:700;border-radius:6px">
             🪪 Pedigré
+          </button>
+          <button class="btn" onclick="event.stopPropagation();printSharikPedigree('${p.canon.replace(/'/g, "\\'")}')" title="Imprimer / Enregistrer en PDF pour remise en main propre" style="background:rgba(56,189,248,0.16);color:#38bdf8;border:1px solid rgba(56,189,248,0.45);padding:5px 8px;font-size:11px;font-weight:700;border-radius:6px;margin-left:4px">
+            🖨️ PDF
           </button>
         </td>
       </tr>
@@ -26410,7 +26615,7 @@ function renderSingleSharikPedigree(p, container) {
     : '<tr><td colspan="7" style="text-align:center;padding:20px;color:#34d399;font-weight:700">✅ Aucune non-conformité enregistrée pour ce Sharik sur la période.</td></tr>';
 
   const tripRowsHtml = p.trips.length > 0
-    ? p.trips.slice(0, 100).map(tp => `
+    ? p.trips.map(tp => `
         <tr>
           <td class="mono" style="font-size:11px">${tp.date || '—'}</td>
           <td class="mono" style="font-size:11px">${tp.segIds.join(', ')}${tp.groupage ? `<div style="font-size:10px;color:#38bdf8">${tp.groupage}</div>` : ''}</td>
@@ -26424,7 +26629,7 @@ function renderSingleSharikPedigree(p, container) {
     : '<tr><td colspan="7" style="text-align:center;padding:20px;color:var(--txt3)">Aucun voyage trouvé dans Voyages &amp; Segments sur la période sélectionnée.</td></tr>';
 
   const panneRowsHtml = p.pannes.length > 0
-    ? p.pannes.slice(0, 50).map(pn => `
+    ? p.pannes.map(pn => `
         <tr>
           <td class="mono" style="font-size:11px">${pn.date || '—'}</td>
           <td class="mono" style="color:var(--acc);font-size:11px">${pn.immat || '—'}</td>
@@ -26440,8 +26645,8 @@ function renderSingleSharikPedigree(p, container) {
       <button class="btn" onclick="selectSharikPedigree('')" style="background:rgba(255,255,255,0.08);color:var(--txt);font-weight:700;padding:8px 14px;border-radius:8px">
         ← Retour à tous les Shariks
       </button>
-      <button class="btn" onclick="printSharikPedigree()" style="background:rgba(56,189,248,0.16);color:#38bdf8;border:1px solid rgba(56,189,248,0.45);font-weight:700;padding:8px 14px;border-radius:8px">
-        🖨️ Imprimer / PDF Fiche Pedigré
+      <button class="btn" onclick="printSharikPedigree('${p.canon.replace(/'/g, "\\'")}')" style="background:linear-gradient(135deg,#0284c7,#10b981);color:#fff;border:none;font-weight:800;padding:9px 18px;border-radius:8px;box-shadow:0 4px 12px rgba(16,185,129,0.25)">
+        🖨️ Imprimer / Enregistrer en PDF (Remise Sharik)
       </button>
     </div>
 
@@ -26461,8 +26666,8 @@ function renderSingleSharikPedigree(p, container) {
         </div>
         <div style="text-align:right">
           <div style="font-size:11px;color:var(--txt3);text-transform:uppercase;font-weight:700">Objectif Mensuel Référence</div>
-          <div style="font-size:20px;font-weight:900;color:#4ade80">471 500 DA / mois</div>
-          <div style="font-size:11px;color:var(--txt2)">Période : ${p.nbMonths} mois (${p.objectifCA.toLocaleString('fr-FR')} DA)</div>
+          <div style="font-size:20px;font-weight:900;color:#4ade80">471 500 DA / mois / camion</div>
+          <div style="font-size:11px;color:var(--txt2)">Période : ${p.nbMonths} mois${p.isExtension ? ` × ${p.truckCount} camions` : ''} (${p.objectifCA.toLocaleString('fr-FR')} DA)</div>
         </div>
       </div>
 
@@ -26511,6 +26716,65 @@ function renderSingleSharikPedigree(p, container) {
           <div style="font-size:11px;color:var(--txt2)">✅ Dispo: <b>${p.dispoCount}</b> · 🚛 Mission: <b>${p.missionCount}</b> · 🔧 Panne: <b>${p.panneDispoCount}</b></div>
         </div>
       </div>
+
+      ${p.isExtension && p.truckStats && p.truckStats.length > 0 ? `
+      <!-- Détail du CA par Camion (Chauffeur Extension) -->
+      <div style="margin-bottom:20px">
+        <h3 style="margin:0 0 10px 0;font-size:14px;color:#4ade80;display:flex;align-items:center;gap:8px">🚛 Détail du CA Généré par Camion (Extension · ${p.truckCount} camions)</h3>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Camion (Tracteur)</th>
+                <th style="text-align:center">Voyages</th>
+                <th style="text-align:center">Segments</th>
+                <th style="text-align:right">KM Expl.</th>
+                <th style="text-align:right">CA Généré (DA)</th>
+                <th style="text-align:right">Objectif Camion</th>
+                <th style="min-width:130px">Atteinte</th>
+                <th style="text-align:right">Écart (DA)</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${p.truckStats.map(ts => {
+                const tPct = Math.round(ts.caRate);
+                const tW = Math.min(100, Math.max(0, tPct));
+                const tCol = tPct >= 100 ? '#4ade80' : tPct >= 70 ? '#fbbf24' : '#f87171';
+                const tEc = Math.round(ts.caGenere - ts.objectifCA);
+                const tEcStr = (tEc >= 0 ? '+' : '') + tEc.toLocaleString('fr-FR') + ' DA';
+                return `
+                  <tr>
+                    <td class="mono" style="font-weight:800;color:var(--acc)">🚛 ${ts.plate}</td>
+                    <td style="text-align:center;font-weight:800;color:#38bdf8">${ts.tripsCount}</td>
+                    <td style="text-align:center;color:var(--txt2)">${ts.segmentsCount}</td>
+                    <td class="mono" style="text-align:right;color:var(--txt2)">${Math.round(ts.kmExpl).toLocaleString('fr-FR')} km</td>
+                    <td class="mono" style="text-align:right;font-weight:800;color:${tCol}">${Math.round(ts.caGenere).toLocaleString('fr-FR')} DA</td>
+                    <td class="mono" style="text-align:right;color:var(--txt3)">${ts.objectifCA.toLocaleString('fr-FR')} DA</td>
+                    <td>
+                      <div style="display:flex;align-items:center;gap:6px">
+                        <div style="flex:1;height:6px;background:rgba(255,255,255,0.08);border-radius:4px;overflow:hidden"><div style="width:${tW}%;height:100%;background:${tCol}"></div></div>
+                        <span style="font-size:11px;font-weight:800;color:${tCol}">${tPct}%</span>
+                      </div>
+                    </td>
+                    <td class="mono" style="text-align:right;font-weight:700;color:${tCol}">${tEcStr}</td>
+                  </tr>`;
+              }).join('')}
+            </tbody>
+            <tfoot>
+              <tr style="background:rgba(255,255,255,0.04);font-weight:800">
+                <td>TOTAL FLOTTE (${p.truckCount} camions)</td>
+                <td style="text-align:center;color:#38bdf8">${p.tripsCount}</td>
+                <td style="text-align:center">${p.segments.length}</td>
+                <td class="mono" style="text-align:right">${Math.round(p.kmExpl).toLocaleString('fr-FR')} km</td>
+                <td class="mono" style="text-align:right;color:${caColor}">${Math.round(p.caGenere).toLocaleString('fr-FR')} DA</td>
+                <td class="mono" style="text-align:right">${p.objectifCA.toLocaleString('fr-FR')} DA</td>
+                <td style="color:${caColor}">${pct}%</td>
+                <td class="mono" style="text-align:right;color:${caColor}">${ecartStr}</td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+      </div>` : ''}
 
       <!-- Détail des Non-Conformités -->
       <div style="margin-bottom:20px">
@@ -26576,14 +26840,372 @@ function renderSingleSharikPedigree(p, container) {
   `;
 }
 
-function printSharikPedigree() {
-  const el = document.getElementById('sharik-pedigree-printable');
-  if (!el) return;
-  const w = window.open('', '_blank', 'width=1050,height=800');
-  if (!w) { window.print(); return; }
-  w.document.write(`<!DOCTYPE html><html lang="fr"><head><meta charset="utf-8"><title>Fiche Pedigré Sharik</title><style>body{font-family:sans-serif;background:#fff;color:#0f172a;padding:20px} table{width:100%;border-collapse:collapse;margin-top:6px;font-size:12px} th,td{border:1px solid #cbd5e1;padding:6px 8px;text-align:left} th{background:#f1f5f9} h2,h3{color:#0f172a} .badge{padding:2px 6px;border-radius:4px;background:#e2e8f0;font-size:11px}</style></head><body>${el.innerHTML}</body></html>`);
-  w.document.close();
-  setTimeout(() => { w.focus(); w.print(); }, 250);
+function printSharikPedigree(canonOpt) {
+  const targetCanon = canonOpt || window._SHARIK_SELECTED_CANON || '';
+  const p = (window._SHARIK_ALL_COMPUTED || []).find(x => x.canon === targetCanon);
+  if (!p) {
+    if (typeof showToast === 'function') showToast('⚠️ Sélectionnez d\'abord un Sharik à imprimer.', true);
+    return;
+  }
+
+  const esc = (v) => String(v === undefined || v === null ? '' : v)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+
+  const logoEl = document.querySelector('#login-screen img');
+  const logoSrc = logoEl ? logoEl.src : '';
+  const todayPrint = new Date().toLocaleDateString('fr-FR', { day: '2-digit', month: 'long', year: 'numeric' });
+  const monthEl = document.getElementById('sharik-filter-month');
+  const fromEl = document.getElementById('sharik-date-from');
+  const toEl = document.getElementById('sharik-date-to');
+  let periodLabel = 'Toutes les données disponibles';
+  if (fromEl && toEl && (fromEl.value || toEl.value)) {
+    periodLabel = `Du ${fromEl.value || '…'} au ${toEl.value || '…'}`;
+  } else if (monthEl && monthEl.value && monthEl.value !== 'ALL') {
+    const opt = monthEl.options[monthEl.selectedIndex];
+    periodLabel = opt ? opt.textContent : monthEl.value;
+  }
+
+  const pct = Math.round(p.caRate);
+  const barW = Math.min(100, Math.max(0, pct));
+  const caAccent = pct >= 100 ? '#15803d' : pct >= 70 ? '#b45309' : '#b91c1c';
+  const caBg = pct >= 100 ? '#f0fdf4' : pct >= 70 ? '#fffbeb' : '#fef2f2';
+  const caBorder = pct >= 100 ? '#86efac' : pct >= 70 ? '#fcd34d' : '#fca5a5';
+  const ecart = Math.round(p.caGenere - p.objectifCA);
+  const ecartStr = (ecart >= 0 ? '+' : '') + ecart.toLocaleString('fr-FR') + ' DA';
+  const caStatusTxt = pct >= 100 ? '✅ Objectif mensuel atteint' : '⏳ Reste à réaliser : ' + Math.abs(ecart).toLocaleString('fr-FR') + ' DA';
+
+  const totalDecl = p.totalDispoDecl;
+  const pctDispo = totalDecl > 0 ? Math.round((p.dispoCount / totalDecl) * 100) : 0;
+  const pctMission = totalDecl > 0 ? Math.round((p.missionCount / totalDecl) * 100) : 0;
+  const pctPanne = totalDecl > 0 ? Math.max(0, 100 - pctDispo - pctMission) : 0;
+
+  const racColor = p.racPct === null ? '#475569' : (p.racPct >= 50 ? '#15803d' : p.racPct >= 40 ? '#b45309' : '#b91c1c');
+  const operatorName = (sessionStorage.getItem('numiplan_username') || 'Responsable Parc').toUpperCase();
+
+  const regItems = [];
+  if (p.regInfo) {
+    if (p.regInfo.code) regItems.push(`<span><b>Code Tiers :</b> ${esc(p.regInfo.code)}</span>`);
+    if (p.regInfo.contrat) regItems.push(`<span><b>Contrat :</b> ${esc(p.regInfo.contrat)}</span>`);
+    if (p.regInfo.tel || p.regInfo.telephone) regItems.push(`<span><b>Téléphone :</b> ${esc(p.regInfo.tel || p.regInfo.telephone)}</span>`);
+    if (p.regInfo.dateEntree) regItems.push(`<span><b>Date d'entrée :</b> ${esc(p.regInfo.dateEntree)}</span>`);
+  }
+
+  const ncSectionHtml = p.ncs.length > 0
+    ? `
+      <div class="section">
+        <div class="section-title" style="color:#b91c1c;border-color:#fecaca;background:#fef2f2">
+          <span>⚠️ Détail des Non-Conformités enregistrées (${p.ncCount})</span>
+        </div>
+        <table>
+          <thead>
+            <tr>
+              <th style="width:76px">Date</th>
+              <th style="width:95px">Camion</th>
+              <th style="width:115px">Catégorie</th>
+              <th>Explication des faits</th>
+              <th style="width:110px">Sanction / Suite</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${p.ncs.map(r => {
+              let tp = 'Autre', dt = r.autre || '—';
+              if (r.chgt) { tp = 'Chgt compte'; dt = r.chgt; }
+              else if (r.autorise) { tp = 'Chgt autorisé'; dt = r.autorise; }
+              else if (r.fausse) { tp = 'Fausse décl.'; dt = r.fausse; }
+              else if (r.refus) { tp = 'Refus travail'; dt = r.refus; }
+              return `
+                <tr>
+                  <td class="mono">${esc(r.date || '—')}</td>
+                  <td class="mono">${esc(r.v || '—')}</td>
+                  <td><span class="pill-warn">${esc(tp)}</span></td>
+                  <td><b>${esc(dt)}</b></td>
+                  <td>${r.mise ? `<span class="pill-red">${esc(r.mise)}</span>` : '—'}</td>
+                </tr>`;
+            }).join('')}
+          </tbody>
+        </table>
+      </div>`
+    : `
+      <div class="section">
+        <div class="clean-ok-box">
+          ✅ <b>Aucune Non-Conformité enregistrée</b> sur cette période — Comportement conforme aux consignes NUMILOG.
+        </div>
+      </div>`;
+
+  const tripsSectionHtml = p.trips.length > 0
+    ? `
+      <div class="section">
+        <div class="section-title" style="color:#0369a1;border-color:#bae6fd;background:#f0f9ff">
+          <span>📦 Détail des Voyages Réalisés &amp; Chiffre d'Affaires (${p.tripsCount} voyage${p.tripsCount > 1 ? 's' : ''})</span>
+        </div>
+        <table>
+          <thead>
+            <tr>
+              <th style="width:76px">Date</th>
+              <th style="width:92px">Tracteur</th>
+              <th>Client(s)</th>
+              <th>Trajet (Départ ➔ Arrivée)</th>
+              <th style="width:72px;text-align:center">Statut</th>
+              <th style="width:96px;text-align:right">CA (DA)</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${p.trips.map(tp => `
+              <tr>
+                <td class="mono">${esc(tp.date || '—')}</td>
+                <td class="mono">${esc(tp.tracteur)}</td>
+                <td><b>${esc(tp.clients.join(' / ') || '—')}</b></td>
+                <td>${esc(tp.lieuxDep.join(' + ') || '—')} <span style="color:#64748b">➔</span> <b>${esc(tp.lieuxArr.join(' + ') || '—')}</b></td>
+                <td style="text-align:center">${esc(tp.etatCmd)}</td>
+                <td class="mono" style="text-align:right;font-weight:700;color:#15803d">${Math.round(tp.achat).toLocaleString('fr-FR')} DA</td>
+              </tr>`).join('')}
+          </tbody>
+          <tfoot>
+            <tr style="background:#f1f5f9;font-weight:800">
+              <td colspan="5" style="text-align:right">TOTAL CHIFFRE D'AFFAIRES GÉNÉRÉ (${p.tripsCount} voyages) :</td>
+              <td class="mono" style="text-align:right;color:#15803d;font-size:12px">${Math.round(p.caGenere).toLocaleString('fr-FR')} DA</td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>`
+    : `
+      <div class="section">
+        <div class="clean-muted-box">📦 Aucun voyage enregistré dans le fichier Voyages &amp; Segments sur cette période.</div>
+      </div>`;
+
+  const pannesSectionHtml = p.pannes.length > 0
+    ? `
+      <div class="section">
+        <div class="section-title" style="color:#b45309;border-color:#fde68a;background:#fffbeb">
+          <span>🔧 Historique des Pannes liées (${p.panneCount})</span>
+        </div>
+        <table>
+          <thead>
+            <tr>
+              <th style="width:76px">Date</th>
+              <th style="width:95px">Véhicule</th>
+              <th style="width:92px">N° DI</th>
+              <th>Description de la panne</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${p.pannes.map(pn => `
+              <tr>
+                <td class="mono">${esc(pn.date || '—')}</td>
+                <td class="mono">${esc(pn.immat || '—')}</td>
+                <td class="mono">${esc(pn.di || '—')}</td>
+                <td>${esc(pn.desc || '—')}</td>
+              </tr>`).join('')}
+          </tbody>
+        </table>
+      </div>`
+    : '';
+
+  const printDocHtml = `<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<title>Fiche Sharik - ${esc(p.name)}</title>
+<style>
+  @page { size: A4 portrait; margin: 11mm 12mm; }
+  * { box-sizing: border-box; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+  body { margin: 0; padding: 0; font-family: 'Segoe UI', Arial, sans-serif; color: #0f172a; background: #ffffff; font-size: 11.5px; line-height: 1.45; }
+  .doc-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 2.5px solid #0f172a; padding-bottom: 10px; margin-bottom: 14px; }
+  .brand-row { display: flex; align-items: center; gap: 12px; }
+  .brand-row img { height: 42px; border-radius: 6px; border: 1px solid #cbd5e1; }
+  .doc-title { font-size: 16px; font-weight: 900; color: #0f172a; letter-spacing: 0.4px; text-transform: uppercase; margin: 0; }
+  .doc-sub { font-size: 11px; color: #475569; margin-top: 2px; }
+  .doc-meta { text-align: right; font-size: 10.5px; color: #475569; line-height: 1.5; }
+  .id-card { background: #f8fafc; border: 1.5px solid #cbd5e1; border-left: 5px solid #10b981; border-radius: 10px; padding: 12px 15px; margin-bottom: 14px; display: flex; justify-content: space-between; align-items: center; gap: 12px; break-inside: avoid; }
+  .sharik-name { font-size: 19px; font-weight: 900; color: #0f172a; margin: 2px 0 4px 0; }
+  .team-pill { display: inline-block; background: #e0f2fe; color: #0369a1; border: 1px solid #7dd3fc; font-size: 10px; font-weight: 800; padding: 2px 8px; border-radius: 999px; text-transform: uppercase; }
+  .id-details { display: flex; flex-wrap: wrap; gap: 12px; font-size: 11px; color: #334155; margin-top: 4px; }
+  .obj-box { text-align: right; background: #f0fdf4; border: 1px solid #86efac; border-radius: 8px; padding: 8px 12px; min-width: 175px; }
+  .kpi-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 14px; break-inside: avoid; }
+  .kpi-grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 14px; break-inside: avoid; }
+  .kpi-card { border: 1px solid #cbd5e1; border-radius: 10px; padding: 10px 12px; background: #ffffff; }
+  .kpi-lbl { font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.4px; margin-bottom: 4px; }
+  .kpi-val { font-size: 20px; font-weight: 900; color: #0f172a; margin: 2px 0 4px 0; }
+  .kpi-foot { font-size: 10px; color: #475569; }
+  .prog-track { width: 100%; height: 8px; background: #e2e8f0; border-radius: 999px; overflow: hidden; margin: 5px 0; display: flex; }
+  .section { margin-bottom: 13px; }
+  .section-title { font-size: 11.5px; font-weight: 800; padding: 6px 10px; border: 1px solid #cbd5e1; border-radius: 7px 7px 0 0; border-bottom: none; }
+  table { width: 100%; border-collapse: collapse; font-size: 10.5px; }
+  th, td { border: 1px solid #cbd5e1; padding: 5px 7px; text-align: left; vertical-align: top; }
+  th { background: #f1f5f9; color: #334155; font-weight: 800; font-size: 10px; text-transform: uppercase; }
+  tr { break-inside: avoid; }
+  .mono { font-family: 'Consolas', 'Courier New', monospace; }
+  .pill-warn { display: inline-block; background: #fef3c7; color: #92400e; border: 1px solid #fcd34d; padding: 1px 6px; border-radius: 4px; font-size: 9.5px; font-weight: 700; }
+  .pill-red { display: inline-block; background: #fee2e2; color: #991b1b; border: 1px solid #fca5a5; padding: 1px 6px; border-radius: 4px; font-size: 9.5px; font-weight: 700; }
+  .clean-ok-box { background: #f0fdf4; border: 1px solid #86efac; color: #166534; border-radius: 8px; padding: 9px 12px; font-size: 11px; break-inside: avoid; }
+  .clean-muted-box { background: #f8fafc; border: 1px solid #cbd5e1; color: #475569; border-radius: 8px; padding: 9px 12px; font-size: 11px; break-inside: avoid; }
+  .sign-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 16px; break-inside: avoid; }
+  .sign-box { border: 1px dashed #94a3b8; border-radius: 8px; padding: 10px 12px; min-height: 76px; background: #fafafa; }
+  .sign-title { font-size: 10.5px; font-weight: 800; color: #334155; text-transform: uppercase; margin-bottom: 4px; }
+  .sign-sub { font-size: 10px; color: #64748b; }
+</style>
+</head>
+<body>
+  <div class="doc-header">
+    <div class="brand-row">
+      ${logoSrc ? `<img src="${logoSrc}" alt="NUMILOG">` : ''}
+      <div>
+        <div class="doc-title">Fiche Pedigré &amp; Bilan Sharik</div>
+        <div class="doc-sub">Document de suivi individuel · Remise en main propre</div>
+      </div>
+    </div>
+    <div class="doc-meta">
+      <div><b>Période analysée :</b> ${esc(periodLabel)}</div>
+      <div><b>Édité le :</b> ${esc(todayPrint)} · Par ${esc(operatorName)}</div>
+    </div>
+  </div>
+
+  <div class="id-card">
+    <div>
+      <span class="team-pill">Équipe ${esc(p.teamsArr.join(' / ') || p.team)}</span>
+      <div class="sharik-name">${esc(p.name)}</div>
+      <div class="id-details">
+        <span><b>Camion(s) / Tracteur(s) :</b> <span class="mono">${esc(p.platesArr.join(', ') || '—')}</span></span>
+        ${regItems.join('')}
+      </div>
+    </div>
+    <div class="obj-box">
+      <div style="font-size:9.5px;color:#166534;font-weight:800;text-transform:uppercase">Objectif CA Mensuel</div>
+      <div style="font-size:15px;font-weight:900;color:#15803d">471 500 DA / mois${p.isExtension ? ' / cam.' : ''}</div>
+      <div style="font-size:10px;color:#334155">Objectif période (${p.nbMonths}m${p.isExtension ? ` × ${p.truckCount} cam.` : ''}) : <b>${p.objectifCA.toLocaleString('fr-FR')} DA</b></div>
+    </div>
+  </div>
+
+  <div class="kpi-grid">
+    <div class="kpi-card" style="border-top:3px solid #0284c7;background:#f0f9ff">
+      <div class="kpi-lbl" style="color:#0369a1">📦 Voyages Réalisés</div>
+      <div class="kpi-val">${p.tripsCount} <span style="font-size:12px;font-weight:600;color:#475569">voyage(s)</span></div>
+      <div class="kpi-foot">${p.segments.length} segment(s) ERP · ${Math.round(p.kmExpl).toLocaleString('fr-FR')} km expl.</div>
+    </div>
+
+    <div class="kpi-card" style="border-top:3px solid ${caAccent};background:${caBg};border-color:${caBorder}">
+      <div class="kpi-lbl" style="color:${caAccent}">💰 CA Généré (${pct}% objectif)</div>
+      <div class="kpi-val" style="color:${caAccent}">${Math.round(p.caGenere).toLocaleString('fr-FR')} DA</div>
+      <div class="prog-track"><div style="width:${barW}%;background:${caAccent}"></div></div>
+      <div class="kpi-foot"><b>Écart : ${ecartStr}</b> · ${caStatusTxt}</div>
+    </div>
+
+    <div class="kpi-card" style="border-top:3px solid #d97706;background:#fffbeb">
+      <div class="kpi-lbl" style="color:#b45309">🛣️ Roulage à Charge (RAC)</div>
+      <div class="kpi-val" style="color:${racColor}">${p.racPct !== null ? p.racPct.toFixed(1) + '%' : '—'}</div>
+      <div class="kpi-foot">${p.kmParcourus > 0 ? `${Math.round(p.kmFacture).toLocaleString('fr-FR')} km fact. / ${Math.round(p.kmParcourus).toLocaleString('fr-FR')} km odo` : 'Aucun relevé odomètre facturé'}</div>
+    </div>
+  </div>
+
+  <div class="kpi-grid-2">
+    <div class="kpi-card" style="border-top:3px solid #7c3aed;background:#faf5ff">
+      <div class="kpi-lbl" style="color:#6d28d9">📊 Taux de Disponibilité (Déclaré Disponible vs Mission &amp; Panne)</div>
+      <div class="kpi-val" style="font-size:18px">${p.dispoRate !== null ? p.dispoRate.toFixed(1) + '% Disponible' : 'Aucun relevé'} <span style="font-size:11px;font-weight:700;color:#15803d">${p.opRate !== null ? '· ' + p.opRate.toFixed(1) + '% hors panne' : ''}</span></div>
+      <div class="prog-track">
+        <div style="width:${pctDispo}%;background:#16a34a"></div>
+        <div style="width:${pctMission}%;background:#0284c7"></div>
+        <div style="width:${pctPanne}%;background:#dc2626"></div>
+      </div>
+      <div class="kpi-foot">✅ Disponible : <b>${p.dispoCount} fois</b> &nbsp;|&nbsp; 🚛 En mission : <b>${p.missionCount} fois</b> &nbsp;|&nbsp; 🔧 En panne : <b>${p.panneDispoCount} fois</b></div>
+    </div>
+
+    <div class="kpi-card" style="border-top:3px solid ${p.ncCount > 0 ? '#dc2626' : '#16a34a'};background:${p.ncCount > 0 ? '#fef2f2' : '#f0fdf4'}">
+      <div class="kpi-lbl" style="color:${p.ncCount > 0 ? '#b91c1c' : '#15803d'}">⚠️ Non-Conformités &amp; Incidents</div>
+      <div class="kpi-val" style="font-size:18px;color:${p.ncCount > 0 ? '#b91c1c' : '#15803d'}">${p.ncCount} Non-Conformité(s) · ${p.panneCount} Panne(s)</div>
+      <div class="kpi-foot">${p.ncCount > 0 ? 'Le détail exact des faits est présenté dans le tableau ci-dessous.' : 'Dossier conforme : aucune non-conformité signalée sur cette période.'}</div>
+    </div>
+  </div>
+
+  ${p.isExtension && p.truckStats && p.truckStats.length > 0 ? `
+    <div class="section">
+      <div class="section-title" style="color:#15803d;border-color:#86efac;background:#f0fdf4">
+        <span>🚛 Détail du CA Généré par Camion (Chauffeur Extension · ${p.truckCount} camions)</span>
+      </div>
+      <table>
+        <thead>
+          <tr>
+            <th>Camion (Tracteur)</th>
+            <th style="text-align:center;width:65px">Voyages</th>
+            <th style="text-align:center;width:65px">Segments</th>
+            <th style="text-align:right;width:110px">CA Généré (DA)</th>
+            <th style="text-align:right;width:105px">Objectif Camion</th>
+            <th style="text-align:center;width:65px">Atteinte</th>
+            <th style="text-align:right;width:100px">Écart (DA)</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${p.truckStats.map(ts => {
+            const tPct = Math.round(ts.caRate);
+            const tCol = tPct >= 100 ? '#15803d' : tPct >= 70 ? '#b45309' : '#b91c1c';
+            const tEc = Math.round(ts.caGenere - ts.objectifCA);
+            const tEcStr = (tEc >= 0 ? '+' : '') + tEc.toLocaleString('fr-FR') + ' DA';
+            return `
+              <tr>
+                <td class="mono"><b>${esc(ts.plate)}</b></td>
+                <td style="text-align:center"><b>${ts.tripsCount}</b></td>
+                <td style="text-align:center">${ts.segmentsCount}</td>
+                <td class="mono" style="text-align:right;font-weight:700;color:${tCol}">${Math.round(ts.caGenere).toLocaleString('fr-FR')} DA</td>
+                <td class="mono" style="text-align:right">${ts.objectifCA.toLocaleString('fr-FR')} DA</td>
+                <td style="text-align:center;font-weight:800;color:${tCol}">${tPct}%</td>
+                <td class="mono" style="text-align:right;font-weight:700;color:${tCol}">${tEcStr}</td>
+              </tr>`;
+          }).join('')}
+        </tbody>
+        <tfoot>
+          <tr style="background:#f1f5f9;font-weight:800">
+            <td>TOTAL (${p.truckCount} camions)</td>
+            <td style="text-align:center">${p.tripsCount}</td>
+            <td style="text-align:center">${p.segments.length}</td>
+            <td class="mono" style="text-align:right;color:${caAccent}">${Math.round(p.caGenere).toLocaleString('fr-FR')} DA</td>
+            <td class="mono" style="text-align:right">${p.objectifCA.toLocaleString('fr-FR')} DA</td>
+            <td style="text-align:center;color:${caAccent}">${pct}%</td>
+            <td class="mono" style="text-align:right;color:${caAccent}">${ecartStr}</td>
+          </tr>
+        </tfoot>
+      </table>
+    </div>` : ''}
+  ${ncSectionHtml}
+  ${tripsSectionHtml}
+  ${pannesSectionHtml}
+
+  <div class="sign-grid">
+    <div class="sign-box">
+      <div class="sign-title">Visa Chef d'Équipe / Exploitation</div>
+      <div class="sign-sub">Nom, date et signature :</div>
+    </div>
+    <div class="sign-box">
+      <div class="sign-title">Remis en main propre au Sharik : ${esc(p.name)}</div>
+      <div class="sign-sub">Date de remise et signature du Sharik (Lu et pris connaissance) :</div>
+    </div>
+  </div>
+</body>
+</html>`;
+
+  let iframe = document.getElementById('sharik-print-iframe');
+  if (!iframe) {
+    iframe = document.createElement('iframe');
+    iframe.id = 'sharik-print-iframe';
+    iframe.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0;visibility:hidden;';
+    document.body.appendChild(iframe);
+  }
+  const doc = iframe.contentWindow.document;
+  doc.open();
+  doc.write(printDocHtml);
+  doc.close();
+  setTimeout(() => {
+    try {
+      iframe.contentWindow.focus();
+      iframe.contentWindow.print();
+    } catch (e) {
+      const w = window.open('', '_blank', 'width=960,height=780');
+      if (w) {
+        w.document.open();
+        w.document.write(printDocHtml);
+        w.document.close();
+        setTimeout(() => { w.focus(); w.print(); }, 250);
+      }
+    }
+  }, 250);
 }
 window.printSharikPedigree = printSharikPedigree;
 
@@ -26611,14 +27233,697 @@ function exportFicheSharikExcel() {
     'Déclaré En mission (fois)': p.missionCount,
     'Déclaré En panne (fois)': p.panneDispoCount
   }));
+  const truckDetailRows = [];
+  list.forEach(p => {
+    if (p.truckStats && p.truckStats.length > 0) {
+      p.truckStats.forEach(ts => {
+        truckDetailRows.push({
+          'Sharik': p.name,
+          'Extension': p.isExtension ? `OUI (${p.truckCount})` : 'NON',
+          'Équipe': p.teamsArr.join(', ') || p.team,
+          'Camion': ts.plate,
+          'Voyages': ts.tripsCount,
+          'Segments': ts.segmentsCount,
+          'KM Expl.': Math.round(ts.kmExpl),
+          'CA Généré (DA)': Math.round(ts.caGenere * 100) / 100,
+          'Objectif Camion (DA)': ts.objectifCA,
+          'Atteinte (%)': Math.round(ts.caRate * 10) / 10,
+          'Écart (DA)': Math.round((ts.caGenere - ts.objectifCA) * 100) / 100
+        });
+      });
+    }
+  });
   const wb = XLSX.utils.book_new();
   const ws = XLSX.utils.json_to_sheet(summaryRows);
   XLSX.utils.book_append_sheet(wb, ws, 'Fiche Sharik');
+  if (truckDetailRows.length > 0) {
+    const wsTrucks = XLSX.utils.json_to_sheet(truckDetailRows);
+    XLSX.utils.book_append_sheet(wb, wsTrucks, 'CA Par Camion');
+  }
   const todayStr = new Date().toISOString().split('T')[0];
   XLSX.writeFile(wb, `Numiplan_Fiche_Sharik_${todayStr}.xlsx`);
   showToast('✅ Export Excel Fiche Sharik généré !');
 }
 window.exportFicheSharikExcel = exportFicheSharikExcel;
+
+// ============================================================================
+// MODULE BILAN WEEKLY (PIS / UTL / TMS / PITT) + RESET AUTOMATIQUE LUNDI
+// ============================================================================
+window._WEEKLY_REPORT_DATA = window._WEEKLY_REPORT_DATA || (function() {
+  try {
+    const raw = localStorage.getItem('numiplan_weekly_report_cache');
+    return raw ? JSON.parse(raw) : null;
+  } catch (e) { return null; }
+})();
+window._WEEKLY_ACTIVE_SUBTAB = window._WEEKLY_ACTIVE_SUBTAB || 'pis';
+
+function getWeeklyMondayISO(dateInput) {
+  const d = dateInput ? new Date(dateInput) : new Date();
+  const day = d.getDay(); // 0=Dim, 1=Lun, ... 6=Sam
+  const diff = (day === 0 ? -6 : 1 - day);
+  const mon = new Date(d.getFullYear(), d.getMonth(), d.getDate() + diff);
+  const y = mon.getFullYear();
+  const m = String(mon.getMonth() + 1).padStart(2, '0');
+  const dd = String(mon.getDate()).padStart(2, '0');
+  return `${y}-${m}-${dd}`;
+}
+
+function getActiveWeeklyReport() {
+  const w = window._WEEKLY_REPORT_DATA;
+  if (!w || w.manualReset) return null;
+  const currentMonday = getWeeklyMondayISO(new Date());
+  if (!w.weekMonday || w.weekMonday !== currentMonday) return null;
+  return w;
+}
+window.getActiveWeeklyReport = getActiveWeeklyReport;
+
+function _normWeeklyPlate(s) {
+  return String(s || '').replace(/[\r\n\s\-]/g, '').toUpperCase();
+}
+
+function _buildWeeklyPlateTeamMap() {
+  const map = {};
+  const teams = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2', 'D1', 'D2'];
+  teams.forEach(eq => {
+    const db = (typeof CURRENT_EQUIPE !== 'undefined' && eq === CURRENT_EQUIPE && typeof window.DB !== 'undefined')
+      ? window.DB
+      : window['DB_' + eq];
+    const dispo = (db && Array.isArray(db.dispo)) ? db.dispo : [];
+    dispo.forEach(r => {
+      const p = _normWeeklyPlate(r.matricule || r.camion || r.vehicule);
+      if (p && !map[p]) map[p] = eq;
+    });
+  });
+  if (Array.isArray(window.SHARIK_LIST)) {
+    window.SHARIK_LIST.forEach(s => {
+      const p = _normWeeklyPlate(s.matricule || s.camion || s.code);
+      const eq = String(s.equipe || '').toUpperCase().trim();
+      if (p && teams.includes(eq) && !map[p]) map[p] = eq;
+    });
+  }
+  const customNew = (window._ADMIN_SHARIK_CUSTOM_EDITS && Array.isArray(window._ADMIN_SHARIK_CUSTOM_EDITS.new_drivers))
+    ? window._ADMIN_SHARIK_CUSTOM_EDITS.new_drivers : [];
+  customNew.forEach(s => {
+    const p = _normWeeklyPlate(s.matricule || s.camion || s.code);
+    const eq = String(s.equipe || '').toUpperCase().trim();
+    if (p && teams.includes(eq) && !map[p]) map[p] = eq;
+  });
+  return map;
+}
+
+function resolveWeeklyTruckTeam(vehicule, partStr, plateMap) {
+  const norm = _normWeeklyPlate(vehicule);
+  if (norm && plateMap && plateMap[norm]) return plateMap[norm];
+  const p = String(partStr || '').toUpperCase().trim();
+  if (p.includes('A2')) return 'A2';
+  if (p.includes('A')) return 'A1';
+  if (p.includes('B2')) return 'B2';
+  if (p.includes('B')) return 'B1';
+  if (p.includes('C2')) return 'C2';
+  if (p.includes('C')) return 'C1';
+  if (p.includes('D2')) return 'D2';
+  if (p.includes('D')) return 'D1';
+  return '';
+}
+
+function computeWeeklyPisTeamStats(weeklyData) {
+  const byTeam = {};
+  ['A1', 'A2', 'B1', 'B2', 'C1', 'C2', 'D1', 'D2'].forEach(eq => {
+    byTeam[eq] = { ecart: 0, facture: 0, vide: 0, count: 0 };
+  });
+  const global = { ecart: 0, facture: 0, vide: 0, count: 0 };
+  if (!weeklyData || !Array.isArray(weeklyData.pisRows)) return { byTeam, global };
+
+  const plateMap = _buildWeeklyPlateTeamMap();
+  weeklyData.pisRows.forEach(r => {
+    const eq = resolveWeeklyTruckTeam(r.vehicule, r.part, plateMap);
+    const ec = Number(r.ecart) || 0;
+    const fa = Number(r.facture) || 0;
+    const vi = Number(r.vide) || 0;
+    global.ecart += ec;
+    global.facture += fa;
+    global.vide += vi;
+    global.count += 1;
+    if (eq && byTeam[eq]) {
+      byTeam[eq].ecart += ec;
+      byTeam[eq].facture += fa;
+      byTeam[eq].vide += vi;
+      byTeam[eq].count += 1;
+    }
+  });
+  return { byTeam, global };
+}
+window.computeWeeklyPisTeamStats = computeWeeklyPisTeamStats;
+
+function updateWeeklyBadgeAndHeader() {
+  const active = getActiveWeeklyReport();
+  const badge = document.getElementById('cnt-weekly');
+  if (badge) {
+    if (active && active.pisRows && active.pisRows.length) {
+      const stats = computeWeeklyPisTeamStats(active);
+      const rac = stats.global.ecart > 0 ? (stats.global.facture / stats.global.ecart) * 100 : 0;
+      badge.textContent = `${rac.toFixed(0)}%`;
+      badge.style.background = '#f59e0b';
+    } else {
+      badge.textContent = '0%';
+      badge.style.background = '#64748b';
+    }
+  }
+  if (typeof updateHeaderRAC === 'function') updateHeaderRAC();
+}
+window.updateWeeklyBadgeAndHeader = updateWeeklyBadgeAndHeader;
+
+function _parseExcelNum(val) {
+  if (typeof val === 'number' && !isNaN(val)) return val;
+  if (val === null || val === undefined) return 0;
+  let s = String(val).replace(/\s+/g, '').replace(/%/g, '').replace(/,/g, '.');
+  const n = parseFloat(s);
+  return isNaN(n) ? 0 : n;
+}
+
+function _formatExcelCellDate(val) {
+  if (typeof val === 'number' && val > 20000 && val < 80000) {
+    const dt = new Date(Math.round((val - 25569) * 86400 * 1000));
+    const dd = String(dt.getUTCDate()).padStart(2, '0');
+    const mm = String(dt.getUTCMonth() + 1).padStart(2, '0');
+    const yy = dt.getUTCFullYear();
+    return `${dd}/${mm}/${yy}`;
+  }
+  return String(val || '').trim();
+}
+
+async function importWeeklyExcel(input) {
+  const file = input && input.files && input.files[0];
+  if (!file) return;
+  try {
+    if (typeof XLSX === 'undefined') {
+      showToast('❌ Librairie Excel (XLSX) non chargée.', true);
+      return;
+    }
+    showToast('⏳ Lecture du fichier Weekly en cours...');
+    const buf = await file.arrayBuffer();
+    const wb = XLSX.read(buf, { type: 'array' });
+
+    // 1. Feuille PIS
+    const pisRows = [];
+    let pisMeta = { odoStartLabel: 'Odo Début', odoEndLabel: 'Odo Fin' };
+    const pisSheetName = wb.SheetNames.find(n => n.trim().toUpperCase() === 'PIS');
+    if (pisSheetName) {
+      const aoa = XLSX.utils.sheet_to_json(wb.Sheets[pisSheetName], { header: 1, defval: '' });
+      if (aoa.length > 0) {
+        const hdr = aoa[0];
+        pisMeta.odoStartLabel = _formatExcelCellDate(hdr[3]) || 'Odo Début';
+        pisMeta.odoEndLabel = _formatExcelCellDate(hdr[4]) || 'Odo Fin';
+        for (let i = 1; i < aoa.length; i++) {
+          const row = aoa[i];
+          const part = String(row[0] || '').replace(/[\r\n]+/g, ' ').trim();
+          const veh = String(row[1] || '').replace(/[\r\n]+/g, ' ').trim();
+          const chauf = String(row[2] || '').replace(/[\r\n]+/g, ' ').trim();
+          if (!part && !veh) continue; // Ignorer les lignes parasites (ex: R182)
+          const odoStart = _parseExcelNum(row[3]);
+          const odoEnd = _parseExcelNum(row[4]);
+          const ecart = _parseExcelNum(row[5]);
+          const facture = _parseExcelNum(row[6]);
+          const vide = row[7] !== '' && row[7] !== undefined ? _parseExcelNum(row[7]) : (ecart - facture);
+          const racPct = ecart > 0 ? (facture / ecart) * 100 : 0;
+          pisRows.push({ part, vehicule: veh, chauffeur: chauf, odoStart, odoEnd, ecart, facture, vide, racPct });
+        }
+      }
+    }
+
+    // 2. Feuille UTL
+    let utlData = { dates: [], rows: [] };
+    const utlSheetName = wb.SheetNames.find(n => n.trim().toUpperCase() === 'UTL');
+    if (utlSheetName) {
+      const aoa = XLSX.utils.sheet_to_json(wb.Sheets[utlSheetName], { header: 1, defval: '' });
+      if (aoa.length > 0) {
+        utlData.dates = aoa[0].slice(1).map(c => _formatExcelCellDate(c)).filter(Boolean);
+        for (let i = 1; i < aoa.length; i++) {
+          const row = aoa[i];
+          const label = String(row[0] || '').trim();
+          if (!label) continue;
+          const values = [];
+          for (let c = 1; c <= utlData.dates.length; c++) {
+            let v = row[c];
+            if (typeof v === 'number' && label.toLowerCase().includes('taux') && v <= 1.5) {
+              v = Math.round(v * 100) + '%';
+            }
+            values.push(v === undefined || v === null ? '' : v);
+          }
+          utlData.rows.push({ label, values });
+        }
+      }
+    }
+
+    // 3. Feuille TMS
+    const tmsRows = [];
+    const tmsSheetName = wb.SheetNames.find(n => n.trim().toUpperCase() === 'TMS');
+    if (tmsSheetName) {
+      const aoa = XLSX.utils.sheet_to_json(wb.Sheets[tmsSheetName], { header: 1, defval: '' });
+      if (aoa.length > 1) {
+        const hdrs = aoa[0].map(h => String(h || '').trim().toUpperCase());
+        const idxOf = (names) => {
+          for (const nm of names) {
+            const idx = hdrs.indexOf(nm.toUpperCase());
+            if (idx !== -1) return idx;
+          }
+          return -1;
+        };
+        const iAg = idxOf(['AGENCE']);
+        const iCli = idxOf(['NOM CLIENT']);
+        const iAct = idxOf(['ACTIVITE']);
+        const iNum = idxOf(['N°']);
+        const iRef = idxOf(['REF CLIENT']);
+        const iCa = idxOf(['CA']);
+        const iAch = idxOf(['MT ACHAT']);
+        const iKm = idxOf(['KM']);
+        const iKmE = idxOf(['KM EXPLOITATION']);
+        const iEtatCmd = idxOf(['ETAT CMD']);
+        const iItin = idxOf(['ITINERAIRE']);
+        const iDep = idxOf(['D.DEP.SEG', 'D.DEP.CMD']);
+        const iArr = idxOf(['D.ARRIV.SEG', 'D.ARRIV.CMD']);
+        const iVDep = idxOf(['VILLE DEP']);
+        const iVArr = idxOf(['VILLE ARR']);
+        const iDest = idxOf(['DEST.']);
+        const iCond = idxOf(['COND 1']);
+        const iTr = idxOf(['TRACTEUR']);
+        const iRem = idxOf(['REMORQUE']);
+        const iEtatSeg = idxOf(['ETAT SEG']);
+        const iStatut = idxOf(['STATUT']);
+
+        for (let i = 1; i < aoa.length; i++) {
+          const r = aoa[i];
+          const num = iNum >= 0 ? String(r[iNum] || '').trim() : '';
+          const cli = iCli >= 0 ? String(r[iCli] || '').trim() : '';
+          if (!num && !cli) continue;
+          tmsRows.push({
+            agence: iAg >= 0 ? String(r[iAg] || '').trim() : '',
+            nomClient: cli,
+            activite: iAct >= 0 ? String(r[iAct] || '').trim() : '',
+            num,
+            refClient: iRef >= 0 ? String(r[iRef] || '').trim() : '',
+            ca: iCa >= 0 ? _parseExcelNum(r[iCa]) : 0,
+            mtAchat: iAch >= 0 ? _parseExcelNum(r[iAch]) : 0,
+            km: iKm >= 0 ? _parseExcelNum(r[iKm]) : 0,
+            kmExploit: iKmE >= 0 ? _parseExcelNum(r[iKmE]) : 0,
+            etatCmd: iEtatCmd >= 0 ? String(r[iEtatCmd] || '').trim() : '',
+            itineraire: iItin >= 0 ? String(r[iItin] || '').trim() : '',
+            dDepSeg: iDep >= 0 ? _formatExcelCellDate(r[iDep]) : '',
+            dArrivSeg: iArr >= 0 ? _formatExcelCellDate(r[iArr]) : '',
+            villeDep: iVDep >= 0 ? String(r[iVDep] || '').trim() : '',
+            villeArr: iVArr >= 0 ? String(r[iVArr] || '').trim() : '',
+            dest: iDest >= 0 ? String(r[iDest] || '').trim() : '',
+            cond1: iCond >= 0 ? String(r[iCond] || '').trim() : '',
+            tracteur: iTr >= 0 ? String(r[iTr] || '').trim() : '',
+            remorque: iRem >= 0 ? String(r[iRem] || '').trim() : '',
+            etatSeg: iEtatSeg >= 0 ? String(r[iEtatSeg] || '').trim() : '',
+            statut: iStatut >= 0 ? String(r[iStatut] || '').trim() : ''
+          });
+        }
+      }
+    }
+
+    // 4. Feuille PITT (bloc actif)
+    const pittRows = [];
+    let pittTitle = '';
+    const pittSheetName = wb.SheetNames.find(n => n.trim().toUpperCase() === 'PITT');
+    if (pittSheetName) {
+      const aoa = XLSX.utils.sheet_to_json(wb.Sheets[pittSheetName], { header: 1, defval: '' });
+      if (aoa.length > 2) {
+        pittTitle = String((aoa[1] && aoa[1][2]) || '').trim();
+        for (let i = 3; i < Math.min(aoa.length, 22); i++) {
+          const r = aoa[i];
+          const cat = String(r[1] || '').trim();
+          const ind = String(r[2] || '').trim();
+          const sharikAct = r[8];
+          const pcAct = r[16];
+          const citAct = r[20];
+          if (!ind) continue;
+          if (sharikAct === '' && pcAct === '' && citAct === '') continue;
+          pittRows.push({
+            categorie: cat,
+            indicateur: ind,
+            sharik: sharikAct,
+            porteConteneur: pcAct,
+            citerne: citAct
+          });
+        }
+      }
+    }
+
+    const payload = {
+      fileName: file.name,
+      importedAt: new Date().toISOString(),
+      weekMonday: getWeeklyMondayISO(new Date()),
+      manualReset: false,
+      pisMeta,
+      pisRows,
+      utlData,
+      tmsRows,
+      pittTitle,
+      pittRows
+    };
+
+    window._WEEKLY_REPORT_DATA = payload;
+    try { localStorage.setItem('numiplan_weekly_report_cache', JSON.stringify(payload)); } catch (e) {}
+
+    if (window.supabase) {
+      const { error } = await window.supabase
+        .from('numiplan_teams')
+        .upsert({ team: 'WEEKLY_REPORT', payload, updated_at: new Date().toISOString() }, { onConflict: 'team' });
+      if (error) console.warn('Erreur sauvegarde WEEKLY_REPORT Supabase:', error);
+    }
+
+    updateWeeklyBadgeAndHeader();
+    if (typeof renderWeeklyReportPage === 'function') renderWeeklyReportPage();
+    const stats = computeWeeklyPisTeamStats(payload);
+    const racG = stats.global.ecart > 0 ? ((stats.global.facture / stats.global.ecart) * 100).toFixed(1) : '0.0';
+    showToast(`✅ Weekly importé (${file.name}) — RAC Global : ${racG}% (${pisRows.length} véhicules PIS, ${tmsRows.length} OT TMS)`);
+  } catch (err) {
+    console.error('Erreur import Weekly:', err);
+    showToast('❌ Erreur lors de la lecture du fichier Weekly : ' + (err.message || err), true);
+  } finally {
+    if (input) input.value = '';
+  }
+}
+window.importWeeklyExcel = importWeeklyExcel;
+
+async function resetWeeklyCountersManual() {
+  if (!confirm('Voulez-vous remettre les compteurs Weekly (RAC en-tête) à 0.0% ?')) return;
+  if (window._WEEKLY_REPORT_DATA) {
+    window._WEEKLY_REPORT_DATA.manualReset = true;
+    try { localStorage.setItem('numiplan_weekly_report_cache', JSON.stringify(window._WEEKLY_REPORT_DATA)); } catch (e) {}
+    if (window.supabase) {
+      await window.supabase.from('numiplan_teams').upsert({
+        team: 'WEEKLY_REPORT',
+        payload: window._WEEKLY_REPORT_DATA,
+        updated_at: new Date().toISOString()
+      }, { onConflict: 'team' });
+    }
+  }
+  updateWeeklyBadgeAndHeader();
+  if (typeof renderWeeklyReportPage === 'function') renderWeeklyReportPage();
+  showToast('🔄 Compteurs Weekly remis à 0.0%');
+}
+window.resetWeeklyCountersManual = resetWeeklyCountersManual;
+
+function switchWeeklySubTab(tab) {
+  window._WEEKLY_ACTIVE_SUBTAB = tab;
+  ['pis', 'utl', 'tms', 'pitt'].forEach(t => {
+    const btn = document.getElementById('wtab-' + t);
+    if (!btn) return;
+    if (t === tab) {
+      btn.style.background = 'rgba(56,189,248,0.2)';
+      btn.style.color = '#38bdf8';
+      btn.style.borderColor = 'rgba(56,189,248,0.5)';
+      btn.style.fontWeight = '800';
+    } else {
+      btn.style.background = 'var(--bg2)';
+      btn.style.color = 'var(--txt2)';
+      btn.style.borderColor = 'var(--border)';
+      btn.style.fontWeight = '700';
+    }
+  });
+  const filterCtrl = document.getElementById('weekly-filter-controls');
+  if (filterCtrl) filterCtrl.style.display = (tab === 'pis' || tab === 'tms') ? 'flex' : 'none';
+  renderWeeklySubTab();
+}
+window.switchWeeklySubTab = switchWeeklySubTab;
+
+function renderWeeklyReportPage() {
+  const raw = window._WEEKLY_REPORT_DATA;
+  const active = getActiveWeeklyReport();
+  const badge = document.getElementById('weekly-status-badge');
+  const meta = document.getElementById('weekly-meta-info');
+  const kpiWrap = document.getElementById('weekly-kpi-cards');
+
+  if (badge) {
+    if (active) {
+      badge.textContent = `✅ Actif — Semaine du ${active.weekMonday}`;
+      badge.style.background = 'rgba(16,185,129,0.2)';
+      badge.style.color = '#34d399';
+    } else if (raw) {
+      badge.textContent = `🔄 Remis à 0 ce lundi (fichier précédent : ${raw.weekMonday || '—'})`;
+      badge.style.background = 'rgba(245,158,11,0.2)';
+      badge.style.color = '#fbbf24';
+    } else {
+      badge.textContent = 'Aucun fichier importé';
+      badge.style.background = 'rgba(148,163,184,0.18)';
+      badge.style.color = 'var(--txt2)';
+    }
+  }
+  if (meta) {
+    if (raw) {
+      const dtStr = raw.importedAt ? new Date(raw.importedAt).toLocaleString('fr-FR') : '—';
+      meta.innerHTML = `Fichier : <b style="color:#fbbf24">${raw.fileName || 'Weekly.xlsx'}</b> · Importé le <b>${dtStr}</b> · Semaine du lundi <b>${raw.weekMonday || '—'}</b> · ${(raw.pisRows || []).length} véhicules PIS · ${(raw.tmsRows || []).length} ordres TMS`;
+    } else {
+      meta.innerHTML = `Importez votre fichier <b>WEEKLY (.xlsx)</b> (ici ou depuis <b>Voyages &amp; Segments</b>). Les compteurs RAC en haut se réinitialisent automatiquement à <b>0.0%</b> chaque lundi.`;
+    }
+  }
+
+  const dataToShow = raw;
+  if (!dataToShow) {
+    if (kpiWrap) kpiWrap.innerHTML = '';
+    const area = document.getElementById('weekly-content-area');
+    if (area) area.innerHTML = `<div style="text-align:center;padding:48px 20px;background:var(--bg2);border:1px dashed var(--border);border-radius:14px;color:var(--txt2)">
+      <div style="font-size:36px;margin-bottom:10px">📊</div>
+      <div style="font-size:15px;font-weight:700;color:var(--txt)">Aucune donnée Weekly chargée</div>
+      <div style="font-size:12px;margin-top:6px">Cliquez sur <b>📅 Importer Weekly (.xlsx)</b> pour charger <code>WEEKLY S1 NOV.xlsx</code>.</div>
+    </div>`;
+    return;
+  }
+
+  const pisStats = computeWeeklyPisTeamStats(dataToShow);
+  const gRac = pisStats.global.ecart > 0 ? (pisStats.global.facture / pisStats.global.ecart) * 100 : 0;
+  const utlRows = (dataToShow.utlData && dataToShow.utlData.rows) || [];
+  const dispoRow = utlRows.find(r => r.label.toLowerCase().includes('disponibilit'));
+  const trRow = utlRows.find(r => r.label.toLowerCase().includes('taux de tr'));
+  const avgPct = (row) => {
+    if (!row || !row.values.length) return '—';
+    const nums = row.values.map(v => _parseExcelNum(v)).filter(n => n > 0);
+    return nums.length ? (nums.reduce((a, b) => a + b, 0) / nums.length).toFixed(1) + '%' : '—';
+  };
+  const tmsList = dataToShow.tmsRows || [];
+  const totalCaTms = tmsList.reduce((s, r) => s + (Number(r.ca) || 0), 0);
+  const totalKmTms = tmsList.reduce((s, r) => s + (Number(r.km) || 0), 0);
+
+  if (kpiWrap) {
+    const teamPills = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2', 'D1', 'D2'].map(eq => {
+      const st = pisStats.byTeam[eq];
+      const r = st && st.ecart > 0 ? ((st.facture / st.ecart) * 100).toFixed(1) + '%' : '—';
+      return `<span style="font-size:10px;padding:2px 6px;border-radius:6px;background:var(--bg3);border:1px solid var(--border)"><b>${eq}:</b> ${r}</span>`;
+    }).join(' ');
+    kpiWrap.innerHTML = `
+      <div class="kpi-card" style="background:var(--bg2);border:1px solid rgba(56,189,248,0.35);border-radius:12px;padding:14px">
+        <div style="font-size:11px;font-weight:700;color:var(--txt2)">🛣️ RAC GLOBAL (PIS) ${active ? '' : '<span style="color:#fbbf24">(Hors semaine en cours)</span>'}</div>
+        <div style="font-size:26px;font-weight:900;color:#38bdf8;margin:4px 0">${gRac.toFixed(1)}%</div>
+        <div style="font-size:11px;color:var(--txt2);margin-bottom:6px">${Math.round(pisStats.global.facture).toLocaleString('fr-FR')} km facturé / ${Math.round(pisStats.global.ecart).toLocaleString('fr-FR')} km</div>
+        <div style="display:flex;flex-wrap:wrap;gap:4px">${teamPills}</div>
+      </div>
+      <div class="kpi-card" style="background:var(--bg2);border:1px solid rgba(16,185,129,0.35);border-radius:12px;padding:14px">
+        <div style="font-size:11px;font-weight:700;color:var(--txt2)">🔧 DISPONIBILITÉ TECHNIQUE (UTL)</div>
+        <div style="font-size:26px;font-weight:900;color:#34d399;margin:4px 0">${avgPct(dispoRow)}</div>
+        <div style="font-size:11px;color:var(--txt2)">Moyenne sur ${(dataToShow.utlData && dataToShow.utlData.dates ? dataToShow.utlData.dates.length : 0)} jours</div>
+      </div>
+      <div class="kpi-card" style="background:var(--bg2);border:1px solid rgba(245,158,11,0.35);border-radius:12px;padding:14px">
+        <div style="font-size:11px;font-weight:700;color:var(--txt2)">🚛 TAUX TR UTILISÉ (UTL)</div>
+        <div style="font-size:26px;font-weight:900;color:#fbbf24;margin:4px 0">${avgPct(trRow)}</div>
+        <div style="font-size:11px;color:var(--txt2)">Utilisation moyenne des tracteurs</div>
+      </div>
+      <div class="kpi-card" style="background:var(--bg2);border:1px solid rgba(167,139,250,0.35);border-radius:12px;padding:14px">
+        <div style="font-size:11px;font-weight:700;color:var(--txt2)">📦 CA &amp; ORDRES (TMS)</div>
+        <div style="font-size:22px;font-weight:900;color:#c084fc;margin:4px 0">${Math.round(totalCaTms).toLocaleString('fr-FR')} DA</div>
+        <div style="font-size:11px;color:var(--txt2)">${tmsList.length} ordres · ${Math.round(totalKmTms).toLocaleString('fr-FR')} km</div>
+      </div>
+    `;
+  }
+  switchWeeklySubTab(window._WEEKLY_ACTIVE_SUBTAB || 'pis');
+}
+window.renderWeeklyReportPage = renderWeeklyReportPage;
+
+function renderWeeklySubTab() {
+  const area = document.getElementById('weekly-content-area');
+  const data = window._WEEKLY_REPORT_DATA;
+  if (!area || !data) return;
+  const tab = window._WEEKLY_ACTIVE_SUBTAB || 'pis';
+  const teamFilter = (document.getElementById('weekly-filter-team')?.value || '').trim();
+  const q = (document.getElementById('weekly-search')?.value || '').trim().toLowerCase();
+
+  if (tab === 'pis') {
+    const plateMap = _buildWeeklyPlateTeamMap();
+    const rows = (data.pisRows || []).map(r => Object.assign({}, r, { equipe: resolveWeeklyTruckTeam(r.vehicule, r.part, plateMap) }))
+      .filter(r => (!teamFilter || r.equipe === teamFilter))
+      .filter(r => !q || `${r.vehicule} ${r.chauffeur} ${r.part} ${r.equipe}`.toLowerCase().includes(q));
+    const odoS = (data.pisMeta && data.pisMeta.odoStartLabel) || 'Odo Début';
+    const odoE = (data.pisMeta && data.pisMeta.odoEndLabel) || 'Odo Fin';
+    area.innerHTML = `<div class="table-wrap" style="max-height:62vh;overflow:auto;border-radius:12px;border:1px solid var(--border)">
+      <table style="width:100%;border-collapse:collapse;font-size:12px">
+        <thead style="position:sticky;top:0;background:var(--bg3);z-index:2">
+          <tr>
+            <th style="padding:10px;text-align:left">PART / Éq.</th>
+            <th style="padding:10px;text-align:left">Véhicule</th>
+            <th style="padding:10px;text-align:left">Chauffeur</th>
+            <th style="padding:10px;text-align:right">${odoS}</th>
+            <th style="padding:10px;text-align:right">${odoE}</th>
+            <th style="padding:10px;text-align:right">Écart KM</th>
+            <th style="padding:10px;text-align:right">KM Facturé</th>
+            <th style="padding:10px;text-align:right">KM À Vide</th>
+            <th style="padding:10px;text-align:center">RAC %</th>
+          </tr>
+        </thead>
+        <tbody>${rows.map(r => {
+          const color = r.racPct >= 70 ? '#34d399' : (r.racPct >= 50 ? '#fbbf24' : '#f87171');
+          return `<tr style="border-top:1px solid var(--border)">
+            <td style="padding:8px 10px"><span style="font-weight:700">${r.part}</span> <span style="font-size:10px;padding:2px 6px;border-radius:6px;background:rgba(56,189,248,0.15);color:#38bdf8">${r.equipe || '—'}</span></td>
+            <td style="padding:8px 10px;font-family:monospace;font-weight:700">${r.vehicule}</td>
+            <td style="padding:8px 10px">${r.chauffeur || '—'}</td>
+            <td style="padding:8px 10px;text-align:right">${r.odoStart ? r.odoStart.toLocaleString('fr-FR') : '—'}</td>
+            <td style="padding:8px 10px;text-align:right">${r.odoEnd ? r.odoEnd.toLocaleString('fr-FR') : '—'}</td>
+            <td style="padding:8px 10px;text-align:right;font-weight:700">${Math.round(r.ecart).toLocaleString('fr-FR')}</td>
+            <td style="padding:8px 10px;text-align:right;color:#38bdf8;font-weight:700">${Math.round(r.facture).toLocaleString('fr-FR')}</td>
+            <td style="padding:8px 10px;text-align:right;color:var(--txt2)">${Math.round(r.vide).toLocaleString('fr-FR')}</td>
+            <td style="padding:8px 10px;text-align:center"><span style="font-weight:800;color:${color}">${r.racPct.toFixed(0)}%</span></td>
+          </tr>`;
+        }).join('')}</tbody>
+      </table>
+    </div>`;
+    return;
+  }
+
+  if (tab === 'utl') {
+    const utl = data.utlData || { dates: [], rows: [] };
+    area.innerHTML = `<div class="table-wrap" style="overflow:auto;border-radius:12px;border:1px solid var(--border)">
+      <table style="width:100%;border-collapse:collapse;font-size:12px">
+        <thead style="background:var(--bg3)">
+          <tr>
+            <th style="padding:10px;text-align:left">Indicateur Flotte</th>
+            ${utl.dates.map(d => `<th style="padding:10px;text-align:center">${d}</th>`).join('')}
+          </tr>
+        </thead>
+        <tbody>${utl.rows.map(r => `<tr style="border-top:1px solid var(--border)">
+          <td style="padding:9px 10px;font-weight:700">${r.label}</td>
+          ${r.values.map(v => `<td style="padding:9px 10px;text-align:center;font-weight:600">${v}</td>`).join('')}
+        </tr>`).join('')}</tbody>
+      </table>
+    </div>`;
+    return;
+  }
+
+  if (tab === 'tms') {
+    const rows = (data.tmsRows || [])
+      .filter(r => !teamFilter || r.agence.toUpperCase().includes(teamFilter.charAt(0)))
+      .filter(r => !q || `${r.agence} ${r.nomClient} ${r.activite} ${r.num} ${r.itineraire} ${r.cond1} ${r.tracteur}`.toLowerCase().includes(q));
+    const shown = rows.slice(0, 300);
+    area.innerHTML = `<div style="font-size:11px;color:var(--txt2);margin-bottom:6px">Affichage : ${shown.length} / ${rows.length} ordres TMS</div>
+    <div class="table-wrap" style="max-height:60vh;overflow:auto;border-radius:12px;border:1px solid var(--border)">
+      <table style="width:100%;border-collapse:collapse;font-size:12px">
+        <thead style="position:sticky;top:0;background:var(--bg3);z-index:2">
+          <tr>
+            <th style="padding:9px;text-align:left">Agence</th>
+            <th style="padding:9px;text-align:left">N° OT</th>
+            <th style="padding:9px;text-align:left">Client</th>
+            <th style="padding:9px;text-align:left">Activité</th>
+            <th style="padding:9px;text-align:left">Itinéraire</th>
+            <th style="padding:9px;text-align:left">Départ</th>
+            <th style="padding:9px;text-align:left">Tracteur / Chauffeur</th>
+            <th style="padding:9px;text-align:right">CA (DA)</th>
+            <th style="padding:9px;text-align:right">MT Achat</th>
+            <th style="padding:9px;text-align:right">KM</th>
+            <th style="padding:9px;text-align:center">État</th>
+          </tr>
+        </thead>
+        <tbody>${shown.map(r => `<tr style="border-top:1px solid var(--border)">
+          <td style="padding:8px 9px;font-weight:700">${r.agence}</td>
+          <td style="padding:8px 9px;font-family:monospace">${r.num}</td>
+          <td style="padding:8px 9px">${r.nomClient}</td>
+          <td style="padding:8px 9px">${r.activite}</td>
+          <td style="padding:8px 9px">${r.itineraire || (r.villeDep + ' → ' + r.villeArr)}</td>
+          <td style="padding:8px 9px">${r.dDepSeg}</td>
+          <td style="padding:8px 9px">${r.tracteur || '—'}<div style="font-size:10px;color:var(--txt2)">${r.cond1 || ''}</div></td>
+          <td style="padding:8px 9px;text-align:right;font-weight:700;color:#34d399">${Math.round(r.ca).toLocaleString('fr-FR')}</td>
+          <td style="padding:8px 9px;text-align:right;color:var(--txt2)">${Math.round(r.mtAchat).toLocaleString('fr-FR')}</td>
+          <td style="padding:8px 9px;text-align:right">${Math.round(r.km).toLocaleString('fr-FR')}</td>
+          <td style="padding:8px 9px;text-align:center">${r.etatCmd || r.etatSeg || '—'}</td>
+        </tr>`).join('')}</tbody>
+      </table>
+    </div>`;
+    return;
+  }
+
+  if (tab === 'pitt') {
+    const rows = data.pittRows || [];
+    area.innerHTML = `<div style="font-size:12px;color:var(--txt2);margin-bottom:8px">${data.pittTitle || 'Synthèse PITT'}</div>
+    <div class="table-wrap" style="overflow:auto;border-radius:12px;border:1px solid var(--border)">
+      <table style="width:100%;border-collapse:collapse;font-size:12px">
+        <thead style="background:var(--bg3)">
+          <tr>
+            <th style="padding:10px;text-align:left">Catégorie</th>
+            <th style="padding:10px;text-align:left">Indicateur</th>
+            <th style="padding:10px;text-align:right">SHARIK (ACT)</th>
+            <th style="padding:10px;text-align:right">PORTE CONTENEUR</th>
+            <th style="padding:10px;text-align:right">CITERNE</th>
+          </tr>
+        </thead>
+        <tbody>${rows.map(r => `<tr style="border-top:1px solid var(--border)">
+          <td style="padding:9px 10px;font-weight:700;color:#fbbf24">${r.categorie}</td>
+          <td style="padding:9px 10px;font-weight:600">${r.indicateur}</td>
+          <td style="padding:9px 10px;text-align:right;font-weight:700">${r.sharik}</td>
+          <td style="padding:9px 10px;text-align:right">${r.porteConteneur}</td>
+          <td style="padding:9px 10px;text-align:right">${r.citerne}</td>
+        </tr>`).join('')}</tbody>
+      </table>
+    </div>`;
+  }
+}
+window.renderWeeklySubTab = renderWeeklySubTab;
+
+function exportWeeklySummaryExcel() {
+  const data = window._WEEKLY_REPORT_DATA;
+  if (!data) { showToast('⚠️ Aucune donnée Weekly à exporter.', true); return; }
+  const wb = XLSX.utils.book_new();
+  const plateMap = _buildWeeklyPlateTeamMap();
+  if (data.pisRows && data.pisRows.length) {
+    const pisOut = data.pisRows.map(r => ({
+      'PART': r.part,
+      'Équipe Numiplan': resolveWeeklyTruckTeam(r.vehicule, r.part, plateMap),
+      'Véhicule': r.vehicule,
+      'Chauffeur': r.chauffeur,
+      'Odo Début': r.odoStart,
+      'Odo Fin': r.odoEnd,
+      'Écart KM': r.ecart,
+      'KM Facturé': r.facture,
+      'KM À Vide': r.vide,
+      'RAC %': Number(r.racPct.toFixed(1))
+    }));
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(pisOut), 'PIS_RAC');
+  }
+  if (data.utlData && data.utlData.rows && data.utlData.rows.length) {
+    const utlOut = data.utlData.rows.map(r => {
+      const obj = { 'Indicateur': r.label };
+      data.utlData.dates.forEach((d, idx) => { obj[d] = r.values[idx]; });
+      return obj;
+    });
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(utlOut), 'UTL');
+  }
+  if (data.tmsRows && data.tmsRows.length) {
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(data.tmsRows), 'TMS');
+  }
+  XLSX.writeFile(wb, `Numiplan_Bilan_Weekly_${data.weekMonday || 'export'}.xlsx`);
+  showToast('✅ Synthèse Bilan Weekly exportée !');
+}
+window.exportWeeklySummaryExcel = exportWeeklySummaryExcel;
+
+// Vérification périodique du passage au lundi (remise à 0 automatique)
+if (!window._weeklyMondayCheckTimer) {
+  window._weeklyMondayCheckTimer = setInterval(() => {
+    if (typeof updateWeeklyBadgeAndHeader === 'function') updateWeeklyBadgeAndHeader();
+  }, 60000);
+}
+document.addEventListener('DOMContentLoaded', () => {
+  setTimeout(() => {
+    if (typeof updateWeeklyBadgeAndHeader === 'function') updateWeeklyBadgeAndHeader();
+  }, 600);
+});
 
 </script>
 
