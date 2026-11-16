@@ -497,14 +497,28 @@ async function loadSharikData() {
       }
     };
 
-    const [segRes, racRes, panRes, dispoRes] = await Promise.all([
-      safeQuery(sb.from('np_segments_erp').select('*').limit(3000)),
+    // Charger tous les segments ERP avec pagination (dépasse la limite de 1000)
+    let allSegs = [];
+    let from = 0;
+    while (true) {
+      const res = await safeQuery(sb.from('np_segments_erp').select('*').order('date', { ascending: false }).range(from, from + 999));
+      const chunk = res.data || [];
+      if (chunk.length > 0) {
+        allSegs.push(...chunk);
+        from += 1000;
+        if (chunk.length < 1000 || allSegs.length >= 10000) break;
+      } else {
+        break;
+      }
+    }
+
+    const [racRes, panRes, dispoRes] = await Promise.all([
       safeQuery(sb.from('np_weekly_rac').select('*').limit(500)),
       safeQuery(sb.from('np_pannes').select('*').limit(1000)),
       safeQuery(sb.from('np_dispo').select('v, chauffeur, team').limit(500))
     ]);
 
-    allSegments = segRes.data || [];
+    allSegments = allSegs;
     allPannes = panRes.data || [];
     
     racMap = {};
