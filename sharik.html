@@ -488,11 +488,20 @@ async function loadSharikData() {
   try {
     showToast('⏳ Chargement des données Sharik...');
 
+    const safeQuery = async (p) => {
+      try {
+        const res = await p;
+        return res || { data: [] };
+      } catch (e) {
+        return { data: [] };
+      }
+    };
+
     const [segRes, racRes, panRes, dispoRes] = await Promise.all([
-      sb.from('np_segments_erp').select('*').limit(3000),
-      sb.from('np_weekly_rac').select('*').limit(500),
-      sb.from('np_pannes').select('*').limit(1000).catch(() => ({ data: [] })),
-      sb.from('np_dispo').select('v, chauffeur, team').limit(500).catch(() => ({ data: [] }))
+      safeQuery(sb.from('np_segments_erp').select('*').limit(3000)),
+      safeQuery(sb.from('np_weekly_rac').select('*').limit(500)),
+      safeQuery(sb.from('np_pannes').select('*').limit(1000)),
+      safeQuery(sb.from('np_dispo').select('v, chauffeur, team').limit(500))
     ]);
 
     allSegments = segRes.data || [];
