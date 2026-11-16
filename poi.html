@@ -1,0 +1,616 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NUMIPLAN — Suivi POI & Temps d'Attente</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+
+<style>
+  :root {
+    --bg-dark: #070b13;
+    --bg-card: #0d1527;
+    --bg-card-hover: #121c33;
+    --border: #1e293b;
+    --border-hover: #334155;
+    --primary: #38bdf8;
+    --accent-blue: #0284c7;
+    --accent-orange: #f59e0b;
+    --accent-red: #ef4444;
+    --accent-green: #10b981;
+    --txt-main: #f8fafc;
+    --txt-muted: #94a3b8;
+    --txt-dim: #64748b;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background-color: var(--bg-dark);
+    font-family: 'Inter', -apple-system, sans-serif;
+    color: var(--txt-main);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+  }
+
+  header {
+    height: 70px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 28px;
+    background: rgba(13, 21, 39, 0.85);
+    backdrop-filter: blur(16px);
+    position: sticky;
+    top: 0;
+    z-index: 100;
+  }
+  .brand-wrap {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    text-decoration: none;
+  }
+  .brand-logo {
+    width: 40px;
+    height: 40px;
+    background: linear-gradient(135deg, #0284c7, #38bdf8);
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 20px;
+    color: #fff;
+    box-shadow: 0 4px 15px rgba(56, 189, 248, 0.35);
+  }
+  .brand-title {
+    font-size: 17px;
+    font-weight: 800;
+    color: #fff;
+  }
+  .brand-sub {
+    font-size: 11px;
+    color: var(--txt-muted);
+  }
+
+  .nav-actions {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .btn-nav {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    color: var(--txt-main);
+    padding: 8px 14px;
+    border-radius: 8px;
+    font-size: 12px;
+    font-weight: 600;
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    transition: all 0.2s;
+  }
+  .btn-nav:hover {
+    border-color: var(--primary);
+    color: var(--primary);
+    transform: translateY(-1px);
+  }
+
+  .user-pill {
+    background: rgba(15, 23, 42, 0.8);
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    padding: 5px 14px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+  }
+  .status-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--accent-green);
+    box-shadow: 0 0 8px var(--accent-green);
+  }
+  .team-badge {
+    background: rgba(56, 189, 248, 0.15);
+    color: var(--primary);
+    border: 1px solid rgba(56, 189, 248, 0.3);
+    padding: 2px 7px;
+    border-radius: 5px;
+    font-size: 11px;
+    font-weight: 700;
+  }
+
+  main {
+    flex: 1;
+    max-width: 1560px;
+    width: 100%;
+    margin: 0 auto;
+    padding: 24px 28px;
+  }
+
+  .banner-header {
+    background: linear-gradient(135deg, rgba(2, 132, 199, 0.12), rgba(13, 21, 39, 0.8));
+    border: 1px solid rgba(56, 189, 248, 0.25);
+    border-radius: 16px;
+    padding: 20px 24px;
+    margin-bottom: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 16px;
+  }
+  .banner-info h2 {
+    font-size: 20px;
+    font-weight: 800;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .status-badge {
+    font-size: 11px;
+    font-weight: 700;
+    padding: 3px 10px;
+    border-radius: 999px;
+    background: rgba(56, 189, 248, 0.15);
+    color: var(--primary);
+    border: 1px solid rgba(56, 189, 248, 0.3);
+  }
+
+  /* KPIS */
+  .kpi-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: 16px;
+    margin-bottom: 24px;
+  }
+  .kpi-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 18px;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .kpi-card:hover, .kpi-card.active {
+    transform: translateY(-2px);
+    border-color: var(--primary);
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+  }
+  .kpi-title {
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--txt-muted);
+    text-transform: uppercase;
+  }
+  .kpi-value {
+    font-size: 32px;
+    font-weight: 900;
+    margin: 8px 0 4px;
+    font-family: 'JetBrains Mono', monospace;
+  }
+  .kpi-sub {
+    font-size: 11px;
+    color: var(--txt-dim);
+  }
+
+  /* SECTION TITLE */
+  .section-title {
+    font-size: 15px;
+    font-weight: 800;
+    color: #fff;
+    margin: 28px 0 14px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  /* TABLE */
+  .table-container {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    overflow: hidden;
+    margin-bottom: 24px;
+  }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12px;
+    text-align: left;
+  }
+  thead {
+    position: sticky;
+    top: 0;
+    background: #0f182c;
+    z-index: 10;
+  }
+  th {
+    padding: 12px 14px;
+    font-weight: 700;
+    color: var(--txt-muted);
+    border-bottom: 1px solid var(--border);
+    font-size: 11px;
+    text-transform: uppercase;
+  }
+  td {
+    padding: 10px 14px;
+    border-bottom: 1px solid rgba(30, 41, 59, 0.7);
+    color: var(--txt-main);
+  }
+  tbody tr:hover {
+    background: var(--bg-card-hover);
+  }
+
+  .pulse-red {
+    animation: pulse-red-anim 1.5s infinite;
+  }
+  @keyframes pulse-red-anim {
+    0% { opacity: 1; }
+    50% { opacity: 0.5; }
+    100% { opacity: 1; }
+  }
+
+  .input-control {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    color: #fff;
+    padding: 8px 12px;
+    border-radius: 8px;
+    font-size: 12px;
+    outline: none;
+  }
+  .input-control:focus {
+    border-color: var(--primary);
+  }
+
+  #toast {
+    position: fixed;
+    bottom: 24px;
+    right: 24px;
+    background: #1e293b;
+    border: 1px solid var(--border);
+    padding: 12px 20px;
+    border-radius: 10px;
+    font-size: 13px;
+    font-weight: 600;
+    display: none;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+    z-index: 1000;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <a href="portail.html" class="brand-wrap">
+    <div class="brand-logo">
+      <i class="fa-solid fa-map-location-dot"></i>
+    </div>
+    <div>
+      <div class="brand-title">NUMIPLAN POI</div>
+      <div class="brand-sub">Surveillance Temps Réel &amp; Temps d'Attente Clients</div>
+    </div>
+  </a>
+
+  <div class="nav-actions">
+    <a href="portail.html" class="btn-nav">
+      <i class="fa-solid fa-arrow-left"></i> Portail
+    </a>
+    <a href="fiche_supabase.html" class="btn-nav">
+      <i class="fa-solid fa-truck"></i> Numiplan Dispo
+    </a>
+
+    <div class="user-pill">
+      <span class="status-dot"></span>
+      <span id="u-name" style="font-weight: 700;">Utilisateur</span>
+      <span id="u-team" class="team-badge">—</span>
+    </div>
+  </div>
+</header>
+
+<main>
+  <!-- BANNER -->
+  <div class="banner-header">
+    <div class="banner-info">
+      <h2>
+        <span>Surveillance des Points d'Intérêt (POI)</span>
+        <span id="poi-status-badge" class="status-badge">Temps Réel</span>
+      </h2>
+      <div id="poi-meta" style="font-size:12px;color:var(--txt-muted);margin-top:6px">Connexion aux signaux GPS et visites en direct...</div>
+    </div>
+
+    <div style="display:flex;gap:10px;align-items:center;">
+      <button onclick="loadPoiData()" class="btn-nav" style="border-color:var(--primary);color:var(--primary)">
+        <i class="fa-solid fa-arrows-rotate"></i> Actualiser
+      </button>
+    </div>
+  </div>
+
+  <!-- KPIS -->
+  <div class="kpi-grid">
+    <div class="kpi-card" id="card-total-pois" onclick="setLiveFilter('all')">
+      <div class="kpi-title">📍 POINTS D'INTÉRÊT (POI)</div>
+      <div class="kpi-value" id="kpi-total-pois" style="color:#38bdf8">0</div>
+      <div class="kpi-sub">Sites clients enregistrés</div>
+    </div>
+    <div class="kpi-card active" id="card-waiting" onclick="setLiveFilter('all')">
+      <div class="kpi-title">🚛 CAMIONS EN ATTENTE</div>
+      <div class="kpi-value" id="kpi-waiting" style="color:#fbbf24">0</div>
+      <div class="kpi-sub">Actuellement chez les clients</div>
+    </div>
+    <div class="kpi-card" id="card-alerts" onclick="setLiveFilter('alerts')">
+      <div class="kpi-title">🚨 ALERTES (> 2H / SITES SENSIBLES)</div>
+      <div class="kpi-value" id="kpi-alerts" style="color:#ef4444">0</div>
+      <div class="kpi-sub">Immobilisations critiques</div>
+    </div>
+  </div>
+
+  <!-- TABLE 1 : CAMIONS ACTUELLEMENT CHEZ LES CLIENTS -->
+  <div class="section-title">
+    <span>🚨 Camions actuellement en attente chez les clients</span>
+    <span id="active-count-lbl" style="font-size:12px;color:var(--txt-muted);font-weight:500"></span>
+  </div>
+  <div class="table-container" style="max-height: 48vh; overflow-y:auto">
+    <table>
+      <thead>
+        <tr>
+          <th>Camion</th>
+          <th>Chauffeur</th>
+          <th>Client / POI</th>
+          <th>Heure d'Arrivée</th>
+          <th>Dernier Signal</th>
+          <th style="text-align:right">Temps d'Attente</th>
+        </tr>
+      </thead>
+      <tbody id="poi-active-tbody">
+        <tr><td colspan="6" style="text-align:center;padding:30px;color:var(--txt-muted)">Recherche des camions sur site...</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- TABLE 2 : HISTORIQUE DES VISITES -->
+  <div class="section-title">
+    <span>💾 Historique des immobilisations &amp; passages</span>
+    <button onclick="exportHistoryExcel()" class="btn-nav" style="font-size:11px;padding:6px 12px">
+      <i class="fa-solid fa-file-excel"></i> Exporter Historique
+    </button>
+  </div>
+  
+  <div style="display:flex;gap:10px;margin-bottom:14px;flex-wrap:wrap">
+    <input type="text" id="flt-hist-client" class="input-control" placeholder="🔍 Filtrer par client/POI…" oninput="renderHistoryTable()">
+    <input type="text" id="flt-hist-truck" class="input-control" placeholder="🔍 Filtrer par camion…" oninput="renderHistoryTable()">
+    <input type="date" id="flt-hist-date-from" class="input-control" onchange="renderHistoryTable()">
+    <input type="date" id="flt-hist-date-to" class="input-control" onchange="renderHistoryTable()">
+    <button onclick="resetHistFilters()" class="btn-nav" style="padding:6px 12px">↺ Reset</button>
+  </div>
+
+  <div class="table-container" style="max-height: 52vh; overflow-y:auto">
+    <table>
+      <thead>
+        <tr>
+          <th>Date</th>
+          <th>Camion</th>
+          <th>Client / POI</th>
+          <th>Arrivée</th>
+          <th>Départ</th>
+          <th style="text-align:right">Durée Totale</th>
+        </tr>
+      </thead>
+      <tbody id="poi-history-tbody">
+        <tr><td colspan="6" style="text-align:center;padding:30px;color:var(--txt-muted)">Chargement de l'historique...</td></tr>
+      </tbody>
+    </table>
+  </div>
+</main>
+
+<div id="toast"></div>
+
+<script>
+const SUPABASE_URL = 'https://mfljrozyxyfkymzlnsmt.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_sMb9uHOr4gpyqmZGrkY-YQ_z90TgNAB';
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+let poisList = [];
+let activeVisits = [];
+let historyVisits = [];
+let liveFilter = 'all';
+
+function showToast(msg, isError = false) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.style.display = 'block';
+  t.style.borderColor = isError ? '#ef4444' : '#10b981';
+  t.style.color = isError ? '#f87171' : '#34d399';
+  setTimeout(() => { t.style.display = 'none'; }, 3500);
+}
+
+async function initSession() {
+  const user = sessionStorage.getItem('numiplan_username') || 'utilisateur';
+  const role = sessionStorage.getItem('numiplan_user_role') || 'equipe';
+  const teamLock = sessionStorage.getItem('numiplan_team_lock') || '';
+
+  document.getElementById('u-name').textContent = user;
+  document.getElementById('u-team').textContent = teamLock || role.toUpperCase();
+
+  const { data: { session } } = await sb.auth.getSession();
+  if (!session) {
+    window.location.href = 'portail.html';
+    return;
+  }
+
+  loadPoiData();
+  // Rafraîchissement automatique toutes les 60 secondes
+  setInterval(loadPoiData, 60000);
+}
+
+async function loadPoiData() {
+  try {
+    showToast('⏳ Récupération des données POI...');
+    
+    // Requêtes parallèles
+    const [poisRes, activeRes, histRes, dispoRes] = await Promise.all([
+      sb.from('np_pois').select('*').limit(2000),
+      sb.from('np_poi_visits').select('*').is('left_at', null).order('arrived_at', { ascending: false }),
+      sb.from('np_poi_visits').select('*').not('left_at', 'is', null).order('left_at', { ascending: false }).limit(500),
+      sb.from('np_dispo').select('v, chauffeur, etat').limit(500).catch(() => ({ data: [] }))
+    ]);
+
+    poisList = poisRes.data || [];
+    activeVisits = activeRes.data || [];
+    historyVisits = histRes.data || [];
+    
+    const dispoMap = {};
+    (dispoRes.data || []).forEach(d => {
+      if (d.v) dispoMap[d.v.trim().toUpperCase()] = d;
+    });
+
+    // Compléter les visites actives avec chauffeur et durée
+    const now = new Date();
+    activeVisits.forEach(v => {
+      const arr = new Date(v.arrived_at);
+      v.duration_hours = (now - arr) / (1000 * 3600);
+      const d = dispoMap[(v.v || '').trim().toUpperCase()];
+      v.chauffeur = d?.chauffeur || '—';
+      v.etat = d?.etat || '';
+    });
+
+    // KPIs
+    document.getElementById('kpi-total-pois').textContent = poisList.length.toLocaleString('fr-FR');
+    document.getElementById('kpi-waiting').textContent = activeVisits.length;
+    const alertsCount = activeVisits.filter(v => v.duration_hours >= 2.0).length;
+    document.getElementById('kpi-alerts').textContent = alertsCount;
+
+    document.getElementById('poi-meta').textContent = `Dernière synchronisation GPS : ${new Date().toLocaleTimeString('fr-FR')} · ${activeVisits.length} camion(s) sur site`;
+
+    renderActiveTable();
+    renderHistoryTable();
+    showToast('✅ Suivi POI à jour');
+
+  } catch (err) {
+    console.error('Erreur POI:', err);
+    showToast('Erreur: ' + err.message, true);
+  }
+}
+
+function setLiveFilter(flt) {
+  liveFilter = flt;
+  document.getElementById('card-waiting').classList.toggle('active', flt === 'all');
+  document.getElementById('card-alerts').classList.toggle('active', flt === 'alerts');
+  renderActiveTable();
+}
+
+function renderActiveTable() {
+  const tbody = document.getElementById('poi-active-tbody');
+  let list = activeVisits;
+  if (liveFilter === 'alerts') {
+    list = list.filter(v => v.duration_hours >= 2.0);
+  }
+
+  document.getElementById('active-count-lbl').textContent = `${list.length} camion(s) affiché(s)`;
+
+  if (!list.length) {
+    tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;padding:30px;color:var(--txt-muted)">${liveFilter === 'alerts' ? 'Aucune alerte (> 2H) en cours pour le moment.' : 'Aucun camion n\'est actuellement chez un client.'}</td></tr>`;
+    return;
+  }
+
+  tbody.innerHTML = list.map(v => {
+    const hours = Math.floor(v.duration_hours || 0);
+    const mins = Math.round(((v.duration_hours || 0) - hours) * 60);
+    const waitStr = `${hours}h ${mins}m`;
+    const isAlert = v.duration_hours >= 2.0;
+
+    let panneTag = '';
+    if (v.etat && v.etat.toLowerCase().includes('panne')) {
+      panneTag = ' <span style="background:#ef4444;color:#fff;padding:2px 6px;border-radius:4px;font-size:10px;font-weight:700">PANNE</span>';
+    }
+
+    return `
+      <tr style="${isAlert ? 'background:rgba(239,68,68,0.08);border-left:4px solid #ef4444' : ''}">
+        <td style="font-family:'JetBrains Mono',monospace;font-weight:700;color:#38bdf8">${v.v}${panneTag}</td>
+        <td>${v.chauffeur || '—'}</td>
+        <td style="font-weight:600">${v.poi_name || 'Site inconnu'}</td>
+        <td>${v.arrived_at ? new Date(v.arrived_at).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) : '—'}</td>
+        <td>${v.last_seen_at ? new Date(v.last_seen_at).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) : '—'}</td>
+        <td style="text-align:right;font-weight:800;color:${isAlert ? '#ef4444' : '#fbbf24'};font-size:13px">
+          ${isAlert ? '🔴 ' : '🟠 '}${waitStr}
+        </td>
+      </tr>
+    `;
+  }).join('');
+}
+
+function renderHistoryTable() {
+  const tbody = document.getElementById('poi-history-tbody');
+  const qClient = (document.getElementById('flt-hist-client')?.value || '').trim().toLowerCase();
+  const qTruck = (document.getElementById('flt-hist-truck')?.value || '').trim().toLowerCase();
+  const dFrom = document.getElementById('flt-hist-date-from')?.value;
+  const dTo = document.getElementById('flt-hist-date-to')?.value;
+
+  const filtered = historyVisits.filter(v => {
+    if (qClient && !(v.poi_name || '').toLowerCase().includes(qClient)) return false;
+    if (qTruck && !(v.v || '').toLowerCase().includes(qTruck)) return false;
+    if (dFrom && v.arrived_at && v.arrived_at.split('T')[0] < dFrom) return false;
+    if (dTo && v.arrived_at && v.arrived_at.split('T')[0] > dTo) return false;
+    return true;
+  });
+
+  if (!filtered.length) {
+    tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:30px;color:var(--txt-muted)">Aucune visite trouvée pour les filtres sélectionnés.</td></tr>';
+    return;
+  }
+
+  tbody.innerHTML = filtered.slice(0, 150).map(v => {
+    const durH = Number(v.duration_hours || 0);
+    const hours = Math.floor(durH);
+    const mins = Math.round((durH - hours) * 60);
+    const durStr = durH > 0 ? `${hours}h ${mins}m` : '—';
+    const dateStr = v.arrived_at ? new Date(v.arrived_at).toLocaleDateString('fr-FR') : '—';
+
+    return `
+      <tr>
+        <td style="font-weight:600">${dateStr}</td>
+        <td style="font-family:'JetBrains Mono',monospace;font-weight:700;color:#38bdf8">${v.v}</td>
+        <td style="font-weight:600">${v.poi_name || '—'}</td>
+        <td>${v.arrived_at ? new Date(v.arrived_at).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) : '—'}</td>
+        <td>${v.left_at ? new Date(v.left_at).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) : '—'}</td>
+        <td style="text-align:right;font-weight:700;color:${durH >= 2.0 ? '#ef4444' : 'var(--txt-main)'}">${durStr}</td>
+      </tr>
+    `;
+  }).join('');
+}
+
+function resetHistFilters() {
+  document.getElementById('flt-hist-client').value = '';
+  document.getElementById('flt-hist-truck').value = '';
+  document.getElementById('flt-hist-date-from').value = '';
+  document.getElementById('flt-hist-date-to').value = '';
+  renderHistoryTable();
+}
+
+function exportHistoryExcel() {
+  if (!historyVisits.length) {
+    showToast('⚠️ Aucun historique à exporter.', true);
+    return;
+  }
+  const wb = XLSX.utils.book_new();
+  const ws = XLSX.utils.json_to_sheet(historyVisits);
+  XLSX.utils.book_append_sheet(wb, ws, 'Historique_POI');
+  XLSX.writeFile(wb, `Historique_POI_${new Date().toISOString().split('T')[0]}.xlsx`);
+  showToast('✅ Export Excel généré');
+}
+
+window.addEventListener('DOMContentLoaded', initSession);
+</script>
+</body>
+</html>
