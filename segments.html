@@ -514,22 +514,39 @@ async function initSession() {
 
 async function loadSegmentsData() {
   try {
-    showToast('⏳ Récupération des segments...');
-    const { data, error } = await sb
-      .from('np_segments_erp')
-      .select('*')
-      .order('date', { ascending: false })
-      .limit(2000);
+    showToast('⏳ Récupération de tous les segments...');
+    let allRows = [];
+    let from = 0;
+    const batchSize = 1000;
+    let keepGoing = true;
 
-    if (error) throw error;
+    // Boucle de pagination pour charger la totalité des segments (dépasse la limite de 1000)
+    while (keepGoing) {
+      const { data, error } = await sb
+        .from('np_segments_erp')
+        .select('*')
+        .order('date', { ascending: false })
+        .range(from, from + batchSize - 1);
 
-    allSegments = data || [];
-    document.getElementById('segments-count-badge').textContent = `${allSegments.length} segments`;
-    document.getElementById('segments-meta').textContent = `Base consolidée · Dernière mise à jour : ${new Date().toLocaleTimeString('fr-FR')}`;
+      if (error) throw error;
+      if (data && data.length > 0) {
+        allRows.push(...data);
+        from += batchSize;
+        if (data.length < batchSize || allRows.length >= 10000) {
+          keepGoing = false;
+        }
+      } else {
+        keepGoing = false;
+      }
+    }
+
+    allSegments = allRows;
+    document.getElementById('segments-count-badge').textContent = `${allSegments.length.toLocaleString('fr-FR')} segments`;
+    document.getElementById('segments-meta').textContent = `Base consolidée · Dernière mise à jour : ${new Date().toLocaleTimeString('fr-FR')} · Période : ${allSegments.length ? (allSegments[allSegments.length-1].date + ' au ' + allSegments[0].date) : '—'}`;
 
     populateFilters();
     renderFilteredSegments();
-    showToast('✅ Données à jour');
+    showToast(`✅ ${allSegments.length} segments chargés avec succès`);
   } catch (err) {
     console.error('Erreur chargement segments:', err);
     showToast('Erreur: ' + err.message, true);
@@ -618,6 +635,34 @@ function renderFilteredSegments() {
   }).join('');
 }
 
+// Helper robuste de parsing de colonnes
+function getColVal(row, ...keys) {
+  for (const k of keys) {
+    if (row[k] !== undefined && row[k] !== null && row[k] !== '') return row[k];
+    const upperK = k.toUpperCase().trim();
+    for (const rk of Object.keys(row)) {
+      if (rk.toUpperCase().trim() === upperK && row[rk] !== undefined && row[rk] !== null && row[rk] !== '') {
+        return row[rk];
+      }
+    }
+  }
+  return '';
+}
+
+function parseErpDateStr(val) {
+  if (!val) return null;
+  if (typeof val === 'number' && val > 20000 && val < 80000) {
+    const d = new Date(Math.round((val - 25569) * 86400 * 1000));
+    return d.toISOString().split('T')[0];
+  }
+  const s = String(val).trim();
+  const m1 = s.match(/(\d{4})[-/](\d{2})[-/](\d{2})/);
+  if (m1) return `${m1[1]}-${m1[2]}-${m1[3]}`;
+  const m2 = s.match(/(\d{2})[/.-](\d{2})[/.-](\d{4})/);
+  if (m2) return `${m2[3]}-${m2[2]}-${m2[1]}`;
+  return null;
+}
+
 // Importation Multi-utilisateurs (Upsert automatique dans np_segments_erp)
 async function handleSegmentsUpload(input) {
   const file = input?.files?.[0];
@@ -642,39 +687,53 @@ async function handleSegmentsUpload(input) {
     const currentUser = sessionStorage.getItem('numiplan_username') || 'utilisateur';
 
     rawData.forEach(r => {
-      const segId = String(r['N° Segment'] || r['Segment'] || r['seg'] || r['ID'] || '').trim();
-      if (!segId || seenSegs.has(segId)) return;
+      let segId = String(getColVal(r, 'SEGMENT', 'N° Segment', 'Segment', 'seg', 'ID')).trim();
+      const tracteur = String(getColVal(r, 'TRACTEUR', 'Tracteur', 'Matricule')).trim().toUpperCase();
+      const commande = String(getColVal(r, 'COMMANDE', 'Commande', 'N° Commande')).trim();
+      const dtDepP = String(getColVal(r, 'DT.DEP P', 'DT DEP P', 'Date Dép. Prévue', 'Date')).trim();
+      const dateSeg = String(getColVal(r, 'DATE SEG', 'Date Segment')).trim();
+      const dateRef = parseErpDateStr(dtDepP) || parseErpDateStr(dateSeg);
+
+      if (!segId) {
+        if (tracteur && commande) {
+          segId = `${tracteur}_${commande}_${dateRef || 'NODATE'}`;
+        } else {
+          return;
+        }
+      }
+
+      if (seenSegs.has(segId)) return;
       seenSegs.add(segId);
 
-      records.append ? null : records.push({
+      records.push({
         seg: segId,
-        date: r['Date'] ? String(r['Date']).trim().split(' ')[0] : null,
-        tracteur: String(r['Tracteur'] || r['Matricule'] || '').trim(),
-        remorque: String(r['Remorque'] || '').trim(),
-        cond1: String(r['Chauffeur 1'] || r['Conducteur'] || '').trim(),
-        affrete: String(r['Affrété'] || '').trim(),
-        client: String(r['Client'] || '').trim(),
-        commande: String(r['Commande'] || r['N° Commande'] || '').trim(),
-        groupage: String(r['Groupage'] || '').trim(),
-        ref_cmd: String(r['Réf Commande'] || '').trim(),
-        agence: String(r['Agence'] || '').trim(),
-        activite: String(r['Activité'] || '').trim(),
-        ville_dep: String(r['Ville Départ'] || '').trim(),
-        ville_arr: String(r['Ville Arrivée'] || '').trim(),
-        lieu_dep: String(r['Lieu Départ'] || '').trim(),
-        lieu_arriv: String(r['Lieu Arrivée'] || '').trim(),
-        dt_dep_p: String(r['Date Dép. Prévue'] || '').trim(),
-        dt_dep_r: String(r['Date Dép. Réelle'] || '').trim(),
-        dt_arr_p: String(r['Date Arr. Prévue'] || '').trim(),
-        dt_arr_r: String(r['Date Arr. Réelle'] || '').trim(),
-        etat_cmd: String(r['État Commande'] || '').trim(),
-        etat_seg: String(r['État Segment'] || '').trim(),
-        tracking: String(r['Tracking'] || '').trim(),
-        km_expl: parseFloat(String(r['KM Exploité'] || 0).replace(/\s/g,'').replace(',','.')) || 0,
-        km_carto: parseFloat(String(r['KM Carto'] || 0).replace(/\s/g,'').replace(',','.')) || 0,
-        achat: parseFloat(String(r['Montant Achat'] || 0).replace(/\s/g,'').replace(',','.')) || 0,
-        jumlage: String(r['Jumelage'] || '').trim(),
-        date_seg: String(r['Date Segment'] || '').trim(),
+        date: dateRef,
+        tracteur: tracteur,
+        remorque: String(getColVal(r, 'REMORQUE', 'Remorque')).trim().toUpperCase(),
+        cond1: String(getColVal(r, 'COND 1', 'COND1', 'Chauffeur 1', 'Conducteur', 'Chauffeur')).trim(),
+        affrete: String(getColVal(r, 'AFFRETE', 'Affrété')).trim(),
+        client: String(getColVal(r, 'CLIENT', 'Client')).trim(),
+        commande: commande,
+        groupage: String(getColVal(r, 'GROUPAGE', 'Groupage')).trim().toUpperCase(),
+        ref_cmd: String(getColVal(r, 'REF CMD', 'Réf Commande')).trim(),
+        agence: String(getColVal(r, 'AGENCE', 'Agence')).trim(),
+        activite: String(getColVal(r, 'ACTIVITE', 'Activité')).trim(),
+        ville_dep: String(getColVal(r, 'VILLE DEP', 'Ville Départ')).trim(),
+        ville_arr: String(getColVal(r, 'VILLE ARRIV', 'Ville Arrivée')).trim(),
+        lieu_dep: String(getColVal(r, 'LIEU DEP', 'Lieu Départ')).trim(),
+        lieu_arriv: String(getColVal(r, 'LIEU ARRIV', 'Lieu Arrivée')).trim(),
+        dt_dep_p: dtDepP,
+        dt_dep_r: String(getColVal(r, 'DT.DEP R', 'DT DEP R', 'Date Dép. Réelle')).trim(),
+        dt_arr_p: String(getColVal(r, 'DT.ARRIV P', 'DT ARRIV P', 'Date Arr. Prévue')).trim(),
+        dt_arr_r: String(getColVal(r, 'DT.ARRIV. R', 'DT.ARRIV R', 'DT ARRIV R', 'Date Arr. Réelle')).trim(),
+        etat_cmd: String(getColVal(r, 'ETAT CMD', 'État Commande')).trim(),
+        etat_seg: String(getColVal(r, 'ETAT SEG', 'État Segment')).trim(),
+        tracking: String(getColVal(r, 'TRACKING', 'Tracking')).trim(),
+        km_expl: parseFloat(String(getColVal(r, 'KM EXPLOITATION', 'KM Exploité', 'KM_EXPL') || 0).replace(/\s/g,'').replace(',','.')) || 0,
+        km_carto: parseFloat(String(getColVal(r, 'KM CARTO', 'KM Carto') || 0).replace(/\s/g,'').replace(',','.')) || 0,
+        achat: parseFloat(String(getColVal(r, 'ACHAT', 'Montant Achat') || 0).replace(/\s/g,'').replace(',','.')) || 0,
+        jumlage: String(getColVal(r, 'JUMLAGE', 'Jumelage')).trim().toUpperCase(),
+        date_seg: dateSeg,
         imported_by: currentUser
       });
     });
