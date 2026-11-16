@@ -1,0 +1,834 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NUMIPLAN — Odomètre & Suivi Kilométrique</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+
+<style>
+  :root {
+    --bg-dark: #070b13;
+    --bg-card: #0d1527;
+    --bg-card-hover: #121c33;
+    --border: #1e293b;
+    --border-hover: #334155;
+    --primary: #38bdf8;
+    --accent-yellow: #eab308;
+    --accent-orange: #f59e0b;
+    --accent-green: #10b981;
+    --accent-red: #ef4444;
+    --txt-main: #f8fafc;
+    --txt-muted: #94a3b8;
+    --txt-dim: #64748b;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background-color: var(--bg-dark);
+    font-family: 'Inter', -apple-system, sans-serif;
+    color: var(--txt-main);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+  }
+
+  header {
+    height: 70px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 28px;
+    background: rgba(13, 21, 39, 0.85);
+    backdrop-filter: blur(16px);
+    position: sticky;
+    top: 0;
+    z-index: 100;
+  }
+  .brand-wrap {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    text-decoration: none;
+  }
+  .brand-logo {
+    width: 40px;
+    height: 40px;
+    background: linear-gradient(135deg, #eab308, #ca8a04);
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 20px;
+    color: #000;
+    box-shadow: 0 4px 15px rgba(234, 179, 8, 0.35);
+  }
+  .brand-title {
+    font-size: 17px;
+    font-weight: 800;
+    color: #fff;
+  }
+  .brand-sub {
+    font-size: 11px;
+    color: var(--txt-muted);
+  }
+
+  .nav-actions {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .btn-nav {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    color: var(--txt-main);
+    padding: 8px 14px;
+    border-radius: 8px;
+    font-size: 12px;
+    font-weight: 600;
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    transition: all 0.2s;
+  }
+  .btn-nav:hover {
+    border-color: var(--primary);
+    color: var(--primary);
+    transform: translateY(-1px);
+  }
+
+  .user-pill {
+    background: rgba(15, 23, 42, 0.8);
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    padding: 5px 14px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+  }
+  .status-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--accent-green);
+    box-shadow: 0 0 8px var(--accent-green);
+  }
+  .team-badge {
+    background: rgba(234, 179, 8, 0.15);
+    color: var(--accent-yellow);
+    border: 1px solid rgba(234, 179, 8, 0.3);
+    padding: 2px 7px;
+    border-radius: 5px;
+    font-size: 11px;
+    font-weight: 700;
+  }
+
+  main {
+    flex: 1;
+    max-width: 1560px;
+    width: 100%;
+    margin: 0 auto;
+    padding: 24px 28px;
+  }
+
+  .banner-header {
+    background: linear-gradient(135deg, rgba(234, 179, 8, 0.12), rgba(13, 21, 39, 0.8));
+    border: 1px solid rgba(234, 179, 8, 0.25);
+    border-radius: 16px;
+    padding: 20px 24px;
+    margin-bottom: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 16px;
+  }
+  .banner-info h2 {
+    font-size: 20px;
+    font-weight: 800;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .status-badge {
+    font-size: 11px;
+    font-weight: 700;
+    padding: 3px 10px;
+    border-radius: 999px;
+    background: rgba(234, 179, 8, 0.15);
+    color: var(--accent-yellow);
+    border: 1px solid rgba(234, 179, 8, 0.3);
+  }
+
+  /* KPIS */
+  .kpi-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: 16px;
+    margin-bottom: 24px;
+  }
+  .kpi-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 18px;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .kpi-card:hover, .kpi-card.active {
+    transform: translateY(-2px);
+    border-color: var(--primary);
+  }
+  .kpi-title {
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--txt-muted);
+    text-transform: uppercase;
+  }
+  .kpi-value {
+    font-size: 28px;
+    font-weight: 900;
+    margin: 8px 0 4px;
+    font-family: 'JetBrains Mono', monospace;
+  }
+  .kpi-sub {
+    font-size: 11px;
+    color: var(--txt-dim);
+  }
+
+  /* TOOLBAR */
+  .toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 16px;
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+  .input-control {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    color: #fff;
+    padding: 8px 12px;
+    border-radius: 8px;
+    font-size: 12px;
+    outline: none;
+  }
+  .input-control:focus {
+    border-color: var(--primary);
+  }
+
+  /* TABLE */
+  .table-container {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    overflow: hidden;
+    max-height: 64vh;
+    overflow-y: auto;
+  }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12px;
+    text-align: left;
+  }
+  thead {
+    position: sticky;
+    top: 0;
+    background: #0f182c;
+    z-index: 10;
+  }
+  th {
+    padding: 12px 14px;
+    font-weight: 700;
+    color: var(--txt-muted);
+    border-bottom: 1px solid var(--border);
+    font-size: 11px;
+    text-transform: uppercase;
+    white-space: nowrap;
+  }
+  td {
+    padding: 10px 14px;
+    border-bottom: 1px solid rgba(30, 41, 59, 0.7);
+    color: var(--txt-main);
+    white-space: nowrap;
+  }
+  tbody tr:hover {
+    background: var(--bg-card-hover);
+  }
+
+  /* MODAL */
+  .modal-overlay {
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(0, 0, 0, 0.8);
+    backdrop-filter: blur(8px);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+    padding: 20px;
+  }
+  .modal-card {
+    background: #0f172a;
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    width: 100%;
+    max-width: 520px;
+    padding: 28px;
+    position: relative;
+    box-shadow: 0 20px 50px rgba(0,0,0,0.6);
+  }
+  .modal-close {
+    position: absolute;
+    top: 20px;
+    right: 20px;
+    background: transparent;
+    border: none;
+    color: var(--txt-muted);
+    font-size: 20px;
+    cursor: pointer;
+  }
+
+  #toast {
+    position: fixed;
+    bottom: 24px;
+    right: 24px;
+    background: #1e293b;
+    border: 1px solid var(--border);
+    padding: 12px 20px;
+    border-radius: 10px;
+    font-size: 13px;
+    font-weight: 600;
+    display: none;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+    z-index: 1100;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <a href="portail.html" class="brand-wrap">
+    <div class="brand-logo">
+      <i class="fa-solid fa-gauge-high"></i>
+    </div>
+    <div>
+      <div class="brand-title">NUMIPLAN ODOMÈTRE</div>
+      <div class="brand-sub">Relevés Kilométriques &amp; Roulage à Charge (RAC)</div>
+    </div>
+  </a>
+
+  <div class="nav-actions">
+    <a href="portail.html" class="btn-nav">
+      <i class="fa-solid fa-arrow-left"></i> Portail
+    </a>
+    <a href="fiche_supabase.html" class="btn-nav">
+      <i class="fa-solid fa-truck"></i> Numiplan Dispo
+    </a>
+
+    <div class="user-pill">
+      <span class="status-dot"></span>
+      <span id="u-name" style="font-weight: 700;">Utilisateur</span>
+      <span id="u-team" class="team-badge">—</span>
+    </div>
+  </div>
+</header>
+
+<main>
+  <!-- BANNER -->
+  <div class="banner-header">
+    <div class="banner-info">
+      <h2>
+        <span>Suivi Kilométrique Flotte</span>
+        <span id="odo-status-badge" class="status-badge">Chargement...</span>
+      </h2>
+      <div id="odo-meta" style="font-size:12px;color:var(--txt-muted);margin-top:6px">Chargement des relevés odométriques depuis Supabase...</div>
+    </div>
+
+    <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+      <button onclick="openOdoModal()" class="btn-nav" style="background:#eab308;color:#000;font-weight:700;border:none">
+        <i class="fa-solid fa-plus"></i> Saisir Relevé KM
+      </button>
+      <button onclick="exportOdoExcel()" class="btn-nav">
+        <i class="fa-solid fa-file-excel"></i> Exporter Excel
+      </button>
+      <button onclick="loadOdoData()" class="btn-nav" style="border-color:var(--primary);color:var(--primary)">
+        <i class="fa-solid fa-arrows-rotate"></i> Actualiser
+      </button>
+    </div>
+  </div>
+
+  <!-- KPIS -->
+  <div class="kpi-grid">
+    <div class="kpi-card" style="border-color: rgba(234, 179, 8, 0.35);">
+      <div class="kpi-title">🛣️ TOTAL KM PARCOURUS</div>
+      <div class="kpi-value" id="kpi-total-km" style="color:#eab308">0 km</div>
+      <div class="kpi-sub">Delta kilométrique relevé</div>
+    </div>
+    <div class="kpi-card" style="border-color: rgba(56, 189, 248, 0.35);">
+      <div class="kpi-title">📦 TOTAL KM FACTURÉ</div>
+      <div class="kpi-value" id="kpi-total-fact" style="color:#38bdf8">0 km</div>
+      <div class="kpi-sub">Kilomètres valorisés</div>
+    </div>
+    <div class="kpi-card" style="border-color: rgba(16, 185, 129, 0.35);">
+      <div class="kpi-title">🎯 TAUX RAC % GLOBAL</div>
+      <div class="kpi-value" id="kpi-rac-global" style="color:#34d399">0.0%</div>
+      <div class="kpi-sub">Roulage à charge moyen</div>
+    </div>
+    <div class="kpi-card" id="card-anomalies" onclick="toggleAnomalyFilter()" style="border-color: rgba(239, 68, 68, 0.35);">
+      <div class="kpi-title">⚠️ ANOMALIES COMPTEURS</div>
+      <div class="kpi-value" id="kpi-anomalies" style="color:#ef4444">0</div>
+      <div class="kpi-sub">Compteurs en régression (cliquer pour filtrer)</div>
+    </div>
+  </div>
+
+  <!-- TOOLBAR -->
+  <div class="toolbar">
+    <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+      <select id="flt-team" class="input-control" onchange="renderOdoTable()">
+        <option value="ALL">Toutes les Équipes</option>
+        <option value="A1">Équipe A1</option>
+        <option value="A2">Équipe A2</option>
+        <option value="B1">Équipe B1</option>
+        <option value="B2">Équipe B2</option>
+        <option value="C1">Équipe C1</option>
+        <option value="C2">Équipe C2</option>
+        <option value="D1">Équipe D1</option>
+        <option value="D2">Équipe D2</option>
+      </select>
+      <input type="text" id="flt-search" class="input-control" placeholder="🔍 Rechercher (véhicule, chauffeur…)" oninput="renderOdoTable()">
+      <span style="font-size:12px;color:var(--txt-muted);display:flex;align-items:center;gap:6px">
+        Semaines :
+        <select id="flt-week-start" class="input-control" onchange="renderOdoTable()"></select>
+        à
+        <select id="flt-week-end" class="input-control" onchange="renderOdoTable()"></select>
+      </span>
+      <button onclick="resetOdoFilters()" class="btn-nav" style="padding:6px 12px">↺ Reset</button>
+    </div>
+  </div>
+
+  <!-- TABLE -->
+  <div class="table-container">
+    <table>
+      <thead>
+        <tr id="odo-thead-tr">
+          <th>Véhicule</th>
+          <th>Chauffeur</th>
+          <th>Équipe</th>
+          <th style="text-align:right">Dernier Index</th>
+          <th style="text-align:right">KM Parcourus</th>
+          <th style="text-align:right">KM Facturé</th>
+          <th style="text-align:center">RAC %</th>
+          <th style="text-align:center">Action</th>
+        </tr>
+      </thead>
+      <tbody id="odo-tbody">
+        <tr><td colspan="8" style="text-align:center;padding:40px;color:var(--txt-muted)">Chargement des relevés odométriques...</td></tr>
+      </tbody>
+    </table>
+  </div>
+</main>
+
+<!-- MODAL SAISIE RELEVÉ KM -->
+<div id="odo-modal" class="modal-overlay">
+  <div class="modal-card">
+    <button class="modal-close" onclick="closeOdoModal()">&times;</button>
+    <h3 style="font-size:18px;font-weight:800;margin-bottom:16px;color:#fff">➕ Saisir un Relevé Kilométrique</h3>
+    
+    <div style="margin-bottom:14px">
+      <label style="font-size:11px;font-weight:700;color:var(--txt-muted);display:block;margin-bottom:6px">VÉHICULE (IMMATRICULATION)</label>
+      <input type="text" id="form-v" class="input-control" style="width:100%" placeholder="ex: 001230-514-16" required>
+    </div>
+    
+    <div style="margin-bottom:14px">
+      <label style="font-size:11px;font-weight:700;color:var(--txt-muted);display:block;margin-bottom:6px">CHAUFFEUR ASSIGNÉ</label>
+      <input type="text" id="form-chauffeur" class="input-control" style="width:100%" placeholder="Nom du chauffeur">
+    </div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px">
+      <div>
+        <label style="font-size:11px;font-weight:700;color:var(--txt-muted);display:block;margin-bottom:6px">ÉQUIPE</label>
+        <select id="form-team" class="input-control" style="width:100%">
+          <option value="A1">Équipe A1</option>
+          <option value="A2">Équipe A2</option>
+          <option value="B1">Équipe B1</option>
+          <option value="B2">Équipe B2</option>
+          <option value="C1">Équipe C1</option>
+          <option value="C2">Équipe C2</option>
+          <option value="D1">Équipe D1</option>
+          <option value="D2">Équipe D2</option>
+        </select>
+      </div>
+      <div>
+        <label style="font-size:11px;font-weight:700;color:var(--txt-muted);display:block;margin-bottom:6px">INDEX COMPTEUR (KM)</label>
+        <input type="number" id="form-km" class="input-control" style="width:100%" placeholder="ex: 1024500" required>
+      </div>
+    </div>
+
+    <div style="margin-bottom:20px">
+      <label style="font-size:11px;font-weight:700;color:var(--txt-muted);display:block;margin-bottom:6px">DATE DU RELEVÉ</label>
+      <input type="date" id="form-date" class="input-control" style="width:100%">
+    </div>
+
+    <button onclick="saveOdoEntry()" class="btn-nav" style="width:100%;background:#eab308;color:#000;font-weight:800;padding:12px;justify-content:center;font-size:14px;border:none">
+      💾 Enregistrer le relevé
+    </button>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+const SUPABASE_URL = 'https://mfljrozyxyfkymzlnsmt.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_sMb9uHOr4gpyqmZGrkY-YQ_z90TgNAB';
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+let teamsData = {};
+let allOdoList = [];
+let allWeeks = [];
+let filterOnlyAnomalies = false;
+let racLookup = {};
+
+function showToast(msg, isError = false) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.style.display = 'block';
+  t.style.borderColor = isError ? '#ef4444' : '#10b981';
+  t.style.color = isError ? '#f87171' : '#34d399';
+  setTimeout(() => { t.style.display = 'none'; }, 3500);
+}
+
+async function initSession() {
+  const user = sessionStorage.getItem('numiplan_username') || 'utilisateur';
+  const role = sessionStorage.getItem('numiplan_user_role') || 'equipe';
+  const teamLock = sessionStorage.getItem('numiplan_team_lock') || '';
+
+  document.getElementById('u-name').textContent = user;
+  document.getElementById('u-team').textContent = teamLock || role.toUpperCase();
+
+  const { data: { session } } = await sb.auth.getSession();
+  if (!session) {
+    window.location.href = 'portail.html';
+    return;
+  }
+
+  document.getElementById('form-date').value = new Date().toISOString().split('T')[0];
+  loadOdoData();
+}
+
+async function loadOdoData() {
+  try {
+    showToast('⏳ Récupération des relevés odométriques...');
+
+    // 1. Charger numiplan_teams et np_weekly_rac en parallèle
+    const [teamsRes, racRes] = await Promise.all([
+      sb.from('numiplan_teams').select('team, payload').in('team', ['A1','A2','B1','B2','C1','C2','D1','D2']),
+      sb.from('np_weekly_rac').select('*').limit(500)
+    ]);
+
+    racLookup = {};
+    (racRes.data || []).forEach(r => {
+      if (r.plate) racLookup[r.plate] = r;
+      const noZ = String(r.plate || '').replace(/^0+/, '');
+      if (noZ) racLookup[noZ] = r;
+    });
+
+    teamsData = {};
+    const weeksSet = new Set();
+    const rows = [];
+
+    (teamsRes.data || []).forEach(row => {
+      const eq = row.team;
+      const p = row.payload || {};
+      teamsData[eq] = p;
+
+      (p.odo_weeks || []).forEach(w => weeksSet.add(w));
+
+      (p.odo || []).forEach(item => {
+        rows.push({
+          ...item,
+          _team: eq
+        });
+      });
+    });
+
+    allWeeks = Array.from(weeksSet).sort();
+    allOdoList = rows;
+
+    populateWeekFilters();
+    renderOdoTable();
+    showToast('✅ Odomètres à jour');
+
+  } catch (err) {
+    console.error('Erreur chargement Odo:', err);
+    showToast('Erreur: ' + err.message, true);
+  }
+}
+
+function populateWeekFilters() {
+  const sSel = document.getElementById('flt-week-start');
+  const eSel = document.getElementById('flt-week-end');
+  
+  const opts = allWeeks.map(w => `<option value="${w}">${w}</option>`).join('');
+  sSel.innerHTML = '<option value="">Début</option>' + opts;
+  eSel.innerHTML = '<option value="">Fin</option>' + opts;
+
+  if (allWeeks.length >= 2) {
+    sSel.value = allWeeks[Math.max(0, allWeeks.length - 8)];
+    eSel.value = allWeeks[allWeeks.length - 1];
+  }
+}
+
+function toggleAnomalyFilter() {
+  filterOnlyAnomalies = !filterOnlyAnomalies;
+  document.getElementById('card-anomalies').classList.toggle('active', filterOnlyAnomalies);
+  renderOdoTable();
+}
+
+function renderOdoTable() {
+  const fltTeam = document.getElementById('flt-team').value;
+  const q = document.getElementById('flt-search').value.trim().toLowerCase();
+  const wStart = document.getElementById('flt-week-start').value;
+  const wEnd = document.getElementById('flt-week-end').value;
+
+  const activeWeeks = allWeeks.filter(w => {
+    if (wStart && w < wStart) return false;
+    if (wEnd && w > wEnd) return false;
+    return true;
+  });
+
+  // Détection des anomalies (compteur qui recule)
+  const anomalyPlates = new Set();
+  allOdoList.forEach(r => {
+    const vals = (r.vals || []).map(v => parseFloat(v)).filter(v => !isNaN(v) && v > 1000);
+    for (let i = 1; i < vals.length; i++) {
+      if (vals[i] < vals[i-1]) {
+        anomalyPlates.add(r.v);
+        break;
+      }
+    }
+  });
+
+  document.getElementById('kpi-anomalies').textContent = anomalyPlates.size;
+
+  const filtered = allOdoList.filter(r => {
+    if (fltTeam !== 'ALL' && r._team !== fltTeam) return false;
+    if (filterOnlyAnomalies && !anomalyPlates.has(r.v)) return false;
+    if (q) {
+      const match = `${r.v} ${r.chauffeur} ${r._team}`.toLowerCase();
+      if (!match.includes(q)) return false;
+    }
+    return true;
+  });
+
+  // Calcul des métriques globales
+  let totKm = 0;
+  let totFact = 0;
+
+  filtered.forEach(r => {
+    const vals = (r.vals || []);
+    const validVals = activeWeeks.map(w => {
+      const idx = allWeeks.indexOf(w);
+      return idx >= 0 ? parseFloat(vals[idx]) : NaN;
+    }).filter(v => !isNaN(v) && v > 1000);
+
+    if (validVals.length >= 2) {
+      const delta = validVals[validVals.length - 1] - validVals[0];
+      if (delta > 0 && delta < 50000) totKm += delta;
+    }
+
+    const norm = String(r.v || '').replace(/[\r\n\s\-]/g, '').toUpperCase();
+    const racRow = racLookup[norm];
+    if (racRow && racRow.facture) totFact += Number(racRow.facture);
+  });
+
+  document.getElementById('kpi-total-km').textContent = Math.round(totKm).toLocaleString('fr-FR') + ' km';
+  document.getElementById('kpi-total-fact').textContent = Math.round(totFact).toLocaleString('fr-FR') + ' km';
+  const racGlobal = totKm > 0 ? (totFact / totKm) * 100 : 0;
+  document.getElementById('kpi-rac-global').textContent = racGlobal.toFixed(1) + '%';
+  document.getElementById('odo-status-badge').textContent = `${filtered.length} véhicules`;
+  document.getElementById('odo-meta').textContent = `Consolidé · ${activeWeeks.length} semaines affichées (${activeWeeks[0] || '—'} à ${activeWeeks[activeWeeks.length-1] || '—'})`;
+
+  // Construction de l'en-tête dynamique
+  const headTr = document.getElementById('odo-thead-tr');
+  const weekThs = activeWeeks.map(w => `<th style="text-align:right;font-size:10px">${w}</th>`).join('');
+  headTr.innerHTML = `
+    <th>Véhicule</th>
+    <th>Chauffeur</th>
+    <th>Équipe</th>
+    ${weekThs}
+    <th style="text-align:right">KM Parcourus</th>
+    <th style="text-align:right">KM Facturé</th>
+    <th style="text-align:center">RAC %</th>
+    <th style="text-align:center">Action</th>
+  `;
+
+  // Corps du tableau
+  const tbody = document.getElementById('odo-tbody');
+  if (!filtered.length) {
+    tbody.innerHTML = `<tr><td colspan="${activeWeeks.length + 7}" style="text-align:center;padding:40px;color:var(--txt-muted)">Aucun véhicule correspondant aux filtres.</td></tr>`;
+    return;
+  }
+
+  tbody.innerHTML = filtered.map(r => {
+    const vals = (r.vals || []);
+    let firstVal = null, lastVal = null;
+    let delta = 0;
+
+    const weekTds = activeWeeks.map(w => {
+      const idx = allWeeks.indexOf(w);
+      const val = (idx >= 0 && vals[idx] != null) ? parseFloat(vals[idx]) : NaN;
+      if (!isNaN(val) && val > 1000) {
+        if (firstVal === null) firstVal = val;
+        lastVal = val;
+        return `<td style="text-align:right;font-family:'JetBrains Mono',monospace">${Math.round(val).toLocaleString('fr-FR')}</td>`;
+      }
+      return `<td style="text-align:right;color:var(--txt-dim)">—</td>`;
+    }).join('');
+
+    if (firstVal !== null && lastVal !== null && lastVal >= firstVal) {
+      delta = lastVal - firstVal;
+    }
+
+    const norm = String(r.v || '').replace(/[\r\n\s\-]/g, '').toUpperCase();
+    const racRow = racLookup[norm];
+    const kmFact = racRow ? Number(racRow.facture || 0) : 0;
+    const racPct = delta > 0 ? (kmFact / delta) * 100 : (racRow ? Number(racRow.rac_pct || 0) : 0);
+    const racCol = racPct >= 70 ? '#10b981' : (racPct >= 50 ? '#f59e0b' : '#ef4444');
+    const isAnomaly = anomalyPlates.has(r.v);
+
+    return `
+      <tr style="${isAnomaly ? 'background:rgba(239,68,68,0.08);border-left:4px solid #ef4444' : ''}">
+        <td style="font-family:'JetBrains Mono',monospace;font-weight:700;color:#38bdf8">${r.v} ${isAnomaly ? '<span title="Compteur en régression">⚠️</span>' : ''}</td>
+        <td>${r.chauffeur || '—'}</td>
+        <td><span class="team-badge">${r._team}</span></td>
+        ${weekTds}
+        <td style="text-align:right;font-weight:700">${delta > 0 ? Math.round(delta).toLocaleString('fr-FR') : '—'}</td>
+        <td style="text-align:right;color:#38bdf8;font-weight:700">${kmFact > 0 ? Math.round(kmFact).toLocaleString('fr-FR') : '—'}</td>
+        <td style="text-align:center"><b style="color:${racCol}">${racPct > 0 ? racPct.toFixed(0) + '%' : '—'}</b></td>
+        <td style="text-align:center">
+          <button class="btn-nav" style="padding:4px 8px;font-size:11px" onclick="prefillOdoModal('${encodeURIComponent(r.v)}', '${encodeURIComponent(r.chauffeur || '')}', '${r._team}')">
+            <i class="fa-solid fa-pen"></i>
+          </button>
+        </td>
+      </tr>
+    `;
+  }).join('');
+}
+
+function resetOdoFilters() {
+  document.getElementById('flt-team').value = 'ALL';
+  document.getElementById('flt-search').value = '';
+  filterOnlyAnomalies = false;
+  document.getElementById('card-anomalies').classList.remove('active');
+  populateWeekFilters();
+  renderOdoTable();
+}
+
+function openOdoModal() {
+  document.getElementById('odo-modal').style.display = 'flex';
+}
+function closeOdoModal() {
+  document.getElementById('odo-modal').style.display = 'none';
+}
+
+function prefillOdoModal(encV, encCh, team) {
+  document.getElementById('form-v').value = decodeURIComponent(encV);
+  document.getElementById('form-chauffeur').value = decodeURIComponent(encCh);
+  document.getElementById('form-team').value = team || 'A1';
+  openOdoModal();
+}
+
+async function saveOdoEntry() {
+  const v = document.getElementById('form-v').value.trim();
+  const chauffeur = document.getElementById('form-chauffeur').value.trim();
+  const team = document.getElementById('form-team').value;
+  const km = parseFloat(document.getElementById('form-km').value);
+  const dtStr = document.getElementById('form-date').value;
+
+  if (!v || isNaN(km) || !dtStr) {
+    showToast('⚠️ Remplissez l\'immatriculation, le km et la date.', true);
+    return;
+  }
+
+  try {
+    showToast('💾 Enregistrement du relevé...');
+
+    const payload = teamsData[team] || { odo: [], odo_weeks: [] };
+    let weeks = payload.odo_weeks || [];
+    let odoList = payload.odo || [];
+
+    if (!weeks.includes(dtStr)) {
+      weeks.push(dtStr);
+      weeks.sort();
+    }
+    const weekIdx = weeks.indexOf(dtStr);
+
+    let found = odoList.find(x => String(x.v || '').trim().toUpperCase() === v.toUpperCase());
+    if (!found) {
+      found = { v, chauffeur, vals: [] };
+      odoList.push(found);
+    }
+    while (found.vals.length < weeks.length) found.vals.push(null);
+    found.vals[weekIdx] = km;
+    if (chauffeur) found.chauffeur = chauffeur;
+
+    payload.odo_weeks = weeks;
+    payload.odo = odoList;
+
+    // Sauvegarder dans Supabase (numiplan_teams)
+    const { error } = await sb.from('numiplan_teams').upsert({
+      team,
+      payload,
+      updated_at: new Date().toISOString()
+    }, { onConflict: 'team' });
+
+    if (error) throw error;
+
+    showToast('✅ Relevé KM enregistré avec succès !');
+    closeOdoModal();
+    loadOdoData();
+
+  } catch (err) {
+    console.error('Erreur save Odo:', err);
+    showToast('Erreur: ' + err.message, true);
+  }
+}
+
+function exportOdoExcel() {
+  if (!allOdoList.length) {
+    showToast('⚠️ Aucun relevé à exporter.', true);
+    return;
+  }
+  const wb = XLSX.utils.book_new();
+  const exportData = allOdoList.map(r => {
+    const row = {
+      'Véhicule': r.v,
+      'Chauffeur': r.chauffeur,
+      'Équipe': r._team
+    };
+    (allWeeks || []).forEach((w, i) => {
+      row[w] = r.vals && r.vals[i] != null ? r.vals[i] : '';
+    });
+    return row;
+  });
+
+  const ws = XLSX.utils.json_to_sheet(exportData);
+  XLSX.utils.book_append_sheet(wb, ws, 'Odometre');
+  XLSX.writeFile(wb, `Odometre_Releves_${new Date().toISOString().split('T')[0]}.xlsx`);
+  showToast('✅ Export Excel téléchargé');
+}
+
+window.addEventListener('DOMContentLoaded', initSession);
+</script>
+</body>
+</html>
