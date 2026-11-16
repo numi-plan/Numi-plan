@@ -1,0 +1,718 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NUMIPLAN — Voyages & Segments ERP (TMS)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+
+<style>
+  :root {
+    --bg-dark: #070b13;
+    --bg-card: #0d1527;
+    --bg-card-hover: #121c33;
+    --border: #1e293b;
+    --border-hover: #334155;
+    --primary: #38bdf8;
+    --accent-green: #10b981;
+    --accent-orange: #f59e0b;
+    --accent-purple: #c084fc;
+    --txt-main: #f8fafc;
+    --txt-muted: #94a3b8;
+    --txt-dim: #64748b;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background-color: var(--bg-dark);
+    font-family: 'Inter', -apple-system, sans-serif;
+    color: var(--txt-main);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* HEADER */
+  header {
+    height: 70px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 28px;
+    background: rgba(13, 21, 39, 0.85);
+    backdrop-filter: blur(16px);
+    position: sticky;
+    top: 0;
+    z-index: 100;
+  }
+  .brand-wrap {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    text-decoration: none;
+  }
+  .brand-logo {
+    width: 40px;
+    height: 40px;
+    background: linear-gradient(135deg, #10b981, #059669);
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 20px;
+    color: #fff;
+    box-shadow: 0 4px 15px rgba(16, 185, 129, 0.35);
+  }
+  .brand-title {
+    font-size: 17px;
+    font-weight: 800;
+    color: #fff;
+  }
+  .brand-sub {
+    font-size: 11px;
+    color: var(--txt-muted);
+  }
+
+  .nav-actions {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .btn-nav {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    color: var(--txt-main);
+    padding: 8px 14px;
+    border-radius: 8px;
+    font-size: 12px;
+    font-weight: 600;
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    transition: all 0.2s;
+  }
+  .btn-nav:hover {
+    border-color: var(--primary);
+    color: var(--primary);
+    transform: translateY(-1px);
+  }
+
+  .user-pill {
+    background: rgba(15, 23, 42, 0.8);
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    padding: 5px 14px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+  }
+  .status-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--accent-green);
+    box-shadow: 0 0 8px var(--accent-green);
+  }
+  .team-badge {
+    background: rgba(16, 185, 129, 0.15);
+    color: var(--accent-green);
+    border: 1px solid rgba(16, 185, 129, 0.3);
+    padding: 2px 7px;
+    border-radius: 5px;
+    font-size: 11px;
+    font-weight: 700;
+  }
+
+  /* MAIN CONTENT */
+  main {
+    flex: 1;
+    max-width: 1560px;
+    width: 100%;
+    margin: 0 auto;
+    padding: 24px 28px;
+  }
+
+  .banner-header {
+    background: linear-gradient(135deg, rgba(16, 185, 129, 0.1), rgba(13, 21, 39, 0.8));
+    border: 1px solid rgba(16, 185, 129, 0.25);
+    border-radius: 16px;
+    padding: 20px 24px;
+    margin-bottom: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 16px;
+  }
+  .banner-info h2 {
+    font-size: 20px;
+    font-weight: 800;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .status-badge {
+    font-size: 11px;
+    font-weight: 700;
+    padding: 3px 10px;
+    border-radius: 999px;
+    background: rgba(16, 185, 129, 0.2);
+    color: #34d399;
+    border: 1px solid rgba(16, 185, 129, 0.3);
+  }
+  .banner-meta {
+    font-size: 12px;
+    color: var(--txt-muted);
+    margin-top: 6px;
+  }
+
+  .banner-actions {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+  .btn-action {
+    background: linear-gradient(135deg, #10b981, #059669);
+    color: #fff;
+    border: none;
+    border-radius: 8px;
+    padding: 10px 16px;
+    font-size: 13px;
+    font-weight: 700;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    transition: all 0.2s;
+    box-shadow: 0 4px 15px rgba(16, 185, 129, 0.3);
+  }
+  .btn-action:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 6px 20px rgba(16, 185, 129, 0.45);
+  }
+  .btn-secondary {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    color: var(--txt-main);
+    padding: 10px 14px;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    transition: all 0.2s;
+  }
+  .btn-secondary:hover {
+    border-color: var(--txt-muted);
+    background: var(--bg-card-hover);
+  }
+
+  /* KPIS */
+  .kpi-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: 16px;
+    margin-bottom: 24px;
+  }
+  .kpi-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 18px;
+  }
+  .kpi-title {
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--txt-muted);
+    text-transform: uppercase;
+  }
+  .kpi-value {
+    font-size: 26px;
+    font-weight: 900;
+    margin: 8px 0 4px;
+    font-family: 'JetBrains Mono', monospace;
+  }
+  .kpi-sub {
+    font-size: 11px;
+    color: var(--txt-dim);
+  }
+
+  /* TOOLBAR */
+  .toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 16px;
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+  .presets-group {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+  }
+  .preset-btn {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    color: var(--txt-muted);
+    padding: 6px 12px;
+    border-radius: 8px;
+    font-size: 11px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .preset-btn:hover, .preset-btn.active {
+    background: rgba(16, 185, 129, 0.15);
+    border-color: rgba(16, 185, 129, 0.4);
+    color: var(--accent-green);
+  }
+
+  .search-group {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+  .input-control {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    color: #fff;
+    padding: 8px 12px;
+    border-radius: 8px;
+    font-size: 12px;
+    outline: none;
+    transition: border 0.2s;
+  }
+  .input-control:focus {
+    border-color: var(--primary);
+  }
+
+  /* TABLE */
+  .table-container {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    overflow: hidden;
+    max-height: 64vh;
+    overflow-y: auto;
+  }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12px;
+    text-align: left;
+  }
+  thead {
+    position: sticky;
+    top: 0;
+    background: #0f182c;
+    z-index: 10;
+  }
+  th {
+    padding: 12px 14px;
+    font-weight: 700;
+    color: var(--txt-muted);
+    border-bottom: 1px solid var(--border);
+    font-size: 11px;
+    text-transform: uppercase;
+  }
+  td {
+    padding: 10px 14px;
+    border-bottom: 1px solid rgba(30, 41, 59, 0.7);
+    color: var(--txt-main);
+  }
+  tbody tr:hover {
+    background: var(--bg-card-hover);
+  }
+
+  #toast {
+    position: fixed;
+    bottom: 24px;
+    right: 24px;
+    background: #1e293b;
+    border: 1px solid var(--border);
+    padding: 12px 20px;
+    border-radius: 10px;
+    font-size: 13px;
+    font-weight: 600;
+    display: none;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+    z-index: 1000;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <a href="portail.html" class="brand-wrap">
+    <div class="brand-logo">
+      <i class="fa-solid fa-route"></i>
+    </div>
+    <div>
+      <div class="brand-title">VOYAGES &amp; SEGMENTS ERP</div>
+      <div class="brand-sub">Suivi des chargements, trajets &amp; écarts d'itinéraire</div>
+    </div>
+  </a>
+
+  <div class="nav-actions">
+    <a href="portail.html" class="btn-nav">
+      <i class="fa-solid fa-arrow-left"></i> Portail
+    </a>
+    <a href="fiche_supabase.html" class="btn-nav">
+      <i class="fa-solid fa-truck"></i> Numiplan Dispo
+    </a>
+
+    <div class="user-pill">
+      <span class="status-dot"></span>
+      <span id="u-name" style="font-weight: 700;">Utilisateur</span>
+      <span id="u-team" class="team-badge">—</span>
+    </div>
+  </div>
+</header>
+
+<main>
+  <!-- BANNER -->
+  <div class="banner-header">
+    <div class="banner-info">
+      <h2>
+        <span>Registre des Segments ERP</span>
+        <span id="segments-count-badge" class="status-badge">Chargement...</span>
+      </h2>
+      <div id="segments-meta" class="banner-meta">Connexion à la base de données Supabase...</div>
+    </div>
+
+    <div class="banner-actions">
+      <label class="btn-action">
+        <i class="fa-solid fa-file-excel"></i> Importer Segments (.xlsx)
+        <input type="file" id="file-segments-input" accept=".xlsx,.xls" style="display:none" onchange="handleSegmentsUpload(this)">
+      </label>
+      <button onclick="exportSegmentsExcel()" class="btn-secondary" title="Exporter les lignes affichées au format Excel">
+        <i class="fa-solid fa-download"></i> Exporter
+      </button>
+      <button onclick="loadSegmentsData()" class="btn-secondary" title="Recharger les données depuis Supabase">
+        <i class="fa-solid fa-arrows-rotate"></i> Actualiser
+      </button>
+    </div>
+  </div>
+
+  <!-- KPIS -->
+  <div class="kpi-grid">
+    <div class="kpi-card" style="border-color: rgba(16, 185, 129, 0.35);">
+      <div class="kpi-title">📦 TOTAL SEGMENTS AFFICHÉS</div>
+      <div class="kpi-value" id="kpi-total-segments" style="color:#34d399">0</div>
+      <div class="kpi-sub">Chargements consolidés</div>
+    </div>
+    <div class="kpi-card" style="border-color: rgba(56, 189, 248, 0.35);">
+      <div class="kpi-title">🚛 TRACTEURS ACTIFS</div>
+      <div class="kpi-value" id="kpi-total-trucks" style="color:#38bdf8">0</div>
+      <div class="kpi-sub">Immatriculations distinctes</div>
+    </div>
+    <div class="kpi-card" style="border-color: rgba(245, 158, 11, 0.35);">
+      <div class="kpi-title">🛣️ KM TOTAL EXPLOITÉ</div>
+      <div class="kpi-value" id="kpi-total-km" style="color:#fbbf24">0</div>
+      <div class="kpi-sub">Distance parcourue cumulée</div>
+    </div>
+    <div class="kpi-card" style="border-color: rgba(192, 132, 252, 0.35);">
+      <div class="kpi-title">💰 MONTANT ACHAT ESTIMÉ</div>
+      <div class="kpi-value" id="kpi-total-achat" style="color:#c084fc">0 DA</div>
+      <div class="kpi-sub">Total facturation affrétement</div>
+    </div>
+  </div>
+
+  <!-- TOOLBAR -->
+  <div class="toolbar">
+    <div class="presets-group">
+      <button class="preset-btn active" onclick="setPreset('all', this)">Tout</button>
+      <button class="preset-btn" onclick="setPreset('today', this)">Aujourd'hui</button>
+      <button class="preset-btn" onclick="setPreset('3d', this)">3 Derniers Jours</button>
+      <button class="preset-btn" onclick="setPreset('7d', this)">7 Derniers Jours</button>
+      <button class="preset-btn" onclick="setPreset('30d', this)">30 Derniers Jours</button>
+    </div>
+
+    <div class="search-group">
+      <select id="flt-agence" class="input-control" onchange="renderFilteredSegments()">
+        <option value="">Toutes Agences</option>
+      </select>
+      <select id="flt-client" class="input-control" onchange="renderFilteredSegments()">
+        <option value="">Tous Clients</option>
+      </select>
+      <input type="text" id="search-q" class="input-control" placeholder="🔍 Rechercher (tracteur, seg, chauffeur...)" oninput="renderFilteredSegments()">
+    </div>
+  </div>
+
+  <!-- TABLE -->
+  <div class="table-container">
+    <table>
+      <thead>
+        <tr>
+          <th>Date</th>
+          <th>N° Segment</th>
+          <th>Tracteur</th>
+          <th>Chauffeur</th>
+          <th>Client</th>
+          <th>Activité</th>
+          <th>Itinéraire</th>
+          <th style="text-align:right">Km Expl.</th>
+          <th style="text-align:right">Km Carto</th>
+          <th style="text-align:right">Achat (DA)</th>
+          <th style="text-align:center">État</th>
+        </tr>
+      </thead>
+      <tbody id="segments-table-body">
+        <tr><td colspan="11" style="text-align:center;padding:40px;color:var(--txt-muted)">Chargement des segments...</td></tr>
+      </tbody>
+    </table>
+  </div>
+</main>
+
+<div id="toast"></div>
+
+<script>
+const SUPABASE_URL = 'https://mfljrozyxyfkymzlnsmt.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_sMb9uHOr4gpyqmZGrkY-YQ_z90TgNAB';
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+let allSegments = [];
+let currentPreset = 'all';
+
+function showToast(msg, isError = false) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.style.display = 'block';
+  t.style.borderColor = isError ? '#ef4444' : '#10b981';
+  t.style.color = isError ? '#f87171' : '#34d399';
+  setTimeout(() => { t.style.display = 'none'; }, 3500);
+}
+
+async function initSession() {
+  const user = sessionStorage.getItem('numiplan_username') || 'utilisateur';
+  const role = sessionStorage.getItem('numiplan_user_role') || 'equipe';
+  const teamLock = sessionStorage.getItem('numiplan_team_lock') || '';
+
+  document.getElementById('u-name').textContent = user;
+  document.getElementById('u-team').textContent = teamLock || role.toUpperCase();
+
+  const { data: { session } } = await sb.auth.getSession();
+  if (!session) {
+    window.location.href = 'portail.html';
+    return;
+  }
+
+  loadSegmentsData();
+}
+
+async function loadSegmentsData() {
+  try {
+    showToast('⏳ Récupération des segments...');
+    const { data, error } = await sb
+      .from('np_segments_erp')
+      .select('*')
+      .order('date', { ascending: false })
+      .limit(2000);
+
+    if (error) throw error;
+
+    allSegments = data || [];
+    document.getElementById('segments-count-badge').textContent = `${allSegments.length} segments`;
+    document.getElementById('segments-meta').textContent = `Base consolidée · Dernière mise à jour : ${new Date().toLocaleTimeString('fr-FR')}`;
+
+    populateFilters();
+    renderFilteredSegments();
+    showToast('✅ Données à jour');
+  } catch (err) {
+    console.error('Erreur chargement segments:', err);
+    showToast('Erreur: ' + err.message, true);
+  }
+}
+
+function populateFilters() {
+  const agences = [...new Set(allSegments.map(s => s.agence).filter(Boolean))].sort();
+  const clients = [...new Set(allSegments.map(s => s.client).filter(Boolean))].sort();
+
+  const agSel = document.getElementById('flt-agence');
+  agSel.innerHTML = '<option value="">Toutes Agences</option>' + agences.map(a => `<option value="${a}">${a}</option>`).join('');
+
+  const clSel = document.getElementById('flt-client');
+  clSel.innerHTML = '<option value="">Tous Clients</option>' + clients.map(c => `<option value="${c}">${c}</option>`).join('');
+}
+
+function setPreset(preset, el) {
+  currentPreset = preset;
+  document.querySelectorAll('.preset-btn').forEach(b => b.classList.remove('active'));
+  el?.classList.add('active');
+  renderFilteredSegments();
+}
+
+function getPresetCutoffDate() {
+  if (currentPreset === 'all') return null;
+  const now = new Date();
+  if (currentPreset === 'today') return now.toISOString().split('T')[0];
+  const d = new Date();
+  if (currentPreset === '3d') d.setDate(d.getDate() - 3);
+  else if (currentPreset === '7d') d.setDate(d.getDate() - 7);
+  else if (currentPreset === '30d') d.setDate(d.getDate() - 30);
+  return d.toISOString().split('T')[0];
+}
+
+function renderFilteredSegments() {
+  const cutoff = getPresetCutoffDate();
+  const ag = document.getElementById('flt-agence').value;
+  const cl = document.getElementById('flt-client').value;
+  const q = document.getElementById('search-q').value.trim().toLowerCase();
+
+  const filtered = allSegments.filter(s => {
+    if (cutoff && s.date && s.date < cutoff) return false;
+    if (ag && s.agence !== ag) return false;
+    if (cl && s.client !== cl) return false;
+    if (q) {
+      const match = `${s.seg} ${s.tracteur} ${s.remorque} ${s.cond1} ${s.client} ${s.commande} ${s.ville_dep} ${s.ville_arr}`.toLowerCase();
+      if (!match.includes(q)) return false;
+    }
+    return true;
+  });
+
+  // KPIs
+  document.getElementById('kpi-total-segments').textContent = filtered.length.toLocaleString('fr-FR');
+  const distinctTrucks = new Set(filtered.map(s => s.tracteur).filter(Boolean)).size;
+  document.getElementById('kpi-total-trucks').textContent = distinctTrucks;
+  const totalKm = filtered.reduce((acc, s) => acc + (Number(s.km_expl) || 0), 0);
+  document.getElementById('kpi-total-km').textContent = Math.round(totalKm).toLocaleString('fr-FR') + ' km';
+  const totalAchat = filtered.reduce((acc, s) => acc + (Number(s.achat) || 0), 0);
+  document.getElementById('kpi-total-achat').textContent = Math.round(totalAchat).toLocaleString('fr-FR') + ' DA';
+
+  // Table Body
+  const tbody = document.getElementById('segments-table-body');
+  if (filtered.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="11" style="text-align:center;padding:40px;color:var(--txt-muted)">Aucun segment correspondant aux critères sélectionnés.</td></tr>';
+    return;
+  }
+
+  const shown = filtered.slice(0, 300);
+  tbody.innerHTML = shown.map(s => {
+    return `
+      <tr>
+        <td style="font-weight:600;white-space:nowrap">${s.date || '—'}</td>
+        <td style="font-family:'JetBrains Mono',monospace;color:#38bdf8;font-weight:700">${s.seg}</td>
+        <td style="font-family:'JetBrains Mono',monospace;font-weight:700">${s.tracteur || '—'}</td>
+        <td>${s.cond1 || s.affrete || '—'}</td>
+        <td><b>${s.client || '—'}</b></td>
+        <td><span style="font-size:10px;padding:2px 6px;border-radius:4px;background:#1e293b">${s.activite || 'SEC'}</span></td>
+        <td>${s.ville_dep || s.lieu_dep || '—'} → ${s.ville_arr || s.lieu_arriv || '—'}</td>
+        <td style="text-align:right;font-weight:700">${Math.round(s.km_expl || 0).toLocaleString('fr-FR')}</td>
+        <td style="text-align:right;color:var(--txt-muted)">${Math.round(s.km_carto || 0).toLocaleString('fr-FR')}</td>
+        <td style="text-align:right;color:#34d399;font-weight:700">${Math.round(s.achat || 0).toLocaleString('fr-FR')}</td>
+        <td style="text-align:center"><span style="font-size:11px;padding:2px 6px;border-radius:6px;background:rgba(56,189,248,0.15);color:#38bdf8">${s.etat_cmd || s.etat_seg || 'CONFIRMÉ'}</span></td>
+      </tr>
+    `;
+  }).join('');
+}
+
+// Importation Multi-utilisateurs (Upsert automatique dans np_segments_erp)
+async function handleSegmentsUpload(input) {
+  const file = input?.files?.[0];
+  if (!file) return;
+
+  try {
+    showToast('⏳ Analyse du fichier Segments ERP...');
+    const buf = await file.arrayBuffer();
+    const wb = XLSX.read(buf, { type: 'array' });
+    const sheet = wb.Sheets[wb.SheetNames[0]];
+    const rawData = XLSX.utils.sheet_to_json(sheet, { defval: '' });
+
+    if (!rawData.length) {
+      showToast('❌ Le fichier Excel ne contient aucune ligne.', true);
+      return;
+    }
+
+    showToast(`⏳ Traitement de ${rawData.length} lignes...`);
+
+    const records = [];
+    const seenSegs = new Set();
+    const currentUser = sessionStorage.getItem('numiplan_username') || 'utilisateur';
+
+    rawData.forEach(r => {
+      const segId = String(r['N° Segment'] || r['Segment'] || r['seg'] || r['ID'] || '').trim();
+      if (!segId || seenSegs.has(segId)) return;
+      seenSegs.add(segId);
+
+      records.append ? null : records.push({
+        seg: segId,
+        date: r['Date'] ? String(r['Date']).trim().split(' ')[0] : null,
+        tracteur: String(r['Tracteur'] || r['Matricule'] || '').trim(),
+        remorque: String(r['Remorque'] || '').trim(),
+        cond1: String(r['Chauffeur 1'] || r['Conducteur'] || '').trim(),
+        affrete: String(r['Affrété'] || '').trim(),
+        client: String(r['Client'] || '').trim(),
+        commande: String(r['Commande'] || r['N° Commande'] || '').trim(),
+        groupage: String(r['Groupage'] || '').trim(),
+        ref_cmd: String(r['Réf Commande'] || '').trim(),
+        agence: String(r['Agence'] || '').trim(),
+        activite: String(r['Activité'] || '').trim(),
+        ville_dep: String(r['Ville Départ'] || '').trim(),
+        ville_arr: String(r['Ville Arrivée'] || '').trim(),
+        lieu_dep: String(r['Lieu Départ'] || '').trim(),
+        lieu_arriv: String(r['Lieu Arrivée'] || '').trim(),
+        dt_dep_p: String(r['Date Dép. Prévue'] || '').trim(),
+        dt_dep_r: String(r['Date Dép. Réelle'] || '').trim(),
+        dt_arr_p: String(r['Date Arr. Prévue'] || '').trim(),
+        dt_arr_r: String(r['Date Arr. Réelle'] || '').trim(),
+        etat_cmd: String(r['État Commande'] || '').trim(),
+        etat_seg: String(r['État Segment'] || '').trim(),
+        tracking: String(r['Tracking'] || '').trim(),
+        km_expl: parseFloat(String(r['KM Exploité'] || 0).replace(/\s/g,'').replace(',','.')) || 0,
+        km_carto: parseFloat(String(r['KM Carto'] || 0).replace(/\s/g,'').replace(',','.')) || 0,
+        achat: parseFloat(String(r['Montant Achat'] || 0).replace(/\s/g,'').replace(',','.')) || 0,
+        jumlage: String(r['Jumelage'] || '').trim(),
+        date_seg: String(r['Date Segment'] || '').trim(),
+        imported_by: currentUser
+      });
+    });
+
+    showToast(`💾 Enregistrement de ${records.length} segments dans Supabase...`);
+
+    // Inserer par lots de 200 avec upsert (resolution=merge-duplicates)
+    const batchSize = 200;
+    for (let i = 0; i < records.length; i += batchSize) {
+      const batch = records.slice(i, i + batchSize);
+      const { error } = await sb.from('np_segments_erp').upsert(batch, { onConflict: 'seg' });
+      if (error) throw error;
+    }
+
+    showToast(`✅ ${records.length} segments importés avec succès sans conflit !`);
+    loadSegmentsData();
+
+  } catch (err) {
+    console.error('Erreur import segments:', err);
+    showToast('Erreur import: ' + err.message, true);
+  } finally {
+    input.value = '';
+  }
+}
+
+function exportSegmentsExcel() {
+  if (!allSegments.length) {
+    showToast('⚠️ Aucun segment à exporter.', true);
+    return;
+  }
+  const wb = XLSX.utils.book_new();
+  const ws = XLSX.utils.json_to_sheet(allSegments);
+  XLSX.utils.book_append_sheet(wb, ws, 'Segments_ERP');
+  XLSX.writeFile(wb, `Segments_ERP_${new Date().toISOString().split('T')[0]}.xlsx`);
+  showToast('✅ Export Excel téléchargé');
+}
+
+window.addEventListener('DOMContentLoaded', initSession);
+</script>
+</body>
+</html>
