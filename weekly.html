@@ -1,0 +1,1042 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NUMIPLAN — Bilan Weekly (PIS / UTL / TMS)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+
+<style>
+  :root {
+    --bg-dark: #070b13;
+    --bg-card: #0d1527;
+    --bg-card-hover: #121c33;
+    --bg-input: #0a0f1d;
+    --border: #1e293b;
+    --border-hover: #334155;
+    --primary: #38bdf8;
+    --primary-glow: rgba(56, 189, 248, 0.25);
+    --accent-orange: #f59e0b;
+    --accent-green: #10b981;
+    --accent-purple: #c084fc;
+    --txt-main: #f8fafc;
+    --txt-muted: #94a3b8;
+    --txt-dim: #64748b;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background-color: var(--bg-dark);
+    font-family: 'Inter', -apple-system, sans-serif;
+    color: var(--txt-main);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* TOP HEADER */
+  header {
+    height: 70px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 28px;
+    background: rgba(13, 21, 39, 0.85);
+    backdrop-filter: blur(16px);
+    position: sticky;
+    top: 0;
+    z-index: 100;
+  }
+  .brand-wrap {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    text-decoration: none;
+  }
+  .brand-logo {
+    width: 40px;
+    height: 40px;
+    background: linear-gradient(135deg, #f59e0b, #d97706);
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 20px;
+    color: #fff;
+    box-shadow: 0 4px 15px rgba(245, 158, 11, 0.35);
+  }
+  .brand-title {
+    font-size: 17px;
+    font-weight: 800;
+    letter-spacing: 0.5px;
+    color: #fff;
+  }
+  .brand-sub {
+    font-size: 11px;
+    color: var(--txt-muted);
+  }
+
+  .nav-actions {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .btn-nav {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    color: var(--txt-main);
+    padding: 8px 14px;
+    border-radius: 8px;
+    font-size: 12px;
+    font-weight: 600;
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    transition: all 0.2s;
+  }
+  .btn-nav:hover {
+    border-color: var(--primary);
+    color: var(--primary);
+    transform: translateY(-1px);
+  }
+
+  /* USER BAR */
+  .user-pill {
+    background: rgba(15, 23, 42, 0.8);
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    padding: 5px 14px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+  }
+  .status-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--accent-green);
+    box-shadow: 0 0 8px var(--accent-green);
+  }
+  .team-badge {
+    background: rgba(245, 158, 11, 0.15);
+    color: var(--accent-orange);
+    border: 1px solid rgba(245, 158, 11, 0.3);
+    padding: 2px 7px;
+    border-radius: 5px;
+    font-size: 11px;
+    font-weight: 700;
+  }
+
+  /* MAIN CONTENT */
+  main {
+    flex: 1;
+    max-width: 1440px;
+    width: 100%;
+    margin: 0 auto;
+    padding: 24px 28px;
+  }
+
+  .banner-header {
+    background: linear-gradient(135deg, rgba(245, 158, 11, 0.1), rgba(13, 21, 39, 0.8));
+    border: 1px solid rgba(245, 158, 11, 0.25);
+    border-radius: 16px;
+    padding: 20px 24px;
+    margin-bottom: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 16px;
+  }
+  .banner-info h2 {
+    font-size: 20px;
+    font-weight: 800;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .status-badge {
+    font-size: 11px;
+    font-weight: 700;
+    padding: 3px 10px;
+    border-radius: 999px;
+    background: rgba(16, 185, 129, 0.2);
+    color: #34d399;
+    border: 1px solid rgba(16, 185, 129, 0.3);
+  }
+  .banner-meta {
+    font-size: 12px;
+    color: var(--txt-muted);
+    margin-top: 6px;
+  }
+
+  .banner-actions {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+  .btn-action {
+    background: linear-gradient(135deg, #f59e0b, #d97706);
+    color: #fff;
+    border: none;
+    border-radius: 8px;
+    padding: 10px 16px;
+    font-size: 13px;
+    font-weight: 700;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    transition: all 0.2s;
+    box-shadow: 0 4px 15px rgba(245, 158, 11, 0.3);
+  }
+  .btn-action:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 6px 20px rgba(245, 158, 11, 0.45);
+  }
+  .btn-secondary {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    color: var(--txt-main);
+    padding: 10px 14px;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    transition: all 0.2s;
+  }
+  .btn-secondary:hover {
+    border-color: var(--txt-muted);
+    background: var(--bg-card-hover);
+  }
+
+  /* KPIS */
+  .kpi-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    gap: 16px;
+    margin-bottom: 24px;
+  }
+  .kpi-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 18px;
+    transition: all 0.2s;
+  }
+  .kpi-title {
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--txt-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+  .kpi-value {
+    font-size: 28px;
+    font-weight: 900;
+    margin: 8px 0 4px;
+    font-family: 'JetBrains Mono', monospace;
+  }
+  .kpi-sub {
+    font-size: 11px;
+    color: var(--txt-dim);
+  }
+
+  /* TOOLBAR & TABS */
+  .tabs-toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 16px;
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+  .tab-group {
+    display: flex;
+    gap: 6px;
+    background: var(--bg-card);
+    padding: 4px;
+    border-radius: 10px;
+    border: 1px solid var(--border);
+  }
+  .tab-btn {
+    background: transparent;
+    border: none;
+    color: var(--txt-muted);
+    padding: 8px 16px;
+    border-radius: 7px;
+    font-size: 12px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .tab-btn.active {
+    background: linear-gradient(135deg, rgba(245, 158, 11, 0.2), rgba(245, 158, 11, 0.05));
+    color: var(--accent-orange);
+    border: 1px solid rgba(245, 158, 11, 0.35);
+  }
+
+  .filters-group {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .filter-input, .filter-select {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    color: #fff;
+    padding: 8px 12px;
+    border-radius: 8px;
+    font-size: 12px;
+    outline: none;
+    transition: border 0.2s;
+  }
+  .filter-input:focus, .filter-select:focus {
+    border-color: var(--primary);
+  }
+
+  /* TABLE */
+  .table-container {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    overflow: hidden;
+    max-height: 60vh;
+    overflow-y: auto;
+  }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12px;
+    text-align: left;
+  }
+  thead {
+    position: sticky;
+    top: 0;
+    background: #0f182c;
+    z-index: 10;
+  }
+  th {
+    padding: 12px 14px;
+    font-weight: 700;
+    color: var(--txt-muted);
+    border-bottom: 1px solid var(--border);
+    font-size: 11px;
+    text-transform: uppercase;
+  }
+  td {
+    padding: 10px 14px;
+    border-bottom: 1px solid rgba(30, 41, 59, 0.7);
+    color: var(--txt-main);
+  }
+  tbody tr:hover {
+    background: var(--bg-card-hover);
+  }
+
+  /* TOAST */
+  #toast {
+    position: fixed;
+    bottom: 24px;
+    right: 24px;
+    background: #1e293b;
+    border: 1px solid var(--border);
+    padding: 12px 20px;
+    border-radius: 10px;
+    font-size: 13px;
+    font-weight: 600;
+    display: none;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+    z-index: 1000;
+  }
+
+  /* EMPTY STATE */
+  .empty-state {
+    text-align: center;
+    padding: 60px 20px;
+    color: var(--txt-muted);
+  }
+  .empty-icon {
+    font-size: 42px;
+    margin-bottom: 12px;
+    color: var(--accent-orange);
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <a href="portail.html" class="brand-wrap">
+    <div class="brand-logo">
+      <i class="fa-solid fa-chart-line"></i>
+    </div>
+    <div>
+      <div class="brand-title">NUMIPLAN WEEKLY</div>
+      <div class="brand-sub">Consolidation Hebdomadaire (PIS / UTL / TMS)</div>
+    </div>
+  </a>
+
+  <div class="nav-actions">
+    <a href="portail.html" class="btn-nav">
+      <i class="fa-solid fa-arrow-left"></i> Portail
+    </a>
+    <a href="fiche_supabase.html" class="btn-nav">
+      <i class="fa-solid fa-truck"></i> Numiplan Dispo
+    </a>
+
+    <div class="user-pill">
+      <span class="status-dot"></span>
+      <span id="u-name" style="font-weight: 700;">Utilisateur</span>
+      <span id="u-team" class="team-badge">—</span>
+    </div>
+  </div>
+</header>
+
+<main>
+  <!-- BANNER -->
+  <div class="banner-header">
+    <div class="banner-info">
+      <h2>
+        <span>Bilan Hebdomadaire</span>
+        <span id="weekly-status-badge" class="status-badge">Chargement...</span>
+      </h2>
+      <div id="weekly-meta" class="banner-meta">Initialisation de la synchronisation Supabase...</div>
+    </div>
+
+    <div class="banner-actions">
+      <label class="btn-action">
+        <i class="fa-solid fa-file-excel"></i> Importer Weekly (.xlsx)
+        <input type="file" id="file-weekly-input" accept=".xlsx,.xls" style="display:none" onchange="handleWeeklyUpload(this)">
+      </label>
+      <button onclick="exportWeeklyExcel()" class="btn-secondary" title="Exporter au format Excel">
+        <i class="fa-solid fa-download"></i> Exporter Synthèse
+      </button>
+      <button onclick="resetWeeklyManual()" class="btn-secondary" title="Remettre à 0% le RAC de la semaine">
+        <i class="fa-solid fa-rotate-left"></i> Reset RAC
+      </button>
+    </div>
+  </div>
+
+  <!-- KPIS -->
+  <div class="kpi-grid" id="weekly-kpis"></div>
+
+  <!-- TABS & TOOLBAR -->
+  <div class="tabs-toolbar">
+    <div class="tab-group">
+      <button class="tab-btn active" id="tab-pis" onclick="switchSubTab('pis')">
+        <i class="fa-solid fa-truck"></i> PIS (Véhicules &amp; RAC)
+      </button>
+      <button class="tab-btn" id="tab-utl" onclick="switchSubTab('utl')">
+        <i class="fa-solid fa-wrench"></i> UTL (Disponibilité)
+      </button>
+      <button class="tab-btn" id="tab-tms" onclick="switchSubTab('tms')">
+        <i class="fa-solid fa-box"></i> TMS (Ordres &amp; CA)
+      </button>
+      <button class="tab-btn" id="tab-pitt" onclick="switchSubTab('pitt')">
+        <i class="fa-solid fa-table-cells"></i> PITT (Synthèse)
+      </button>
+    </div>
+
+    <div class="filters-group">
+      <select id="filter-team" class="filter-select" onchange="renderActiveTab()">
+        <option value="">Toutes les Équipes</option>
+        <option value="A1">Équipe A1</option>
+        <option value="A2">Équipe A2</option>
+        <option value="B1">Équipe B1</option>
+        <option value="B2">Équipe B2</option>
+        <option value="C1">Équipe C1</option>
+        <option value="C2">Équipe C2</option>
+        <option value="D1">Équipe D1</option>
+        <option value="D2">Équipe D2</option>
+      </select>
+      <input type="text" id="search-box" class="filter-input" placeholder="🔍 Rechercher (camion, chauffeur...)" oninput="renderActiveTab()">
+    </div>
+  </div>
+
+  <!-- MAIN TABLE CONTAINER -->
+  <div class="table-container" id="tab-content-area"></div>
+</main>
+
+<div id="toast"></div>
+
+<script>
+const SUPABASE_URL = 'https://mfljrozyxyfkymzlnsmt.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_sMb9uHOr4gpyqmZGrkY-YQ_z90TgNAB';
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+let currentTab = 'pis';
+let weeklyData = null;
+
+function showToast(msg, isError = false) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.style.display = 'block';
+  t.style.borderColor = isError ? '#ef4444' : '#10b981';
+  t.style.color = isError ? '#f87171' : '#34d399';
+  setTimeout(() => { t.style.display = 'none'; }, 3500);
+}
+
+// 1. Initialisation Authentification
+async function initSession() {
+  const user = sessionStorage.getItem('numiplan_username') || 'utilisateur';
+  const role = sessionStorage.getItem('numiplan_user_role') || 'equipe';
+  const teamLock = sessionStorage.getItem('numiplan_team_lock') || '';
+
+  document.getElementById('u-name').textContent = user;
+  document.getElementById('u-team').textContent = teamLock || role.toUpperCase();
+
+  // Verifier session Supabase Auth
+  const { data: { session } } = await sb.auth.getSession();
+  if (!session) {
+    // Si pas de session active, rediriger vers portail.html
+    window.location.href = 'portail.html';
+    return;
+  }
+
+  loadActiveWeekly();
+}
+
+// 2. Chargement depuis np_weekly_imports
+async function loadActiveWeekly() {
+  try {
+    const { data, error } = await sb
+      .from('np_weekly_imports')
+      .select('*')
+      .eq('is_active', true)
+      .order('week_monday', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (error) throw error;
+
+    if (data && data.payload) {
+      weeklyData = data.payload;
+      weeklyData._dbId = data.id;
+      weeklyData.manualReset = data.manual_reset;
+      weeklyData.weekMonday = data.week_monday;
+      weeklyData.fileName = data.file_name;
+      weeklyData.importedAt = data.imported_at;
+      renderAll();
+    } else {
+      renderEmptyState();
+    }
+  } catch (err) {
+    console.error('Erreur chargement Weekly:', err);
+    showToast('Erreur chargement Weekly: ' + err.message, true);
+    renderEmptyState();
+  }
+}
+
+function renderEmptyState() {
+  document.getElementById('weekly-status-badge').textContent = 'Aucun fichier actif';
+  document.getElementById('weekly-status-badge').style.background = 'rgba(148, 163, 184, 0.2)';
+  document.getElementById('weekly-status-badge').style.color = 'var(--txt-muted)';
+  document.getElementById('weekly-meta').textContent = 'Importez un fichier Excel Weekly (.xlsx) pour consolider les données.';
+  document.getElementById('weekly-kpis').innerHTML = '';
+  document.getElementById('tab-content-area').innerHTML = `
+    <div class="empty-state">
+      <div class="empty-icon"><i class="fa-solid fa-file-arrow-up"></i></div>
+      <h3 style="font-size:16px;font-weight:700;color:#fff;margin-bottom:8px">Aucun rapport Weekly chargé</h3>
+      <p style="font-size:13px;max-width:480px;margin:0 auto">Cliquez sur « <b>Importer Weekly (.xlsx)</b> » en haut pour charger un rapport hebdo (feuilles PIS, UTL, TMS et PITT).</p>
+    </div>
+  `;
+}
+
+function resolveTeam(part) {
+  const p = String(part || '').toUpperCase().replace('PART', '').trim();
+  for (const t of ['A2', 'A1', 'B2', 'B1', 'C2', 'C1', 'D2', 'D1']) {
+    if (p.includes(t)) return t;
+  }
+  if (['A', 'B', 'C', 'D'].includes(p)) return p + '1';
+  return '';
+}
+
+function computeStats(data) {
+  const byTeam = {};
+  ['A1', 'A2', 'B1', 'B2', 'C1', 'C2', 'D1', 'D2'].forEach(eq => {
+    byTeam[eq] = { ecart: 0, facture: 0, vide: 0, count: 0 };
+  });
+  const global = { ecart: 0, facture: 0, vide: 0, count: 0 };
+
+  (data.pisRows || []).forEach(r => {
+    const eq = resolveTeam(r.part);
+    const ec = Number(r.ecart) || 0;
+    const fa = Number(r.facture) || 0;
+    const vi = Number(r.vide) || 0;
+    global.ecart += ec;
+    global.facture += fa;
+    global.vide += vi;
+    global.count += 1;
+    if (eq && byTeam[eq]) {
+      byTeam[eq].ecart += ec;
+      byTeam[eq].facture += fa;
+      byTeam[eq].vide += vi;
+      byTeam[eq].count += 1;
+    }
+  });
+  return { byTeam, global };
+}
+
+function renderAll() {
+  if (!weeklyData) return renderEmptyState();
+
+  const isReset = weeklyData.manualReset;
+  const badge = document.getElementById('weekly-status-badge');
+  badge.textContent = isReset ? '🔄 Remis à 0 (Reset manuel)' : `✅ Actif — Semaine du ${weeklyData.weekMonday}`;
+  badge.style.background = isReset ? 'rgba(245, 158, 11, 0.2)' : 'rgba(16, 185, 129, 0.2)';
+  badge.style.color = isReset ? '#fbbf24' : '#34d399';
+
+  const dtStr = weeklyData.importedAt ? new Date(weeklyData.importedAt).toLocaleString('fr-FR') : '—';
+  document.getElementById('weekly-meta').innerHTML = `
+    Fichier : <b style="color:#fbbf24">${weeklyData.fileName || 'Weekly.xlsx'}</b> ·
+    Importé le <b>${dtStr}</b> ·
+    <b>${(weeklyData.pisRows || []).length}</b> camions PIS ·
+    <b>${(weeklyData.tmsRows || []).length}</b> ordres TMS
+  `;
+
+  // Render KPIs
+  const stats = computeStats(weeklyData);
+  const racGlobal = stats.global.ecart > 0 ? (stats.global.facture / stats.global.ecart) * 100 : 0;
+  
+  const utlRows = (weeklyData.utlData && weeklyData.utlData.rows) || [];
+  const dispoRow = utlRows.find(r => r.label.toLowerCase().includes('disponibilit'));
+  const trRow = utlRows.find(r => r.label.toLowerCase().includes('taux de tr'));
+  const parseAvg = (row) => {
+    if (!row || !row.values || !row.values.length) return '—';
+    const nums = row.values.map(v => parseFloat(String(v).replace('%','').replace(',','.'))).filter(n => !isNaN(n) && n > 0);
+    return nums.length ? (nums.reduce((a, b) => a + b, 0) / nums.length).toFixed(1) + '%' : '—';
+  };
+
+  const tmsList = weeklyData.tmsRows || [];
+  const caTotal = tmsList.reduce((s, r) => s + (Number(r.ca) || 0), 0);
+  const kmTotal = tmsList.reduce((s, r) => s + (Number(r.km) || 0), 0);
+
+  const teamPills = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2', 'D1', 'D2'].map(eq => {
+    const st = stats.byTeam[eq];
+    const r = st && st.ecart > 0 ? ((st.facture / st.ecart) * 100).toFixed(0) + '%' : '—';
+    return `<span style="font-size:10px;padding:2px 6px;border-radius:4px;background:#1e293b;border:1px solid #334155"><b>${eq}:</b> ${r}</span>`;
+  }).join(' ');
+
+  document.getElementById('weekly-kpis').innerHTML = `
+    <div class="kpi-card" style="border-color: rgba(56, 189, 248, 0.35);">
+      <div class="kpi-title">🛣️ RAC GLOBAL (PIS)</div>
+      <div class="kpi-value" style="color:#38bdf8">${racGlobal.toFixed(1)}%</div>
+      <div class="kpi-sub" style="margin-bottom:8px">${Math.round(stats.global.facture).toLocaleString('fr-FR')} km fact. / ${Math.round(stats.global.ecart).toLocaleString('fr-FR')} km</div>
+      <div style="display:flex;flex-wrap:wrap;gap:4px">${teamPills}</div>
+    </div>
+    <div class="kpi-card" style="border-color: rgba(16, 185, 129, 0.35);">
+      <div class="kpi-title">🔧 DISPONIBILITÉ TECHNIQUE (UTL)</div>
+      <div class="kpi-value" style="color:#34d399">${parseAvg(dispoRow)}</div>
+      <div class="kpi-sub">Moyenne sur ${(weeklyData.utlData?.dates || []).length} jours ouvrés</div>
+    </div>
+    <div class="kpi-card" style="border-color: rgba(245, 158, 11, 0.35);">
+      <div class="kpi-title">🚛 TAUX TR UTILISÉ (UTL)</div>
+      <div class="kpi-value" style="color:#fbbf24">${parseAvg(trRow)}</div>
+      <div class="kpi-sub">Utilisation moyenne des tracteurs</div>
+    </div>
+    <div class="kpi-card" style="border-color: rgba(192, 132, 252, 0.35);">
+      <div class="kpi-title">📦 CA &amp; ORDRES (TMS)</div>
+      <div class="kpi-value" style="color:#c084fc">${Math.round(caTotal).toLocaleString('fr-FR')} DA</div>
+      <div class="kpi-sub">${tmsList.length} ordres · ${Math.round(kmTotal).toLocaleString('fr-FR')} km</div>
+    </div>
+  `;
+
+  renderActiveTab();
+}
+
+function switchSubTab(tab) {
+  currentTab = tab;
+  ['pis', 'utl', 'tms', 'pitt'].forEach(t => {
+    document.getElementById(`tab-${t}`)?.classList.toggle('active', t === tab);
+  });
+  renderActiveTab();
+}
+
+function renderActiveTab() {
+  if (!weeklyData) return;
+  const area = document.getElementById('tab-content-area');
+  const teamFlt = (document.getElementById('filter-team')?.value || '').trim();
+  const q = (document.getElementById('search-box')?.value || '').trim().toLowerCase();
+
+  if (currentTab === 'pis') {
+    const rows = (weeklyData.pisRows || [])
+      .map(r => ({ ...r, eq: resolveTeam(r.part) }))
+      .filter(r => !teamFlt || r.eq === teamFlt)
+      .filter(r => !q || `${r.vehicule} ${r.chauffeur} ${r.part} ${r.eq}`.toLowerCase().includes(q));
+
+    const odoS = weeklyData.pisMeta?.odoStartLabel || 'Odo Début';
+    const odoE = weeklyData.pisMeta?.odoEndLabel || 'Odo Fin';
+
+    area.innerHTML = `
+      <table>
+        <thead>
+          <tr>
+            <th>Équipe / PART</th>
+            <th>Véhicule</th>
+            <th>Chauffeur</th>
+            <th style="text-align:right">${odoS}</th>
+            <th style="text-align:right">${odoE}</th>
+            <th style="text-align:right">Écart KM</th>
+            <th style="text-align:right">KM Facturé</th>
+            <th style="text-align:right">KM À Vide</th>
+            <th style="text-align:center">RAC %</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${rows.map(r => {
+            const pct = Number(r.racPct) || 0;
+            const col = pct >= 70 ? '#34d399' : (pct >= 50 ? '#fbbf24' : '#f87171');
+            return `
+              <tr>
+                <td><b>${r.part || '—'}</b> <span class="team-badge">${r.eq || '—'}</span></td>
+                <td style="font-family:'JetBrains Mono',monospace;font-weight:700;color:#38bdf8">${r.vehicule}</td>
+                <td>${r.chauffeur || '—'}</td>
+                <td style="text-align:right">${r.odoStart ? r.odoStart.toLocaleString('fr-FR') : '—'}</td>
+                <td style="text-align:right">${r.odoEnd ? r.odoEnd.toLocaleString('fr-FR') : '—'}</td>
+                <td style="text-align:right;font-weight:700">${Math.round(r.ecart || 0).toLocaleString('fr-FR')}</td>
+                <td style="text-align:right;color:#38bdf8;font-weight:700">${Math.round(r.facture || 0).toLocaleString('fr-FR')}</td>
+                <td style="text-align:right;color:var(--txt-muted)">${Math.round(r.vide || 0).toLocaleString('fr-FR')}</td>
+                <td style="text-align:center"><b style="color:${col};font-size:13px">${pct.toFixed(0)}%</b></td>
+              </tr>
+            `;
+          }).join('')}
+        </tbody>
+      </table>
+    `;
+  } else if (currentTab === 'utl') {
+    const utl = weeklyData.utlData || { dates: [], rows: [] };
+    area.innerHTML = `
+      <table>
+        <thead>
+          <tr>
+            <th>Indicateur Flotte</th>
+            ${utl.dates.map(d => `<th style="text-align:center">${d}</th>`).join('')}
+          </tr>
+        </thead>
+        <tbody>
+          ${utl.rows.map(r => `
+            <tr>
+              <td style="font-weight:700">${r.label}</td>
+              ${r.values.map(v => `<td style="text-align:center;font-weight:600">${v}</td>`).join('')}
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+    `;
+  } else if (currentTab === 'tms') {
+    const rows = (weeklyData.tmsRows || [])
+      .filter(r => !teamFlt || String(r.agence || '').toUpperCase().includes(teamFlt.charAt(0)))
+      .filter(r => !q || `${r.agence} ${r.nomClient} ${r.num} ${r.tracteur} ${r.cond1}`.toLowerCase().includes(q))
+      .slice(0, 300);
+
+    area.innerHTML = `
+      <table>
+        <thead>
+          <tr>
+            <th>Agence</th>
+            <th>N° OT</th>
+            <th>Client</th>
+            <th>Activité</th>
+            <th>Itinéraire</th>
+            <th>Départ</th>
+            <th>Tracteur / Chauffeur</th>
+            <th style="text-align:right">CA (DA)</th>
+            <th style="text-align:right">KM</th>
+            <th style="text-align:center">État</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${rows.map(r => `
+            <tr>
+              <td><b>${r.agence || '—'}</b></td>
+              <td style="font-family:'JetBrains Mono',monospace">${r.num}</td>
+              <td>${r.nomClient || '—'}</td>
+              <td>${r.activite || '—'}</td>
+              <td>${r.itineraire || (r.villeDep + ' → ' + r.villeArr)}</td>
+              <td>${r.dDepSeg || '—'}</td>
+              <td>${r.tracteur || '—'}<div style="font-size:10px;color:var(--txt-muted)">${r.cond1 || ''}</div></td>
+              <td style="text-align:right;font-weight:700;color:#34d399">${Math.round(r.ca || 0).toLocaleString('fr-FR')}</td>
+              <td style="text-align:right">${Math.round(r.km || 0).toLocaleString('fr-FR')}</td>
+              <td style="text-align:center">${r.etatCmd || r.etatSeg || '—'}</td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+    `;
+  } else if (currentTab === 'pitt') {
+    const rows = weeklyData.pittRows || [];
+    area.innerHTML = `
+      <table>
+        <thead>
+          <tr>
+            <th>Catégorie</th>
+            <th>Indicateur</th>
+            <th style="text-align:right">SHARIK (ACT)</th>
+            <th style="text-align:right">PORTE CONTENEUR</th>
+            <th style="text-align:right">CITERNE</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${rows.map(r => `
+            <tr>
+              <td style="font-weight:700;color:#fbbf24">${r.categorie || '—'}</td>
+              <td style="font-weight:600">${r.indicateur || '—'}</td>
+              <td style="text-align:right;font-weight:700">${r.sharik || '—'}</td>
+              <td style="text-align:right">${r.porteConteneur || '—'}</td>
+              <td style="text-align:right">${r.citerne || '—'}</td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+    `;
+  }
+}
+
+// 3. Importation Excel
+async function handleWeeklyUpload(input) {
+  const file = input?.files?.[0];
+  if (!file) return;
+
+  try {
+    showToast('⏳ Analyse du fichier Weekly en cours...');
+    const buf = await file.arrayBuffer();
+    const wb = XLSX.read(buf, { type: 'array' });
+
+    // Feuille PIS
+    const pisRows = [];
+    let pisMeta = { odoStartLabel: 'Odo Début', odoEndLabel: 'Odo Fin' };
+    const pisSheetName = wb.SheetNames.find(n => n.trim().toUpperCase() === 'PIS');
+    if (pisSheetName) {
+      const aoa = XLSX.utils.sheet_to_json(wb.Sheets[pisSheetName], { header: 1, defval: '' });
+      if (aoa.length > 0) {
+        pisMeta.odoStartLabel = String(aoa[0][3] || 'Odo Début').trim();
+        pisMeta.odoEndLabel = String(aoa[0][4] || 'Odo Fin').trim();
+        for (let i = 1; i < aoa.length; i++) {
+          const row = aoa[i];
+          if (!row[0] && !row[1]) continue;
+          const ecart = parseFloat(String(row[5] || 0).replace(/\s/g,'').replace(',','.'));
+          const facture = parseFloat(String(row[6] || 0).replace(/\s/g,'').replace(',','.'));
+          const vide = parseFloat(String(row[7] || 0).replace(/\s/g,'').replace(',','.'));
+          const racPct = ecart > 0 ? (facture / ecart) * 100 : 0;
+          pisRows.push({
+            part: String(row[0] || '').trim(),
+            vehicule: String(row[1] || '').trim(),
+            chauffeur: String(row[2] || '').trim(),
+            odoStart: parseFloat(row[3]) || 0,
+            odoEnd: parseFloat(row[4]) || 0,
+            ecart, facture, vide, racPct
+          });
+        }
+      }
+    }
+
+    // Feuille UTL
+    let utlData = { dates: [], rows: [] };
+    const utlSheetName = wb.SheetNames.find(n => n.trim().toUpperCase() === 'UTL');
+    if (utlSheetName) {
+      const aoa = XLSX.utils.sheet_to_json(wb.Sheets[utlSheetName], { header: 1, defval: '' });
+      if (aoa.length > 0) {
+        utlData.dates = aoa[0].slice(1).map(d => String(d).trim()).filter(Boolean);
+        for (let i = 1; i < aoa.length; i++) {
+          const r = aoa[i];
+          if (!r[0]) continue;
+          utlData.rows.push({
+            label: String(r[0]).trim(),
+            values: r.slice(1, 1 + utlData.dates.length)
+          });
+        }
+      }
+    }
+
+    // Feuille TMS
+    const tmsRows = [];
+    const tmsSheetName = wb.SheetNames.find(n => n.trim().toUpperCase() === 'TMS');
+    if (tmsSheetName) {
+      const aoa = XLSX.utils.sheet_to_json(wb.Sheets[tmsSheetName], { header: 1, defval: '' });
+      if (aoa.length > 0) {
+        for (let i = 1; i < aoa.length; i++) {
+          const r = aoa[i];
+          if (!r[0] && !r[1]) continue;
+          tmsRows.push({
+            agence: String(r[0] || '').trim(),
+            num: String(r[1] || '').trim(),
+            nomClient: String(r[2] || '').trim(),
+            activite: String(r[3] || '').trim(),
+            itineraire: String(r[4] || '').trim(),
+            dDepSeg: String(r[5] || '').trim(),
+            tracteur: String(r[6] || '').trim(),
+            cond1: String(r[7] || '').trim(),
+            ca: parseFloat(String(r[8] || 0).replace(/\s/g,'').replace(',','.')),
+            mtAchat: parseFloat(String(r[9] || 0).replace(/\s/g,'').replace(',','.')),
+            km: parseFloat(String(r[10] || 0).replace(/\s/g,'').replace(',','.')),
+            etatCmd: String(r[11] || '').trim()
+          });
+        }
+      }
+    }
+
+    // Feuille PITT
+    const pittRows = [];
+    const pittSheetName = wb.SheetNames.find(n => n.trim().toUpperCase().includes('PITT'));
+    if (pittSheetName) {
+      const aoa = XLSX.utils.sheet_to_json(wb.Sheets[pittSheetName], { header: 1, defval: '' });
+      for (let i = 1; i < aoa.length; i++) {
+        const r = aoa[i];
+        if (!r[0]) continue;
+        pittRows.push({
+          categorie: String(r[0] || '').trim(),
+          indicateur: String(r[1] || '').trim(),
+          sharik: String(r[2] || '').trim(),
+          porteConteneur: String(r[3] || '').trim(),
+          citerne: String(r[4] || '').trim()
+        });
+      }
+    }
+
+    // Calcul lundi de la semaine
+    const now = new Date();
+    const day = now.getDay();
+    const diff = day === 0 ? -6 : 1 - day;
+    const mon = new Date(now.getFullYear(), now.getMonth(), now.getDate() + diff);
+    const weekMonday = mon.toISOString().split('T')[0];
+
+    const payload = {
+      fileName: file.name,
+      importedAt: new Date().toISOString(),
+      weekMonday,
+      manualReset: false,
+      pisMeta,
+      pisRows,
+      utlData,
+      tmsRows,
+      pittRows
+    };
+
+    showToast('💾 Enregistrement dans Supabase...');
+
+    // 1. Désactiver anciens imports
+    await sb.from('np_weekly_imports').update({ is_active: false }).eq('is_active', true);
+
+    // 2. Insérer nouveau weekly import
+    const { data: imp, error: impErr } = await sb.from('np_weekly_imports').insert({
+      week_monday: weekMonday,
+      file_name: file.name,
+      imported_by: sessionStorage.getItem('numiplan_username') || 'utilisateur',
+      is_active: true,
+      manual_reset: false,
+      pis_meta: pisMeta,
+      counts: { pis: pisRows.length, tms: tmsRows.length, pitt: pittRows.length },
+      payload
+    }).select().single();
+
+    if (impErr) throw impErr;
+
+    // 3. Mettre à jour np_weekly_rac (camions individuels)
+    const racRecords = [];
+    const seen = new Set();
+    pisRows.forEach(r => {
+      const p = String(r.vehicule || '').replace(/[\r\n\s\-]/g, '').toUpperCase();
+      if (!p || seen.has(p)) return;
+      seen.add(p);
+      racRecords.push({
+        plate: p,
+        raw_plate: r.vehicule,
+        part: r.part,
+        team: resolveTeam(r.part),
+        ecart: r.ecart,
+        facture: r.facture,
+        vide: r.vide,
+        rac_pct: r.racPct,
+        week_monday: weekMonday
+      });
+    });
+
+    if (racRecords.length > 0) {
+      await sb.from('np_weekly_rac').upsert(racRecords, { onConflict: 'plate' });
+    }
+
+    // 4. Synchronisation rétro-compatible vers numiplan_teams (WEEKLY_REPORT)
+    await sb.from('numiplan_teams').upsert({
+      team: 'WEEKLY_REPORT',
+      payload,
+      updated_at: new Date().toISOString()
+    }, { onConflict: 'team' });
+
+    weeklyData = payload;
+    weeklyData._dbId = imp.id;
+    showToast('✅ Bilan Weekly importé et synchronisé !');
+    renderAll();
+
+  } catch (err) {
+    console.error('Erreur import Weekly:', err);
+    showToast('Erreur import: ' + err.message, true);
+  } finally {
+    input.value = '';
+  }
+}
+
+// 4. Export Synthèse Excel
+function exportWeeklyExcel() {
+  if (!weeklyData || !weeklyData.pisRows) {
+    showToast('⚠️ Aucune donnée Weekly à exporter.', true);
+    return;
+  }
+  const wb = XLSX.utils.book_new();
+
+  // Feuille PIS
+  const pisExport = weeklyData.pisRows.map(r => ({
+    'PART': r.part,
+    'Équipe': resolveTeam(r.part),
+    'Véhicule': r.vehicule,
+    'Chauffeur': r.chauffeur,
+    'Odo Début': r.odoStart,
+    'Odo Fin': r.odoEnd,
+    'Écart KM': r.ecart,
+    'KM Facturé': r.facture,
+    'KM À Vide': r.vide,
+    'RAC %': Number(r.racPct || 0).toFixed(1) + '%'
+  }));
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(pisExport), 'PIS');
+
+  // Feuille TMS
+  if (weeklyData.tmsRows && weeklyData.tmsRows.length) {
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(weeklyData.tmsRows), 'TMS');
+  }
+
+  XLSX.writeFile(wb, `Synthese_Weekly_${weeklyData.weekMonday || 'semaine'}.xlsx`);
+  showToast('✅ Export Excel généré');
+}
+
+// 5. Reset Manuel
+async function resetWeeklyManual() {
+  if (!confirm('Voulez-vous remettre les compteurs Weekly à 0.0% pour la semaine en cours ?')) return;
+  try {
+    if (weeklyData && weeklyData._dbId) {
+      await sb.from('np_weekly_imports').update({ manual_reset: true }).eq('id', weeklyData._dbId);
+    }
+    await sb.from('np_weekly_rac').update({ rac_pct: 0 });
+    weeklyData.manualReset = true;
+    showToast('🔄 Compteurs RAC remis à 0');
+    renderAll();
+  } catch (err) {
+    showToast('Erreur reset: ' + err.message, true);
+  }
+}
+
+window.addEventListener('DOMContentLoaded', initSession);
+</script>
+</body>
+</html>
