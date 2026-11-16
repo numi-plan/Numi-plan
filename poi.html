@@ -458,12 +458,21 @@ async function loadPoiData() {
   try {
     showToast('⏳ Récupération des données POI...');
     
+    const safeQuery = async (p) => {
+      try {
+        const res = await p;
+        return res || { data: [] };
+      } catch (e) {
+        return { data: [] };
+      }
+    };
+
     // Requêtes parallèles
     const [poisRes, activeRes, histRes, dispoRes] = await Promise.all([
-      sb.from('np_pois').select('*').limit(2000),
-      sb.from('np_poi_visits').select('*').is('left_at', null).order('arrived_at', { ascending: false }),
-      sb.from('np_poi_visits').select('*').not('left_at', 'is', null).order('left_at', { ascending: false }).limit(500),
-      sb.from('np_dispo').select('v, chauffeur, etat').limit(500).catch(() => ({ data: [] }))
+      safeQuery(sb.from('np_pois').select('*').limit(2000)),
+      safeQuery(sb.from('np_poi_visits').select('*').is('left_at', null).order('arrived_at', { ascending: false })),
+      safeQuery(sb.from('np_poi_visits').select('*').not('left_at', 'is', null).order('left_at', { ascending: false }).limit(500)),
+      safeQuery(sb.from('np_dispo').select('v, chauffeur, etat').limit(500))
     ]);
 
     poisList = poisRes.data || [];
