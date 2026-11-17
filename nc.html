@@ -1,0 +1,1487 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NUMIPLAN — Non-Conformités & Écarts Déclarés</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@500;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+
+<style>
+  :root {
+    --bg-dark: #070b13;
+    --bg-card: #0d1527;
+    --bg-card-hover: #121c33;
+    --bg2: #0f172a;
+    --bg3: #1e293b;
+    --border: #1e293b;
+    --border-hover: #334155;
+    --primary: #38bdf8;
+    --accent-yellow: #eab308;
+    --accent-orange: #f59e0b;
+    --accent-green: #10b981;
+    --accent-red: #ef4444;
+    --accent-purple: #a855f7;
+    --txt: #f8fafc;
+    --txt-main: #f8fafc;
+    --txt2: #94a3b8;
+    --txt3: #64748b;
+    --txt-muted: #94a3b8;
+    --txt-dim: #64748b;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background-color: var(--bg-dark);
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    color: var(--txt-main);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+  }
+
+  header {
+    height: 70px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 32px;
+    background: rgba(13, 21, 39, 0.85);
+    backdrop-filter: blur(12px);
+    position: sticky;
+    top: 0;
+    z-index: 100;
+  }
+
+  .brand-area {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
+  .brand-icon {
+    width: 42px;
+    height: 42px;
+    border-radius: 12px;
+    background: linear-gradient(135deg, #ef4444 0%, #b91c1c 100%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 20px;
+    color: #fff;
+    box-shadow: 0 4px 14px rgba(239, 68, 68, 0.4);
+  }
+  .brand-title {
+    font-size: 17px;
+    font-weight: 800;
+    letter-spacing: -0.3px;
+    color: #fff;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .brand-sub {
+    font-size: 12px;
+    color: var(--txt-muted);
+    font-weight: 500;
+  }
+
+  .nav-actions {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .btn-nav {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 14px;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--txt-main);
+    font-size: 13px;
+    font-weight: 600;
+    text-decoration: none;
+    cursor: pointer;
+    transition: all 0.2s ease;
+  }
+  .btn-nav:hover {
+    background: var(--bg-card-hover);
+    border-color: var(--border-hover);
+    color: #fff;
+  }
+
+  .user-badge {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 12px;
+    border-radius: 20px;
+    background: rgba(56, 189, 248, 0.1);
+    border: 1px solid rgba(56, 189, 248, 0.25);
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--primary);
+  }
+
+  .main-content {
+    flex: 1;
+    padding: 24px 32px 60px;
+    max-width: 1700px;
+    width: 100%;
+    margin: 0 auto;
+  }
+
+  /* SECTION TITLE & BUTTONS */
+  .section-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 22px;
+    flex-wrap: wrap;
+    gap: 16px;
+  }
+  .head-left h1 {
+    font-size: 24px;
+    font-weight: 800;
+    letter-spacing: -0.4px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .head-left p {
+    font-size: 13px;
+    color: var(--txt-muted);
+    margin-top: 4px;
+  }
+  .head-right {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+
+  .btn-action {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 9px 16px;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 700;
+    cursor: pointer;
+    border: 1px solid transparent;
+    transition: all 0.2s ease;
+  }
+  .btn-action.primary {
+    background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+    color: #fff;
+    box-shadow: 0 4px 14px rgba(239, 68, 68, 0.35);
+  }
+  .btn-action.primary:hover {
+    background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%);
+    transform: translateY(-1px);
+  }
+  .btn-action.secondary {
+    background: var(--bg-card);
+    border-color: var(--border);
+    color: var(--txt-main);
+  }
+  .btn-action.secondary:hover {
+    background: var(--bg-card-hover);
+    border-color: var(--border-hover);
+  }
+
+  /* KPI CARDS */
+  .kpi-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 16px;
+    margin-bottom: 24px;
+  }
+  .kpi-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 16px 20px;
+    transition: all 0.2s ease;
+    cursor: pointer;
+  }
+  .kpi-card:hover {
+    border-color: var(--border-hover);
+    background: var(--bg-card-hover);
+    transform: translateY(-2px);
+  }
+  .kpi-title {
+    font-size: 11px;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--txt-muted);
+    margin-bottom: 8px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .kpi-value {
+    font-size: 28px;
+    font-weight: 900;
+    font-family: 'JetBrains Mono', monospace;
+    letter-spacing: -1px;
+    color: #fff;
+  }
+  .kpi-sub {
+    font-size: 12px;
+    color: var(--txt-dim);
+    margin-top: 4px;
+  }
+
+  /* TOOLBAR & FILTERS */
+  .toolbar {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 14px 18px;
+    margin-bottom: 20px;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 14px;
+  }
+  .filter-group {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+  .input-control {
+    background: #090f1d;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 8px 12px;
+    color: #fff;
+    font-size: 13px;
+    font-family: 'Inter', sans-serif;
+    outline: none;
+    transition: border-color 0.2s ease;
+  }
+  .input-control:focus {
+    border-color: var(--primary);
+  }
+  .search-input {
+    min-width: 260px;
+  }
+
+  /* CHIPS / TOGGLE BUTTONS */
+  .chip-btn {
+    padding: 7px 12px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--txt-muted);
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .chip-btn:hover {
+    background: rgba(255, 255, 255, 0.1);
+    color: #fff;
+  }
+  .chip-btn.active {
+    background: rgba(239, 68, 68, 0.2);
+    border-color: #ef4444;
+    color: #f87171;
+  }
+
+  /* TABLE */
+  .table-container {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    overflow: hidden;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+  }
+  .table-responsive {
+    overflow-x: auto;
+    max-height: 680px;
+  }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    text-align: left;
+    font-size: 13px;
+  }
+  thead {
+    background: #090e1a;
+    position: sticky;
+    top: 0;
+    z-index: 10;
+  }
+  th {
+    padding: 13px 14px;
+    font-size: 11px;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+    color: var(--txt-muted);
+    border-bottom: 1px solid var(--border);
+    white-space: nowrap;
+  }
+  td {
+    padding: 12px 14px;
+    border-bottom: 1px solid rgba(30, 41, 59, 0.7);
+    color: #e2e8f0;
+    vertical-align: middle;
+  }
+  tbody tr {
+    transition: background-color 0.15s ease;
+  }
+  tbody tr:hover {
+    background-color: var(--bg-card-hover);
+  }
+
+  /* BADGES */
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 3px 9px;
+    border-radius: 6px;
+    font-size: 11px;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+  }
+  .badge-chgt {
+    background: rgba(245, 158, 11, 0.15);
+    color: #fbbf24;
+    border: 1px solid rgba(245, 158, 11, 0.35);
+  }
+  .badge-autorise {
+    background: rgba(16, 185, 129, 0.15);
+    color: #34d399;
+    border: 1px solid rgba(16, 185, 129, 0.35);
+  }
+  .badge-fausse {
+    background: rgba(239, 68, 68, 0.15);
+    color: #f87171;
+    border: 1px solid rgba(239, 68, 68, 0.35);
+  }
+  .badge-refus {
+    background: rgba(168, 85, 247, 0.15);
+    color: #c084fc;
+    border: 1px solid rgba(168, 85, 247, 0.35);
+  }
+  .badge-autre {
+    background: rgba(148, 163, 184, 0.15);
+    color: #cbd5e1;
+    border: 1px solid rgba(148, 163, 184, 0.35);
+  }
+  .badge-team {
+    background: rgba(56, 189, 248, 0.15);
+    color: #38bdf8;
+    border: 1px solid rgba(56, 189, 248, 0.35);
+    font-family: 'JetBrains Mono', monospace;
+    font-weight: 800;
+  }
+  .badge-recidive {
+    background: rgba(239, 68, 68, 0.25);
+    color: #fca5a5;
+    border: 1px solid #ef4444;
+    border-radius: 12px;
+    padding: 1px 7px;
+    font-size: 10px;
+    font-weight: 900;
+    margin-left: 6px;
+    display: inline-block;
+  }
+  .badge-mise {
+    background: rgba(239, 68, 68, 0.2);
+    color: #ef4444;
+    border: 1px solid rgba(239, 68, 68, 0.4);
+    font-weight: 800;
+  }
+
+  .immat-cell {
+    font-family: 'JetBrains Mono', monospace;
+    font-weight: 700;
+    color: var(--primary);
+  }
+  .driver-cell {
+    font-weight: 700;
+    color: #fff;
+  }
+  .date-cell {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    color: var(--txt-muted);
+  }
+
+  /* ACTIONS BUTTONS IN ROW */
+  .row-actions {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .btn-icon {
+    width: 30px;
+    height: 30px;
+    border-radius: 6px;
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    color: var(--txt-muted);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    font-size: 12px;
+    transition: all 0.2s ease;
+  }
+  .btn-icon:hover {
+    color: #fff;
+    border-color: var(--border-hover);
+    background: var(--bg-card-hover);
+  }
+  .btn-icon.mail:hover {
+    color: var(--primary);
+    border-color: var(--primary);
+  }
+  .btn-icon.edit:hover {
+    color: #fbbf24;
+    border-color: #fbbf24;
+  }
+  .btn-icon.delete:hover {
+    color: var(--accent-red);
+    border-color: var(--accent-red);
+  }
+
+  /* MODAL */
+  .modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(3, 7, 18, 0.85);
+    backdrop-filter: blur(8px);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+    padding: 20px;
+  }
+  .modal-overlay.active {
+    display: flex;
+  }
+  .modal {
+    background: #0d1527;
+    border: 1px solid var(--border-hover);
+    border-radius: 16px;
+    width: 100%;
+    max-width: 640px;
+    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.6);
+    overflow: hidden;
+    animation: modalIn 0.25s ease-out;
+  }
+  @keyframes modalIn {
+    from { opacity: 0; transform: scale(0.96) translateY(10px); }
+    to { opacity: 1; transform: scale(1) translateY(0); }
+  }
+  .modal-head {
+    padding: 18px 24px;
+    background: #0a101f;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .modal-head h3 {
+    font-size: 16px;
+    font-weight: 800;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    color: #fff;
+  }
+  .modal-close {
+    background: none;
+    border: none;
+    color: var(--txt-muted);
+    font-size: 18px;
+    cursor: pointer;
+  }
+  .modal-close:hover { color: #fff; }
+  .modal-body {
+    padding: 24px;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+  }
+  .form-group {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .form-group.full {
+    grid-column: span 2;
+  }
+  .form-group label {
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--txt-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+  }
+  .modal-foot {
+    padding: 16px 24px;
+    background: #0a101f;
+    border-top: 1px solid var(--border);
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+  }
+
+  /* TOAST */
+  #toast {
+    position: fixed;
+    bottom: 24px;
+    right: 24px;
+    background: #0f172a;
+    border: 1px solid #38bdf8;
+    color: #fff;
+    padding: 12px 20px;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 600;
+    box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+    display: none;
+    z-index: 2000;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="brand-area">
+    <div class="brand-icon"><i class="fa-solid fa-triangle-exclamation"></i></div>
+    <div>
+      <div class="brand-title">NUMIPLAN NON-CONFORMITÉS <span style="font-size:11px;font-weight:700;background:rgba(239,68,68,0.2);color:#ef4444;border:1px solid #ef4444;padding:2px 8px;border-radius:12px">QUALITÉ & CONTRÔLE</span></div>
+      <div class="brand-sub">Suivi des manquements, chargements compte, fausses déclarations & récidives</div>
+    </div>
+  </div>
+
+  <div class="nav-actions">
+    <a href="portail.html" class="btn-nav"><i class="fa-solid fa-arrow-left"></i> Portail</a>
+    <a href="fiche_supabase.html" class="btn-nav"><i class="fa-solid fa-truck"></i> Numiplan Dispo</a>
+    <a href="sharik.html" class="btn-nav"><i class="fa-solid fa-id-card"></i> Fiche Sharik</a>
+    <div class="user-badge">
+      <i class="fa-solid fa-shield-halved"></i>
+      <span id="u-role">ADMIN</span> · <span id="u-name">UTILISATEUR</span>
+    </div>
+  </div>
+</header>
+
+<main class="main-content">
+  <!-- EN-TÊTE DE PAGE -->
+  <div class="section-head">
+    <div class="head-left">
+      <h1><i class="fa-solid fa-clipboard-list" style="color:#ef4444"></i> Registre des Non-Conformités & Écarts</h1>
+      <p>Base consolidée multi-équipes synchronisée avec Supabase, Numiplan Dispo & Dossiers Sharik</p>
+    </div>
+    <div class="head-right">
+      <button class="btn-action primary" onclick="openAddNcModal()"><i class="fa-solid fa-plus"></i> Déclarer une NC</button>
+      <button class="btn-action secondary" onclick="exportNcExcel()"><i class="fa-solid fa-file-excel" style="color:#10b981"></i> Exporter (.xlsx)</button>
+      <button class="btn-action secondary" onclick="loadNcData()"><i class="fa-solid fa-arrows-rotate"></i> Actualiser</button>
+    </div>
+  </div>
+
+  <!-- KPIS GLOBAUX -->
+  <div class="kpi-grid">
+    <div class="kpi-card" onclick="filterByKpi('')" style="border-color: rgba(239, 68, 68, 0.4);">
+      <div class="kpi-title">TOTAL INFRACTIONS <i class="fa-solid fa-shield-cat" style="color:#ef4444"></i></div>
+      <div class="kpi-value" id="kpi-total-nc" style="color:#f87171">0</div>
+      <div class="kpi-sub">Toutes équipes confondues</div>
+    </div>
+    <div class="kpi-card" onclick="filterByKpi('chgt')" style="border-color: rgba(245, 158, 11, 0.4);">
+      <div class="kpi-title">CHGT À SON COMPTE <i class="fa-solid fa-shuffle" style="color:#fbbf24"></i></div>
+      <div class="kpi-value" id="kpi-chgt-nc" style="color:#fbbf24">0</div>
+      <div class="kpi-sub">Trajets modifiés sans accord</div>
+    </div>
+    <div class="kpi-card" onclick="filterByKpi('fausse')" style="border-color: rgba(239, 68, 68, 0.4);">
+      <div class="kpi-title">FAUSSES DÉCLARATIONS <i class="fa-solid fa-ban" style="color:#f87171"></i></div>
+      <div class="kpi-value" id="kpi-fausse-nc" style="color:#f87171">0</div>
+      <div class="kpi-sub">Déclarations erronées / falsifiées</div>
+    </div>
+    <div class="kpi-card" onclick="filterByKpi('refus')" style="border-color: rgba(168, 85, 247, 0.4);">
+      <div class="kpi-title">REFUS DE TRAVAIL <i class="fa-solid fa-hand" style="color:#c084fc"></i></div>
+      <div class="kpi-value" id="kpi-refus-nc" style="color:#c084fc">0</div>
+      <div class="kpi-sub">Missions refusées par le chauffeur</div>
+    </div>
+    <div class="kpi-card" onclick="toggleRecidivesOnly()" style="border-color: rgba(239, 68, 68, 0.6);">
+      <div class="kpi-title">RÉCIDIVISTES (≥ 2 NC) <i class="fa-solid fa-triangle-exclamation" style="color:#ef4444"></i></div>
+      <div class="kpi-value" id="kpi-recidivistes-nc" style="color:#ff6b6b">0</div>
+      <div class="kpi-sub" id="sub-recidivistes">Conducteurs sous surveillance</div>
+    </div>
+    <div class="kpi-card" onclick="filterByKpi('mise')" style="border-color: rgba(56, 189, 248, 0.4);">
+      <div class="kpi-title">MISES EN DEMEURE <i class="fa-solid fa-gavel" style="color:#38bdf8"></i></div>
+      <div class="kpi-value" id="kpi-mises-nc" style="color:#38bdf8">0</div>
+      <div class="kpi-sub">Sanctions disciplinaires</div>
+    </div>
+  </div>
+
+  <!-- TOOLBAR & FILTRES -->
+  <div class="toolbar">
+    <div class="filter-group">
+      <input type="text" id="flt-search" class="input-control search-input" placeholder="🔍 Rechercher chauffeur, tracteur, trajet, CET..." oninput="renderNcTable()">
+      
+      <select id="flt-type" class="input-control" onchange="renderNcTable()">
+        <option value="">Tous les types</option>
+        <option value="chgt">Changement à son compte</option>
+        <option value="autorise">Changement autorisé</option>
+        <option value="fausse">Fausse déclaration</option>
+        <option value="refus">Refus de travail</option>
+        <option value="autre">Autre manquement</option>
+      </select>
+
+      <select id="flt-team" class="input-control" onchange="renderNcTable()">
+        <option value="">Toutes les équipes</option>
+        <option value="A1">Équipe A1</option>
+        <option value="A2">Équipe A2</option>
+        <option value="B1">Équipe B1</option>
+        <option value="B2">Équipe B2</option>
+        <option value="C1">Équipe C1</option>
+        <option value="C2">Équipe C2</option>
+        <option value="D1">Équipe D1</option>
+        <option value="D2">Équipe D2</option>
+      </select>
+
+      <div style="display:flex;align-items:center;gap:6px">
+        <input type="date" id="flt-date-from" class="input-control" style="font-size:12px;padding:6px 10px" onchange="renderNcTable()">
+        <span style="color:var(--txt3)">→</span>
+        <input type="date" id="flt-date-to" class="input-control" style="font-size:12px;padding:6px 10px" onchange="renderNcTable()">
+      </div>
+    </div>
+
+    <div class="filter-group">
+      <button id="btn-toggle-recidive" class="chip-btn" onclick="toggleRecidivesOnly()"><i class="fa-solid fa-triangle-exclamation"></i> Récidivistes uniquement</button>
+      <button class="chip-btn" onclick="resetFilters()"><i class="fa-solid fa-rotate-left"></i> Réinitialiser</button>
+      <span id="table-count" style="font-size:12px;color:var(--txt-muted);font-weight:700">0 enregistrements</span>
+    </div>
+  </div>
+
+  <!-- TABLEAU -->
+  <div class="table-container">
+    <div class="table-responsive">
+      <table>
+        <thead>
+          <tr>
+            <th style="width:60px">N°</th>
+            <th style="width:90px">Date</th>
+            <th style="width:75px">Équipe</th>
+            <th>Chauffeur Sharik</th>
+            <th style="width:130px">Véhicule</th>
+            <th style="width:140px">Type de Manquement</th>
+            <th>Détail / Trajet Constaté</th>
+            <th style="width:110px">Mise en Demeure</th>
+            <th style="width:100px">Commission</th>
+            <th style="width:120px">Enregistré par</th>
+            <th style="width:100px;text-align:center">Actions</th>
+          </tr>
+        </thead>
+        <tbody id="nc-table-body">
+          <tr>
+            <td colspan="11" style="text-align:center;padding:40px;color:var(--txt-muted)">
+              <i class="fa-solid fa-circle-notch fa-spin" style="font-size:22px;color:var(--primary);margin-bottom:10px"></i><br>
+              Chargement des non-conformités depuis Supabase...
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</main>
+
+<!-- MODAL AJOUT / ÉDITION NC -->
+<div class="modal-overlay" id="modal-nc">
+  <div class="modal">
+    <div class="modal-head">
+      <h3 id="modal-nc-title"><i class="fa-solid fa-triangle-exclamation" style="color:#ef4444"></i> Déclarer une Non-Conformité</h3>
+      <button class="modal-close" onclick="closeNcModal()"><i class="fa-solid fa-xmark"></i></button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="modal-nc-edit-id">
+
+      <div class="form-group">
+        <label>Date de l'infraction</label>
+        <input type="date" id="modal-nc-date" class="input-control">
+      </div>
+
+      <div class="form-group">
+        <label>Équipe de rattachement</label>
+        <select id="modal-nc-team" class="input-control">
+          <option value="A1">Équipe A1</option>
+          <option value="A2">Équipe A2</option>
+          <option value="B1">Équipe B1</option>
+          <option value="B2">Équipe B2</option>
+          <option value="C1">Équipe C1</option>
+          <option value="C2">Équipe C2</option>
+          <option value="D1">Équipe D1</option>
+          <option value="D2">Équipe D2</option>
+        </select>
+      </div>
+
+      <div class="form-group">
+        <label>Chauffeur Sharik</label>
+        <input type="text" id="modal-nc-sharik" list="dl-chauffeurs" class="input-control" placeholder="NOM PRÉNOM" oninput="autoFillVehicle(this.value)" onchange="autoFillVehicle(this.value)">
+        <datalist id="dl-chauffeurs"></datalist>
+      </div>
+
+      <div class="form-group">
+        <label>Véhicule (Immatriculation)</label>
+        <input type="text" id="modal-nc-v" list="dl-vehicules" class="input-control" placeholder="001079-514-16" oninput="autoFillDriver(this.value)" onchange="autoFillDriver(this.value)">
+        <datalist id="dl-vehicules"></datalist>
+      </div>
+
+      <div class="form-group full">
+        <label>Type de Non-Conformité</label>
+        <select id="modal-nc-type" class="input-control" onchange="toggleNcTypeFields(this.value)">
+          <option value="chgt">Changement à son compte</option>
+          <option value="autorise">Chargement à son compte autorisé (Limite 400 km)</option>
+          <option value="fausse">Fausse déclaration</option>
+          <option value="refus">Refus de travail / mission</option>
+          <option value="autre">Autre fait</option>
+        </select>
+      </div>
+
+      <div class="form-group full" id="group-nc-detail">
+        <label id="lbl-nc-detail">Trajet / Détail (ex: BLIDA - ORAN)</label>
+        <input type="text" id="modal-nc-detail" class="input-control" placeholder="Détail du trajet ou du constat...">
+      </div>
+
+      <div class="form-group full" id="group-nc-autre" style="display:none">
+        <label>Préciser les faits en détail</label>
+        <textarea id="modal-nc-autre" class="input-control" style="min-height:75px;resize:vertical" placeholder="Description circonstanciée des faits constatés..."></textarea>
+      </div>
+
+      <div class="form-group">
+        <label>Mise en demeure / pied</label>
+        <input type="text" id="modal-nc-mise" class="input-control" placeholder="Oui / Non / En cours / Durée...">
+      </div>
+
+      <div class="form-group">
+        <label>Commission disciplinaire</label>
+        <input type="text" id="modal-nc-commission" class="input-control" placeholder="Date ou avis commission...">
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn-action secondary" onclick="closeNcModal()">Annuler</button>
+      <button class="btn-action primary" onclick="saveNcRecord()"><i class="fa-solid fa-floppy-disk"></i> Enregistrer & Notifier</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+const SUPABASE_URL = "https://mfljrozyxyfkymzlnsmt.supabase.co";
+const SUPABASE_ANON = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1mbGpyb3p5eHlma3ltemxuc210Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDY3OTYzMjUsImV4cCI6MjA2MjM3MjMyNX0.4yzhJnShFlcMlS_b6Q25wtcChhKQsccUUPc_b4eunr8";
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON);
+
+// Distances officielles pour validation règle 400 km
+const CITY_DISTANCES = {
+  "BEJAIA_TLEMCEN": 734, "TLEMCEN_BEJAIA": 734,
+  "BOUIRA_ORAN": 508, "ORAN_BOUIRA": 508,
+  "BEJAIA_MASCARA": 611, "MASCARA_BEJAIA": 611,
+  "SETIF_JIJEL": 159, "JIJEL_SETIF": 159,
+  "SETIF_BEJAIA": 232, "BEJAIA_SETIF": 232,
+  "SETIF_OUEDRHIOU": 528, "OUEDRHIOU_SETIF": 528,
+  "SETIF_LAGHOUAT": 445, "LAGHOUAT_SETIF": 445,
+  "ORAN_ALGER": 404, "ALGER_ORAN": 404,
+  "TLEMCEN_ALGER": 516, "ALGER_TLEMCEN": 516,
+  "BEJAIA_TIARET": 435, "TIARET_BEJAIA": 435,
+  "BOUIRA_TLEMCEN": 616, "TLEMCEN_BOUIRA": 616,
+  "SETIF_ORAN": 700, "ORAN_SETIF": 700,
+  "BEJAIA_ORAN": 640, "ORAN_BEJAIA": 640,
+  "ALGER_CONSTANTINE": 390, "CONSTANTINE_ALGER": 390,
+  "ALGER_ANNABA": 535, "ANNABA_ALGER": 535,
+  "ALGER_SETIF": 300, "SETIF_ALGER": 300,
+  "ALGER_BATNA": 430, "BATNA_ALGER": 430,
+  "ALGER_BISKRA": 410, "BISKRA_ALGER": 410
+};
+
+function getCityDistance(cityA, cityB) {
+  if (!cityA || !cityB) return 0;
+  const clean = s => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^A-Z0-9]/g, '').trim().toUpperCase();
+  const a = clean(cityA);
+  const b = clean(cityB);
+  if (a === b) return 0;
+  const k1 = a + '_' + b;
+  const k2 = b + '_' + a;
+  return CITY_DISTANCES[k1] || CITY_DISTANCES[k2] || 0;
+}
+
+// Variables d'état
+let allNcList = [];
+let allDispo = [];
+let teamsPayloadMap = {};
+let filterRecidivesOnly = false;
+let userTeamLock = '';
+
+function showToast(msg, isErr = false) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.style.borderColor = isErr ? '#ef4444' : '#38bdf8';
+  t.style.display = 'block';
+  setTimeout(() => { t.style.display = 'none'; }, 3500);
+}
+
+async function loadNcData() {
+  try {
+    showToast('⏳ Synchronisation des Non-Conformités...');
+    const [teamsRes, dispoRes, npNcRes] = await Promise.all([
+      sb.from('numiplan_teams').select('team, payload').in('team', ['A1','A2','B1','B2','C1','C2','D1','D2']),
+      sb.from('np_dispo').select('v, chauffeur, team').limit(1500),
+      sb.from('np_nc').select('*').limit(1500)
+    ]);
+
+    allDispo = dispoRes.data || [];
+    populateDatalists();
+
+    teamsPayloadMap = {};
+    const compiled = [];
+
+    (teamsRes.data || []).forEach(row => {
+      const team = row.team;
+      const p = row.payload || {};
+      teamsPayloadMap[team] = p;
+      if (Array.isArray(p.nc)) {
+        p.nc.forEach((item, idx) => {
+          compiled.push({
+            ...item,
+            _team: team,
+            _idx: idx,
+            _source: 'numiplan_teams'
+          });
+        });
+      }
+    });
+
+    // Également incorporer si des lignes sont dans np_nc
+    (npNcRes.data || []).forEach((row, idx) => {
+      // Éviter doublons stricts si déjà dans compiled
+      const exists = compiled.some(c => c.n === row.n && c.sharik === row.sharik && c.date === row.date);
+      if (!exists) {
+        compiled.push({
+          ...row,
+          _team: row.team || 'NC',
+          _idx: idx,
+          _source: 'np_nc'
+        });
+      }
+    });
+
+    // Trier du plus récent au plus ancien
+    compiled.sort((a, b) => {
+      const da = a.date || '';
+      const db = b.date || '';
+      if (da !== db) return db.localeCompare(da);
+      return (b.n || 0) - (a.n || 0);
+    });
+
+    allNcList = compiled;
+    updateKpis();
+    renderNcTable();
+    showToast(`✅ ${allNcList.length} Non-Conformités chargées`);
+  } catch (err) {
+    console.error('Erreur chargement NC:', err);
+    showToast('Erreur: ' + err.message, true);
+  }
+}
+
+function updateKpis() {
+  const total = allNcList.length;
+  let chgt = 0, fausse = 0, refus = 0, autorise = 0, mises = 0;
+  const driverCounts = {};
+
+  allNcList.forEach(r => {
+    if (r.chgt) chgt++;
+    if (r.fausse) fausse++;
+    if (r.refus) refus++;
+    if (r.autorise) autorise++;
+    if (r.mise && String(r.mise).trim() && String(r.mise).toUpperCase() !== 'NON') mises++;
+    const ch = (r.sharik || '').trim().toUpperCase();
+    if (ch) driverCounts[ch] = (driverCounts[ch] || 0) + 1;
+  });
+
+  const recidivistes = Object.values(driverCounts).filter(c => c >= 2).length;
+
+  document.getElementById('kpi-total-nc').textContent = total;
+  document.getElementById('kpi-chgt-nc').textContent = chgt;
+  document.getElementById('kpi-fausse-nc').textContent = fausse;
+  document.getElementById('kpi-refus-nc').textContent = refus;
+  document.getElementById('kpi-recidivistes-nc').textContent = recidivistes;
+  document.getElementById('kpi-mises-nc').textContent = mises;
+}
+
+function renderNcTable() {
+  const q = (document.getElementById('flt-search').value || '').trim().toLowerCase();
+  const typeF = document.getElementById('flt-type').value;
+  const teamF = document.getElementById('flt-team').value;
+  const dateFrom = document.getElementById('flt-date-from').value;
+  const dateTo = document.getElementById('flt-date-to').value;
+
+  // Calcul du nombre de NC par chauffeur pour marquer les récidivistes
+  const driverCounts = {};
+  allNcList.forEach(r => {
+    const ch = (r.sharik || '').trim().toUpperCase();
+    if (ch) driverCounts[ch] = (driverCounts[ch] || 0) + 1;
+  });
+
+  const filtered = allNcList.filter(r => {
+    const ch = (r.sharik || '').trim().toUpperCase();
+    const count = driverCounts[ch] || 0;
+
+    if (filterRecidivesOnly && count < 2) return false;
+    if (teamF && r._team !== teamF) return false;
+    if (dateFrom && (r.date || '') < dateFrom) return false;
+    if (dateTo && (r.date || '') > dateTo) return false;
+
+    // Filtre par type
+    if (typeF === 'chgt' && !r.chgt) return false;
+    if (typeF === 'autorise' && !r.autorise) return false;
+    if (typeF === 'fausse' && !r.fausse) return false;
+    if (typeF === 'refus' && !r.refus) return false;
+    if (typeF === 'autre' && !r.autre) return false;
+
+    // Recherche plein texte
+    if (q) {
+      const text = `${r.n||''} ${r.sharik||''} ${r.v||''} ${r.chgt||''} ${r.autorise||''} ${r.fausse||''} ${r.refus||''} ${r.autre||''} ${r.cet||''} ${r.mise||''}`.toLowerCase();
+      if (!text.includes(q)) return false;
+    }
+    return true;
+  });
+
+  document.getElementById('table-count').textContent = `${filtered.length} / ${allNcList.length} affichés`;
+
+  const tbody = document.getElementById('nc-table-body');
+  if (!filtered.length) {
+    tbody.innerHTML = `
+      <tr>
+        <td colspan="11" style="text-align:center;padding:40px;color:var(--txt-muted)">
+          <i class="fa-solid fa-folder-open" style="font-size:24px;margin-bottom:8px"></i><br>
+          Aucune non-conformité ne correspond aux critères sélectionnés.
+        </td>
+      </tr>
+    `;
+    return;
+  }
+
+  tbody.innerHTML = filtered.map(r => {
+    const ch = (r.sharik || '').trim().toUpperCase();
+    const count = driverCounts[ch] || 1;
+    const recidiveTag = count >= 2 ? `<span class="badge-recidive" title="${count} infractions au dossier">⚠️ ${count} NC</span>` : '';
+
+    let typeBadge = '';
+    let detail = '';
+    if (r.chgt) {
+      typeBadge = `<span class="badge badge-chgt"><i class="fa-solid fa-shuffle"></i> Chgt compte</span>`;
+      detail = r.chgt;
+    } else if (r.autorise) {
+      typeBadge = `<span class="badge badge-autorise"><i class="fa-solid fa-check"></i> Chgt autorisé</span>`;
+      detail = r.autorise;
+    } else if (r.fausse) {
+      typeBadge = `<span class="badge badge-fausse"><i class="fa-solid fa-ban"></i> Fausse décl.</span>`;
+      detail = r.fausse;
+    } else if (r.refus) {
+      typeBadge = `<span class="badge badge-refus"><i class="fa-solid fa-hand"></i> Refus travail</span>`;
+      detail = r.refus;
+    } else if (r.autre) {
+      typeBadge = `<span class="badge badge-autre"><i class="fa-solid fa-triangle-exclamation"></i> Autre</span>`;
+      detail = r.autre;
+    } else {
+      typeBadge = `<span class="badge badge-chgt">Chgt compte</span>`;
+      detail = r.detail || '—';
+    }
+
+    const miseBadge = (r.mise && String(r.mise).toUpperCase() !== 'NON') 
+      ? `<span class="badge badge-mise">${r.mise}</span>` 
+      : `<span style="color:var(--txt3)">—</span>`;
+
+    const realIndex = allNcList.indexOf(r);
+
+    return `
+      <tr>
+        <td style="font-family:'JetBrains Mono',monospace;color:var(--txt3);font-size:11px">${r.n || '—'}</td>
+        <td class="date-cell">${r.date || '—'}</td>
+        <td><span class="badge badge-team">${r._team || '—'}</span></td>
+        <td class="driver-cell">${r.sharik || '—'}${recidiveTag}</td>
+        <td class="immat-cell">${r.v || '—'}</td>
+        <td>${typeBadge}</td>
+        <td style="font-size:12px;color:#cbd5e1;max-width:320px">${detail}</td>
+        <td>${miseBadge}</td>
+        <td style="font-size:11px;color:var(--txt2)">${r.commission || '—'}</td>
+        <td style="font-size:11px;color:var(--txt-dim)">${r.cet || '—'}</td>
+        <td>
+          <div class="row-actions">
+            <button class="btn-icon mail" title="Notifier par e-mail l'affrètement" onclick="sendNcEmailByIndex(${realIndex})"><i class="fa-solid fa-envelope"></i></button>
+            <button class="btn-icon edit" title="Modifier" onclick="editNcRecord(${realIndex})"><i class="fa-solid fa-pen"></i></button>
+            <button class="btn-icon delete" title="Supprimer" onclick="deleteNcRecord(${realIndex})"><i class="fa-solid fa-trash"></i></button>
+          </div>
+        </td>
+      </tr>
+    `;
+  }).join('');
+}
+
+function filterByKpi(type) {
+  filterRecidivesOnly = false;
+  document.getElementById('btn-toggle-recidive').classList.remove('active');
+  document.getElementById('flt-type').value = (type === 'mise' ? '' : type);
+  if (type === 'mise') {
+    document.getElementById('flt-search').value = 'mise';
+  } else {
+    document.getElementById('flt-search').value = '';
+  }
+  renderNcTable();
+}
+
+function toggleRecidivesOnly() {
+  filterRecidivesOnly = !filterRecidivesOnly;
+  const btn = document.getElementById('btn-toggle-recidive');
+  if (filterRecidivesOnly) {
+    btn.classList.add('active');
+    showToast('🚨 Filtrage actif : Chauffeurs récidivistes (≥ 2 NC)');
+  } else {
+    btn.classList.remove('active');
+    showToast('Toutes les non-conformités');
+  }
+  renderNcTable();
+}
+
+function resetFilters() {
+  document.getElementById('flt-search').value = '';
+  document.getElementById('flt-type').value = '';
+  document.getElementById('flt-team').value = '';
+  document.getElementById('flt-date-from').value = '';
+  document.getElementById('flt-date-to').value = '';
+  filterRecidivesOnly = false;
+  document.getElementById('btn-toggle-recidive').classList.remove('active');
+  renderNcTable();
+  showToast('Filtres réinitialisés');
+}
+
+function populateDatalists() {
+  const drivers = new Set();
+  const trucks = new Set();
+
+  allDispo.forEach(d => {
+    if (d.chauffeur) drivers.add(d.chauffeur.trim().toUpperCase());
+    if (d.v) trucks.add(d.v.trim().toUpperCase());
+  });
+
+  const dlChauffeurs = document.getElementById('dl-chauffeurs');
+  const dlVehicules = document.getElementById('dl-vehicules');
+
+  if (dlChauffeurs) {
+    dlChauffeurs.innerHTML = Array.from(drivers).sort().map(d => `<option value="${d}">`).join('');
+  }
+  if (dlVehicules) {
+    dlVehicules.innerHTML = Array.from(trucks).sort().map(v => `<option value="${v}">`).join('');
+  }
+}
+
+function autoFillVehicle(driverName) {
+  if (!driverName) return;
+  const s = driverName.trim().toUpperCase();
+  const found = allDispo.find(d => (d.chauffeur || '').trim().toUpperCase() === s && d.v);
+  if (found && found.v) {
+    document.getElementById('modal-nc-v').value = found.v;
+    if (found.team) document.getElementById('modal-nc-team').value = found.team;
+    return;
+  }
+  // Chercher dans l'historique NC
+  const prevNc = allNcList.find(n => (n.sharik || '').trim().toUpperCase() === s && n.v);
+  if (prevNc && prevNc.v) {
+    document.getElementById('modal-nc-v').value = prevNc.v;
+    if (prevNc._team) document.getElementById('modal-nc-team').value = prevNc._team;
+  }
+}
+
+function autoFillDriver(truckPlate) {
+  if (!truckPlate) return;
+  const v = truckPlate.trim().toUpperCase();
+  const inputDriver = document.getElementById('modal-nc-sharik');
+  const found = allDispo.find(d => (d.v || '').trim().toUpperCase() === v && d.chauffeur);
+  if (found && found.chauffeur) {
+    if (!inputDriver.value.trim()) inputDriver.value = found.chauffeur;
+    if (found.team) document.getElementById('modal-nc-team').value = found.team;
+    return;
+  }
+  const prevNc = allNcList.find(n => (n.v || '').trim().toUpperCase() === v && n.sharik);
+  if (prevNc && prevNc.sharik) {
+    if (!inputDriver.value.trim()) inputDriver.value = prevNc.sharik;
+    if (prevNc._team) document.getElementById('modal-nc-team').value = prevNc._team;
+  }
+}
+
+function toggleNcTypeFields(type) {
+  const autreGroup = document.getElementById('group-nc-autre');
+  const lblDetail = document.getElementById('lbl-nc-detail');
+  const inputDetail = document.getElementById('modal-nc-detail');
+
+  if (type === 'autre') {
+    autreGroup.style.display = 'flex';
+    lblDetail.textContent = 'Objet / Titre résumé';
+    inputDetail.placeholder = 'Ex: Comportement inapproprié, retard...';
+  } else {
+    autreGroup.style.display = 'none';
+    if (type === 'chgt' || type === 'autorise') {
+      lblDetail.textContent = 'Trajet constaté (ex: BLIDA - ORAN)';
+      inputDetail.placeholder = 'DEPART - DESTINATION (Contrôle 400km)';
+    } else if (type === 'fausse') {
+      lblDetail.textContent = 'Motif de la fausse déclaration';
+      inputDetail.placeholder = 'Ex: Kilométrage erroné, faux motif panne...';
+    } else if (type === 'refus') {
+      lblDetail.textContent = 'Mission ou ordre refusé';
+      inputDetail.placeholder = 'Ex: Refus chargement Cevital Bejaia...';
+    }
+  }
+}
+
+function openAddNcModal() {
+  document.getElementById('modal-nc-edit-id').value = '';
+  document.getElementById('modal-nc-title').innerHTML = '<i class="fa-solid fa-triangle-exclamation" style="color:#ef4444"></i> Déclarer une Non-Conformité';
+  document.getElementById('modal-nc-date').value = new Date().toISOString().split('T')[0];
+  document.getElementById('modal-nc-team').value = userTeamLock || 'A1';
+  document.getElementById('modal-nc-sharik').value = '';
+  document.getElementById('modal-nc-v').value = '';
+  document.getElementById('modal-nc-type').value = 'chgt';
+  document.getElementById('modal-nc-detail').value = '';
+  document.getElementById('modal-nc-autre').value = '';
+  document.getElementById('modal-nc-mise').value = '';
+  document.getElementById('modal-nc-commission').value = '';
+  toggleNcTypeFields('chgt');
+  document.getElementById('modal-nc').classList.add('active');
+}
+
+function editNcRecord(index) {
+  const r = allNcList[index];
+  if (!r) return;
+
+  document.getElementById('modal-nc-edit-id').value = index;
+  document.getElementById('modal-nc-title').innerHTML = '<i class="fa-solid fa-pen" style="color:#fbbf24"></i> Modifier la Non-Conformité N° ' + (r.n || '');
+  document.getElementById('modal-nc-date').value = r.date || new Date().toISOString().split('T')[0];
+  document.getElementById('modal-nc-team').value = r._team || 'A1';
+  document.getElementById('modal-nc-sharik').value = r.sharik || '';
+  document.getElementById('modal-nc-v').value = r.v || '';
+
+  let type = 'chgt';
+  let detailVal = '';
+  if (r.fausse) { type = 'fausse'; detailVal = r.fausse; }
+  else if (r.autorise) { type = 'autorise'; detailVal = r.autorise; }
+  else if (r.refus) { type = 'refus'; detailVal = r.refus; }
+  else if (r.autre) { type = 'autre'; detailVal = r.autre; }
+  else if (r.chgt) { type = 'chgt'; detailVal = r.chgt; }
+
+  document.getElementById('modal-nc-type').value = type;
+  document.getElementById('modal-nc-detail').value = detailVal;
+  document.getElementById('modal-nc-autre').value = r.autre || '';
+  document.getElementById('modal-nc-mise').value = r.mise || '';
+  document.getElementById('modal-nc-commission').value = r.commission || '';
+
+  toggleNcTypeFields(type);
+  document.getElementById('modal-nc').classList.add('active');
+}
+
+function closeNcModal() {
+  document.getElementById('modal-nc').classList.remove('active');
+}
+
+async function saveNcRecord() {
+  try {
+    const sharik = document.getElementById('modal-nc-sharik').value.trim().toUpperCase();
+    if (!sharik) {
+      alert('Veuillez renseigner le nom du Chauffeur Sharik.');
+      return;
+    }
+    const v = document.getElementById('modal-nc-v').value.trim().toUpperCase();
+    if (!v) {
+      alert('Veuillez renseigner l'immatriculation du Véhicule.');
+      return;
+    }
+
+    const team = document.getElementById('modal-nc-team').value || 'A1';
+    const date = document.getElementById('modal-nc-date').value || new Date().toISOString().split('T')[0];
+    const type = document.getElementById('modal-nc-type').value;
+    const detail = document.getElementById('modal-nc-detail').value.trim();
+    const autreDetail = document.getElementById('modal-nc-autre').value.trim();
+    const mise = document.getElementById('modal-nc-mise').value.trim();
+    const commission = document.getElementById('modal-nc-commission').value.trim();
+    const editIdStr = document.getElementById('modal-nc-edit-id').value;
+    const isEdit = editIdStr !== '';
+
+    if (type === 'autre' && !autreDetail) {
+      alert('Veuillez préciser les faits dans la zone de texte.');
+      return;
+    }
+
+    // Validation distance 400 km si chargement autorisé
+    if (type === 'autorise' && detail) {
+      const parts = detail.split(/[\-\➔\→\s]+/).map(p => p.trim().toUpperCase()).filter(p => p.length > 2);
+      if (parts.length >= 2) {
+        const dist = getCityDistance(parts[0], parts[1]);
+        if (dist > 400) {
+          const proceed = confirm(`⚠️ ALERTE RÈGLE 400 KM :\n\nLa distance calculée pour ce trajet (${parts[0]} → ${parts[1]}) est de ${dist} km, ce qui dépasse la limite autorisée de 400 km.\n\nConfirmez-vous tout de même l'enregistrement ?`);
+          if (!proceed) return;
+        }
+      }
+    }
+
+    showToast('⏳ Enregistrement dans Supabase...');
+
+    // Déterminer numéro séquentiel
+    const maxN = allNcList.reduce((m, r) => Math.max(m, r.n || 0), 0);
+    const n = isEdit ? allNcList[parseInt(editIdStr)].n : (maxN + 1);
+
+    const currentUser = sessionStorage.getItem('numiplan_username') || 'ADMIN';
+    const ncObj = {
+      n: n,
+      sharik: sharik,
+      v: v,
+      chgt: type === 'chgt' ? detail : '',
+      autorise: type === 'autorise' ? detail : '',
+      fausse: type === 'fausse' ? detail : '',
+      refus: type === 'refus' ? detail : '',
+      autre: type === 'autre' ? (autreDetail || detail) : '',
+      date: date,
+      mise: mise,
+      commission: commission,
+      cet: currentUser,
+      team: team
+    };
+
+    // 1. Sauvegarder dans numiplan_teams de l'équipe sélectionnée
+    const currentPayload = teamsPayloadMap[team] || { nc: [] };
+    if (!Array.isArray(currentPayload.nc)) currentPayload.nc = [];
+
+    if (isEdit) {
+      const orig = allNcList[parseInt(editIdStr)];
+      if (orig && orig._team === team && orig._idx != null) {
+        currentPayload.nc[orig._idx] = ncObj;
+      } else {
+        // Déplacer entre équipes si l'équipe a changé
+        if (orig && orig._team && teamsPayloadMap[orig._team] && Array.isArray(teamsPayloadMap[orig._team].nc)) {
+          teamsPayloadMap[orig._team].nc.splice(orig._idx, 1);
+          await sb.from('numiplan_teams').upsert({
+            team: orig._team,
+            payload: teamsPayloadMap[orig._team],
+            updated_at: new Date().toISOString()
+          }, { onConflict: 'team' });
+        }
+        currentPayload.nc.push(ncObj);
+      }
+    } else {
+      currentPayload.nc.push(ncObj);
+    }
+
+    const { error: teamErr } = await sb.from('numiplan_teams').upsert({
+      team: team,
+      payload: currentPayload,
+      updated_at: new Date().toISOString()
+    }, { onConflict: 'team' });
+
+    if (teamErr) throw teamErr;
+
+    // 2. Synchroniser également dans np_nc
+    try {
+      await sb.from('np_nc').upsert({
+        n: n,
+        sharik: sharik,
+        v: v,
+        date: date,
+        type: type,
+        detail: detail || autreDetail,
+        mise: mise,
+        commission: commission,
+        cet: currentUser,
+        team: team,
+        updated_at: new Date().toISOString()
+      }, { onConflict: 'n' });
+    } catch (e) {
+      console.warn('Sync np_nc optionnelle:', e);
+    }
+
+    closeNcModal();
+    showToast('✅ Non-conformité enregistrée avec succès !');
+
+    // Préparation de la notification par email
+    sendNcEmail(ncObj, true);
+
+    // Recharger les données
+    loadNcData();
+
+  } catch (err) {
+    console.error('Erreur enregistrement NC:', err);
+    showToast('Erreur: ' + err.message, true);
+  }
+}
+
+async function deleteNcRecord(index) {
+  const r = allNcList[index];
+  if (!r) return;
+
+  const conf = confirm(`Confirmez-vous la suppression de la NC N° ${r.n || ''} concernant ${r.sharik} (${r.v}) ?`);
+  if (!conf) return;
+
+  try {
+    showToast('⏳ Suppression en cours...');
+    const team = r._team;
+    const payload = teamsPayloadMap[team];
+
+    if (payload && Array.isArray(payload.nc) && r._idx != null) {
+      payload.nc.splice(r._idx, 1);
+      const { error } = await sb.from('numiplan_teams').upsert({
+        team: team,
+        payload: payload,
+        updated_at: new Date().toISOString()
+      }, { onConflict: 'team' });
+
+      if (error) throw error;
+    }
+
+    // Tenter suppression dans np_nc si présent
+    if (r.n) {
+      try {
+        await sb.from('np_nc').delete().eq('n', r.n);
+      } catch (e) {}
+    }
+
+    showToast('✅ Non-conformité supprimée');
+    loadNcData();
+  } catch (err) {
+    console.error('Erreur suppression NC:', err);
+    showToast('Erreur: ' + err.message, true);
+  }
+}
+
+function sendNcEmailByIndex(index) {
+  const r = allNcList[index];
+  if (r) sendNcEmail(r, false);
+}
+
+function sendNcEmail(obj, isAuto = false) {
+  try {
+    const emailDest = 'grp_numilog_affretement@cevital.com';
+    let typeLabel = 'Non-conformité';
+    let detailTexte = '';
+
+    if (obj.chgt) { typeLabel = 'Changement à son compte'; detailTexte = obj.chgt; }
+    else if (obj.autorise) { typeLabel = 'Chargement à son compte autorisé'; detailTexte = obj.autorise; }
+    else if (obj.fausse) { typeLabel = 'Fausse déclaration'; detailTexte = obj.fausse; }
+    else if (obj.refus) { typeLabel = 'Refus de travail'; detailTexte = obj.refus; }
+    else if (obj.autre) { typeLabel = 'Autre manquement'; detailTexte = obj.autre; }
+    else if (obj.type) { typeLabel = obj.type; detailTexte = obj.detail || ''; }
+
+    const subject = encodeURIComponent(`[NUMIPLAN NC] ${obj.sharik} - ${obj.v || ''} (${obj._team || obj.team || ''})`.trim());
+    const body = encodeURIComponent(
+`Bonjour,
+
+Une non-conformité a été enregistrée sur le portail NUMIPLAN concernant le chauffeur transporteur ${obj.sharik}.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  FICHE OFFICIELLE DE NON-CONFORMITÉ
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  N° Infraction    : ${obj.n || '—'}
+  Date             : ${obj.date || '—'}
+  Équipe           : ${obj._team || obj.team || '—'}
+  Chauffeur Sharik : ${obj.sharik}
+  Véhicule (Immat) : ${obj.v || '—'}
+  Type NC          : ${typeLabel}
+  Trajet / Constat : ${detailTexte || '—'}
+  Mise en demeure  : ${obj.mise || '—'}
+  Commission       : ${obj.commission || '—'}
+  Enregistré par   : ${obj.cet || '—'}
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Notification automatique transmise à la cellule affrètement Cevital / Numilog.`
+    );
+
+    const mailtoLink = `mailto:${emailDest}?subject=${subject}&body=${body}`;
+    const mailIframe = document.createElement('iframe');
+    mailIframe.style.display = 'none';
+    mailIframe.src = mailtoLink;
+    document.body.appendChild(mailIframe);
+    setTimeout(() => {
+      if (mailIframe.parentNode) document.body.removeChild(mailIframe);
+    }, 2000);
+
+    if (!isAuto) {
+      showToast('📧 Client de messagerie ouvert pour l'affrètement');
+    }
+  } catch (err) {
+    console.warn('Erreur envoi mail NC:', err);
+  }
+}
+
+function exportNcExcel() {
+  if (!allNcList.length) {
+    showToast('⚠️ Aucune donnée à exporter', true);
+    return;
+  }
+  const wb = XLSX.utils.book_new();
+  const exportData = allNcList.map(r => {
+    let typeStr = '';
+    let detailStr = '';
+    if (r.chgt) { typeStr = 'Chgt compte'; detailStr = r.chgt; }
+    else if (r.autorise) { typeStr = 'Chgt autorisé'; detailStr = r.autorise; }
+    else if (r.fausse) { typeStr = 'Fausse déclaration'; detailStr = r.fausse; }
+    else if (r.refus) { typeStr = 'Refus travail'; detailStr = r.refus; }
+    else if (r.autre) { typeStr = 'Autre'; detailStr = r.autre; }
+
+    return {
+      'N°': r.n || '',
+      'Date': r.date || '',
+      'Équipe': r._team || r.team || '',
+      'Chauffeur Sharik': r.sharik || '',
+      'Véhicule': r.v || '',
+      'Type': typeStr,
+      'Détail / Trajet': detailStr,
+      'Mise en demeure': r.mise || '',
+      'Commission': r.commission || '',
+      'Enregistré par': r.cet || ''
+    };
+  });
+
+  const ws = XLSX.utils.json_to_sheet(exportData);
+  XLSX.utils.book_append_sheet(wb, ws, 'Non_Conformites');
+  XLSX.writeFile(wb, `Numiplan_Non_Conformites_${new Date().toISOString().split('T')[0]}.xlsx`);
+  showToast('✅ Export Excel téléchargé avec succès');
+}
+
+async function initSession() {
+  const user = sessionStorage.getItem('numiplan_username') || 'utilisateur';
+  const role = sessionStorage.getItem('numiplan_user_role') || 'admin';
+  userTeamLock = sessionStorage.getItem('numiplan_team_lock') || '';
+
+  document.getElementById('u-name').textContent = user.toUpperCase();
+  document.getElementById('u-role').textContent = userTeamLock || role.toUpperCase();
+
+  const { data: { session } } = await sb.auth.getSession();
+  if (!session) {
+    window.location.href = 'portail.html';
+    return;
+  }
+
+  loadNcData();
+}
+
+window.addEventListener('DOMContentLoaded', initSession);
+</script>
+</body>
+</html>
