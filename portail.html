@@ -25,6 +25,7 @@
     --accent-green: #10b981;
     --accent-purple: #8b5cf6;
     --accent-red: #ef4444;
+    --accent-red: #ef4444;
   }
 
   * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -224,6 +225,7 @@
   .module-card.c-orange:hover::before { background: var(--accent-orange); }
   .module-card.c-green:hover::before { background: var(--accent-green); }
   .module-card.c-purple:hover::before { background: var(--accent-purple); }
+  .module-card.c-red:hover::before { background: var(--accent-red); }
 
   .module-head {
     display: flex;
@@ -550,6 +552,22 @@
       </div>
       <div class="module-foot">
         <span>Consulter les Fiches</span>
+        <i class="fa-solid fa-arrow-right"></i>
+      </div>
+    </a>
+
+    <!-- MODULE 5 : NON-CONFORMITÉS & ÉCARTS -->
+    <a href="nc.html" class="module-card c-red">
+      <div>
+        <div class="module-head">
+          <div class="module-icon" style="color:var(--accent-red)"><i class="fa-solid fa-triangle-exclamation"></i></div>
+          <span class="module-status status-module" style="background:rgba(239,68,68,0.15);color:#ef4444;border-color:rgba(239,68,68,0.3)">Contrôle Qualité</span>
+        </div>
+        <h3 class="module-title">Non-Conformités & Écarts</h3>
+        <p class="module-desc">Suivi des manquements transporteurs, chargements à son compte, fausses déclarations, refus de travail et contrôle des récidives.</p>
+      </div>
+      <div class="module-foot">
+        <span>Gérer les Non-Conformités</span>
         <i class="fa-solid fa-arrow-right"></i>
       </div>
     </a>
