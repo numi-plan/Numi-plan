@@ -132,7 +132,7 @@
 
   main {
     flex: 1;
-    max-width: 1560px;
+    max-width: 1600px;
     width: 100%;
     margin: 0 auto;
     padding: 24px 28px;
@@ -225,7 +225,7 @@
     border: 1px solid var(--border);
     border-radius: 14px;
     overflow: hidden;
-    max-height: 62vh;
+    max-height: 65vh;
     overflow-y: auto;
   }
   table {
@@ -249,9 +249,10 @@
     text-transform: uppercase;
   }
   td {
-    padding: 10px 14px;
+    padding: 12px 14px;
     border-bottom: 1px solid rgba(30, 41, 59, 0.7);
     color: var(--txt-main);
+    vertical-align: middle;
   }
   tbody tr:hover {
     background: var(--bg-card-hover);
@@ -262,7 +263,7 @@
   .modal-overlay {
     position: fixed;
     top: 0; left: 0; right: 0; bottom: 0;
-    background: rgba(0, 0, 0, 0.8);
+    background: rgba(0, 0, 0, 0.85);
     backdrop-filter: blur(8px);
     display: none;
     align-items: center;
@@ -275,7 +276,7 @@
     border: 1px solid var(--border);
     border-radius: 16px;
     width: 100%;
-    max-width: 960px;
+    max-width: 1060px;
     max-height: 90vh;
     overflow-y: auto;
     padding: 28px;
@@ -325,7 +326,7 @@
     </div>
     <div>
       <div class="brand-title">NUMIPLAN SHARIK</div>
-      <div class="brand-sub">Dossiers Chauffeurs, CA, Pédigrés &amp; Performances</div>
+      <div class="brand-sub">Dossiers Chauffeurs, Flottes, CA par Camion &amp; RAC Cumulé</div>
     </div>
   </a>
 
@@ -353,7 +354,7 @@
         <span>Fiches &amp; Pédigrés Chauffeurs Sharik</span>
         <span class="status-badge">🎯 Objectif : 471 500 DA / mois</span>
       </h2>
-      <div id="sharik-meta" style="font-size:12px;color:var(--txt-muted);margin-top:6px">Synchronisation consolidée avec Segments ERP, Pannes &amp; Odomètre...</div>
+      <div id="sharik-meta" style="font-size:12px;color:var(--txt-muted);margin-top:6px">Synchronisation consolidée avec Segments ERP, Pannes &amp; Weekly Bilan (RAC cumulé)...</div>
     </div>
 
     <div style="display:flex;gap:10px;align-items:center;">
@@ -404,13 +405,18 @@
         <option value="D1">Équipe D1</option>
         <option value="D2">Équipe D2</option>
       </select>
+      <select id="flt-truck-count" class="input-control" onchange="renderSharikTable()">
+        <option value="ALL">Tous les Profils (Flotte &amp; Mono)</option>
+        <option value="MULTI">⭐ Multi-Camions Uniquement</option>
+        <option value="MONO">Mono-Camion Uniquement</option>
+      </select>
       <select id="flt-perf" class="input-control" onchange="renderSharikTable()">
         <option value="ALL">Toutes Performances</option>
         <option value="OK">≥ 100% de l'Objectif</option>
         <option value="WARN">50% - 99% de l'Objectif</option>
         <option value="KO">&lt; 50% de l'Objectif</option>
       </select>
-      <input type="text" id="flt-search" class="input-control" placeholder="🔍 Rechercher (nom, tracteur, code…)" oninput="renderSharikTable()">
+      <input type="text" id="flt-search" class="input-control" style="min-width:280px" placeholder="🔍 Rechercher (nom, tracteur, code…)" oninput="renderSharikTable()">
     </div>
   </div>
 
@@ -421,11 +427,11 @@
         <tr>
           <th>Chauffeur Sharik</th>
           <th>Équipe</th>
-          <th>Tracteur Principal</th>
+          <th>Tracteur(s) Flotte</th>
           <th style="text-align:right">Voyages</th>
-          <th style="text-align:right">CA Généré</th>
+          <th style="text-align:right;min-width:240px">CA Généré &amp; Détail Camions</th>
           <th style="text-align:center">Progression CA</th>
-          <th style="text-align:center">RAC %</th>
+          <th style="text-align:center;min-width:140px">RAC % Cumulé (Moy.)</th>
           <th style="text-align:center">Pannes</th>
           <th style="text-align:center">Action</th>
         </tr>
@@ -456,7 +462,9 @@ const OBJECTIF_MENSUEL = 471500;
 let sharikProfiles = [];
 let allSegments = [];
 let allPannes = [];
-let racMap = {};
+let truckWeeklyRac = {}; // plate -> { weekLabel: racPct }
+let driverWeeklyRac = {}; // name -> { weekLabel: racPct }
+let distinctWeeks = [];
 
 function showToast(msg, isError = false) {
   const t = document.getElementById('toast');
@@ -465,6 +473,23 @@ function showToast(msg, isError = false) {
   t.style.borderColor = isError ? '#ef4444' : '#10b981';
   t.style.color = isError ? '#f87171' : '#34d399';
   setTimeout(() => { t.style.display = 'none'; }, 3500);
+}
+
+function normStr(s) {
+  return String(s || '').replace(/\s+/g, ' ').trim().toUpperCase();
+}
+
+function normPlate(p) {
+  return String(p || '').replace(/[^A-Z0-9]/gi, '').toUpperCase();
+}
+
+function normPlateNoZ(p) {
+  return normPlate(p).replace(/^0+/, '');
+}
+
+function extractWeek(fname) {
+  const m = String(fname || '').toUpperCase().match(/S(\d+)/i);
+  return m ? 'S' + m[1] : (String(fname || '').trim() || 'WEEK');
 }
 
 async function initSession() {
@@ -486,18 +511,19 @@ async function initSession() {
 
 async function loadSharikData() {
   try {
-    showToast('⏳ Chargement des données Sharik...');
+    showToast('⏳ Chargement des données Sharik & Weekly RAC...');
 
-    const safeQuery = async (p) => {
+    const safeQuery = async (queryBuilder) => {
       try {
-        const res = await p;
+        const res = await queryBuilder;
         return res || { data: [] };
       } catch (e) {
+        console.warn('Query error:', e);
         return { data: [] };
       }
     };
 
-    // Charger tous les segments ERP avec pagination (dépasse la limite de 1000)
+    // 1. Charger tous les segments ERP avec pagination (dépasse la limite de 1000)
     let allSegs = [];
     let from = 0;
     while (true) {
@@ -512,27 +538,71 @@ async function loadSharikData() {
       }
     }
 
-    const [racRes, panRes, dispoRes] = await Promise.all([
-      safeQuery(sb.from('np_weekly_rac').select('*').limit(500)),
+    // 2. Charger weekly_imports, pannes et dispo
+    const [weeklyRes, panRes, dispoRes] = await Promise.all([
+      safeQuery(sb.from('np_weekly_imports').select('id, file_name, imported_at, payload').order('imported_at', { ascending: true })),
       safeQuery(sb.from('np_pannes').select('*').limit(1000)),
       safeQuery(sb.from('np_dispo').select('v, chauffeur, team').limit(500))
     ]);
 
     allSegments = allSegs;
     allPannes = panRes.data || [];
-    
-    racMap = {};
-    (racRes.data || []).forEach(r => {
-      if (r.plate) racMap[r.plate] = r;
-      const noZ = String(r.plate || '').replace(/^0+/, '');
-      if (noZ) racMap[noZ] = r;
+
+    // 3. Traitement des imports Weekly pour calculer les RAC cumulés par semaine
+    const weeklyImports = weeklyRes.data || [];
+    const snapshotsByWeek = {};
+
+    weeklyImports.forEach(imp => {
+      const w = extractWeek(imp.file_name);
+      snapshotsByWeek[w] = imp; // Le plus récent écrase les précédents
     });
 
+    distinctWeeks = Object.keys(snapshotsByWeek).sort();
+    truckWeeklyRac = {};
+    driverWeeklyRac = {};
+
+    Object.entries(snapshotsByWeek).forEach(([w, imp]) => {
+      const payload = imp.payload || {};
+      const pisRows = payload.pisRows || [];
+      pisRows.forEach(r => {
+        const p = normPlate(r.vehicule);
+        const pNoZ = normPlateNoZ(r.vehicule);
+        const ch = normStr(r.chauffeur);
+        const rac = Number(r.racPct) || 0;
+        const fact = Number(r.facture) || 0;
+        const ecart = Number(r.ecart) || 0;
+
+        // On enregistre uniquement s'il y a une activité ou un RAC calculé
+        if (rac > 0 || fact > 0 || ecart > 0) {
+          if (p) {
+            if (!truckWeeklyRac[p]) truckWeeklyRac[p] = {};
+            truckWeeklyRac[p][w] = rac;
+            if (!truckWeeklyRac[pNoZ]) truckWeeklyRac[pNoZ] = {};
+            truckWeeklyRac[pNoZ][w] = rac;
+          }
+          if (ch) {
+            if (!driverWeeklyRac[ch]) driverWeeklyRac[ch] = {};
+            driverWeeklyRac[ch][w] = rac;
+          }
+        }
+      });
+    });
+
+    const getTruckRacInfo = (plate) => {
+      const p = normPlate(plate);
+      const pNoZ = normPlateNoZ(plate);
+      const wMap = truckWeeklyRac[p] || truckWeeklyRac[pNoZ] || {};
+      const vals = Object.values(wMap);
+      if (!vals.length) return { avgRac: null, weekly: {} };
+      const avg = vals.reduce((a, b) => a + b, 0) / vals.length;
+      return { avgRac: avg, weekly: wMap };
+    };
+
+    // 4. Initialisation du dictionnaire des conducteurs
     const driverMap = new Map();
 
-    // 1. Initialiser depuis les chauffeurs de dispo
     (dispoRes.data || []).forEach(d => {
-      const name = String(d.chauffeur || '').trim().toUpperCase();
+      const name = normStr(d.chauffeur);
       if (!name || name === '—' || name === '-') return;
       if (!driverMap.has(name)) {
         driverMap.set(name, {
@@ -541,15 +611,23 @@ async function loadSharikData() {
           tracteur: d.v || '',
           voyages: [],
           ca: 0,
-          pannes: []
+          pannes: [],
+          trucks: {}
         });
+      }
+      const drv = driverMap.get(name);
+      const tr = normStr(d.v);
+      if (tr && tr !== '—' && tr !== '-') {
+        if (!drv.trucks[tr]) {
+          drv.trucks[tr] = { plate: tr, ca: 0, trips: 0, voyages: [], pannes: [] };
+        }
       }
     });
 
-    // 2. Agréger les segments ERP
+    // 5. Agréger les segments ERP
     allSegments.forEach(s => {
-      const name = String(s.cond1 || s.affrete || '').trim().toUpperCase();
-      if (!name) return;
+      const name = normStr(s.cond1 || s.affrete);
+      if (!name || name === '—' || name === '-') return;
       if (!driverMap.has(name)) {
         driverMap.set(name, {
           name,
@@ -557,29 +635,75 @@ async function loadSharikData() {
           tracteur: s.tracteur || '',
           voyages: [],
           ca: 0,
-          pannes: []
+          pannes: [],
+          trucks: {}
         });
       }
       const drv = driverMap.get(name);
+      const achat = Number(s.achat) || 0;
       drv.voyages.push(s);
-      drv.ca += (Number(s.achat) || 0);
-      if (!drv.tracteur && s.tracteur) drv.tracteur = s.tracteur;
+      drv.ca += achat;
+
+      const tr = normStr(s.tracteur);
+      if (tr && tr !== '—' && tr !== '-') {
+        if (!drv.trucks[tr]) {
+          drv.trucks[tr] = { plate: tr, ca: 0, trips: 0, voyages: [], pannes: [] };
+        }
+        const t = drv.trucks[tr];
+        t.ca += achat;
+        t.trips += 1;
+        t.voyages.push(s);
+      }
     });
 
-    // 3. Agréger les pannes
+    // 6. Agréger les pannes
     allPannes.forEach(p => {
-      const v = String(p.v || '').trim().toUpperCase();
+      const v = normStr(p.v);
       if (!v) return;
+      const vNorm = normPlate(v);
       for (const drv of driverMap.values()) {
-        if (drv.tracteur && drv.tracteur.trim().toUpperCase() === v) {
-          drv.pannes.push(p);
+        for (const t of Object.values(drv.trucks)) {
+          if (normPlate(t.plate) === vNorm) {
+            t.pannes.push(p);
+            drv.pannes.push(p);
+          }
         }
       }
     });
 
+    // 7. Consolidation des métriques par conducteur (Multi-camions et RAC cumulé)
+    for (const drv of driverMap.values()) {
+      const trucksList = Object.values(drv.trucks);
+      if (trucksList.length > 0) {
+        // Trier les camions : le tracteur ayant généré le plus de CA (ou voyages) est le principal
+        trucksList.sort((a, b) => b.ca - a.ca || b.trips - a.trips);
+        drv.tracteur = trucksList[0].plate;
+      }
+
+      // Associer le RAC moyen cumulé de chaque camion
+      const truckRacAvgs = [];
+      trucksList.forEach(t => {
+        const racInfo = getTruckRacInfo(t.plate);
+        t.avgRac = racInfo.avgRac;
+        t.weekly = racInfo.weekly;
+        if (racInfo.avgRac !== null) {
+          truckRacAvgs.push(racInfo.avgRac);
+        }
+      });
+
+      // Calculer le RAC conducteur cumulé (moyenne des RACs des camions ou lookup chauffeur)
+      if (truckRacAvgs.length > 0) {
+        drv.avgRac = truckRacAvgs.reduce((a, b) => a + b, 0) / truckRacAvgs.length;
+      } else {
+        const dWeekly = driverWeeklyRac[drv.name] || {};
+        const dVals = Object.values(dWeekly);
+        drv.avgRac = dVals.length > 0 ? (dVals.reduce((a, b) => a + b, 0) / dVals.length) : null;
+      }
+    }
+
     sharikProfiles = Array.from(driverMap.values()).sort((a, b) => b.ca - a.ca);
 
-    // KPIs
+    // KPIs globaux
     document.getElementById('kpi-total-shariks').textContent = sharikProfiles.length;
     const totCa = sharikProfiles.reduce((s, d) => s + d.ca, 0);
     document.getElementById('kpi-total-ca').textContent = Math.round(totCa).toLocaleString('fr-FR') + ' DA';
@@ -588,10 +712,10 @@ async function loadSharikData() {
     const okCount = sharikProfiles.filter(d => d.ca >= OBJECTIF_MENSUEL).length;
     document.getElementById('kpi-pct-reach').textContent = `${okCount} (${Math.round((okCount / (sharikProfiles.length || 1)) * 100)}%)`;
 
-    document.getElementById('sharik-meta').textContent = `Base consolidée : ${sharikProfiles.length} conducteurs analysés · ${allSegments.length} segments ERP synchronisés`;
+    document.getElementById('sharik-meta').textContent = `Base consolidée : ${sharikProfiles.length} conducteurs répertoriés · ${allSegments.length} segments ERP · ${distinctWeeks.join(', ') || 'Weekly'}`;
 
     renderSharikTable();
-    showToast('✅ Fiches Sharik à jour');
+    showToast('✅ Données Sharik synchronisées avec succès');
 
   } catch (err) {
     console.error('Erreur Sharik:', err);
@@ -602,17 +726,25 @@ async function loadSharikData() {
 function renderSharikTable() {
   const tbody = document.getElementById('sharik-tbody');
   const fltTeam = document.getElementById('flt-team').value;
+  const fltTruckCount = document.getElementById('flt-truck-count').value;
   const fltPerf = document.getElementById('flt-perf').value;
   const q = document.getElementById('flt-search').value.trim().toLowerCase();
 
   const filtered = sharikProfiles.filter(d => {
     if (fltTeam && !d.team.toUpperCase().includes(fltTeam.charAt(0))) return false;
+    
+    const countTrucks = Object.keys(d.trucks).length;
+    if (fltTruckCount === 'MULTI' && countTrucks <= 1) return false;
+    if (fltTruckCount === 'MONO' && countTrucks > 1) return false;
+
     const pct = (d.ca / OBJECTIF_MENSUEL) * 100;
     if (fltPerf === 'OK' && pct < 100) return false;
     if (fltPerf === 'WARN' && (pct < 50 || pct >= 100)) return false;
     if (fltPerf === 'KO' && pct >= 50) return false;
+
     if (q) {
-      const match = `${d.name} ${d.tracteur} ${d.team}`.toLowerCase();
+      const truckPlates = Object.keys(d.trucks).join(' ');
+      const match = `${d.name} ${d.tracteur} ${truckPlates} ${d.team}`.toLowerCase();
       if (!match.includes(q)) return false;
     }
     return true;
@@ -626,26 +758,99 @@ function renderSharikTable() {
   tbody.innerHTML = filtered.map(d => {
     const pct = Math.min(100, (d.ca / OBJECTIF_MENSUEL) * 100);
     const color = pct >= 100 ? '#10b981' : (pct >= 50 ? '#f59e0b' : '#ef4444');
-    
-    // RAC lookup
-    const norm = String(d.tracteur || '').replace(/[\r\n\s\-]/g, '').toUpperCase();
-    const racRow = racMap[norm];
-    const racVal = racRow ? Number(racRow.rac_pct || 0).toFixed(0) + '%' : '—';
+
+    const trucksList = Object.values(d.trucks).sort((a, b) => b.ca - a.ca || b.trips - a.trips);
+    const isMultiTruck = trucksList.length > 1;
+
+    // Rendu colonne Tracteurs
+    let tracteurHtml = '';
+    if (trucksList.length === 0) {
+      tracteurHtml = `<span style="font-family:'JetBrains Mono',monospace;color:var(--txt-muted)">—</span>`;
+    } else if (!isMultiTruck) {
+      tracteurHtml = `<span style="font-family:'JetBrains Mono',monospace;font-weight:700;color:#38bdf8">${trucksList[0].plate}</span>`;
+    } else {
+      const otherPlates = trucksList.slice(1).map(t => t.plate);
+      tracteurHtml = `
+        <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+          <span style="font-family:'JetBrains Mono',monospace;font-weight:700;color:#38bdf8">${trucksList[0].plate}</span>
+          <span style="background:rgba(56,189,248,0.15);border:1px solid rgba(56,189,248,0.3);color:#38bdf8;padding:1px 6px;border-radius:4px;font-size:10px;font-weight:800;white-space:nowrap">
+            ⭐ ${trucksList.length} camions
+          </span>
+        </div>
+        <div style="font-size:10px;color:var(--txt-dim);margin-top:3px;font-family:'JetBrains Mono',monospace">
+          + ${otherPlates.slice(0, 3).join(', ')}${otherPlates.length > 3 ? '…' : ''}
+        </div>
+      `;
+    }
+
+    // Rendu colonne CA & Détail par camion
+    let caHtml = `
+      <div style="font-size:13px;font-weight:800;color:#34d399;font-family:'JetBrains Mono',monospace">
+        ${Math.round(d.ca).toLocaleString('fr-FR')} DA
+      </div>
+    `;
+
+    if (isMultiTruck) {
+      caHtml += `
+        <div style="margin-top:6px;display:flex;flex-direction:column;gap:3px;background:rgba(15,23,42,0.7);border:1px solid #1e293b;border-radius:6px;padding:5px 8px;font-family:'JetBrains Mono',monospace;font-size:11px">
+          ${trucksList.map(t => `
+            <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
+              <span style="color:#94a3b8">🚛 <b style="color:#38bdf8">${t.plate}</b></span>
+              <span style="color:#f8fafc;font-weight:600">
+                ${Math.round(t.ca).toLocaleString('fr-FR')} DA 
+                <span style="color:#64748b;font-size:10px">(${t.trips} v.)</span>
+              </span>
+            </div>
+          `).join('')}
+        </div>
+      `;
+    }
+
+    // Rendu colonne RAC % Cumulé
+    let racHtml = '';
+    if (d.avgRac === null) {
+      racHtml = `<span style="color:var(--txt-muted);font-weight:700">—</span>`;
+    } else {
+      const rColor = d.avgRac >= 50 ? '#10b981' : (d.avgRac >= 40 ? '#f59e0b' : '#ef4444');
+      
+      let subDetail = '';
+      if (!isMultiTruck && trucksList[0]) {
+        const weeklyMap = trucksList[0].weekly || {};
+        const wParts = Object.entries(weeklyMap).map(([w, r]) => `${w}: ${Math.round(r)}%`);
+        if (wParts.length > 0) {
+          subDetail = `<div style="font-size:10px;color:var(--txt-muted);margin-top:2px;font-family:'JetBrains Mono',monospace">${wParts.join(' · ')}</div>`;
+        }
+      } else if (isMultiTruck) {
+        const tRacs = trucksList.map(t => {
+          const v = t.avgRac !== null ? Math.round(t.avgRac) + '%' : '—';
+          const shortP = t.plate.replace(/.*(?=.{6}$)/, '');
+          return `<span title="${t.plate}">${shortP}: <b style="color:#f8fafc">${v}</b></span>`;
+        });
+        subDetail = `<div style="font-size:10px;color:var(--txt-muted);margin-top:2px;font-family:'JetBrains Mono',monospace;line-height:1.3">${tRacs.join(' · ')}</div>`;
+      }
+
+      racHtml = `
+        <div style="font-size:14px;font-weight:800;color:${rColor};font-family:'JetBrains Mono',monospace">
+          ${Math.round(d.avgRac)}%
+        </div>
+        ${subDetail}
+      `;
+    }
 
     return `
       <tr onclick="openPedigreeModal('${encodeURIComponent(d.name)}')">
         <td><b>${d.name}</b></td>
         <td><span class="team-badge">${d.team || '—'}</span></td>
-        <td style="font-family:'JetBrains Mono',monospace;font-weight:700;color:#38bdf8">${d.tracteur || '—'}</td>
+        <td>${tracteurHtml}</td>
         <td style="text-align:right;font-weight:700">${d.voyages.length}</td>
-        <td style="text-align:right;color:#34d399;font-weight:800">${Math.round(d.ca).toLocaleString('fr-FR')} DA</td>
+        <td style="text-align:right">${caHtml}</td>
         <td style="text-align:center">
           <div style="font-size:11px;font-weight:700;color:${color}">${pct.toFixed(0)}%</div>
           <div style="background:#1e293b;border-radius:999px;height:6px;width:80px;margin:3px auto 0;overflow:hidden">
             <div style="background:${color};height:100%;width:${pct}%"></div>
           </div>
         </td>
-        <td style="text-align:center;font-weight:700">${racVal}</td>
+        <td style="text-align:center">${racHtml}</td>
         <td style="text-align:center"><span style="color:${d.pannes.length > 0 ? '#ef4444' : 'var(--txt-muted)'};font-weight:700">${d.pannes.length}</span></td>
         <td style="text-align:center">
           <button class="btn-nav" style="padding:4px 8px;font-size:11px" onclick="event.stopPropagation();openPedigreeModal('${encodeURIComponent(d.name)}')">
@@ -664,14 +869,21 @@ function openPedigreeModal(encName) {
 
   const pct = (d.ca / OBJECTIF_MENSUEL) * 100;
   const col = pct >= 100 ? '#10b981' : (pct >= 50 ? '#f59e0b' : '#ef4444');
+  const trucksList = Object.values(d.trucks).sort((a, b) => b.ca - a.ca || b.trips - a.trips);
+  const isMultiTruck = trucksList.length > 1;
 
   const content = document.getElementById('pedigree-content');
   content.innerHTML = `
     <div id="print-area">
       <div style="display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid #334155;padding-bottom:16px;margin-bottom:20px">
         <div>
-          <h2 style="font-size:22px;font-weight:800;color:#fff">${d.name}</h2>
-          <div style="font-size:12px;color:var(--txt-muted);margin-top:4px">Tracteur : <b style="color:#38bdf8">${d.tracteur || '—'}</b> · Équipe : <b style="color:#c084fc">${d.team || '—'}</b></div>
+          <div style="display:flex;align-items:center;gap:10px">
+            <h2 style="font-size:22px;font-weight:800;color:#fff">${d.name}</h2>
+            ${isMultiTruck ? `<span style="background:rgba(56,189,248,0.2);color:#38bdf8;border:1px solid rgba(56,189,248,0.4);padding:2px 8px;border-radius:6px;font-size:11px;font-weight:800">⭐ Flotte de ${trucksList.length} Camions</span>` : ''}
+          </div>
+          <div style="font-size:12px;color:var(--txt-muted);margin-top:4px">
+            Tracteur Principal : <b style="color:#38bdf8">${d.tracteur || '—'}</b> · Équipe : <b style="color:#c084fc">${d.team || '—'}</b>
+          </div>
         </div>
         <div style="display:flex;gap:10px">
           <button onclick="window.print()" class="btn-nav" style="background:#10b981;border:none;color:#fff;font-weight:700">
@@ -680,7 +892,7 @@ function openPedigreeModal(encName) {
         </div>
       </div>
 
-      <div class="kpi-grid" style="grid-template-columns:repeat(3, 1fr);margin-bottom:20px">
+      <div class="kpi-grid" style="grid-template-columns:repeat(4, 1fr);margin-bottom:20px">
         <div class="kpi-card">
           <div class="kpi-title">CA RÉALISÉ</div>
           <div class="kpi-value" style="color:#34d399">${Math.round(d.ca).toLocaleString('fr-FR')} DA</div>
@@ -692,19 +904,83 @@ function openPedigreeModal(encName) {
           <div class="kpi-sub">Segments ERP confirmés</div>
         </div>
         <div class="kpi-card">
+          <div class="kpi-title">RAC MOYEN CUMULÉ</div>
+          <div class="kpi-value" style="color:${d.avgRac !== null ? (d.avgRac >= 50 ? '#34d399' : (d.avgRac >= 40 ? '#f59e0b' : '#ef4444')) : 'var(--txt-dim)'}">
+            ${d.avgRac !== null ? Math.round(d.avgRac) + '%' : '—'}
+          </div>
+          <div class="kpi-sub">Moyenne des semaines weekly</div>
+        </div>
+        <div class="kpi-card">
           <div class="kpi-title">PANNES SIGNALÉES</div>
           <div class="kpi-value" style="color:${d.pannes.length ? '#ef4444' : '#34d399'}">${d.pannes.length}</div>
           <div class="kpi-sub">Incidents techniques</div>
         </div>
       </div>
 
+      <!-- TABLEAU DÉTAIL DES CAMIONS SI FLOTTE -->
+      <div style="background:#0b1120;border:1px solid #1e293b;border-radius:10px;padding:16px;margin-bottom:24px">
+        <h3 style="font-size:13px;font-weight:800;margin-bottom:12px;color:#fff;display:flex;align-items:center;gap:8px">
+          <i class="fa-solid fa-truck" style="color:#38bdf8"></i>
+          Détail de la Flotte &amp; Répartition du Chiffre d'Affaires par Camion
+        </h3>
+        <table style="width:100%;border-collapse:collapse;font-size:12px">
+          <thead>
+            <tr style="border-bottom:1px solid #334155;color:var(--txt-muted);font-size:11px">
+              <th style="padding:6px 8px">Immatriculation</th>
+              <th style="padding:6px 8px">Rôle</th>
+              <th style="padding:6px 8px;text-align:right">Voyages</th>
+              <th style="padding:6px 8px;text-align:right">CA Généré</th>
+              <th style="padding:6px 8px;text-align:right">Part CA</th>
+              <th style="padding:6px 8px;text-align:center">Détail Weekly</th>
+              <th style="padding:6px 8px;text-align:center">RAC Cumulé Moy.</th>
+              <th style="padding:6px 8px;text-align:center">Pannes</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${trucksList.length === 0 ? `
+              <tr><td colspan="8" style="text-align:center;padding:12px;color:var(--txt-muted)">Aucun camion associé</td></tr>
+            ` : trucksList.map((t, idx) => {
+              const partPct = d.ca > 0 ? ((t.ca / d.ca) * 100).toFixed(1) + '%' : '0%';
+              const wMap = t.weekly || {};
+              const wText = Object.entries(wMap).map(([w, r]) => `${w}: ${Math.round(r)}%`).join(' · ') || '—';
+              const rCol = t.avgRac !== null ? (t.avgRac >= 50 ? '#34d399' : (t.avgRac >= 40 ? '#f59e0b' : '#ef4444')) : 'var(--txt-dim)';
+              return `
+                <tr style="border-bottom:1px solid rgba(30,41,59,0.5)">
+                  <td style="padding:8px;font-family:'JetBrains Mono',monospace;font-weight:700;color:#38bdf8">
+                    🚛 ${t.plate}
+                  </td>
+                  <td style="padding:8px">
+                    ${idx === 0 ? '<span style="color:#fbbf24;font-weight:700">★ Principal</span>' : '<span style="color:var(--txt-dim)">Secondaire</span>'}
+                  </td>
+                  <td style="padding:8px;text-align:right;font-weight:700">${t.trips}</td>
+                  <td style="padding:8px;text-align:right;color:#34d399;font-weight:700;font-family:'JetBrains Mono',monospace">
+                    ${Math.round(t.ca).toLocaleString('fr-FR')} DA
+                  </td>
+                  <td style="padding:8px;text-align:right;color:#c084fc;font-weight:700">${partPct}</td>
+                  <td style="padding:8px;text-align:center;font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--txt-muted)">
+                    ${wText}
+                  </td>
+                  <td style="padding:8px;text-align:center;font-family:'JetBrains Mono',monospace;font-weight:800;color:${rCol}">
+                    ${t.avgRac !== null ? Math.round(t.avgRac) + '%' : '—'}
+                  </td>
+                  <td style="padding:8px;text-align:center">
+                    <span style="color:${t.pannes.length > 0 ? '#ef4444' : 'var(--txt-muted)'};font-weight:700">${t.pannes.length}</span>
+                  </td>
+                </tr>
+              `;
+            }).join('')}
+          </tbody>
+        </table>
+      </div>
+
       <h3 style="font-size:14px;font-weight:800;margin-bottom:10px;color:#fff">📦 Détail des 15 derniers Voyages ERP</h3>
-      <div class="table-container" style="max-height:35vh;overflow-y:auto;margin-bottom:20px">
+      <div class="table-container" style="max-height:30vh;overflow-y:auto;margin-bottom:20px">
         <table>
           <thead>
             <tr>
               <th>Date</th>
               <th>N° Seg</th>
+              <th>Tracteur</th>
               <th>Client</th>
               <th>Itinéraire</th>
               <th style="text-align:right">Km</th>
@@ -716,6 +992,7 @@ function openPedigreeModal(encName) {
               <tr>
                 <td>${v.date || '—'}</td>
                 <td style="font-family:'JetBrains Mono',monospace;color:#38bdf8">${v.seg}</td>
+                <td style="font-family:'JetBrains Mono',monospace;color:#94a3b8;font-weight:700">${v.tracteur || '—'}</td>
                 <td>${v.client || '—'}</td>
                 <td>${v.ville_dep || '—'} → ${v.ville_arr || '—'}</td>
                 <td style="text-align:right">${Math.round(v.km_expl || 0)}</td>
@@ -741,16 +1018,33 @@ function exportShariksExcel() {
     return;
   }
   const wb = XLSX.utils.book_new();
-  const exportData = sharikProfiles.map(d => ({
-    'Chauffeur': d.name,
-    'Équipe': d.team,
-    'Tracteur': d.tracteur,
-    'Voyages': d.voyages.length,
-    'CA Généré (DA)': Math.round(d.ca),
-    'Objectif (DA)': OBJECTIF_MENSUEL,
-    'Progression %': ((d.ca / OBJECTIF_MENSUEL) * 100).toFixed(1) + '%',
-    'Pannes': d.pannes.length
-  }));
+  const exportData = sharikProfiles.map(d => {
+    const trucksList = Object.values(d.trucks).sort((a, b) => b.ca - a.ca);
+    const caDetail = trucksList.map(t => `${t.plate}: ${Math.round(t.ca).toLocaleString('fr-FR')} DA (${t.trips} voy)`).join(' | ');
+    const allPlates = trucksList.map(t => t.plate).join(', ');
+    const weeklyStr = trucksList.map(t => {
+      const wMap = t.weekly || {};
+      const parts = Object.entries(wMap).map(([w, r]) => `${w}=${Math.round(r)}%`).join(' ');
+      return `${t.plate}: [${parts || 'none'}] (moy=${t.avgRac !== null ? Math.round(t.avgRac) + '%' : '—'})`;
+    }).join(' | ');
+
+    return {
+      'Chauffeur': d.name,
+      'Équipe': d.team,
+      'Nb Camions': trucksList.length,
+      'Tracteur Principal': d.tracteur,
+      'Tous les Tracteurs': allPlates,
+      'Détail CA par Tracteur': caDetail,
+      'Voyages': d.voyages.length,
+      'CA Généré (DA)': Math.round(d.ca),
+      'Objectif (DA)': OBJECTIF_MENSUEL,
+      'Progression %': ((d.ca / OBJECTIF_MENSUEL) * 100).toFixed(1) + '%',
+      'RAC % Moyen Cumulé': d.avgRac !== null ? Math.round(d.avgRac) + '%' : '—',
+      'Détail RAC Hebdo': weeklyStr,
+      'Pannes': d.pannes.length
+    };
+  });
+
   const ws = XLSX.utils.json_to_sheet(exportData);
   XLSX.utils.book_append_sheet(wb, ws, 'Sharik_Performances');
   XLSX.writeFile(wb, `Sharik_Performances_${new Date().toISOString().split('T')[0]}.xlsx`);
