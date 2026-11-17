@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>NUMIPLAN — Fiche Sharik & Pedigré Chauffeur</title>
+<title>NUMIPLAN — Fiche Sharik, Pédigré, Dispo &amp; Non-Conformités</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
@@ -132,7 +132,7 @@
 
   main {
     flex: 1;
-    max-width: 1600px;
+    max-width: 1650px;
     width: 100%;
     margin: 0 auto;
     padding: 24px 28px;
@@ -170,15 +170,15 @@
   /* KPIS */
   .kpi-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-    gap: 16px;
+    grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+    gap: 14px;
     margin-bottom: 24px;
   }
   .kpi-card {
     background: var(--bg-card);
     border: 1px solid var(--border);
     border-radius: 14px;
-    padding: 18px;
+    padding: 16px 18px;
   }
   .kpi-title {
     font-size: 11px;
@@ -187,9 +187,9 @@
     text-transform: uppercase;
   }
   .kpi-value {
-    font-size: 26px;
+    font-size: 24px;
     font-weight: 900;
-    margin: 8px 0 4px;
+    margin: 6px 0 3px;
     font-family: 'JetBrains Mono', monospace;
   }
   .kpi-sub {
@@ -259,6 +259,29 @@
     cursor: pointer;
   }
 
+  /* BADGES */
+  .badge-nc-pill {
+    background: rgba(239, 68, 68, 0.15);
+    color: #f87171;
+    border: 1px solid rgba(239, 68, 68, 0.3);
+    padding: 2px 8px;
+    border-radius: 6px;
+    font-size: 11px;
+    font-weight: 800;
+    white-space: nowrap;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+  }
+  .badge-dispo-pill {
+    padding: 2px 8px;
+    border-radius: 6px;
+    font-size: 11px;
+    font-weight: 800;
+    white-space: nowrap;
+    font-family: 'JetBrains Mono', monospace;
+  }
+
   /* PEDIGREE MODAL */
   .modal-overlay {
     position: fixed;
@@ -276,7 +299,7 @@
     border: 1px solid var(--border);
     border-radius: 16px;
     width: 100%;
-    max-width: 1060px;
+    max-width: 1100px;
     max-height: 90vh;
     overflow-y: auto;
     padding: 28px;
@@ -310,7 +333,7 @@
     z-index: 1100;
   }
 
-  /* PEDIGREE MODAL CLASSES (SCREEN) */
+  /* PEDIGREE SCREEN CLASSES */
   .print-official-banner { display: none; }
   .print-footer { display: none; }
   .pedigree-header-screen {
@@ -332,14 +355,14 @@
     font-size: 11px;
     font-weight: 800;
   }
-  .fleet-box {
+  .section-box {
     background: #0b1120;
     border: 1px solid #1e293b;
     border-radius: 10px;
     padding: 16px;
-    margin-bottom: 24px;
+    margin-bottom: 22px;
   }
-  .fleet-box h3, .trips-title {
+  .section-box h3, .trips-title {
     font-size: 13px;
     font-weight: 800;
     margin-bottom: 12px;
@@ -357,7 +380,7 @@
   @media print {
     @page {
       size: A4 portrait;
-      margin: 10mm 12mm 10mm 12mm;
+      margin: 8mm 10mm;
     }
 
     /* 1. Cacher tout le reste de l'application */
@@ -378,13 +401,13 @@
       height: auto !important;
       min-height: auto !important;
       overflow: visible !important;
-      font-size: 10pt !important;
+      font-size: 9.5pt !important;
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif !important;
       -webkit-print-color-adjust: exact !important;
       print-color-adjust: exact !important;
     }
 
-    /* 2. Annuler le centrage flex et l'overflow du modal pour que tout tienne dès le début de page */
+    /* 2. Annuler le centrage flex et l'overflow du modal pour commencer tout en haut */
     #pedigree-modal.modal-overlay {
       position: static !important;
       display: block !important;
@@ -433,25 +456,25 @@
       justify-content: space-between !important;
       align-items: center !important;
       border-bottom: 2px solid #0f172a !important;
-      padding-bottom: 8px !important;
-      margin-bottom: 12px !important;
+      padding-bottom: 6px !important;
+      margin-bottom: 10px !important;
     }
 
     .pedigree-header-screen {
       border-bottom: 1.5px solid #cbd5e1 !important;
-      padding-bottom: 8px !important;
-      margin-bottom: 12px !important;
+      padding-bottom: 6px !important;
+      margin-bottom: 10px !important;
     }
 
     .pedigree-title {
       color: #0f172a !important;
-      font-size: 18pt !important;
+      font-size: 16pt !important;
       font-weight: 900 !important;
     }
 
     .pedigree-sub {
       color: #334155 !important;
-      font-size: 9pt !important;
+      font-size: 8.5pt !important;
       margin-top: 2px !important;
     }
     .pedigree-sub b {
@@ -468,35 +491,35 @@
       font-weight: 800 !important;
     }
 
-    /* 4. Grille des 4 KPIs imprimables */
+    /* 4. Grille des 5 KPIs imprimables */
     #print-area .kpi-grid {
       display: grid !important;
-      grid-template-columns: repeat(4, 1fr) !important;
-      gap: 8px !important;
-      margin-bottom: 14px !important;
+      grid-template-columns: repeat(5, 1fr) !important;
+      gap: 6px !important;
+      margin-bottom: 12px !important;
       page-break-inside: avoid !important;
     }
 
     #print-area .kpi-card {
       background: #f8fafc !important;
       border: 1px solid #cbd5e1 !important;
-      border-radius: 6px !important;
-      padding: 8px 10px !important;
+      border-radius: 5px !important;
+      padding: 6px 8px !important;
       box-shadow: none !important;
       color: #0f172a !important;
     }
 
     #print-area .kpi-title {
       color: #475569 !important;
-      font-size: 7.5pt !important;
+      font-size: 7pt !important;
       font-weight: 800 !important;
       text-transform: uppercase !important;
     }
 
     #print-area .kpi-value {
-      font-size: 14pt !important;
+      font-size: 13pt !important;
       font-weight: 900 !important;
-      margin: 3px 0 1px !important;
+      margin: 2px 0 1px !important;
       font-family: 'JetBrains Mono', monospace !important;
       color: #0f172a !important;
     }
@@ -507,28 +530,28 @@
 
     #print-area .kpi-sub {
       color: #64748b !important;
-      font-size: 7.5pt !important;
+      font-size: 7pt !important;
     }
     #print-area .kpi-sub b {
       color: #0f172a !important;
     }
 
-    /* 5. Section Flotte Multi-Camions */
-    #print-area .fleet-box {
+    /* 5. Boîtes sections */
+    #print-area .section-box {
       background: #ffffff !important;
       border: 1px solid #cbd5e1 !important;
-      border-radius: 6px !important;
-      padding: 10px !important;
-      margin-bottom: 12px !important;
+      border-radius: 5px !important;
+      padding: 8px 10px !important;
+      margin-bottom: 10px !important;
       page-break-inside: avoid !important;
     }
 
-    #print-area .fleet-box h3,
+    #print-area .section-box h3,
     #print-area .trips-title {
       color: #0f172a !important;
-      font-size: 10pt !important;
+      font-size: 9.5pt !important;
       font-weight: 800 !important;
-      margin-bottom: 8px !important;
+      margin-bottom: 6px !important;
     }
 
     /* 6. Tableaux Imprimables */
@@ -537,15 +560,15 @@
       height: auto !important;
       overflow: visible !important;
       border: 1px solid #cbd5e1 !important;
-      border-radius: 6px !important;
-      margin-bottom: 12px !important;
+      border-radius: 5px !important;
+      margin-bottom: 10px !important;
       background: #ffffff !important;
     }
 
     #print-area table {
       width: 100% !important;
       border-collapse: collapse !important;
-      font-size: 8pt !important;
+      font-size: 7.5pt !important;
     }
 
     #print-area thead {
@@ -558,16 +581,16 @@
       color: #0f172a !important;
       font-weight: 800 !important;
       border-bottom: 1.5px solid #94a3b8 !important;
-      padding: 4px 6px !important;
-      font-size: 7.5pt !important;
+      padding: 4px 5px !important;
+      font-size: 7pt !important;
       text-transform: uppercase !important;
     }
 
     #print-area td {
       color: #0f172a !important;
       border-bottom: 1px solid #e2e8f0 !important;
-      padding: 4px 6px !important;
-      font-size: 8pt !important;
+      padding: 3px 5px !important;
+      font-size: 7.5pt !important;
     }
 
     #print-area tr {
@@ -598,8 +621,8 @@
       display: flex !important;
       justify-content: space-between !important;
       border-top: 1px solid #cbd5e1 !important;
-      padding-top: 6px !important;
-      margin-top: 10px !important;
+      padding-top: 5px !important;
+      margin-top: 8px !important;
       font-size: 7pt !important;
       color: #64748b !important;
     }
@@ -615,7 +638,7 @@
     </div>
     <div>
       <div class="brand-title">NUMIPLAN SHARIK</div>
-      <div class="brand-sub">Dossiers Chauffeurs, Flottes, CA par Camion &amp; RAC Cumulé</div>
+      <div class="brand-sub">Dossiers Chauffeurs, Flottes, Dispo, Non-Conformités &amp; RAC</div>
     </div>
   </a>
 
@@ -643,7 +666,7 @@
         <span>Fiches &amp; Pédigrés Chauffeurs Sharik</span>
         <span class="status-badge">🎯 Objectif : 471 500 DA / mois</span>
       </h2>
-      <div id="sharik-meta" style="font-size:12px;color:var(--txt-muted);margin-top:6px">Synchronisation consolidée avec Segments ERP, Pannes &amp; Weekly Bilan (RAC cumulé)...</div>
+      <div id="sharik-meta" style="font-size:12px;color:var(--txt-muted);margin-top:6px">Synchronisation consolidée avec Segments ERP, Non-Conformités, Pannes &amp; Weekly RAC...</div>
     </div>
 
     <div style="display:flex;gap:10px;align-items:center;">
@@ -673,6 +696,11 @@
       <div class="kpi-value" id="kpi-total-voyages" style="color:#38bdf8">0</div>
       <div class="kpi-sub">Segments de transport exécutés</div>
     </div>
+    <div class="kpi-card" style="border-color: rgba(239, 68, 68, 0.35);">
+      <div class="kpi-title">⚠️ TOTAL NON-CONFORMITÉS</div>
+      <div class="kpi-value" id="kpi-total-ncs" style="color:#f87171">0</div>
+      <div class="kpi-sub" id="kpi-sub-ncs">Infractions répertoriées</div>
+    </div>
     <div class="kpi-card" style="border-color: rgba(245, 158, 11, 0.35);">
       <div class="kpi-title">🎯 OBJECTIF ATTEINT (≥ 100%)</div>
       <div class="kpi-value" id="kpi-pct-reach" style="color:#fbbf24">0</div>
@@ -700,12 +728,17 @@
         <option value="MONO">Mono-Camion Uniquement</option>
       </select>
       <select id="flt-perf" class="input-control" onchange="renderSharikTable()">
-        <option value="ALL">Toutes Performances</option>
+        <option value="ALL">Toutes Performances CA</option>
         <option value="OK">≥ 100% de l'Objectif</option>
         <option value="WARN">50% - 99% de l'Objectif</option>
         <option value="KO">&lt; 50% de l'Objectif</option>
       </select>
-      <input type="text" id="flt-search" class="input-control" style="min-width:280px" placeholder="🔍 Rechercher (nom, tracteur, code…)" oninput="renderSharikTable()">
+      <select id="flt-nc" class="input-control" onchange="renderSharikTable()">
+        <option value="ALL">Toutes les Non-Conformités</option>
+        <option value="WITH_NC">⚠️ Avec Non-Conformités (≥ 1 NC)</option>
+        <option value="NO_NC">Sans Non-Conformité (0 NC)</option>
+      </select>
+      <input type="text" id="flt-search" class="input-control" style="min-width:260px" placeholder="🔍 Rechercher (nom, tracteur, équipe…)" oninput="renderSharikTable()">
     </div>
   </div>
 
@@ -718,15 +751,17 @@
           <th>Équipe</th>
           <th>Tracteur(s) Flotte</th>
           <th style="text-align:right">Voyages</th>
-          <th style="text-align:right;min-width:240px">CA Généré &amp; Détail Camions</th>
-          <th style="text-align:center">Progression CA</th>
-          <th style="text-align:center;min-width:140px">RAC % Cumulé (Moy.)</th>
+          <th style="text-align:right;min-width:220px">CA Généré &amp; Détail Camions</th>
+          <th style="text-align:center">Progression</th>
+          <th style="text-align:center;min-width:130px">RAC % Cumulé</th>
+          <th style="text-align:center">Dispo %</th>
+          <th style="text-align:center">Non-Conf.</th>
           <th style="text-align:center">Pannes</th>
           <th style="text-align:center">Action</th>
         </tr>
       </thead>
       <tbody id="sharik-tbody">
-        <tr><td colspan="9" style="text-align:center;padding:40px;color:var(--txt-muted)">Chargement des profils Sharik...</td></tr>
+        <tr><td colspan="11" style="text-align:center;padding:40px;color:var(--txt-muted)">Chargement des profils Sharik...</td></tr>
       </tbody>
     </table>
   </div>
@@ -751,6 +786,7 @@ const OBJECTIF_MENSUEL = 471500;
 let sharikProfiles = [];
 let allSegments = [];
 let allPannes = [];
+let allNonConformites = [];
 let truckWeeklyRac = {}; // plate -> { weekLabel: racPct }
 let driverWeeklyRac = {}; // name -> { weekLabel: racPct }
 let distinctWeeks = [];
@@ -800,7 +836,7 @@ async function initSession() {
 
 async function loadSharikData() {
   try {
-    showToast('⏳ Chargement des données Sharik & Weekly RAC...');
+    showToast('⏳ Synchronisation complète Sharik (Segments, Dispo, NC, RAC)...');
 
     const safeQuery = async (queryBuilder) => {
       try {
@@ -812,7 +848,7 @@ async function loadSharikData() {
       }
     };
 
-    // 1. Charger tous les segments ERP avec pagination (dépasse la limite de 1000)
+    // 1. Charger tous les segments ERP avec pagination
     let allSegs = [];
     let from = 0;
     while (true) {
@@ -827,23 +863,39 @@ async function loadSharikData() {
       }
     }
 
-    // 2. Charger weekly_imports, pannes et dispo
-    const [weeklyRes, panRes, dispoRes] = await Promise.all([
+    // 2. Charger weekly_imports, pannes, dispo, numiplan_teams et np_nc
+    const [weeklyRes, panRes, dispoRes, teamsRes, npNcRes] = await Promise.all([
       safeQuery(sb.from('np_weekly_imports').select('id, file_name, imported_at, payload').order('imported_at', { ascending: true })),
       safeQuery(sb.from('np_pannes').select('*').limit(1000)),
-      safeQuery(sb.from('np_dispo').select('v, chauffeur, team').limit(500))
+      safeQuery(sb.from('np_dispo').select('*').limit(1000)),
+      safeQuery(sb.from('numiplan_teams').select('team, payload').in('team', ['A1','A2','B1','B2','C1','C2','D1','D2'])),
+      safeQuery(sb.from('np_nc').select('*').limit(1000))
     ]);
 
     allSegments = allSegs;
     allPannes = panRes.data || [];
 
-    // 3. Traitement des imports Weekly pour calculer les RAC cumulés par semaine
+    // 3. Collecte des Non-Conformités (NC) depuis numiplan_teams & np_nc
+    const rawNcs = [];
+    (teamsRes.data || []).forEach(t => {
+      const p = t.payload || {};
+      if (Array.isArray(p.nc)) {
+        p.nc.forEach(nc => {
+          rawNcs.push({ ...nc, _team: t.team });
+        });
+      }
+    });
+    (npNcRes.data || []).forEach(nc => {
+      rawNcs.push({ ...nc, _team: nc.team || 'NC' });
+    });
+    allNonConformites = rawNcs;
+
+    // 4. Traitement des imports Weekly (RAC moyen cumulé)
     const weeklyImports = weeklyRes.data || [];
     const snapshotsByWeek = {};
-
     weeklyImports.forEach(imp => {
       const w = extractWeek(imp.file_name);
-      snapshotsByWeek[w] = imp; // Le plus récent écrase les précédents
+      snapshotsByWeek[w] = imp;
     });
 
     distinctWeeks = Object.keys(snapshotsByWeek).sort();
@@ -861,7 +913,6 @@ async function loadSharikData() {
         const fact = Number(r.facture) || 0;
         const ecart = Number(r.ecart) || 0;
 
-        // On enregistre uniquement s'il y a une activité ou un RAC calculé
         if (rac > 0 || fact > 0 || ecart > 0) {
           if (p) {
             if (!truckWeeklyRac[p]) truckWeeklyRac[p] = {};
@@ -887,48 +938,76 @@ async function loadSharikData() {
       return { avgRac: avg, weekly: wMap };
     };
 
-    // 4. Initialisation du dictionnaire des conducteurs
+    // 5. Initialisation des profils conducteurs
     const driverMap = new Map();
 
-    (dispoRes.data || []).forEach(d => {
-      const name = normStr(d.chauffeur);
-      if (!name || name === '—' || name === '-') return;
+    const getOrCreateDrv = (rawName, teamHint = '', plateHint = '') => {
+      const name = normStr(rawName);
+      if (!name || name === '—' || name === '-') return null;
       if (!driverMap.has(name)) {
         driverMap.set(name, {
           name,
-          team: d.team || '',
-          tracteur: d.v || '',
+          team: teamHint || '',
+          tracteur: plateHint || '',
           voyages: [],
           ca: 0,
           pannes: [],
-          trucks: {}
+          trucks: {},
+          ncs: [],
+          dispoCount: 0,
+          missionCount: 0,
+          panneCount: 0,
+          tauxDispo: 100
         });
       }
       const drv = driverMap.get(name);
+      if (!drv.team && teamHint) drv.team = teamHint;
+      if (!drv.tracteur && plateHint) drv.tracteur = plateHint;
+      return drv;
+    };
+
+    // a. Initialiser depuis np_dispo
+    (dispoRes.data || []).forEach(d => {
+      const drv = getOrCreateDrv(d.chauffeur, d.team, d.v);
+      if (!drv) return;
       const tr = normStr(d.v);
       if (tr && tr !== '—' && tr !== '-') {
         if (!drv.trucks[tr]) {
-          drv.trucks[tr] = { plate: tr, ca: 0, trips: 0, voyages: [], pannes: [] };
+          drv.trucks[tr] = { plate: tr, ca: 0, trips: 0, voyages: [], pannes: [], ncs: [] };
         }
+      }
+      const etat = String(d.etat || '').toUpperCase();
+      if (etat.includes('DISPO')) drv.dispoCount++;
+      else if (etat.includes('MISSION') || etat.includes('TRANSIT')) drv.missionCount++;
+      else if (etat.includes('PANNE')) drv.panneCount++;
+    });
+
+    // b. Intégrer les historiques de dispo des équipes
+    (teamsRes.data || []).forEach(t => {
+      const p = t.payload || {};
+      if (Array.isArray(p.dispo)) {
+        p.dispo.forEach(d => {
+          const drv = getOrCreateDrv(d.chauffeur, t.team, d.v);
+          if (!drv) return;
+          const tr = normStr(d.v);
+          if (tr && tr !== '—' && tr !== '-') {
+            if (!drv.trucks[tr]) {
+              drv.trucks[tr] = { plate: tr, ca: 0, trips: 0, voyages: [], pannes: [], ncs: [] };
+            }
+          }
+          const etat = String(d.etat || '').toUpperCase();
+          if (etat.includes('DISPO')) drv.dispoCount++;
+          else if (etat.includes('MISSION') || etat.includes('TRANSIT')) drv.missionCount++;
+          else if (etat.includes('PANNE')) drv.panneCount++;
+        });
       }
     });
 
-    // 5. Agréger les segments ERP
+    // c. Agréger les segments ERP
     allSegments.forEach(s => {
-      const name = normStr(s.cond1 || s.affrete);
-      if (!name || name === '—' || name === '-') return;
-      if (!driverMap.has(name)) {
-        driverMap.set(name, {
-          name,
-          team: s.agence || '',
-          tracteur: s.tracteur || '',
-          voyages: [],
-          ca: 0,
-          pannes: [],
-          trucks: {}
-        });
-      }
-      const drv = driverMap.get(name);
+      const drv = getOrCreateDrv(s.cond1 || s.affrete, s.agence, s.tracteur);
+      if (!drv) return;
+
       const achat = Number(s.achat) || 0;
       drv.voyages.push(s);
       drv.ca += achat;
@@ -936,7 +1015,7 @@ async function loadSharikData() {
       const tr = normStr(s.tracteur);
       if (tr && tr !== '—' && tr !== '-') {
         if (!drv.trucks[tr]) {
-          drv.trucks[tr] = { plate: tr, ca: 0, trips: 0, voyages: [], pannes: [] };
+          drv.trucks[tr] = { plate: tr, ca: 0, trips: 0, voyages: [], pannes: [], ncs: [] };
         }
         const t = drv.trucks[tr];
         t.ca += achat;
@@ -945,31 +1024,78 @@ async function loadSharikData() {
       }
     });
 
-    // 6. Agréger les pannes
+    // d. Agréger les pannes
     allPannes.forEach(p => {
       const v = normStr(p.v);
       if (!v) return;
       const vNorm = normPlate(v);
+      const vNoZ = normPlateNoZ(v);
+
       for (const drv of driverMap.values()) {
         for (const t of Object.values(drv.trucks)) {
-          if (normPlate(t.plate) === vNorm) {
+          const tNorm = normPlate(t.plate);
+          const tNoZ = normPlateNoZ(t.plate);
+          if (tNorm === vNorm || tNoZ === vNoZ) {
             t.pannes.push(p);
             drv.pannes.push(p);
+            drv.panneCount++;
           }
         }
       }
     });
 
-    // 7. Consolidation des métriques par conducteur (Multi-camions et RAC cumulé)
+    // e. Agréger les Non-Conformités (NC)
+    const plateToDriverMap = new Map();
+    for (const drv of driverMap.values()) {
+      for (const tr of Object.keys(drv.trucks)) {
+        plateToDriverMap.set(normPlate(tr), drv);
+        plateToDriverMap.set(normPlateNoZ(tr), drv);
+      }
+    }
+
+    allNonConformites.forEach(nc => {
+      const ch = normStr(nc.sharik || nc.chauffeur);
+      const pl = normPlate(nc.immat || nc.v);
+      const plNoZ = normPlateNoZ(nc.immat || nc.v);
+
+      let matchedDrv = null;
+      if (pl && (plateToDriverMap.has(pl) || plateToDriverMap.has(plNoZ))) {
+        matchedDrv = plateToDriverMap.get(pl) || plateToDriverMap.get(plNoZ);
+      } else if (ch) {
+        if (driverMap.has(ch)) {
+          matchedDrv = driverMap.get(ch);
+        } else {
+          for (const [dName, dObj] of driverMap.entries()) {
+            if (dName === ch || dName.includes(ch) || ch.includes(dName)) {
+              matchedDrv = dObj;
+              break;
+            }
+          }
+        }
+      }
+
+      if (matchedDrv) {
+        matchedDrv.ncs.push(nc);
+        if (pl) {
+          for (const t of Object.values(matchedDrv.trucks)) {
+            if (normPlate(t.plate) === pl || normPlateNoZ(t.plate) === plNoZ) {
+              if (!t.ncs) t.ncs = [];
+              t.ncs.push(nc);
+            }
+          }
+        }
+      }
+    });
+
+    // 6. Consolidation finale des indicateurs (Taux Dispo, RAC Cumulé, Flottes)
     for (const drv of driverMap.values()) {
       const trucksList = Object.values(drv.trucks);
       if (trucksList.length > 0) {
-        // Trier les camions : le tracteur ayant généré le plus de CA (ou voyages) est le principal
         trucksList.sort((a, b) => b.ca - a.ca || b.trips - a.trips);
         drv.tracteur = trucksList[0].plate;
       }
 
-      // Associer le RAC moyen cumulé de chaque camion
+      // RAC par camion
       const truckRacAvgs = [];
       trucksList.forEach(t => {
         const racInfo = getTruckRacInfo(t.plate);
@@ -980,13 +1106,23 @@ async function loadSharikData() {
         }
       });
 
-      // Calculer le RAC conducteur cumulé (moyenne des RACs des camions ou lookup chauffeur)
+      // RAC moyen conducteur
       if (truckRacAvgs.length > 0) {
         drv.avgRac = truckRacAvgs.reduce((a, b) => a + b, 0) / truckRacAvgs.length;
       } else {
         const dWeekly = driverWeeklyRac[drv.name] || {};
         const dVals = Object.values(dWeekly);
         drv.avgRac = dVals.length > 0 ? (dVals.reduce((a, b) => a + b, 0) / dVals.length) : null;
+      }
+
+      // Taux de Disponibilité
+      const totalPoints = drv.dispoCount + drv.missionCount + drv.panneCount;
+      if (totalPoints > 0) {
+        drv.tauxDispo = Math.round(((drv.dispoCount + drv.missionCount) / totalPoints) * 100);
+      } else if (drv.pannes.length > 0) {
+        drv.tauxDispo = Math.max(0, 100 - (drv.pannes.length * 10));
+      } else {
+        drv.tauxDispo = 100;
       }
     }
 
@@ -998,13 +1134,19 @@ async function loadSharikData() {
     document.getElementById('kpi-total-ca').textContent = Math.round(totCa).toLocaleString('fr-FR') + ' DA';
     const totVoy = sharikProfiles.reduce((s, d) => s + d.voyages.length, 0);
     document.getElementById('kpi-total-voyages').textContent = totVoy.toLocaleString('fr-FR');
+    
+    const totNcs = sharikProfiles.reduce((s, d) => s + d.ncs.length, 0);
+    const drvWithNc = sharikProfiles.filter(d => d.ncs.length > 0).length;
+    document.getElementById('kpi-total-ncs').textContent = totNcs;
+    document.getElementById('kpi-sub-ncs').textContent = `${drvWithNc} transporteur(s) concerné(s)`;
+
     const okCount = sharikProfiles.filter(d => d.ca >= OBJECTIF_MENSUEL).length;
     document.getElementById('kpi-pct-reach').textContent = `${okCount} (${Math.round((okCount / (sharikProfiles.length || 1)) * 100)}%)`;
 
-    document.getElementById('sharik-meta').textContent = `Base consolidée : ${sharikProfiles.length} conducteurs répertoriés · ${allSegments.length} segments ERP · ${distinctWeeks.join(', ') || 'Weekly'}`;
+    document.getElementById('sharik-meta').textContent = `Base consolidée : ${sharikProfiles.length} conducteurs répertoriés · ${allSegments.length} segments ERP · ${totNcs} non-conformités analysées · ${distinctWeeks.join(', ') || 'Weekly'}`;
 
     renderSharikTable();
-    showToast('✅ Données Sharik synchronisées avec succès');
+    showToast('✅ Données Sharik, Dispo & NC synchronisées');
 
   } catch (err) {
     console.error('Erreur Sharik:', err);
@@ -1017,6 +1159,7 @@ function renderSharikTable() {
   const fltTeam = document.getElementById('flt-team').value;
   const fltTruckCount = document.getElementById('flt-truck-count').value;
   const fltPerf = document.getElementById('flt-perf').value;
+  const fltNc = document.getElementById('flt-nc').value;
   const q = document.getElementById('flt-search').value.trim().toLowerCase();
 
   const filtered = sharikProfiles.filter(d => {
@@ -1031,6 +1174,9 @@ function renderSharikTable() {
     if (fltPerf === 'WARN' && (pct < 50 || pct >= 100)) return false;
     if (fltPerf === 'KO' && pct >= 50) return false;
 
+    if (fltNc === 'WITH_NC' && d.ncs.length === 0) return false;
+    if (fltNc === 'NO_NC' && d.ncs.length > 0) return false;
+
     if (q) {
       const truckPlates = Object.keys(d.trucks).join(' ');
       const match = `${d.name} ${d.tracteur} ${truckPlates} ${d.team}`.toLowerCase();
@@ -1040,7 +1186,7 @@ function renderSharikTable() {
   });
 
   if (!filtered.length) {
-    tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;padding:40px;color:var(--txt-muted)">Aucun chauffeur ne correspond aux filtres.</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="11" style="text-align:center;padding:40px;color:var(--txt-muted)">Aucun chauffeur ne correspond aux filtres.</td></tr>';
     return;
   }
 
@@ -1051,7 +1197,7 @@ function renderSharikTable() {
     const trucksList = Object.values(d.trucks).sort((a, b) => b.ca - a.ca || b.trips - a.trips);
     const isMultiTruck = trucksList.length > 1;
 
-    // Rendu colonne Tracteurs
+    // Colonne Tracteurs
     let tracteurHtml = '';
     if (trucksList.length === 0) {
       tracteurHtml = `<span style="font-family:'JetBrains Mono',monospace;color:var(--txt-muted)">—</span>`;
@@ -1072,7 +1218,7 @@ function renderSharikTable() {
       `;
     }
 
-    // Rendu colonne CA & Détail par camion
+    // Colonne CA
     let caHtml = `
       <div style="font-size:13px;font-weight:800;color:#34d399;font-family:'JetBrains Mono',monospace">
         ${Math.round(d.ca).toLocaleString('fr-FR')} DA
@@ -1095,7 +1241,7 @@ function renderSharikTable() {
       `;
     }
 
-    // Rendu colonne RAC % Cumulé
+    // Colonne RAC % Cumulé
     let racHtml = '';
     if (d.avgRac === null) {
       racHtml = `<span style="color:var(--txt-muted);font-weight:700">—</span>`;
@@ -1126,6 +1272,23 @@ function renderSharikTable() {
       `;
     }
 
+    // Colonne Taux de Disponibilité
+    const dispoCol = d.tauxDispo >= 90 ? '#10b981' : (d.tauxDispo >= 75 ? '#f59e0b' : '#ef4444');
+    const dispoBg = d.tauxDispo >= 90 ? 'rgba(16, 185, 129, 0.15)' : (d.tauxDispo >= 75 ? 'rgba(245, 158, 11, 0.15)' : 'rgba(239, 68, 68, 0.15)');
+    const dispoHtml = `
+      <span class="badge-dispo-pill" style="background:${dispoBg};color:${dispoCol};border:1px solid ${dispoCol}40">
+        ${d.tauxDispo}%
+      </span>
+    `;
+
+    // Colonne Non-Conformités
+    let ncHtml = '';
+    if (d.ncs.length === 0) {
+      ncHtml = `<span style="color:var(--txt-dim);font-weight:700">0</span>`;
+    } else {
+      ncHtml = `<span class="badge-nc-pill"><i class="fa-solid fa-triangle-exclamation"></i> ${d.ncs.length} NC</span>`;
+    }
+
     return `
       <tr onclick="openPedigreeModal('${encodeURIComponent(d.name)}')">
         <td><b>${d.name}</b></td>
@@ -1140,6 +1303,8 @@ function renderSharikTable() {
           </div>
         </td>
         <td style="text-align:center">${racHtml}</td>
+        <td style="text-align:center">${dispoHtml}</td>
+        <td style="text-align:center">${ncHtml}</td>
         <td style="text-align:center"><span style="color:${d.pannes.length > 0 ? '#ef4444' : 'var(--txt-muted)'};font-weight:700">${d.pannes.length}</span></td>
         <td style="text-align:center">
           <button class="btn-nav" style="padding:4px 8px;font-size:11px" onclick="event.stopPropagation();openPedigreeModal('${encodeURIComponent(d.name)}')">
@@ -1167,7 +1332,7 @@ function openPedigreeModal(encName) {
       <!-- BANNIÈRE OFFICIELLE POUR L'IMPRESSION A4 -->
       <div class="print-official-banner">
         <div>
-          <div style="font-size:15pt;font-weight:900;color:#0f172a;letter-spacing:-0.5px">NUMIPLAN TRANSPORT &amp; LOGISTIQUE</div>
+          <div style="font-size:14pt;font-weight:900;color:#0f172a;letter-spacing:-0.5px">NUMIPLAN TRANSPORT &amp; LOGISTIQUE</div>
           <div style="font-size:8.5pt;color:#64748b">Fiche Individuelle de Performance Chauffeur Sharik &amp; Flotte</div>
         </div>
         <div style="text-align:right;font-size:8.5pt;color:#475569">
@@ -1194,7 +1359,7 @@ function openPedigreeModal(encName) {
         </div>
       </div>
 
-      <!-- 4 KPIS GLOBAUX -->
+      <!-- 5 KPIS GLOBAUX -->
       <div class="kpi-grid">
         <div class="kpi-card">
           <div class="kpi-title">CA RÉALISÉ</div>
@@ -1208,20 +1373,29 @@ function openPedigreeModal(encName) {
         </div>
         <div class="kpi-card">
           <div class="kpi-title">RAC MOYEN CUMULÉ</div>
-          <div class="kpi-value" style="color:${d.avgRac !== null ? (d.avgRac >= 50 ? '#10b981' : (d.avgRac >= 40 ? '#f59e0b' : '#ef4444')) : 'var(--txt-dim)'}">
+          <div class="kpi-value rac-text" style="color:${d.avgRac !== null ? (d.avgRac >= 50 ? '#10b981' : (d.avgRac >= 40 ? '#f59e0b' : '#ef4444')) : 'var(--txt-dim)'}">
             ${d.avgRac !== null ? Math.round(d.avgRac) + '%' : '—'}
           </div>
-          <div class="kpi-sub">Moyenne des semaines weekly</div>
+          <div class="kpi-sub">Moyenne hebdomadaire</div>
         </div>
         <div class="kpi-card">
-          <div class="kpi-title">PANNES SIGNALÉES</div>
-          <div class="kpi-value" style="color:${d.pannes.length ? '#ef4444' : '#10b981'}">${d.pannes.length}</div>
-          <div class="kpi-sub">Incidents techniques</div>
+          <div class="kpi-title">TAUX DISPONIBILITÉ</div>
+          <div class="kpi-value" style="color:${d.tauxDispo >= 90 ? '#10b981' : (d.tauxDispo >= 75 ? '#f59e0b' : '#ef4444')}">
+            ${d.tauxDispo}%
+          </div>
+          <div class="kpi-sub">${d.dispoCount} Dispo · ${d.missionCount} Mission · ${d.panneCount} Panne</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-title">NON-CONFORMITÉS</div>
+          <div class="kpi-value" style="color:${d.ncs.length > 0 ? '#ef4444' : '#10b981'}">
+            ${d.ncs.length}
+          </div>
+          <div class="kpi-sub">${d.ncs.length > 0 ? 'Infraction(s) enregistrée(s)' : 'Dossier irréprochable'}</div>
         </div>
       </div>
 
       <!-- TABLEAU DÉTAIL DES CAMIONS SI FLOTTE -->
-      <div class="fleet-box">
+      <div class="section-box">
         <h3>
           <i class="fa-solid fa-truck" style="color:#38bdf8"></i>
           Détail de la Flotte &amp; Répartition du Chiffre d'Affaires par Camion
@@ -1236,17 +1410,19 @@ function openPedigreeModal(encName) {
               <th style="padding:6px 8px;text-align:right">Part CA</th>
               <th style="padding:6px 8px;text-align:center">Détail Weekly</th>
               <th style="padding:6px 8px;text-align:center">RAC Cumulé Moy.</th>
+              <th style="padding:6px 8px;text-align:center">NC</th>
               <th style="padding:6px 8px;text-align:center">Pannes</th>
             </tr>
           </thead>
           <tbody>
             ${trucksList.length === 0 ? `
-              <tr><td colspan="8" style="text-align:center;padding:12px;color:var(--txt-muted)">Aucun camion associé</td></tr>
+              <tr><td colspan="9" style="text-align:center;padding:12px;color:var(--txt-muted)">Aucun camion associé</td></tr>
             ` : trucksList.map((t, idx) => {
               const partPct = d.ca > 0 ? ((t.ca / d.ca) * 100).toFixed(1) + '%' : '0%';
               const wMap = t.weekly || {};
               const wText = Object.entries(wMap).map(([w, r]) => `${w}: ${Math.round(r)}%`).join(' · ') || '—';
-              const rCol = t.avgRac !== null ? (t.avgRac >= 50 ? '#10b981' : (t.avgRac >= 40 ? '#f59e0b' : '#ef4444')) : 'var(--txt-dim)';
+              const rCol = t.avgRac !== null ? (t.avgRac >= 50 ? '#34d399' : (t.avgRac >= 40 ? '#f59e0b' : '#ef4444')) : 'var(--txt-dim)';
+              const truckNcCount = (t.ncs || []).length;
               return `
                 <tr>
                   <td style="padding:8px" class="plate-text">
@@ -1259,12 +1435,15 @@ function openPedigreeModal(encName) {
                   <td style="padding:8px;text-align:right" class="money-text">
                     ${Math.round(t.ca).toLocaleString('fr-FR')} DA
                   </td>
-                  <td style="padding:8px;text-align:right;font-weight:700" style="color:#c084fc">${partPct}</td>
+                  <td style="padding:8px;text-align:right;font-weight:700;color:#c084fc">${partPct}</td>
                   <td style="padding:8px;text-align:center;font-family:'JetBrains Mono',monospace;font-size:11px">
                     ${wText}
                   </td>
                   <td style="padding:8px;text-align:center;font-family:'JetBrains Mono',monospace;font-weight:800;color:${rCol}">
                     ${t.avgRac !== null ? Math.round(t.avgRac) + '%' : '—'}
+                  </td>
+                  <td style="padding:8px;text-align:center">
+                    <span style="color:${truckNcCount > 0 ? '#ef4444' : 'inherit'};font-weight:700">${truckNcCount}</span>
                   </td>
                   <td style="padding:8px;text-align:center">
                     <span style="color:${t.pannes.length > 0 ? '#ef4444' : 'inherit'};font-weight:700">${t.pannes.length}</span>
@@ -1274,6 +1453,108 @@ function openPedigreeModal(encName) {
             }).join('')}
           </tbody>
         </table>
+      </div>
+
+      <!-- TABLEAU DES NON-CONFORMITÉS -->
+      <div class="section-box">
+        <h3>
+          <i class="fa-solid fa-triangle-exclamation" style="color:#ef4444"></i>
+          Registre des Non-Conformités &amp; Écarts Déclarés (${d.ncs.length})
+        </h3>
+        ${d.ncs.length === 0 ? `
+          <div style="padding:14px;background:rgba(16,185,129,0.08);border:1px solid rgba(16,185,129,0.25);border-radius:8px;color:#34d399;font-weight:600;display:flex;align-items:center;gap:8px">
+            <i class="fa-solid fa-circle-check" style="font-size:16px"></i>
+            Aucune non-conformité enregistrée pour ce transporteur. Historique d'exploitation exemplaire.
+          </div>
+        ` : `
+          <table style="width:100%;border-collapse:collapse;">
+            <thead>
+              <tr>
+                <th style="padding:6px 8px">Date</th>
+                <th style="padding:6px 8px">Équipe</th>
+                <th style="padding:6px 8px">Véhicule</th>
+                <th style="padding:6px 8px">Motif / Type</th>
+                <th style="padding:6px 8px">Détail du Manquement</th>
+                <th style="padding:6px 8px;text-align:center">Mise à pied</th>
+                <th style="padding:6px 8px">Commission</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${d.ncs.map(nc => {
+                let badgeType = '';
+                let detailText = '';
+                if (nc.chgt) {
+                  badgeType = '<span style="background:rgba(239,68,68,0.2);color:#ef4444;border:1px solid #ef4444;padding:2px 6px;border-radius:4px;font-size:10px;font-weight:700">Chgt compte</span>';
+                  detailText = nc.chgt;
+                } else if (nc.refus) {
+                  badgeType = '<span style="background:rgba(245,158,11,0.2);color:#f59e0b;border:1px solid #f59e0b;padding:2px 6px;border-radius:4px;font-size:10px;font-weight:700">Refus mission</span>';
+                  detailText = nc.refus;
+                } else if (nc.fausse) {
+                  badgeType = '<span style="background:rgba(239,68,68,0.2);color:#ef4444;border:1px solid #ef4444;padding:2px 6px;border-radius:4px;font-size:10px;font-weight:700">Fausse décl.</span>';
+                  detailText = nc.fausse;
+                } else if (nc.autorise) {
+                  badgeType = '<span style="background:rgba(16,185,129,0.2);color:#10b981;border:1px solid #10b981;padding:2px 6px;border-radius:4px;font-size:10px;font-weight:700">Autorisé</span>';
+                  detailText = nc.autorise;
+                } else {
+                  badgeType = '<span style="background:rgba(148,163,184,0.2);color:#94a3b8;border:1px solid #94a3b8;padding:2px 6px;border-radius:4px;font-size:10px;font-weight:700">Autre</span>';
+                  detailText = nc.autre || '—';
+                }
+
+                const isMise = String(nc.mise || '').toUpperCase() === 'OUI';
+                const miseHtml = isMise 
+                  ? '<span style="background:#ef4444;color:#fff;padding:1px 6px;border-radius:4px;font-weight:800;font-size:10px">OUI</span>'
+                  : '<span style="color:var(--txt-dim);font-size:10px">NON</span>';
+
+                return `
+                  <tr>
+                    <td style="padding:6px 8px;font-family:'JetBrains Mono',monospace;color:var(--txt-muted)">${nc.date || '—'}</td>
+                    <td style="padding:6px 8px;font-weight:700;color:#c084fc">${nc._team || '—'}</td>
+                    <td style="padding:6px 8px;font-family:'JetBrains Mono',monospace;color:#38bdf8;font-weight:700">${nc.v || nc.immat || '—'}</td>
+                    <td style="padding:6px 8px">${badgeType}</td>
+                    <td style="padding:6px 8px;color:#f8fafc">${detailText}</td>
+                    <td style="padding:6px 8px;text-align:center">${miseHtml}</td>
+                    <td style="padding:6px 8px;color:var(--txt-muted)">${nc.commission || '—'}</td>
+                  </tr>
+                `;
+              }).join('')}
+            </tbody>
+          </table>
+        `}
+      </div>
+
+      <!-- TABLEAU DES PANNES -->
+      <div class="section-box">
+        <h3>
+          <i class="fa-solid fa-wrench" style="color:#f59e0b"></i>
+          Historique des Pannes &amp; Incidents Matériel (${d.pannes.length})
+        </h3>
+        ${d.pannes.length === 0 ? `
+          <div style="padding:14px;background:rgba(16,185,129,0.08);border:1px solid rgba(16,185,129,0.25);border-radius:8px;color:#34d399;font-weight:600;display:flex;align-items:center;gap:8px">
+            <i class="fa-solid fa-circle-check" style="font-size:16px"></i>
+            Aucun incident matériel ou panne répertorié. Véhicules en bon état de fonctionnement.
+          </div>
+        ` : `
+          <table style="width:100%;border-collapse:collapse;">
+            <thead>
+              <tr>
+                <th style="padding:6px 8px">Date</th>
+                <th style="padding:6px 8px">Véhicule</th>
+                <th style="padding:6px 8px">Description de la Panne</th>
+                <th style="padding:6px 8px">Statut / Observation</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${d.pannes.map(p => `
+                <tr>
+                  <td style="padding:6px 8px;font-family:'JetBrains Mono',monospace;color:var(--txt-muted)">${p.date || p.dt || '—'}</td>
+                  <td style="padding:6px 8px;font-family:'JetBrains Mono',monospace;color:#38bdf8;font-weight:700">${p.v || '—'}</td>
+                  <td style="padding:6px 8px;color:#f87171;font-weight:600">${p.motif || p.panne || p.obs || 'Panne signalée'}</td>
+                  <td style="padding:6px 8px;color:var(--txt-muted)">${p.statut || p.etat || 'En traitement'}</td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+        `}
       </div>
 
       <!-- HISTORIQUE DES DERNIERS VOYAGES -->
@@ -1338,6 +1619,8 @@ function exportShariksExcel() {
       return `${t.plate}: [${parts || 'none'}] (moy=${t.avgRac !== null ? Math.round(t.avgRac) + '%' : '—'})`;
     }).join(' | ');
 
+    const ncSummary = d.ncs.map(nc => `${nc.date} (${nc._team}): ${nc.chgt || nc.refus || nc.fausse || nc.autre || 'NC'}`).join(' ; ');
+
     return {
       'Chauffeur': d.name,
       'Équipe': d.team,
@@ -1350,7 +1633,9 @@ function exportShariksExcel() {
       'Objectif (DA)': OBJECTIF_MENSUEL,
       'Progression %': ((d.ca / OBJECTIF_MENSUEL) * 100).toFixed(1) + '%',
       'RAC % Moyen Cumulé': d.avgRac !== null ? Math.round(d.avgRac) + '%' : '—',
-      'Détail RAC Hebdo': weeklyStr,
+      'Taux Disponibilité (%)': d.tauxDispo + '%',
+      'Nombre de NC': d.ncs.length,
+      'Détail Non-Conformités': ncSummary,
       'Pannes': d.pannes.length
     };
   });
