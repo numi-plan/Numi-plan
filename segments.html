@@ -727,12 +727,17 @@ function formatErpDateIso(val) {
 
 function getTruckNumiplanInfo(plate) {
   const pNorm = normErpPlate(plate);
+  const pNoZeros = pNorm.replace(/^0+/, '');
   if (!pNorm) return { team: '—', chauffeur: '', lieuJ: '', lieuJ1: '', geoloc: 'OFF', lat: null, lng: null };
 
   for (const eq of ['A1', 'A2', 'B1', 'B2', 'C1', 'C2', 'D1', 'D2']) {
     const tData = window.TEAMS_DATA[eq];
     if (tData && Array.isArray(tData.dispo)) {
-      const found = tData.dispo.find(row => row && normErpPlate(row.v) === pNorm);
+      const found = tData.dispo.find(row => {
+        if (!row || !row.v) return false;
+        const rvNorm = normErpPlate(row.v);
+        return rvNorm === pNorm || (pNoZeros && rvNorm.replace(/^0+/, '') === pNoZeros);
+      });
       if (found) {
         return {
           team: eq,
@@ -752,7 +757,7 @@ function getTruckNumiplanInfo(plate) {
 
 function citiesMatchJ1Erp(lieuJ1Raw, erpVillesList) {
   const j1 = normErpStr(lieuJ1Raw);
-  if (!j1 || j1 === '—') return false;
+  if (!j1 || j1 === '—' || j1 === 'NON RENSEIGNE') return false;
   const j1Expanded = WILAYA_CITY_EQUIV[j1] || j1;
 
   for (const vRaw of (erpVillesList || [])) {
@@ -776,14 +781,15 @@ function buildErpLatestByPlateMap() {
   const map = new Map();
   segData.segments.forEach(s => {
     const p = normErpPlate(s.tracteur);
-    if (!p || !s.villeArr) return;
-    const dateStr = s.date || (s.dtDepP ? s.dtDepP.substring(0, 10) : '');
+    const villeArr = (s.villeArr || s.ville_arr || '').trim();
+    if (!p || !villeArr) return;
+    const dateStr = s.date || (s.dtDepP ? String(s.dtDepP).substring(0, 10) : '') || (s.dt_dep_p ? String(s.dt_dep_p).substring(0, 10) : '') || (s.dateSeg ? String(s.dateSeg).substring(0, 10) : '');
     const segNum = parseInt(s.seg, 10) || 0;
     const cur = map.get(p);
     if (!cur || dateStr > cur.date || (dateStr === cur.date && segNum >= cur.segNum)) {
       const villesSet = (cur && dateStr === cur.date && s.groupage && s.groupage === cur.groupage)
-        ? Array.from(new Set([...cur.villesArr, s.villeArr.trim().toUpperCase()]))
-        : [s.villeArr.trim().toUpperCase()];
+        ? Array.from(new Set([...cur.villesArr, villeArr.toUpperCase()]))
+        : [villeArr.toUpperCase()];
       map.set(p, {
         date: dateStr,
         segNum,
@@ -791,9 +797,9 @@ function buildErpLatestByPlateMap() {
         groupage: s.groupage,
         villesArr: villesSet,
         erpVille: villesSet.join(' / '),
-        lieuArriv: s.lieuArriv || '',
+        lieuArriv: s.lieuArriv || s.lieu_arriv || '',
         client: s.client || '',
-        etatCmd: s.etatCmd || s.tracking || '—'
+        etatCmd: s.etatCmd || s.etat_cmd || s.tracking || '—'
       });
     }
   });
@@ -955,16 +961,73 @@ async function refreshSegmentsPoiData(forceRefresh = false) {
       from += 1000;
     }
 
+    const normalizeSegment = (s) => {
+      const vArr = (s.villeArr || s.ville_arr || '').trim();
+      const vDep = (s.villeDep || s.ville_dep || '').trim();
+      const lArr = (s.lieuArriv || s.lieu_arriv || '').trim();
+      const lDep = (s.lieuDep || s.lieu_dep || '').trim();
+      const rCmd = (s.refCmd || s.ref_cmd || s.commande || '').trim();
+      const eCmd = (s.etatCmd || s.etat_cmd || '').trim();
+      const eSeg = (s.etatSeg || s.etat_seg || '').trim();
+      const trk = (s.tracking || '').trim();
+      const kExpl = parseFloat(s.kmExpl !== undefined ? s.kmExpl : (s.km_expl !== undefined ? s.km_expl : 0)) || 0;
+      const kCarto = parseFloat(s.kmCarto !== undefined ? s.kmCarto : (s.km_carto !== undefined ? s.km_carto : 0)) || 0;
+      const ach = parseFloat(s.achat !== undefined ? s.achat : 0) || 0;
+      const dDepP = s.dtDepP || s.dt_dep_p || '';
+      const dDepR = s.dtDepR || s.dt_dep_r || '';
+      const dSeg = s.dateSeg || s.date_seg || '';
+      const dSegM = s.dateSegM || s.date_seg_m || '';
+      const dDate = s.date || (dDepP ? String(dDepP).substring(0, 10) : '') || (dSeg ? String(dSeg).substring(0, 10) : '');
+
+      return {
+        ...s,
+        date: dDate,
+        villeArr: vArr,
+        ville_arr: vArr,
+        villeDep: vDep,
+        ville_dep: vDep,
+        lieuArriv: lArr,
+        lieu_arriv: lArr,
+        lieuDep: lDep,
+        lieu_dep: lDep,
+        refCmd: rCmd,
+        ref_cmd: rCmd,
+        etatCmd: eCmd,
+        etat_cmd: eCmd,
+        etatSeg: eSeg,
+        etat_seg: eSeg,
+        tracking: trk,
+        kmExpl: kExpl,
+        km_expl: kExpl,
+        kmCarto: kCarto,
+        km_carto: kCarto,
+        achat: ach,
+        dtDepP: dDepP,
+        dt_dep_p: dDepP,
+        dtDepR: dDepR,
+        dt_dep_r: dDepR,
+        dateSeg: dSeg,
+        date_seg: dSeg,
+        dateSegM: dSegM,
+        date_seg_m: dSegM,
+        groupage: (s.groupage || '').trim(),
+        jumlage: (s.jumlage || '').trim().toUpperCase()
+      };
+    };
+
     if (allSegs.length > 0) {
       window._SEGMENTS_ERP_DATA = {
         fileName: 'EDITION__LISTE_SEGMENTS.xlsx',
         fileExportDate: '16/11/2026',
-        segments: allSegs
+        segments: allSegs.map(normalizeSegment)
       };
     } else {
       const { data: segRow } = await sb.from('numiplan_teams').select('payload').eq('team', 'SEGMENTS_ERP').maybeSingle();
       if (segRow && segRow.payload && Array.isArray(segRow.payload.segments)) {
-        window._SEGMENTS_ERP_DATA = segRow.payload;
+        window._SEGMENTS_ERP_DATA = {
+          ...segRow.payload,
+          segments: segRow.payload.segments.map(normalizeSegment)
+        };
       }
     }
 
@@ -1076,7 +1139,7 @@ function sortSegmentsTrucks(col) {
     window._SEGMENTS_SORT.asc = !window._SEGMENTS_SORT.asc;
   } else {
     window._SEGMENTS_SORT.col = col;
-    window._SEGMENTS_SORT.asc = (col === 'tracteur' || col === 'chauffeur' || col === 'team');
+    window._SEGMENTS_SORT.asc = (col === 'tracteur' || col === 'chauffeur' || col === 'team' || col === 'j1Match');
   }
   renderSegmentsErpPage();
 }
@@ -1286,7 +1349,15 @@ function renderSegmentsErpPage() {
     tr.pannePeriodCount = (dateFrom || dateTo)
       ? truckPannes.filter(pn => (!dateFrom || (pn._isoDate && pn._isoDate >= dateFrom)) && (!dateTo || (pn._isoDate && pn._isoDate <= dateTo))).length
       : truckPannes.length;
-    const tInfo = { team: tr.team, lat: tr.lat, lng: tr.lng, geoloc: tr.geoloc };
+
+    const tInfo = getTruckNumiplanInfo(tr.tracteur);
+    if (tInfo.team && tInfo.team !== '—') tr.team = tInfo.team;
+    tr.lat = tInfo.lat;
+    tr.lng = tInfo.lng;
+    tr.geoloc = tInfo.geoloc;
+    tr.lieuJ1 = tInfo.lieuJ1;
+    tr.j1Check = getDispoJ1ErpCheck(tr.tracteur, tInfo.lieuJ1);
+    tr.j1Match = (tr.j1Check && tr.j1Check.hasErp) ? (tr.j1Check.match ? 2 : (tr.j1Check.lieuJ1 !== 'Non renseigné' ? 0 : 1)) : -1;
 
     tr.trips = Array.from(tr.tripsMap.values());
     tr.totalTrips = tr.trips.length;
@@ -1532,12 +1603,15 @@ function renderSegmentsErpPage() {
             <td>${teamBadge}<div style="font-size:10px;color:var(--txt3);margin-top:2px">${tr.agence}</div></td>
             <td style="font-weight:600">${tr.chauffeur}</td>
             <td style="text-align:center">${(()=>{
-              const chk = getDispoJ1ErpCheck(tr.tracteur, getTruckNumiplanInfo(tr.tracteur).lieuJ1);
-              if (!chk || !chk.hasErp) return '<span style="color:var(--txt3)">—</span>';
-              if (chk.match) {
-                return `<span style="background:rgba(16,185,129,0.18);color:#34d399;border:1px solid rgba(16,185,129,0.4);padding:3px 8px;border-radius:6px;font-size:11px;font-weight:700">✅ J+1 = ${chk.erpVille}</span>`;
+              const chk = tr.j1Check || getDispoJ1ErpCheck(tr.tracteur, getTruckNumiplanInfo(tr.tracteur).lieuJ1);
+              if (!chk || !chk.hasErp) return '<span style="color:var(--txt3)" title="Aucune destination ERP trouvée pour ce camion">—</span>';
+              if (!chk.lieuJ1 || chk.lieuJ1 === '—' || chk.lieuJ1 === 'Non renseigné') {
+                return `<div style="background:rgba(148,163,184,0.12);border:1px solid rgba(148,163,184,0.3);border-radius:6px;padding:3px 7px;font-size:10.5px" title="Lieu J+1 non renseigné dans Numiplan Dispo"><span style="color:#94a3b8">J+1 non renseigné</span><div style="color:#38bdf8;font-weight:700;margin-top:2px">ERP : ${chk.erpVille}</div></div>`;
               }
-              return `<div style="background:rgba(239,68,68,0.16);border:1px solid #ef4444;border-radius:6px;padding:3px 7px;font-size:10.5px"><div style="color:#fca5a5;font-weight:800">🚨 J+1 Numiplan : <b>${chk.lieuJ1}</b></div><div style="color:#fbbf24;font-weight:800;margin-top:2px">➔ ERP Ville Arriv : <b>${chk.erpVille}</b></div></div>`;
+              if (chk.match) {
+                return `<span style="background:rgba(16,185,129,0.18);color:#34d399;border:1px solid rgba(16,185,129,0.4);padding:3px 8px;border-radius:6px;font-size:11px;font-weight:700" title="Concordance parfaite : la prévision J+1 de l'équipe correspond à l'arrivée ERP">✅ J+1 = ${chk.erpVille}</span>`;
+              }
+              return `<div style="background:rgba(239,68,68,0.16);border:1px solid #ef4444;border-radius:6px;padding:3px 7px;font-size:10.5px" title="Écart d'affectation : le chef d'équipe prévoyait ${chk.lieuJ1} mais la commande ERP livre à ${chk.erpVille}"><div style="color:#fca5a5;font-weight:800">🚨 J+1 Numiplan : <b>${chk.lieuJ1}</b></div><div style="color:#fbbf24;font-weight:800;margin-top:2px">➔ ERP Ville Arriv : <b>${chk.erpVille}</b></div></div>`;
             })()}</td>
             <td style="text-align:center">
               <span style="font-size:15px;font-weight:900;color:#38bdf8">${tr.totalTrips}</span>
@@ -1772,27 +1846,40 @@ async function importSegmentsErpExcel(input) {
         seg: segId,
         date: parsedDate,
         dtDepP: parsedDtDepP ? parsedDtDepP.toISOString() : (dateRaw ? String(dateRaw) : ''),
+        dt_dep_p: parsedDtDepP ? parsedDtDepP.toISOString() : (dateRaw ? String(dateRaw) : ''),
         dtDepR: parsedDtDepR ? parsedDtDepR.toISOString() : (dtDepRRaw ? String(dtDepRRaw) : ''),
+        dt_dep_r: parsedDtDepR ? parsedDtDepR.toISOString() : (dtDepRRaw ? String(dtDepRRaw) : ''),
         dateSeg: parsedDateSeg ? parsedDateSeg.toISOString() : (dateSegRaw ? String(dateSegRaw) : ''),
+        date_seg: parsedDateSeg ? parsedDateSeg.toISOString() : (dateSegRaw ? String(dateSegRaw) : ''),
         dateSegM: parsedDateSegM ? parsedDateSegM.toISOString() : (dateSegMRaw ? String(dateSegMRaw) : ''),
+        date_seg_m: parsedDateSegM ? parsedDateSegM.toISOString() : (dateSegMRaw ? String(dateSegMRaw) : ''),
         tracteur: String(getCol(r, ['TRACTEUR', 'CAMION', 'VEHICULE', 'IMMAT', 'IMMATRICULATION'])).trim(),
         affrete: String(getCol(r, ['AFFRETE', 'TRANSPORTEUR', 'PRESTATAIRE'])).trim(),
         cond1: String(getCol(r, ['COND 1', 'COND1', 'CONDUCTEUR', 'CHAUFFEUR', 'CHAUFFEUR 1'])).trim(),
         client: String(getCol(r, ['CLIENT', 'NOM CLIENT', 'DESTINATAIRE'])).trim(),
         lieuDep: String(getCol(r, ['LIEU DEP', 'LIEU DEPART', 'DEPOT DEPART', 'ORIGINE'])).trim(),
+        lieu_dep: String(getCol(r, ['LIEU DEP', 'LIEU DEPART', 'DEPOT DEPART', 'ORIGINE'])).trim(),
         villeDep: String(getCol(r, ['VILLE DEP', 'VILLE DEPART'])).trim(),
+        ville_dep: String(getCol(r, ['VILLE DEP', 'VILLE DEPART'])).trim(),
         lieuArriv: String(getCol(r, ['LIEU ARRIV', 'LIEU ARRIVEE', 'DEPOT ARRIVEE', 'DESTINATION'])).trim(),
+        lieu_arriv: String(getCol(r, ['LIEU ARRIV', 'LIEU ARRIVEE', 'DEPOT ARRIVEE', 'DESTINATION'])).trim(),
         villeArr: String(getCol(r, ['VILLE ARR', 'VILLE ARRIVEE'])).trim(),
+        ville_arr: String(getCol(r, ['VILLE ARR', 'VILLE ARRIVEE'])).trim(),
         groupage: String(getCol(r, ['GROUPAGE', 'N° GROUPAGE', 'CODE GROUPAGE'])).trim(),
         jumlage: String(getCol(r, ['JUMLAGE', 'JUMELAGE', 'JUMELE'])).trim().toUpperCase(),
         etatCmd: String(getCol(r, ['ETAT CMD', 'ETAT COMMANDE', 'STATUT CMD'])).trim(),
+        etat_cmd: String(getCol(r, ['ETAT CMD', 'ETAT COMMANDE', 'STATUT CMD'])).trim(),
         tracking: String(getCol(r, ['TRACKING', 'STATUT TRACKING'])).trim(),
         etatSeg: String(getCol(r, ['ETAT SEG', 'ETAT SEGMENT', 'STATUT'])).trim(),
+        etat_seg: String(getCol(r, ['ETAT SEG', 'ETAT SEGMENT', 'STATUT'])).trim(),
         refCmd: String(getCol(r, ['REF CMD', 'REFERENCE', 'COMMANDE', 'OT', 'ORDRE'])).trim(),
+        ref_cmd: String(getCol(r, ['REF CMD', 'REFERENCE', 'COMMANDE', 'OT', 'ORDRE'])).trim(),
         agence: String(getCol(r, ['AGENCE', 'CODE AGENCE', 'SITE'])).trim(),
         activite: String(getCol(r, ['ACTIVITE', 'TYPE ACTIVITE'])).trim(),
         kmExpl: parseFloat(String(getCol(r, ['KM EXPLOITATION', 'KM EXPL', 'KM ERP', 'DISTANCE'])).replace(',', '.')) || 0,
+        km_expl: parseFloat(String(getCol(r, ['KM EXPLOITATION', 'KM EXPL', 'KM ERP', 'DISTANCE'])).replace(',', '.')) || 0,
         kmCarto: parseFloat(String(getCol(r, ['KM CARTO', 'KM CARTO.', 'DISTANCE CARTO'])).replace(',', '.')) || 0,
+        km_carto: parseFloat(String(getCol(r, ['KM CARTO', 'KM CARTO.', 'DISTANCE CARTO'])).replace(',', '.')) || 0,
         achat: parseFloat(String(getCol(r, ['ACHAT', 'MONTANT ACHAT', 'PRIX ACHAT', 'COUT'])).replace(/[\s\u00A0]/g, '').replace(',', '.')) || 0
       };
 
