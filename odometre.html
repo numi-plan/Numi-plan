@@ -3,9 +3,9 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>NUMIPLAN — Odomètre & Suivi Kilométrique</title>
+<title>NUMIPLAN — Odomètre &amp; Suivi Kilométrique</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@500;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
@@ -15,6 +15,8 @@
     --bg-dark: #070b13;
     --bg-card: #0d1527;
     --bg-card-hover: #121c33;
+    --bg2: #0f172a;
+    --bg3: #1e293b;
     --border: #1e293b;
     --border-hover: #334155;
     --primary: #38bdf8;
@@ -22,7 +24,10 @@
     --accent-orange: #f59e0b;
     --accent-green: #10b981;
     --accent-red: #ef4444;
+    --txt: #f8fafc;
     --txt-main: #f8fafc;
+    --txt2: #94a3b8;
+    --txt3: #64748b;
     --txt-muted: #94a3b8;
     --txt-dim: #64748b;
   }
@@ -44,7 +49,7 @@
     align-items: center;
     justify-content: space-between;
     padding: 0 28px;
-    background: rgba(13, 21, 39, 0.85);
+    background: rgba(13, 21, 39, 0.9);
     backdrop-filter: blur(16px);
     position: sticky;
     top: 0;
@@ -59,14 +64,14 @@
   .brand-logo {
     width: 40px;
     height: 40px;
-    background: linear-gradient(135deg, #eab308, #ca8a04);
+    background: linear-gradient(135deg, #f59e0b, #d97706);
     border-radius: 10px;
     display: flex;
     align-items: center;
     justify-content: center;
     font-size: 20px;
     color: #000;
-    box-shadow: 0 4px 15px rgba(234, 179, 8, 0.35);
+    box-shadow: 0 4px 15px rgba(245, 158, 11, 0.35);
   }
   .brand-title {
     font-size: 17px;
@@ -96,143 +101,122 @@
     align-items: center;
     gap: 8px;
     transition: all 0.2s;
+    cursor: pointer;
   }
   .btn-nav:hover {
+    background: var(--bg-card-hover);
     border-color: var(--primary);
-    color: var(--primary);
-    transform: translateY(-1px);
   }
 
-  .user-pill {
+  .user-badge {
     background: rgba(15, 23, 42, 0.8);
     border: 1px solid var(--border);
     border-radius: 999px;
-    padding: 5px 14px;
+    padding: 5px 12px;
     display: flex;
     align-items: center;
     gap: 8px;
     font-size: 12px;
   }
   .status-dot {
-    width: 8px;
-    height: 8px;
+    width: 7px;
+    height: 7px;
     border-radius: 50%;
-    background: var(--accent-green);
-    box-shadow: 0 0 8px var(--accent-green);
-  }
-  .team-badge {
-    background: rgba(234, 179, 8, 0.15);
-    color: var(--accent-yellow);
-    border: 1px solid rgba(234, 179, 8, 0.3);
-    padding: 2px 7px;
-    border-radius: 5px;
-    font-size: 11px;
-    font-weight: 700;
+    background: #10b981;
+    box-shadow: 0 0 8px #10b981;
   }
 
   main {
     flex: 1;
-    max-width: 1560px;
+    padding: 24px 28px;
+    max-width: 1750px;
     width: 100%;
     margin: 0 auto;
-    padding: 24px 28px;
   }
 
-  .banner-header {
-    background: linear-gradient(135deg, rgba(234, 179, 8, 0.12), rgba(13, 21, 39, 0.8));
-    border: 1px solid rgba(234, 179, 8, 0.25);
-    border-radius: 16px;
-    padding: 20px 24px;
-    margin-bottom: 24px;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    flex-wrap: wrap;
-    gap: 16px;
-  }
-  .banner-info h2 {
-    font-size: 20px;
-    font-weight: 800;
-    display: flex;
-    align-items: center;
-    gap: 10px;
-  }
-  .status-badge {
-    font-size: 11px;
-    font-weight: 700;
-    padding: 3px 10px;
-    border-radius: 999px;
-    background: rgba(234, 179, 8, 0.15);
-    color: var(--accent-yellow);
-    border: 1px solid rgba(234, 179, 8, 0.3);
+  .mono {
+    font-family: 'JetBrains Mono', monospace;
   }
 
-  /* KPIS */
   .kpi-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-    gap: 16px;
-    margin-bottom: 24px;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 14px;
+    margin-bottom: 20px;
+  }
+  @media (max-width: 900px) {
+    .kpi-grid { grid-template-columns: 1fr 1fr; }
   }
   .kpi-card {
-    background: var(--bg-card);
+    background: var(--bg2);
     border: 1px solid var(--border);
-    border-radius: 14px;
-    padding: 18px;
+    border-radius: 12px;
+    padding: 16px 20px;
     cursor: pointer;
     transition: all 0.2s;
   }
-  .kpi-card:hover, .kpi-card.active {
-    transform: translateY(-2px);
+  .kpi-card:hover {
     border-color: var(--primary);
+    transform: translateY(-2px);
+  }
+  .kpi-card.active {
+    border-color: #ef4444;
+    background: rgba(239, 68, 68, 0.1);
   }
   .kpi-title {
     font-size: 11px;
     font-weight: 700;
-    color: var(--txt-muted);
-    text-transform: uppercase;
+    color: var(--txt2);
+    margin-bottom: 6px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
   }
-  .kpi-value {
-    font-size: 28px;
+  .kpi-val {
+    font-size: 24px;
     font-weight: 900;
-    margin: 8px 0 4px;
-    font-family: 'JetBrains Mono', monospace;
+    color: var(--txt);
+    line-height: 1.2;
   }
   .kpi-sub {
     font-size: 11px;
-    color: var(--txt-dim);
+    color: var(--txt3);
+    margin-top: 4px;
   }
 
-  /* TOOLBAR */
-  .toolbar {
+  .filter-bar {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 12px 16px;
+    margin-bottom: 16px;
     display: flex;
     align-items: center;
     justify-content: space-between;
-    margin-bottom: 16px;
     flex-wrap: wrap;
-    gap: 12px;
+    gap: 10px;
   }
   .input-control {
-    background: var(--bg-card);
+    background: var(--bg3);
     border: 1px solid var(--border);
-    color: #fff;
-    padding: 8px 12px;
     border-radius: 8px;
+    color: var(--txt);
+    padding: 7px 12px;
     font-size: 12px;
+    font-family: inherit;
     outline: none;
+    transition: border-color 0.2s;
   }
   .input-control:focus {
     border-color: var(--primary);
   }
 
-  /* TABLE */
-  .table-container {
-    background: var(--bg-card);
+  .table-wrap {
+    background: var(--bg2);
     border: 1px solid var(--border);
-    border-radius: 14px;
-    overflow: hidden;
-    max-height: 64vh;
-    overflow-y: auto;
+    border-radius: 12px;
+    overflow-x: auto;
+    max-height: 68vh;
   }
   table {
     width: 100%;
@@ -243,74 +227,66 @@
   thead {
     position: sticky;
     top: 0;
-    background: #0f182c;
+    background: #0b1120;
     z-index: 10;
   }
   th {
     padding: 12px 14px;
+    color: var(--txt2);
     font-weight: 700;
-    color: var(--txt-muted);
     border-bottom: 1px solid var(--border);
+    white-space: nowrap;
     font-size: 11px;
     text-transform: uppercase;
-    white-space: nowrap;
   }
   td {
-    padding: 10px 14px;
-    border-bottom: 1px solid rgba(30, 41, 59, 0.7);
-    color: var(--txt-main);
-    white-space: nowrap;
+    padding: 11px 14px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+    vertical-align: middle;
   }
   tbody tr:hover {
-    background: var(--bg-card-hover);
+    background: rgba(56, 189, 248, 0.04);
   }
 
-  /* MODAL */
+  .km-anomaly {
+    color: #ef4444 !important;
+    font-weight: 800;
+    background: rgba(239, 68, 68, 0.12);
+    border-radius: 4px;
+    padding: 2px 4px;
+  }
+
   .modal-overlay {
     position: fixed;
     top: 0; left: 0; right: 0; bottom: 0;
     background: rgba(0, 0, 0, 0.8);
-    backdrop-filter: blur(8px);
+    backdrop-filter: blur(6px);
     display: none;
     align-items: center;
     justify-content: center;
-    z-index: 1000;
-    padding: 20px;
+    z-index: 99999;
   }
-  .modal-card {
-    background: #0f172a;
+  .modal-content {
+    background: var(--bg2);
     border: 1px solid var(--border);
     border-radius: 16px;
-    width: 100%;
-    max-width: 520px;
-    padding: 28px;
-    position: relative;
-    box-shadow: 0 20px 50px rgba(0,0,0,0.6);
-  }
-  .modal-close {
-    position: absolute;
-    top: 20px;
-    right: 20px;
-    background: transparent;
-    border: none;
-    color: var(--txt-muted);
-    font-size: 20px;
-    cursor: pointer;
+    width: 480px;
+    max-width: 95vw;
+    padding: 24px;
   }
 
   #toast {
     position: fixed;
     bottom: 24px;
     right: 24px;
-    background: #1e293b;
+    background: var(--bg-card);
     border: 1px solid var(--border);
-    padding: 12px 20px;
     border-radius: 10px;
+    padding: 12px 20px;
     font-size: 13px;
     font-weight: 600;
+    z-index: 100000;
     display: none;
-    box-shadow: 0 10px 30px rgba(0,0,0,0.5);
-    z-index: 1100;
   }
 </style>
 </head>
@@ -322,8 +298,8 @@
       <i class="fa-solid fa-gauge-high"></i>
     </div>
     <div>
-      <div class="brand-title">NUMIPLAN ODOMÈTRE</div>
-      <div class="brand-sub">Relevés Kilométriques &amp; Roulage à Charge (RAC)</div>
+      <div class="brand-title">ODOMÈTRE &amp; SUIVI KM</div>
+      <div class="brand-sub">Relevés hebdomadaires, anomalies et Roulage À Charge (RAC %)</div>
     </div>
   </a>
 
@@ -334,68 +310,75 @@
     <a href="fiche_supabase.html" class="btn-nav">
       <i class="fa-solid fa-truck"></i> Numiplan Dispo
     </a>
-
-    <div class="user-pill">
+    <div class="user-badge">
       <span class="status-dot"></span>
-      <span id="u-name" style="font-weight: 700;">Utilisateur</span>
-      <span id="u-team" class="team-badge">—</span>
+      <span id="u-name" style="font-weight: 700;">ADMIN</span>
+      <span id="u-role" style="font-size: 10px; font-weight: 800; background: rgba(245,158,11,0.2); color: #f59e0b; padding: 1px 6px; border-radius: 4px;">ÉQUIPES</span>
     </div>
   </div>
 </header>
 
 <main>
-  <!-- BANNER -->
-  <div class="banner-header">
-    <div class="banner-info">
-      <h2>
-        <span>Suivi Kilométrique Flotte</span>
-        <span id="odo-status-badge" class="status-badge">Chargement...</span>
-      </h2>
-      <div id="odo-meta" style="font-size:12px;color:var(--txt-muted);margin-top:6px">Chargement des relevés odométriques depuis Supabase...</div>
+
+  <!-- BANDEAU INFO -->
+  <div style="background:linear-gradient(90deg, rgba(245,158,11,0.12) 0%, rgba(15,23,42,0.9) 100%);border-bottom:2px solid #f59e0b;border-radius:12px;padding:14px 18px;margin-bottom:18px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px">
+    <div>
+      <div style="display:flex;align-items:center;gap:10px">
+        <h2 style="margin:0;font-size:18px;color:#fff;font-weight:800">
+          🛣️ Registre des Odomètres &amp; Relevés Kilométriques
+        </h2>
+        <span id="odo-status-badge" style="background:rgba(245,158,11,0.2);color:#f59e0b;border:1px solid #f59e0b;font-size:12px;font-weight:900;padding:2px 10px;border-radius:999px">— véhicules</span>
+      </div>
+      <div id="odo-meta" style="font-size:11.5px;color:var(--txt2);margin-top:4px">
+        Synchronisation directe avec les 8 équipes A1..D2 et croisement RAC %
+      </div>
     </div>
 
-    <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
-      <button onclick="openOdoModal()" class="btn-nav" style="background:#eab308;color:#000;font-weight:700;border:none">
-        <i class="fa-solid fa-plus"></i> Saisir Relevé KM
+    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+      <button onclick="openOdoModal()" class="btn-nav" style="background:#f59e0b;color:#000;font-weight:800;border:none">
+        <i class="fa-solid fa-plus"></i> Nouveau Relevé KM
       </button>
       <button onclick="exportOdoExcel()" class="btn-nav">
         <i class="fa-solid fa-file-excel"></i> Exporter Excel
       </button>
-      <button onclick="loadOdoData()" class="btn-nav" style="border-color:var(--primary);color:var(--primary)">
+      <button onclick="loadOdoData()" class="btn-nav">
         <i class="fa-solid fa-arrows-rotate"></i> Actualiser
       </button>
     </div>
   </div>
 
-  <!-- KPIS -->
+  <!-- STAT CARDS EXACTES NUMIPLAN -->
   <div class="kpi-grid">
-    <div class="kpi-card" style="border-color: rgba(234, 179, 8, 0.35);">
-      <div class="kpi-title">🛣️ TOTAL KM PARCOURUS</div>
-      <div class="kpi-value" id="kpi-total-km" style="color:#eab308">0 km</div>
-      <div class="kpi-sub">Delta kilométrique relevé</div>
+    <div class="kpi-card" onclick="resetOdoFilters()" title="Réinitialiser les filtres">
+      <div class="kpi-title">🚗 Véhicules Répertoriés</div>
+      <div class="kpi-val mono" id="kpi-total-trucks" style="color:#38bdf8">—</div>
+      <div class="kpi-sub">Cliquez pour réinitialiser les filtres</div>
     </div>
-    <div class="kpi-card" style="border-color: rgba(56, 189, 248, 0.35);">
-      <div class="kpi-title">📦 TOTAL KM FACTURÉ</div>
-      <div class="kpi-value" id="kpi-total-fact" style="color:#38bdf8">0 km</div>
-      <div class="kpi-sub">Kilomètres valorisés</div>
+
+    <div class="kpi-card">
+      <div class="kpi-title">🛣️ KM Total Parcourus</div>
+      <div class="kpi-val mono" id="kpi-total-km" style="color:#38bdf8">—</div>
+      <div class="kpi-sub" id="kpi-km-sub">Deltas calculés sur la période</div>
     </div>
-    <div class="kpi-card" style="border-color: rgba(16, 185, 129, 0.35);">
-      <div class="kpi-title">🎯 TAUX RAC % GLOBAL</div>
-      <div class="kpi-value" id="kpi-rac-global" style="color:#34d399">0.0%</div>
-      <div class="kpi-sub">Roulage à charge moyen</div>
+
+    <div class="kpi-card">
+      <div class="kpi-title">📈 Roulage à Charge Moyen</div>
+      <div class="kpi-val mono" id="kpi-rac-global" style="color:#10b981">—</div>
+      <div class="kpi-sub" id="kpi-rac-sub">KM Facturé / KM Total (RAC %)</div>
     </div>
-    <div class="kpi-card" id="card-anomalies" onclick="toggleAnomalyFilter()" style="border-color: rgba(239, 68, 68, 0.35);">
-      <div class="kpi-title">⚠️ ANOMALIES COMPTEURS</div>
-      <div class="kpi-value" id="kpi-anomalies" style="color:#ef4444">0</div>
-      <div class="kpi-sub">Compteurs en régression (cliquer pour filtrer)</div>
+
+    <div class="kpi-card" id="card-anomalies" onclick="toggleAnomalyFilter()" title="Afficher uniquement les compteurs anormaux">
+      <div class="kpi-title" style="color:#f87171">⚠️ Anomalies de Compteur</div>
+      <div class="kpi-val mono" id="kpi-anomalies" style="color:#ef4444">—</div>
+      <div class="kpi-sub">Compteurs en baisse / régression</div>
     </div>
   </div>
 
-  <!-- TOOLBAR -->
-  <div class="toolbar">
-    <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+  <!-- FILTRES -->
+  <div class="filter-bar">
+    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
       <select id="flt-team" class="input-control" onchange="renderOdoTable()">
-        <option value="ALL">Toutes les Équipes</option>
+        <option value="ALL">👥 Toutes les Équipes</option>
         <option value="A1">Équipe A1</option>
         <option value="A2">Équipe A2</option>
         <option value="B1">Équipe B1</option>
@@ -405,58 +388,67 @@
         <option value="D1">Équipe D1</option>
         <option value="D2">Équipe D2</option>
       </select>
-      <input type="text" id="flt-search" class="input-control" placeholder="🔍 Rechercher (véhicule, chauffeur…)" oninput="renderOdoTable()">
-      <span style="font-size:12px;color:var(--txt-muted);display:flex;align-items:center;gap:6px">
-        Semaines :
+
+      <div style="display:flex;align-items:center;gap:6px">
+        <label style="font-size:11px;font-weight:700;color:var(--txt2)">Semaines :</label>
         <select id="flt-week-start" class="input-control" onchange="renderOdoTable()"></select>
-        à
+        <span style="color:var(--txt3)">➔</span>
         <select id="flt-week-end" class="input-control" onchange="renderOdoTable()"></select>
-      </span>
-      <button onclick="resetOdoFilters()" class="btn-nav" style="padding:6px 12px">↺ Reset</button>
+      </div>
+    </div>
+
+    <div style="display:flex;gap:8px;align-items:center">
+      <input type="text" id="flt-search" class="input-control" placeholder="Rechercher immat, chauffeur..." style="width:240px" oninput="renderOdoTable()">
+      <button onclick="resetOdoFilters()" class="btn-nav" style="padding:6px 12px;font-size:11px">↺ Reset</button>
     </div>
   </div>
 
-  <!-- TABLE -->
-  <div class="table-container">
+  <!-- TABLEAU ODOMÈTRE -->
+  <div class="table-wrap">
     <table>
       <thead>
         <tr id="odo-thead-tr">
           <th>Véhicule</th>
           <th>Chauffeur</th>
           <th>Équipe</th>
-          <th style="text-align:right">Dernier Index</th>
+          <!-- Semaines dynamiques -->
           <th style="text-align:right">KM Parcourus</th>
           <th style="text-align:right">KM Facturé</th>
-          <th style="text-align:center">RAC %</th>
+          <th style="text-align:center">Roulage à Charge</th>
+          <th style="text-align:center">🔧 Pannes</th>
+          <th>Dernière Panne</th>
           <th style="text-align:center">Action</th>
         </tr>
       </thead>
       <tbody id="odo-tbody">
-        <tr><td colspan="8" style="text-align:center;padding:40px;color:var(--txt-muted)">Chargement des relevés odométriques...</td></tr>
+        <tr><td colspan="10" style="text-align:center;padding:40px;color:var(--txt2)">Chargement des relevés odométriques...</td></tr>
       </tbody>
     </table>
   </div>
+
 </main>
 
-<!-- MODAL SAISIE RELEVÉ KM -->
-<div id="odo-modal" class="modal-overlay">
-  <div class="modal-card">
-    <button class="modal-close" onclick="closeOdoModal()">&times;</button>
-    <h3 style="font-size:18px;font-weight:800;margin-bottom:16px;color:#fff">➕ Saisir un Relevé Kilométrique</h3>
-    
+<!-- MODALE SAISIE NOUVEAU RELEVÉ -->
+<div class="modal-overlay" id="odo-modal">
+  <div class="modal-content">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;border-bottom:1px solid var(--border);padding-bottom:10px">
+      <h3 style="font-size:16px;color:#fff;font-weight:800">🛣️ Nouveau Relevé Odométrique</h3>
+      <button onclick="closeOdoModal()" style="background:none;border:none;color:var(--txt2);font-size:20px;cursor:pointer">&times;</button>
+    </div>
+
     <div style="margin-bottom:14px">
-      <label style="font-size:11px;font-weight:700;color:var(--txt-muted);display:block;margin-bottom:6px">VÉHICULE (IMMATRICULATION)</label>
-      <input type="text" id="form-v" class="input-control" style="width:100%" placeholder="ex: 001230-514-16" required>
+      <label style="font-size:11px;font-weight:700;color:var(--txt2);display:block;margin-bottom:6px">IMMATRICULATION DU VÉHICULE</label>
+      <input type="text" id="form-v" class="input-control" style="width:100%" placeholder="ex: 001083-514-16" required>
     </div>
     
     <div style="margin-bottom:14px">
-      <label style="font-size:11px;font-weight:700;color:var(--txt-muted);display:block;margin-bottom:6px">CHAUFFEUR ASSIGNÉ</label>
-      <input type="text" id="form-chauffeur" class="input-control" style="width:100%" placeholder="Nom du chauffeur">
+      <label style="font-size:11px;font-weight:700;color:var(--txt2);display:block;margin-bottom:6px">CHAUFFEUR ASSIGNÉ</label>
+      <input type="text" id="form-chauffeur" class="input-control" style="width:100%" placeholder="Nom du conducteur">
     </div>
 
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px">
       <div>
-        <label style="font-size:11px;font-weight:700;color:var(--txt-muted);display:block;margin-bottom:6px">ÉQUIPE</label>
+        <label style="font-size:11px;font-weight:700;color:var(--txt2);display:block;margin-bottom:6px">ÉQUIPE</label>
         <select id="form-team" class="input-control" style="width:100%">
           <option value="A1">Équipe A1</option>
           <option value="A2">Équipe A2</option>
@@ -469,17 +461,17 @@
         </select>
       </div>
       <div>
-        <label style="font-size:11px;font-weight:700;color:var(--txt-muted);display:block;margin-bottom:6px">INDEX COMPTEUR (KM)</label>
+        <label style="font-size:11px;font-weight:700;color:var(--txt2);display:block;margin-bottom:6px">INDEX COMPTEUR (KM)</label>
         <input type="number" id="form-km" class="input-control" style="width:100%" placeholder="ex: 1024500" required>
       </div>
     </div>
 
     <div style="margin-bottom:20px">
-      <label style="font-size:11px;font-weight:700;color:var(--txt-muted);display:block;margin-bottom:6px">DATE DU RELEVÉ</label>
+      <label style="font-size:11px;font-weight:700;color:var(--txt2);display:block;margin-bottom:6px">DATE DU RELEVÉ</label>
       <input type="date" id="form-date" class="input-control" style="width:100%">
     </div>
 
-    <button onclick="saveOdoEntry()" class="btn-nav" style="width:100%;background:#eab308;color:#000;font-weight:800;padding:12px;justify-content:center;font-size:14px;border:none">
+    <button onclick="saveOdoEntry()" class="btn-nav" style="width:100%;background:#f59e0b;color:#000;font-weight:800;padding:12px;justify-content:center;font-size:14px;border:none">
       💾 Enregistrer le relevé
     </button>
   </div>
@@ -497,6 +489,7 @@ let allOdoList = [];
 let allWeeks = [];
 let filterOnlyAnomalies = false;
 let racLookup = {};
+let pannesByPlate = {};
 
 function showToast(msg, isError = false) {
   const t = document.getElementById('toast');
@@ -507,29 +500,20 @@ function showToast(msg, isError = false) {
   setTimeout(() => { t.style.display = 'none'; }, 3500);
 }
 
-async function initSession() {
-  const user = sessionStorage.getItem('numiplan_username') || 'utilisateur';
-  const role = sessionStorage.getItem('numiplan_user_role') || 'equipe';
-  const teamLock = sessionStorage.getItem('numiplan_team_lock') || '';
+function openOdoModal() { document.getElementById('odo-modal').style.display = 'flex'; }
+function closeOdoModal() { document.getElementById('odo-modal').style.display = 'none'; }
 
-  document.getElementById('u-name').textContent = user;
-  document.getElementById('u-team').textContent = teamLock || role.toUpperCase();
-
-  const { data: { session } } = await sb.auth.getSession();
-  if (!session) {
-    window.location.href = 'portail.html';
-    return;
-  }
-
-  document.getElementById('form-date').value = new Date().toISOString().split('T')[0];
-  loadOdoData();
+function prefillOdoModal(encV, encCh, team) {
+  document.getElementById('form-v').value = decodeURIComponent(encV);
+  document.getElementById('form-chauffeur').value = decodeURIComponent(encCh);
+  document.getElementById('form-team').value = team || 'A1';
+  openOdoModal();
 }
 
 async function loadOdoData() {
   try {
     showToast('⏳ Récupération des relevés odométriques...');
 
-    // 1. Charger numiplan_teams et np_weekly_rac en parallèle
     const [teamsRes, racRes] = await Promise.all([
       sb.from('numiplan_teams').select('team, payload').in('team', ['A1','A2','B1','B2','C1','C2','D1','D2']),
       sb.from('np_weekly_rac').select('*').limit(500)
@@ -537,12 +521,14 @@ async function loadOdoData() {
 
     racLookup = {};
     (racRes.data || []).forEach(r => {
-      if (r.plate) racLookup[r.plate] = r;
-      const noZ = String(r.plate || '').replace(/^0+/, '');
-      if (noZ) racLookup[noZ] = r;
+      if (r.plate) {
+        const norm = String(r.plate).replace(/[^A-Z0-9]/gi, '').toUpperCase();
+        racLookup[norm] = r;
+      }
     });
 
     teamsData = {};
+    pannesByPlate = {};
     const weeksSet = new Set();
     const rows = [];
 
@@ -552,6 +538,13 @@ async function loadOdoData() {
       teamsData[eq] = p;
 
       (p.odo_weeks || []).forEach(w => weeksSet.add(w));
+
+      (p.pannes || []).forEach(pn => {
+        if (!pn || !pn.immat) return;
+        const norm = String(pn.immat).replace(/[^A-Z0-9]/gi, '').toUpperCase();
+        if (!pannesByPlate[norm]) pannesByPlate[norm] = [];
+        pannesByPlate[norm].push(pn);
+      });
 
       (p.odo || []).forEach(item => {
         rows.push({
@@ -569,7 +562,7 @@ async function loadOdoData() {
     showToast('✅ Odomètres à jour');
 
   } catch (err) {
-    console.error('Erreur chargement Odo:', err);
+    console.error('Erreur loadOdoData:', err);
     showToast('Erreur: ' + err.message, true);
   }
 }
@@ -591,6 +584,15 @@ function populateWeekFilters() {
 function toggleAnomalyFilter() {
   filterOnlyAnomalies = !filterOnlyAnomalies;
   document.getElementById('card-anomalies').classList.toggle('active', filterOnlyAnomalies);
+  renderOdoTable();
+}
+
+function resetOdoFilters() {
+  document.getElementById('flt-team').value = 'ALL';
+  document.getElementById('flt-search').value = '';
+  filterOnlyAnomalies = false;
+  document.getElementById('card-anomalies').classList.remove('active');
+  populateWeekFilters();
   renderOdoTable();
 }
 
@@ -630,9 +632,14 @@ function renderOdoTable() {
     return true;
   });
 
-  // Calcul des métriques globales
-  let totKm = 0;
-  let totFact = 0;
+  document.getElementById('kpi-total-trucks').textContent = filtered.length;
+  document.getElementById('odo-status-badge').textContent = `${filtered.length} véhicules`;
+  document.getElementById('odo-meta').textContent = `Consolidé · ${activeWeeks.length} semaines affichées (${activeWeeks[0] || '—'} à ${activeWeeks[activeWeeks.length-1] || '—'})`;
+
+  // Calcul des métriques globales selon la formule exacte de Numiplan
+  let totalKm = 0;
+  let totalFact = 0;
+  let totalOdo = 0;
 
   filtered.forEach(r => {
     const vals = (r.vals || []);
@@ -641,24 +648,31 @@ function renderOdoTable() {
       return idx >= 0 ? parseFloat(vals[idx]) : NaN;
     }).filter(v => !isNaN(v) && v > 1000);
 
+    let deltaVal = 0;
     if (validVals.length >= 2) {
-      const delta = validVals[validVals.length - 1] - validVals[0];
-      if (delta > 0 && delta < 50000) totKm += delta;
+      const d = validVals[validVals.length - 1] - validVals[0];
+      if (d > 0 && d <= 50000) {
+        totalKm += d;
+        deltaVal = d;
+      }
     }
 
-    const norm = String(r.v || '').replace(/[\r\n\s\-]/g, '').toUpperCase();
+    const norm = String(r.v || '').replace(/[^A-Z0-9]/gi, '').toUpperCase();
     const racRow = racLookup[norm];
-    if (racRow && racRow.facture) totFact += Number(racRow.facture);
+    const kmFact = racRow ? Number(racRow.facture || 0) : 0;
+
+    if (deltaVal > 0 && kmFact > 0) {
+      totalFact += kmFact;
+      totalOdo += deltaVal;
+    }
   });
 
-  document.getElementById('kpi-total-km').textContent = Math.round(totKm).toLocaleString('fr-FR') + ' km';
-  document.getElementById('kpi-total-fact').textContent = Math.round(totFact).toLocaleString('fr-FR') + ' km';
-  const racGlobal = totKm > 0 ? (totFact / totKm) * 100 : 0;
-  document.getElementById('kpi-rac-global').textContent = racGlobal.toFixed(1) + '%';
-  document.getElementById('odo-status-badge').textContent = `${filtered.length} véhicules`;
-  document.getElementById('odo-meta').textContent = `Consolidé · ${activeWeeks.length} semaines affichées (${activeWeeks[0] || '—'} à ${activeWeeks[activeWeeks.length-1] || '—'})`;
+  const tabRac = totalOdo > 0 ? (totalFact / totalOdo) * 100 : 0;
+  document.getElementById('kpi-total-km').textContent = Math.round(totalKm).toLocaleString('fr-FR') + ' km';
+  document.getElementById('kpi-rac-global').textContent = tabRac > 0 ? tabRac.toFixed(1) + ' %' : '—';
+  document.getElementById('kpi-rac-sub').textContent = `KM Facturés : ${Math.round(totalFact).toLocaleString('fr-FR')} km`;
 
-  // Construction de l'en-tête dynamique
+  // Header
   const headTr = document.getElementById('odo-thead-tr');
   const weekThs = activeWeeks.map(w => `<th style="text-align:right;font-size:10px">${w}</th>`).join('');
   headTr.innerHTML = `
@@ -668,14 +682,16 @@ function renderOdoTable() {
     ${weekThs}
     <th style="text-align:right">KM Parcourus</th>
     <th style="text-align:right">KM Facturé</th>
-    <th style="text-align:center">RAC %</th>
+    <th style="text-align:center">Roulage à Charge</th>
+    <th style="text-align:center">🔧 Pannes</th>
+    <th>Dernière Panne</th>
     <th style="text-align:center">Action</th>
   `;
 
-  // Corps du tableau
+  // Body
   const tbody = document.getElementById('odo-tbody');
   if (!filtered.length) {
-    tbody.innerHTML = `<tr><td colspan="${activeWeeks.length + 7}" style="text-align:center;padding:40px;color:var(--txt-muted)">Aucun véhicule correspondant aux filtres.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="${activeWeeks.length + 8}" style="text-align:center;padding:40px;color:var(--txt-muted)">Aucun véhicule correspondant aux filtres.</td></tr>`;
     return;
   }
 
@@ -699,22 +715,43 @@ function renderOdoTable() {
       delta = lastVal - firstVal;
     }
 
-    const norm = String(r.v || '').replace(/[\r\n\s\-]/g, '').toUpperCase();
+    const norm = String(r.v || '').replace(/[^A-Z0-9]/gi, '').toUpperCase();
     const racRow = racLookup[norm];
     const kmFact = racRow ? Number(racRow.facture || 0) : 0;
-    const racPct = delta > 0 ? (kmFact / delta) * 100 : (racRow ? Number(racRow.rac_pct || 0) : 0);
-    const racCol = racPct >= 70 ? '#10b981' : (racPct >= 50 ? '#f59e0b' : '#ef4444');
+    const racPct = delta > 0 && kmFact > 0 ? (kmFact / delta) * 100 : (racRow ? Number(racRow.rac_pct || 0) : 0);
+
+    let racBadge = '<span style="color:var(--txt3)">—</span>';
+    if (racPct > 0) {
+      if (racPct < 40) {
+        racBadge = `<span style="color:#f87171;font-weight:800;background:rgba(239,68,68,0.15);border:1px solid #ef4444;padding:2px 7px;border-radius:4px" title="🚨 Focus absolu (< 40%)">🚨 ${racPct.toFixed(1)}%</span>`;
+      } else if (racPct < 50) {
+        racBadge = `<span style="color:#fbbf24;font-weight:800;background:rgba(245,158,11,0.15);border:1px solid #f59e0b;padding:2px 7px;border-radius:4px" title="🔍 À surveiller (< 50%)">🔍 ${racPct.toFixed(1)}%</span>`;
+      } else {
+        racBadge = `<span style="color:#34d399;font-weight:800;background:rgba(16,185,129,0.15);border:1px solid #10b981;padding:2px 7px;border-radius:4px">🟢 ${racPct.toFixed(1)}%</span>`;
+      }
+    }
+
+    const pannes = pannesByPlate[norm] || [];
+    const pCount = pannes.length;
+    let lastPanneDate = '—';
+    if (pCount > 0) {
+      const dates = pannes.map(p => p.date).filter(Boolean).sort();
+      lastPanneDate = dates[dates.length - 1] || '—';
+    }
+
     const isAnomaly = anomalyPlates.has(r.v);
 
     return `
       <tr style="${isAnomaly ? 'background:rgba(239,68,68,0.08);border-left:4px solid #ef4444' : ''}">
         <td style="font-family:'JetBrains Mono',monospace;font-weight:700;color:#38bdf8">${r.v} ${isAnomaly ? '<span title="Compteur en régression">⚠️</span>' : ''}</td>
         <td>${r.chauffeur || '—'}</td>
-        <td><span class="team-badge">${r._team}</span></td>
+        <td><span style="background:rgba(56,189,248,0.18);color:#38bdf8;padding:2px 6px;border-radius:4px;font-weight:700;font-size:11px">Éq. ${r._team}</span></td>
         ${weekTds}
-        <td style="text-align:right;font-weight:700">${delta > 0 ? Math.round(delta).toLocaleString('fr-FR') : '—'}</td>
+        <td style="text-align:right;font-weight:700;color:${delta > 0 ? '#34d399' : 'var(--txt)'}">${delta > 0 ? '+' + Math.round(delta).toLocaleString('fr-FR') : '—'}</td>
         <td style="text-align:right;color:#38bdf8;font-weight:700">${kmFact > 0 ? Math.round(kmFact).toLocaleString('fr-FR') : '—'}</td>
-        <td style="text-align:center"><b style="color:${racCol}">${racPct > 0 ? racPct.toFixed(0) + '%' : '—'}</b></td>
+        <td style="text-align:center">${racBadge}</td>
+        <td style="text-align:center"><span style="color:${pCount >= 3 ? '#f87171' : pCount > 0 ? '#fbbf24' : 'var(--txt3)'};font-weight:800">${pCount}</span></td>
+        <td style="font-size:11px;color:var(--txt2)">${lastPanneDate}</td>
         <td style="text-align:center">
           <button class="btn-nav" style="padding:4px 8px;font-size:11px" onclick="prefillOdoModal('${encodeURIComponent(r.v)}', '${encodeURIComponent(r.chauffeur || '')}', '${r._team}')">
             <i class="fa-solid fa-pen"></i>
@@ -723,29 +760,6 @@ function renderOdoTable() {
       </tr>
     `;
   }).join('');
-}
-
-function resetOdoFilters() {
-  document.getElementById('flt-team').value = 'ALL';
-  document.getElementById('flt-search').value = '';
-  filterOnlyAnomalies = false;
-  document.getElementById('card-anomalies').classList.remove('active');
-  populateWeekFilters();
-  renderOdoTable();
-}
-
-function openOdoModal() {
-  document.getElementById('odo-modal').style.display = 'flex';
-}
-function closeOdoModal() {
-  document.getElementById('odo-modal').style.display = 'none';
-}
-
-function prefillOdoModal(encV, encCh, team) {
-  document.getElementById('form-v').value = decodeURIComponent(encV);
-  document.getElementById('form-chauffeur').value = decodeURIComponent(encCh);
-  document.getElementById('form-team').value = team || 'A1';
-  openOdoModal();
 }
 
 async function saveOdoEntry() {
@@ -785,7 +799,6 @@ async function saveOdoEntry() {
     payload.odo_weeks = weeks;
     payload.odo = odoList;
 
-    // Sauvegarder dans Supabase (numiplan_teams)
     const { error } = await sb.from('numiplan_teams').upsert({
       team,
       payload,
@@ -826,6 +839,24 @@ function exportOdoExcel() {
   XLSX.utils.book_append_sheet(wb, ws, 'Odometre');
   XLSX.writeFile(wb, `Odometre_Releves_${new Date().toISOString().split('T')[0]}.xlsx`);
   showToast('✅ Export Excel téléchargé');
+}
+
+async function initSession() {
+  const user = sessionStorage.getItem('numiplan_username') || 'utilisateur';
+  const role = sessionStorage.getItem('numiplan_user_role') || 'admin';
+  const teamLock = sessionStorage.getItem('numiplan_team_lock') || '';
+
+  document.getElementById('u-name').textContent = user.toUpperCase();
+  document.getElementById('u-role').textContent = teamLock || role.toUpperCase();
+
+  const { data: { session } } = await sb.auth.getSession();
+  if (!session) {
+    window.location.href = 'portail.html';
+    return;
+  }
+
+  document.getElementById('form-date').value = new Date().toISOString().split('T')[0];
+  loadOdoData();
 }
 
 window.addEventListener('DOMContentLoaded', initSession);
