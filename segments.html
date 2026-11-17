@@ -3,9 +3,9 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>NUMIPLAN — Voyages & Segments ERP (TMS)</title>
+<title>NUMIPLAN — Voyages &amp; Segments ERP (TMS)</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@500;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
@@ -15,13 +15,20 @@
     --bg-dark: #070b13;
     --bg-card: #0d1527;
     --bg-card-hover: #121c33;
+    --bg2: #0f172a;
+    --bg3: #1e293b;
     --border: #1e293b;
     --border-hover: #334155;
     --primary: #38bdf8;
+    --acc: #38bdf8;
     --accent-green: #10b981;
     --accent-orange: #f59e0b;
+    --accent-red: #ef4444;
     --accent-purple: #c084fc;
+    --txt: #f8fafc;
     --txt-main: #f8fafc;
+    --txt2: #94a3b8;
+    --txt3: #64748b;
     --txt-muted: #94a3b8;
     --txt-dim: #64748b;
   }
@@ -36,7 +43,6 @@
     flex-direction: column;
   }
 
-  /* HEADER */
   header {
     height: 70px;
     border-bottom: 1px solid var(--border);
@@ -44,7 +50,7 @@
     align-items: center;
     justify-content: space-between;
     padding: 0 28px;
-    background: rgba(13, 21, 39, 0.85);
+    background: rgba(13, 21, 39, 0.9);
     backdrop-filter: blur(16px);
     position: sticky;
     top: 0;
@@ -72,6 +78,7 @@
     font-size: 17px;
     font-weight: 800;
     color: #fff;
+    letter-spacing: 0.5px;
   }
   .brand-sub {
     font-size: 11px;
@@ -96,216 +103,154 @@
     align-items: center;
     gap: 8px;
     transition: all 0.2s;
+    cursor: pointer;
   }
   .btn-nav:hover {
+    background: var(--bg-card-hover);
     border-color: var(--primary);
-    color: var(--primary);
-    transform: translateY(-1px);
+  }
+  .btn-primary {
+    background: #10b981;
+    color: #000;
+    font-weight: 800;
+    border: none;
+  }
+  .btn-primary:hover {
+    background: #059669;
+    color: #fff;
   }
 
-  .user-pill {
+  .user-badge {
     background: rgba(15, 23, 42, 0.8);
     border: 1px solid var(--border);
     border-radius: 999px;
-    padding: 5px 14px;
+    padding: 5px 12px;
     display: flex;
     align-items: center;
     gap: 8px;
     font-size: 12px;
   }
   .status-dot {
-    width: 8px;
-    height: 8px;
+    width: 7px;
+    height: 7px;
     border-radius: 50%;
-    background: var(--accent-green);
-    box-shadow: 0 0 8px var(--accent-green);
-  }
-  .team-badge {
-    background: rgba(16, 185, 129, 0.15);
-    color: var(--accent-green);
-    border: 1px solid rgba(16, 185, 129, 0.3);
-    padding: 2px 7px;
-    border-radius: 5px;
-    font-size: 11px;
-    font-weight: 700;
+    background: #10b981;
+    box-shadow: 0 0 8px #10b981;
   }
 
   /* MAIN CONTENT */
   main {
     flex: 1;
-    max-width: 1560px;
+    padding: 24px 28px;
+    max-width: 1750px;
     width: 100%;
     margin: 0 auto;
-    padding: 24px 28px;
   }
 
-  .banner-header {
-    background: linear-gradient(135deg, rgba(16, 185, 129, 0.1), rgba(13, 21, 39, 0.8));
-    border: 1px solid rgba(16, 185, 129, 0.25);
-    border-radius: 16px;
-    padding: 20px 24px;
-    margin-bottom: 24px;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    flex-wrap: wrap;
-    gap: 16px;
-  }
-  .banner-info h2 {
-    font-size: 20px;
-    font-weight: 800;
-    display: flex;
-    align-items: center;
-    gap: 10px;
-  }
-  .status-badge {
-    font-size: 11px;
-    font-weight: 700;
-    padding: 3px 10px;
-    border-radius: 999px;
-    background: rgba(16, 185, 129, 0.2);
-    color: #34d399;
-    border: 1px solid rgba(16, 185, 129, 0.3);
-  }
-  .banner-meta {
-    font-size: 12px;
-    color: var(--txt-muted);
-    margin-top: 6px;
+  .mono {
+    font-family: 'JetBrains Mono', monospace;
   }
 
-  .banner-actions {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    flex-wrap: wrap;
-  }
-  .btn-action {
-    background: linear-gradient(135deg, #10b981, #059669);
-    color: #fff;
-    border: none;
-    border-radius: 8px;
-    padding: 10px 16px;
-    font-size: 13px;
-    font-weight: 700;
-    cursor: pointer;
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-    transition: all 0.2s;
-    box-shadow: 0 4px 15px rgba(16, 185, 129, 0.3);
-  }
-  .btn-action:hover {
-    transform: translateY(-1px);
-    box-shadow: 0 6px 20px rgba(16, 185, 129, 0.45);
-  }
-  .btn-secondary {
-    background: var(--bg-card);
+  /* BUTTONS & CONTROLS */
+  .btn {
     border: 1px solid var(--border);
-    color: var(--txt-main);
-    padding: 10px 14px;
+    background: var(--bg3);
+    color: var(--txt);
+    padding: 7px 14px;
     border-radius: 8px;
-    font-size: 13px;
-    font-weight: 600;
+    font-size: 12px;
+    font-weight: 700;
     cursor: pointer;
     display: inline-flex;
     align-items: center;
     gap: 6px;
-    transition: all 0.2s;
+    transition: all 0.15s ease;
   }
-  .btn-secondary:hover {
-    border-color: var(--txt-muted);
-    background: var(--bg-card-hover);
+  .btn:hover {
+    border-color: var(--acc);
+    background: rgba(56, 189, 248, 0.15);
+  }
+  .btn-reset {
+    background: rgba(255, 255, 255, 0.05);
+    border-color: var(--border);
+    color: var(--txt2);
+  }
+  .btn-reset:hover {
+    background: rgba(255, 255, 255, 0.12);
+    color: var(--txt);
+  }
+  .filter-input {
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--txt);
+    padding: 7px 12px;
+    font-size: 12px;
+    font-family: inherit;
+    outline: none;
+    transition: border-color 0.2s;
+  }
+  .filter-input:focus {
+    border-color: var(--acc);
   }
 
-  /* KPIS */
+  /* KPI CARDS */
   .kpi-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-    gap: 16px;
-    margin-bottom: 24px;
+    grid-template-columns: repeat(6, 1fr);
+    gap: 12px;
+    margin-bottom: 20px;
+  }
+  @media (max-width: 1400px) {
+    .kpi-grid { grid-template-columns: repeat(3, 1fr); }
+  }
+  @media (max-width: 768px) {
+    .kpi-grid { grid-template-columns: 1fr 1fr; }
   }
   .kpi-card {
-    background: var(--bg-card);
+    background: var(--bg2);
     border: 1px solid var(--border);
-    border-radius: 14px;
-    padding: 18px;
+    border-radius: 12px;
+    padding: 14px 16px;
+    cursor: pointer;
+    transition: all 0.2s;
+    position: relative;
+    overflow: hidden;
+  }
+  .kpi-card:hover {
+    border-color: var(--acc);
+    transform: translateY(-2px);
+    box-shadow: 0 8px 24px rgba(0,0,0,0.3);
   }
   .kpi-title {
     font-size: 11px;
     font-weight: 700;
-    color: var(--txt-muted);
-    text-transform: uppercase;
+    color: var(--txt2);
+    margin-bottom: 6px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
   }
-  .kpi-value {
-    font-size: 26px;
+  .kpi-val {
+    font-size: 22px;
     font-weight: 900;
-    margin: 8px 0 4px;
-    font-family: 'JetBrains Mono', monospace;
+    color: var(--txt);
+    line-height: 1.2;
   }
   .kpi-sub {
-    font-size: 11px;
-    color: var(--txt-dim);
-  }
-
-  /* TOOLBAR */
-  .toolbar {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    margin-bottom: 16px;
-    flex-wrap: wrap;
-    gap: 12px;
-  }
-  .presets-group {
-    display: flex;
-    gap: 6px;
-    flex-wrap: wrap;
-  }
-  .preset-btn {
-    background: var(--bg-card);
-    border: 1px solid var(--border);
-    color: var(--txt-muted);
-    padding: 6px 12px;
-    border-radius: 8px;
-    font-size: 11px;
-    font-weight: 700;
-    cursor: pointer;
-    transition: all 0.2s;
-  }
-  .preset-btn:hover, .preset-btn.active {
-    background: rgba(16, 185, 129, 0.15);
-    border-color: rgba(16, 185, 129, 0.4);
-    color: var(--accent-green);
-  }
-
-  .search-group {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    flex-wrap: wrap;
-  }
-  .input-control {
-    background: var(--bg-card);
-    border: 1px solid var(--border);
-    color: #fff;
-    padding: 8px 12px;
-    border-radius: 8px;
-    font-size: 12px;
-    outline: none;
-    transition: border 0.2s;
-  }
-  .input-control:focus {
-    border-color: var(--primary);
+    font-size: 10.5px;
+    color: var(--txt3);
+    margin-top: 4px;
+    line-height: 1.3;
   }
 
   /* TABLE */
-  .table-container {
-    background: var(--bg-card);
+  .table-wrap {
+    background: var(--bg2);
     border: 1px solid var(--border);
-    border-radius: 14px;
-    overflow: hidden;
-    max-height: 64vh;
-    overflow-y: auto;
+    border-radius: 12px;
+    overflow-x: auto;
+    max-height: 68vh;
   }
   table {
     width: 100%;
@@ -316,39 +261,75 @@
   thead {
     position: sticky;
     top: 0;
-    background: #0f182c;
+    background: #0b1120;
     z-index: 10;
   }
   th {
     padding: 12px 14px;
+    color: var(--txt2);
     font-weight: 700;
-    color: var(--txt-muted);
     border-bottom: 1px solid var(--border);
+    white-space: nowrap;
     font-size: 11px;
     text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+  th[onclick] {
+    cursor: pointer;
+    user-select: none;
+  }
+  th[onclick]:hover {
+    color: var(--acc);
   }
   td {
-    padding: 10px 14px;
-    border-bottom: 1px solid rgba(30, 41, 59, 0.7);
-    color: var(--txt-main);
+    padding: 11px 14px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+    vertical-align: middle;
+  }
+  tbody tr {
+    transition: background 0.12s;
   }
   tbody tr:hover {
-    background: var(--bg-card-hover);
+    background: rgba(56, 189, 248, 0.04);
+  }
+
+  /* MODAL */
+  .modal-overlay {
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(0, 0, 0, 0.82);
+    backdrop-filter: blur(6px);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 99999;
+  }
+  .modal-content {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    width: 1250px;
+    max-width: 96vw;
+    max-height: 90vh;
+    display: flex;
+    flex-direction: column;
+    padding: 24px;
+    box-shadow: 0 20px 50px rgba(0, 0, 0, 0.6);
   }
 
   #toast {
     position: fixed;
     bottom: 24px;
     right: 24px;
-    background: #1e293b;
+    background: var(--bg-card);
     border: 1px solid var(--border);
-    padding: 12px 20px;
     border-radius: 10px;
+    padding: 12px 20px;
     font-size: 13px;
     font-weight: 600;
+    z-index: 100000;
     display: none;
     box-shadow: 0 10px 30px rgba(0,0,0,0.5);
-    z-index: 1000;
   }
 </style>
 </head>
@@ -361,7 +342,7 @@
     </div>
     <div>
       <div class="brand-title">VOYAGES &amp; SEGMENTS ERP</div>
-      <div class="brand-sub">Suivi des chargements, trajets &amp; écarts d'itinéraire</div>
+      <div class="brand-sub">Suivi des chargements, trajets &amp; écarts d'itinéraire (TMS)</div>
     </div>
   </a>
 
@@ -372,109 +353,252 @@
     <a href="fiche_supabase.html" class="btn-nav">
       <i class="fa-solid fa-truck"></i> Numiplan Dispo
     </a>
-
-    <div class="user-pill">
+    <div class="user-badge">
       <span class="status-dot"></span>
-      <span id="u-name" style="font-weight: 700;">Utilisateur</span>
-      <span id="u-team" class="team-badge">—</span>
+      <span id="u-name" style="font-weight: 700;">ADMIN</span>
+      <span id="u-role" style="font-size: 10px; font-weight: 800; background: rgba(56,189,248,0.2); color: #38bdf8; padding: 1px 6px; border-radius: 4px;">ADMIN</span>
     </div>
   </div>
 </header>
 
 <main>
-  <!-- BANNER -->
-  <div class="banner-header">
-    <div class="banner-info">
-      <h2>
-        <span>Registre des Segments ERP</span>
-        <span id="segments-count-badge" class="status-badge">Chargement...</span>
-      </h2>
-      <div id="segments-meta" class="banner-meta">Connexion à la base de données Supabase...</div>
+
+  <!-- BANDEAU HAUT : INFOS FICHIER & ACTIONS D'IMPORT / EXPORT -->
+  <div style="background:linear-gradient(90deg, rgba(16,185,129,0.12) 0%, rgba(15,23,42,0.9) 100%);border-bottom:2px solid #10b981;border-radius:12px;padding:14px 18px;margin-bottom:18px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px">
+    <div>
+      <div style="display:flex;align-items:center;gap:10px">
+        <h2 style="margin:0;font-size:18px;color:#fff;font-weight:800;letter-spacing:0.3px">
+          📦 Registre des Voyages &amp; Segments ERP
+        </h2>
+        <span id="cnt-segments" style="background:rgba(16,185,129,0.25);color:#34d399;border:1px solid #10b981;font-size:12px;font-weight:900;padding:2px 10px;border-radius:999px">0 segments</span>
+        <span id="seg-cloud-status" style="font-size:11px;color:#94a3b8">⏳ Chargement des données...</span>
+      </div>
+      <div id="seg-file-info" style="font-size:11.5px;color:var(--txt2);margin-top:4px">
+        Base ERP consolidée • Initialisation en cours...
+      </div>
     </div>
 
-    <div class="banner-actions">
-      <label class="btn-action">
+    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+      <input type="file" id="seg-excel-input" accept=".xlsx,.xls" style="display:none" onchange="importSegmentsErpExcel(this)">
+      <button class="btn btn-primary" onclick="document.getElementById('seg-excel-input').click()" title="Importer le fichier EDITION__LISTE_SEGMENTS.xlsx">
         <i class="fa-solid fa-file-excel"></i> Importer Segments (.xlsx)
-        <input type="file" id="file-segments-input" accept=".xlsx,.xls" style="display:none" onchange="handleSegmentsUpload(this)">
-      </label>
-      <button onclick="exportSegmentsExcel()" class="btn-secondary" title="Exporter les lignes affichées au format Excel">
-        <i class="fa-solid fa-download"></i> Exporter
       </button>
-      <button onclick="loadSegmentsData()" class="btn-secondary" title="Recharger les données depuis Supabase">
-        <i class="fa-solid fa-arrows-rotate"></i> Actualiser
+
+      <button class="btn" onclick="refreshSegmentsPoiData(true)" style="background:rgba(16,185,129,0.15);color:#34d399;border-color:rgba(16,185,129,0.4)" title="Recalculer les croisements POI et pannes">
+        <i class="fa-solid fa-arrows-rotate"></i> Actualiser / Recalculer POI
+      </button>
+
+      <button class="btn" onclick="exportSegmentsErpExcel()" title="Exporter en Excel consolidé">
+        <i class="fa-solid fa-download"></i> Exporter Bilan Excel
       </button>
     </div>
   </div>
 
-  <!-- KPIS -->
+  <!-- BARRE DE FILTRES MULTI-CRITÈRES -->
+  <div class="filter-bar" style="margin-bottom:16px;padding:12px 16px;background:var(--bg2);border:1px solid var(--border);border-radius:12px;display:flex;flex-wrap:wrap;gap:10px;align-items:center">
+    <div style="display:flex;align-items:center;gap:6px">
+      <label style="font-size:11px;font-weight:700;color:var(--txt2)">📅 Du :</label>
+      <input type="date" id="seg-date-from" class="filter-input" style="width:132px;padding:6px 8px;font-size:12px" onchange="renderSegmentsErpPage()">
+      <label style="font-size:11px;font-weight:700;color:var(--txt2)">Au :</label>
+      <input type="date" id="seg-date-to" class="filter-input" style="width:132px;padding:6px 8px;font-size:12px" onchange="renderSegmentsErpPage()">
+    </div>
+
+    <div style="display:flex;gap:4px;flex-wrap:wrap">
+      <button class="btn btn-reset" style="padding:5px 9px;font-size:11px" onclick="setSegmentsDatePreset('all')">Toutes dates</button>
+      <button class="btn btn-reset" style="padding:5px 9px;font-size:11px" onclick="setSegmentsDatePreset('lastday')">Dernier jour</button>
+      <button class="btn btn-reset" style="padding:5px 9px;font-size:11px" onclick="setSegmentsDatePreset('prevday')">Veille</button>
+      <button class="btn btn-reset" style="padding:5px 9px;font-size:11px" onclick="setSegmentsDatePreset('last3')">3 derniers j.</button>
+      <button class="btn btn-reset" style="padding:5px 9px;font-size:11px" onclick="setSegmentsDatePreset('last7')">7 derniers j.</button>
+    </div>
+
+    <select id="seg-filter-team" class="filter-input" style="max-width:155px;font-size:12px" onchange="renderSegmentsErpPage()">
+      <option value="ALL">👥 Toutes Équipes</option>
+      <option value="ACTIVE">⭐ Équipe Active</option>
+      <option value="A1">Équipe A1</option>
+      <option value="A2">Équipe A2</option>
+      <option value="B1">Équipe B1</option>
+      <option value="B2">Équipe B2</option>
+      <option value="C1">Équipe C1</option>
+      <option value="C2">Équipe C2</option>
+      <option value="D1">Équipe D1</option>
+      <option value="D2">Équipe D2</option>
+      <option value="HORS_FLOTTE">Hors Équipe / Externe</option>
+    </select>
+
+    <select id="seg-filter-agence" class="filter-input" style="max-width:160px;font-size:12px" onchange="renderSegmentsErpPage()">
+      <option value="ALL">🏢 Toutes Agences ERP</option>
+      <option value="PART A">PART A</option>
+      <option value="PART B">PART B</option>
+      <option value="PART C">PART C</option>
+      <option value="PART D">PART D</option>
+      <option value="PART BEJAIA">PART BEJAIA</option>
+    </select>
+
+    <select id="seg-filter-status" class="filter-input" style="max-width:245px;font-size:12px;border-color:rgba(56,189,248,0.4)" onchange="renderSegmentsErpPage()">
+      <option value="ALL">🔍 Tous statuts &amp; contrôles POI</option>
+      <option value="CHARGE_24H">🚨 Statut "CHARGÉ" &gt; 24h uniquement</option>
+      <option value="HAS_CHARGE">📦 Ayant statut "CHARGÉ"</option>
+      <option value="CHARGE_POI_OK">✅ "CHARGÉ" Confirmé par POI</option>
+      <option value="CHARGE_POI_KO">❌ "CHARGÉ" Non pointé au POI Départ</option>
+      <option value="HAS_LIVRE">🏁 Ayant statut "LIVRÉ"</option>
+      <option value="LIVRE_POI_OK">✅ "LIVRÉ" Confirmé par POI</option>
+      <option value="LIVRE_POI_KO">⚠️ "LIVRÉ" Non pointé au POI Arrivée</option>
+      <option value="HAS_CONFIRME">📋 Ayant statut "CONFIRMÉ" / Autres</option>
+      <option value="ECART_J1_ERP_SEG">🚨 Écart Lieu J+1 (Numiplan) ≠ Ville Arrivée (ERP)</option>
+      <option value="HAS_PANNE">🔧 Ayant au moins 1 panne</option>
+      <option value="PANNE_3PLUS">🔴 Pannes récurrentes (≥ 3 pannes)</option>
+    </select>
+
+    <select id="seg-charge-ref-mode" class="filter-input" style="max-width:195px;font-size:11px" onchange="renderSegmentsErpPage()" title="Base temporelle pour calculer la durée de dépassement > 24h en statut CHARGÉ">
+      <option value="dateSeg">⏱️ Calcul 24h : Date Segment / Départ</option>
+      <option value="dateSegM">⏱️ Calcul 24h : Date Modification ERP</option>
+    </select>
+
+    <input type="text" id="seg-search" class="filter-input" placeholder="🔎 Camion, chauffeur, client, lieu, segment..." style="flex:1;min-width:180px;font-size:12px" oninput="renderSegmentsErpPage()">
+
+    <button class="btn btn-reset" onclick="resetSegmentsErpFilters()" style="padding:6px 12px;font-size:11px">↺ Reset</button>
+  </div>
+
+  <!-- CARTES KPI INTERACTIVES (CLIQUABLES POUR FILTRER) -->
   <div class="kpi-grid">
-    <div class="kpi-card" style="border-color: rgba(16, 185, 129, 0.35);">
-      <div class="kpi-title">📦 TOTAL SEGMENTS AFFICHÉS</div>
-      <div class="kpi-value" id="kpi-total-segments" style="color:#34d399">0</div>
-      <div class="kpi-sub">Chargements consolidés</div>
+    <div class="kpi-card" onclick="setSegmentsStatusFilter('ALL')">
+      <div class="kpi-title">🔄 Total Voyages Réalisés</div>
+      <div class="kpi-val mono" id="seg-kpi-voyages" style="color:#38bdf8">—</div>
+      <div class="kpi-sub" id="seg-kpi-voyages-sub">Dédoublonnés par groupage</div>
     </div>
-    <div class="kpi-card" style="border-color: rgba(56, 189, 248, 0.35);">
-      <div class="kpi-title">🚛 TRACTEURS ACTIFS</div>
-      <div class="kpi-value" id="kpi-total-trucks" style="color:#38bdf8">0</div>
-      <div class="kpi-sub">Immatriculations distinctes</div>
+
+    <div class="kpi-card" onclick="setSegmentsStatusFilter('CHARGE_24H')" style="border-color:rgba(239,68,68,0.4)">
+      <div class="kpi-title" style="color:#f87171">🚨 Statut "CHARGÉ" &gt; 24h</div>
+      <div class="kpi-val mono" id="seg-kpi-charge24" style="color:#ef4444">—</div>
+      <div class="kpi-sub" id="seg-kpi-charge24-sub">Blocages / Retards livraison</div>
     </div>
-    <div class="kpi-card" style="border-color: rgba(245, 158, 11, 0.35);">
-      <div class="kpi-title">🛣️ KM TOTAL EXPLOITÉ</div>
-      <div class="kpi-value" id="kpi-total-km" style="color:#fbbf24">0</div>
-      <div class="kpi-sub">Distance parcourue cumulée</div>
+
+    <div class="kpi-card" onclick="setSegmentsStatusFilter('HAS_CHARGE')">
+      <div class="kpi-title" style="color:#fbbf24">🎯 POI Chargement Confirmé</div>
+      <div class="kpi-val mono" id="seg-kpi-charge-poi" style="color:#fbbf24">—</div>
+      <div class="kpi-sub" id="seg-kpi-charge-poi-sub">Pointés au POI de départ</div>
     </div>
-    <div class="kpi-card" style="border-color: rgba(192, 132, 252, 0.35);">
-      <div class="kpi-title">💰 MONTANT ACHAT ESTIMÉ</div>
-      <div class="kpi-value" id="kpi-total-achat" style="color:#c084fc">0 DA</div>
-      <div class="kpi-sub">Total facturation affrétement</div>
+
+    <div class="kpi-card" onclick="setSegmentsStatusFilter('HAS_LIVRE')">
+      <div class="kpi-title" style="color:#34d399">🏁 POI Client Confirmé</div>
+      <div class="kpi-val mono" id="seg-kpi-livre-poi" style="color:#34d399">—</div>
+      <div class="kpi-sub" id="seg-kpi-livre-poi-sub">Pointés au POI client</div>
+    </div>
+
+    <div class="kpi-card" onclick="setSegmentsStatusFilter('HAS_CONFIRME')">
+      <div class="kpi-title" style="color:#c084fc">📋 Confirmé / C.Rendu</div>
+      <div class="kpi-val mono" id="seg-kpi-confirme" style="color:#c084fc">—</div>
+      <div class="kpi-sub" id="seg-kpi-confirme-sub">Voyages clôturés</div>
+    </div>
+
+    <div class="kpi-card" onclick="setSegmentsStatusFilter('ALL')">
+      <div class="kpi-title" style="color:#4ade80">💰 Montant ACHAT Facturé</div>
+      <div class="kpi-val mono" id="seg-kpi-achat" style="color:#4ade80;font-size:18px">—</div>
+      <div class="kpi-sub" id="seg-kpi-achat-sub">Cumul DA &amp; KM</div>
     </div>
   </div>
 
-  <!-- TOOLBAR -->
-  <div class="toolbar">
-    <div class="presets-group">
-      <button class="preset-btn active" onclick="setPreset('all', this)">Tout</button>
-      <button class="preset-btn" onclick="setPreset('today', this)">Aujourd'hui</button>
-      <button class="preset-btn" onclick="setPreset('3d', this)">3 Derniers Jours</button>
-      <button class="preset-btn" onclick="setPreset('7d', this)">7 Derniers Jours</button>
-      <button class="preset-btn" onclick="setPreset('30d', this)">30 Derniers Jours</button>
+  <!-- COMMUTATEUR DE VUES (SYNTHÈSE CAMION vs DÉTAIL VOYAGES) -->
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:10px">
+    <div style="display:flex;gap:8px">
+      <button id="btn-seg-view-trucks" class="btn" onclick="switchSegmentsView('trucks')" style="background:#38bdf8;color:#000;font-weight:800;padding:8px 16px;border-radius:8px">
+        🚛 Vue Synthèse par Camion (<span id="seg-count-trucks">0</span>)
+      </button>
+      <button id="btn-seg-view-trips" class="btn" onclick="switchSegmentsView('trips')" style="background:rgba(255,255,255,0.06);color:var(--txt);font-weight:700;padding:8px 16px;border-radius:8px">
+        📋 Liste Détaillée des Voyages &amp; Audit POI (<span id="seg-count-trips">0</span>)
+      </button>
     </div>
-
-    <div class="search-group">
-      <select id="flt-agence" class="input-control" onchange="renderFilteredSegments()">
-        <option value="">Toutes Agences</option>
-      </select>
-      <select id="flt-client" class="input-control" onchange="renderFilteredSegments()">
-        <option value="">Tous Clients</option>
-      </select>
-      <input type="text" id="search-q" class="input-control" placeholder="🔍 Rechercher (tracteur, seg, chauffeur...)" oninput="renderFilteredSegments()">
+    <div style="font-size:11px;color:var(--txt3)">
+      💡 <b>Astuce :</b> Cliquez sur une carte KPI pour filtrer ou sur <b>« 🔍 Détail »</b> d'un camion pour inspecter ses voyages et ses pointages POI.
     </div>
   </div>
 
-  <!-- TABLE -->
-  <div class="table-container">
+  <!-- VUE 1 : TABLEAU CUMUL PAR CAMION -->
+  <div id="seg-view-trucks" class="table-wrap">
     <table>
       <thead>
         <tr>
-          <th>Date</th>
-          <th>N° Segment</th>
-          <th>Tracteur</th>
-          <th>Chauffeur</th>
-          <th>Client</th>
-          <th>Activité</th>
-          <th>Itinéraire</th>
-          <th style="text-align:right">Km Expl.</th>
-          <th style="text-align:right">Km Carto</th>
-          <th style="text-align:right">Achat (DA)</th>
-          <th style="text-align:center">État</th>
+          <th onclick="sortSegmentsTrucks('tracteur')">Camion (Tracteur) ⇅</th>
+          <th onclick="sortSegmentsTrucks('team')">Éq. / Agence ⇅</th>
+          <th onclick="sortSegmentsTrucks('chauffeur')">Chauffeur (Affrété / Cond.) ⇅</th>
+          <th style="text-align:center" onclick="sortSegmentsTrucks('j1Match')">Contrôle Lieu J+1 vs Ville Arriv. ERP ⇅</th>
+          <th style="text-align:center" onclick="sortSegmentsTrucks('totalTrips')">Cumul Voyages ⇅</th>
+          <th style="text-align:center" onclick="sortSegmentsTrucks('panneCount')">🔧 Pannes ⇅</th>
+          <th style="text-align:center" onclick="sortSegmentsTrucks('chargeOver24')">Statut "CHARGÉ" (&amp; &gt;24h) ⇅</th>
+          <th style="text-align:center" onclick="sortSegmentsTrucks('chargePoiOk')">Confirmation POI "CHARGÉ" ⇅</th>
+          <th style="text-align:center" onclick="sortSegmentsTrucks('livreCount')">Statut "LIVRÉ" ⇅</th>
+          <th style="text-align:center" onclick="sortSegmentsTrucks('livrePoiOk')">Confirmation POI "LIVRÉ" ⇅</th>
+          <th>Autres Statuts (Confirmé, Tracking…)</th>
+          <th style="text-align:right" onclick="sortSegmentsTrucks('totalAchat')">Total ACHAT (DA) ⇅</th>
+          <th style="text-align:center">Actions</th>
         </tr>
       </thead>
-      <tbody id="segments-table-body">
-        <tr><td colspan="11" style="text-align:center;padding:40px;color:var(--txt-muted)">Chargement des segments...</td></tr>
+      <tbody id="seg-trucks-tbody">
+        <tr><td colspan="13" style="text-align:center;padding:40px;color:var(--txt2)">Chargement des segments et calcul des règles Numiplan...</td></tr>
       </tbody>
     </table>
   </div>
+
+  <!-- VUE 2 : LISTE DÉTAILLÉE DES VOYAGES & AUDIT POI -->
+  <div id="seg-view-trips" class="table-wrap" style="display:none">
+    <table>
+      <thead>
+        <tr>
+          <th>Date Départ</th>
+          <th>N° Segment / Groupage</th>
+          <th>Camion &amp; Éq.</th>
+          <th>Chauffeur</th>
+          <th>Client</th>
+          <th>Trajet (Lieu Départ ➔ Lieu Arrivée)</th>
+          <th style="text-align:center">État Commande &amp; Durée</th>
+          <th style="text-align:center">Tracking / État Seg</th>
+          <th>Vérification &amp; Confirmation POI (GPS)</th>
+          <th style="text-align:right">Montant ACHAT</th>
+        </tr>
+      </thead>
+      <tbody id="seg-trips-tbody">
+        <tr><td colspan="10" style="text-align:center;padding:40px;color:var(--txt2)">Chargement des voyages...</td></tr>
+      </tbody>
+    </table>
+  </div>
+
 </main>
+
+<!-- MODAL DÉTAIL DES VOYAGES & POINTAGES POI D'UN CAMION -->
+<div class="modal-overlay" id="modal-segments-truck-detail">
+  <div class="modal-content">
+    <div style="display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid var(--border);padding-bottom:14px;margin-bottom:14px">
+      <div>
+        <h3 id="seg-modal-title" style="margin:0;font-size:16px;color:#38bdf8;display:flex;align-items:center;gap:10px">🚛 Détail des Voyages &amp; Pointages POI</h3>
+        <div id="seg-modal-subtitle" style="font-size:12px;color:var(--txt2);margin-top:4px"></div>
+      </div>
+      <button onclick="closeModal('modal-segments-truck-detail')" style="background:none;border:none;color:var(--txt2);font-size:24px;cursor:pointer">&times;</button>
+    </div>
+
+    <div id="seg-modal-summary" style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px"></div>
+
+    <div class="table-wrap" style="flex:1;overflow-y:auto;margin-bottom:12px">
+      <table>
+        <thead>
+          <tr>
+            <th>Date</th>
+            <th>Segment / Groupage</th>
+            <th>Client &amp; Réf Cmd</th>
+            <th>Lieu Départ ➔ Lieu Arrivée</th>
+            <th style="text-align:center">Statut Cmd &amp; Durée</th>
+            <th style="text-align:center">Autres Statuts</th>
+            <th>Confirmation POI Départ (Chargé)</th>
+            <th>Confirmation POI Arrivée (Livré)</th>
+            <th style="text-align:right">ACHAT (DA)</th>
+          </tr>
+        </thead>
+        <tbody id="seg-modal-tbody"></tbody>
+      </table>
+    </div>
+
+    <div id="seg-modal-poi-history" style="font-size:11.5px;color:var(--txt2);border-top:1px solid var(--border);padding-top:12px;max-height:100px;overflow-y:auto"></div>
+  </div>
+</div>
 
 <div id="toast"></div>
 
@@ -483,8 +607,49 @@ const SUPABASE_URL = 'https://mfljrozyxyfkymzlnsmt.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_sMb9uHOr4gpyqmZGrkY-YQ_z90TgNAB';
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-let allSegments = [];
-let currentPreset = 'all';
+window._SEGMENTS_ERP_DATA = null;
+window._SEGMENTS_POI_VISITS = [];
+window._SEGMENTS_POIS_LIST = [];
+window._SEGMENTS_VIEW_MODE = 'trucks';
+window._SEGMENTS_SORT = { col: 'totalTrips', asc: false };
+window._SEGMENTS_COMPUTED = { trucks: [], trips: [], visitsByPlate: new Map() };
+window._SEGMENTS_LOADING_CLOUD = false;
+window.TEAMS_DATA = {};
+
+// Synonymes et correspondances entre les lieux ERP et les noms de POI dans IdeGPS / Geoloc / Numiplan
+const ERP_POI_ALIASES = {
+  'BEJAIA USINE': ['BEJAIA USINE', 'CEVITAL COMPLEXE', 'PORT DE BEJAIA', 'PARC A/D NUMILOG BEJAIA', 'CEVITAL BEJAIA', 'COMPLEXE CEVITAL', 'BEJAIA'],
+  'PLF BOUIRA': ['PF BOUIRA', 'PLF BOUIRA', 'ATELIER BOUIRA', 'PLATEFORME BOUIRA', 'LOGIZONE BOUIRA'],
+  'DEPOT DEPART': ['PF BOUIRA', 'PLF BOUIRA', 'ATELIER BOUIRA', 'PARC A/D NUMILOG BEJAIA', 'BEJAIA USINE', 'DEPOT'],
+  'DEPOT ARRIVEE': ['PF BOUIRA', 'PLF BOUIRA', 'ATELIER BOUIRA', 'PARC A/D NUMILOG BEJAIA', 'BEJAIA USINE', 'DEPOT'],
+  'PLF HASSI AMEUR': ['CLR 31 HASSI AMEUR CEVIF', 'PLF HASSI AMEUR', 'HASSI AMEUR', 'CLR 31'],
+  'USINE HAMOUD BOUALEM BOUFARIK': ['HAMOUD BOUFARIK', 'SPA HAMOUD BOUALEM', 'HAMOUD BOUALEM DEPOT BEN HAMDANI', 'BOUFARIK'],
+  'DEPOT HB AIN TRIK': ['HAMOUD BOUALEM', 'ATELIER_SETIF', 'UPL SETIF', 'SETIF', 'AIN TRIK'],
+  'USINE BRANDT': ['BRANDT', 'UPL SETIF', 'ATELIER_SETIF', 'SETIF'],
+  'LALA KHADIDJA': ['LALA KHADIDJA', 'LK ', 'TIZI OUZOU', 'AGouni'],
+  'KNAUF USINE (ORAN)': ['KNAUF', 'ORAN', 'HASSI AMEUR', 'BENFREHA'],
+  'DLIRYAHEN': ['DLOGELMATMAR', 'DLIRYAHEN', 'EL KSEUR', 'BEJAIA', 'AMIZOUR'],
+  'DLOGELMATMAR': ['DLOGELMATMAR', 'DLIRYAHEN', 'EL KSEUR', 'AMIZOUR'],
+  'CLR16BACHDJERAH': ['CLR 16 BACH MUTU', 'BACHDJERAH', 'CLR 16'],
+  'CLR48OUEDRHIOU': ['CLR 48 O.RHIOU MUTU', 'OUED RHIOU', 'CLR 48'],
+  'CLR05BATNA': ['CLR 05', 'BATNA'],
+  'CLR31ORAN': ['CLR 31 HASSI AMEUR CEVIF', 'CLR 31', 'ORAN', 'HASSI AMEUR'],
+  'ARTPAP USINE': ['EURL ARTPAP', 'ARTPAP', 'AKBOU'],
+  'FRUITAL SKIKDA': ['FRUITAL', 'SKIKDA'],
+  'USINE FRUITAL': ['FRUITAL', 'ROUIBA', 'ALGER'],
+  'SARL SETIFIS BOUTELING': ['SETIFIS', 'AYA SETIF', 'SARL AYA', 'SETIF'],
+  'USINE SNAX ALGER': ['SNAX', 'BABA ALI', 'ALGER'],
+  'COJEK EL KSEUR': ['COJEK EL KSEUR', 'COJEK', 'RTA EL KSEUR'],
+  'SOBCO': ['SOBCO KEK', 'SOBCO', 'KHEMIS EL KHECHNA']
+};
+
+const WILAYA_CITY_EQUIV = {
+  'SBA': 'SIDI BEL ABBES',
+  'BBA': 'BORDJ BOU ARRERIDJ',
+  'OEB': 'OUM EL BOUAGHI',
+  'ELKHROUB': 'EL KHROUB',
+  'OUED RHIOU': 'OUED-RHIOU'
+};
 
 function showToast(msg, isError = false) {
   const t = document.getElementById('toast');
@@ -495,13 +660,1258 @@ function showToast(msg, isError = false) {
   setTimeout(() => { t.style.display = 'none'; }, 3500);
 }
 
+function closeModal(id) {
+  const el = document.getElementById(id);
+  if (el) el.style.display = 'none';
+}
+
+function normErpStr(s) {
+  return String(s || '')
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .toUpperCase()
+    .replace(/[^A-Z0-9]+/g, ' ')
+    .trim();
+}
+
+function normErpPlate(s) {
+  return String(s || '').replace(/[^A-Z0-9]/gi, '').toUpperCase();
+}
+
+function parseErpDateTime(val) {
+  if (!val) return null;
+  if (typeof val === 'number') {
+    if (val > 40000 && val < 65000) {
+      const utcDays = Math.floor(val - 25569);
+      const utcVal = utcDays * 86400;
+      const frac = val - Math.floor(val);
+      const totalSec = Math.round(utcVal + frac * 86400);
+      return new Date(totalSec * 1000);
+    }
+  }
+  const str = String(val).trim();
+  if (!str) return null;
+  const isoMatch = str.match(/^(\d{4})[-/](\d{2})[-/](\d{2})(?:[T\s](\d{2}):(\d{2})(?::(\d{2}))?)?/);
+  if (isoMatch) {
+    return new Date(
+      parseInt(isoMatch[1], 10),
+      parseInt(isoMatch[2], 10) - 1,
+      parseInt(isoMatch[3], 10),
+      isoMatch[4] ? parseInt(isoMatch[4], 10) : 0,
+      isoMatch[5] ? parseInt(isoMatch[5], 10) : 0,
+      isoMatch[6] ? parseInt(isoMatch[6], 10) : 0
+    );
+  }
+  const frMatch = str.match(/^(\d{2})[-/](\d{2})[-/](\d{4})(?:[T\s](\d{2}):(\d{2})(?::(\d{2}))?)?/);
+  if (frMatch) {
+    return new Date(
+      parseInt(frMatch[3], 10),
+      parseInt(frMatch[2], 10) - 1,
+      parseInt(frMatch[1], 10),
+      frMatch[4] ? parseInt(frMatch[4], 10) : 0,
+      frMatch[5] ? parseInt(frMatch[5], 10) : 0,
+      frMatch[6] ? parseInt(frMatch[6], 10) : 0
+    );
+  }
+  const d = new Date(str);
+  return isNaN(d.getTime()) ? null : d;
+}
+
+function formatErpDateIso(val) {
+  const dt = parseErpDateTime(val);
+  if (!dt) return '';
+  const y = dt.getFullYear();
+  const m = String(dt.getMonth() + 1).padStart(2, '0');
+  const d = String(dt.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
+
+function getTruckNumiplanInfo(plate) {
+  const pNorm = normErpPlate(plate);
+  if (!pNorm) return { team: '—', chauffeur: '', lieuJ: '', lieuJ1: '', geoloc: 'OFF', lat: null, lng: null };
+
+  for (const eq of ['A1', 'A2', 'B1', 'B2', 'C1', 'C2', 'D1', 'D2']) {
+    const tData = window.TEAMS_DATA[eq];
+    if (tData && Array.isArray(tData.dispo)) {
+      const found = tData.dispo.find(row => row && normErpPlate(row.v) === pNorm);
+      if (found) {
+        return {
+          team: eq,
+          v: found.v,
+          chauffeur: found.chauffeur || '',
+          lieuJ: found.lieuJ || '',
+          lieuJ1: found.lieuJ1 || '',
+          geoloc: found.geoloc || 'OFF',
+          lat: found.lat ?? null,
+          lng: found.lng ?? null
+        };
+      }
+    }
+  }
+  return { team: '—', v: plate, chauffeur: '', lieuJ: '', lieuJ1: '', geoloc: 'OFF', lat: null, lng: null };
+}
+
+function citiesMatchJ1Erp(lieuJ1Raw, erpVillesList) {
+  const j1 = normErpStr(lieuJ1Raw);
+  if (!j1 || j1 === '—') return false;
+  const j1Expanded = WILAYA_CITY_EQUIV[j1] || j1;
+
+  for (const vRaw of (erpVillesList || [])) {
+    const v = normErpStr(vRaw);
+    if (!v) continue;
+    const vExpanded = WILAYA_CITY_EQUIV[v] || v;
+    if (j1Expanded === vExpanded) return true;
+    if (j1Expanded.length >= 4 && (vExpanded.startsWith(j1Expanded) || j1Expanded.startsWith(vExpanded) || vExpanded.includes(j1Expanded) || j1Expanded.includes(vExpanded))) {
+      return true;
+    }
+  }
+  return false;
+}
+
+function buildErpLatestByPlateMap() {
+  const segData = window._SEGMENTS_ERP_DATA;
+  if (!segData || !Array.isArray(segData.segments)) return new Map();
+  if (window._ERP_LATEST_BY_PLATE_CACHE && window._ERP_LATEST_CACHE_REF === segData.segments) {
+    return window._ERP_LATEST_BY_PLATE_CACHE;
+  }
+  const map = new Map();
+  segData.segments.forEach(s => {
+    const p = normErpPlate(s.tracteur);
+    if (!p || !s.villeArr) return;
+    const dateStr = s.date || (s.dtDepP ? s.dtDepP.substring(0, 10) : '');
+    const segNum = parseInt(s.seg, 10) || 0;
+    const cur = map.get(p);
+    if (!cur || dateStr > cur.date || (dateStr === cur.date && segNum >= cur.segNum)) {
+      const villesSet = (cur && dateStr === cur.date && s.groupage && s.groupage === cur.groupage)
+        ? Array.from(new Set([...cur.villesArr, s.villeArr.trim().toUpperCase()]))
+        : [s.villeArr.trim().toUpperCase()];
+      map.set(p, {
+        date: dateStr,
+        segNum,
+        segId: s.seg,
+        groupage: s.groupage,
+        villesArr: villesSet,
+        erpVille: villesSet.join(' / '),
+        lieuArriv: s.lieuArriv || '',
+        client: s.client || '',
+        etatCmd: s.etatCmd || s.tracking || '—'
+      });
+    }
+  });
+  window._ERP_LATEST_BY_PLATE_CACHE = map;
+  window._ERP_LATEST_CACHE_REF = segData.segments;
+  return map;
+}
+
+function getDispoJ1ErpCheck(plate, lieuJ1Val) {
+  const p = normErpPlate(plate);
+  if (!p) return null;
+  const map = buildErpLatestByPlateMap();
+  const erp = map.get(p);
+  if (!erp) return { hasErp: false };
+  const isMatch = citiesMatchJ1Erp(lieuJ1Val, erp.villesArr);
+  return {
+    hasErp: true,
+    match: isMatch,
+    lieuJ1: (lieuJ1Val && lieuJ1Val !== '—') ? lieuJ1Val : 'Non renseigné',
+    erpVille: erp.erpVille,
+    villesArr: erp.villesArr,
+    segId: erp.segId,
+    date: erp.date,
+    client: erp.client,
+    etatCmd: erp.etatCmd
+  };
+}
+
+function doesPoiMatchErpLocation(poiNameRaw, erpLieuRaw, erpVilleRaw, erpClientRaw) {
+  const poiNorm = normErpStr(poiNameRaw);
+  if (!poiNorm) return false;
+  const lieuNorm = normErpStr(erpLieuRaw);
+  const villeNorm = normErpStr(erpVilleRaw);
+  const clientNorm = normErpStr(erpClientRaw);
+
+  if (lieuNorm && (poiNorm === lieuNorm || poiNorm.includes(lieuNorm) || lieuNorm.includes(poiNorm))) {
+    return true;
+  }
+
+  for (const [erpKey, aliases] of Object.entries(ERP_POI_ALIASES)) {
+    const keyNorm = normErpStr(erpKey);
+    if ((lieuNorm && (lieuNorm.includes(keyNorm) || keyNorm.includes(lieuNorm))) ||
+        (villeNorm && keyNorm.includes(villeNorm) && lieuNorm.includes('PLF'))) {
+      for (const al of aliases) {
+        const alNorm = normErpStr(al);
+        if (alNorm && (poiNorm.includes(alNorm) || alNorm.includes(poiNorm))) return true;
+      }
+    }
+  }
+
+  const stopWords = new Set(['USINE', 'DEPOT', 'DEPART', 'ARRIVEE', 'SARL', 'EURL', 'SPA', 'SNC', 'ETS', 'CLIENT', 'PLATEFORME', 'ZONE', 'INDUSTRIELLE', 'CENTRE', 'DISTRIBUTION', 'ALGERIE']);
+  const tokens = (lieuNorm + ' ' + clientNorm)
+    .split(/\s+/)
+    .filter(w => w.length >= 4 && !stopWords.has(w));
+  for (const tk of tokens) {
+    if (poiNorm.includes(tk)) return true;
+  }
+
+  if (villeNorm && villeNorm.length >= 4 && poiNorm.includes(villeNorm)) {
+    return true;
+  }
+
+  return false;
+}
+
+function getDistanceKmErp(lat1, lon1, lat2, lon2) {
+  const R = 6371;
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLon = (lon2 - lon1) * Math.PI / 180;
+  const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+            Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+            Math.sin(dLon / 2) * Math.sin(dLon / 2);
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+function checkPoiConfirmationForSegment(seg, mode, truckVisits, truckInfo, poisList) {
+  const targetLieu = mode === 'CHARGE' ? seg.lieuDep : seg.lieuArriv;
+  const targetVille = mode === 'CHARGE' ? seg.villeDep : seg.villeArr;
+  const targetClient = mode === 'CHARGE' ? '' : seg.client;
+
+  const segDateStr = seg.date || (seg.dtDepP ? seg.dtDepP.substring(0, 10) : '');
+  const segDateObj = segDateStr ? new Date(segDateStr + 'T00:00:00') : null;
+
+  if (Array.isArray(truckVisits) && truckVisits.length > 0) {
+    const matchingVisits = truckVisits.filter(v => doesPoiMatchErpLocation(v.poi_name, targetLieu, targetVille, targetClient));
+    if (matchingVisits.length > 0) {
+      let bestVisit = matchingVisits[0];
+      if (segDateObj && !isNaN(segDateObj.getTime())) {
+        const closeVisit = matchingVisits.find(v => {
+          const vDate = new Date(v.arrived_at || v.last_seen_at);
+          if (isNaN(vDate.getTime())) return false;
+          const diffDays = Math.abs(vDate - segDateObj) / (1000 * 3600 * 24);
+          return diffDays <= 5;
+        });
+        if (closeVisit) bestVisit = closeVisit;
+      }
+      const arrTime = bestVisit.arrived_at ? new Date(bestVisit.arrived_at).toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : '';
+      return {
+        confirmed: true,
+        source: 'POI_VISIT',
+        poiName: bestVisit.poi_name,
+        timeStr: arrTime,
+        label: `✅ Pointé POI « ${bestVisit.poi_name} » (${arrTime})`
+      };
+    }
+  }
+
+  if (truckInfo && truckInfo.lat !== null && truckInfo.lng !== null && Array.isArray(poisList) && poisList.length > 0) {
+    for (const poi of poisList) {
+      if (poi.lat && poi.lng && doesPoiMatchErpLocation(poi.name, targetLieu, targetVille, targetClient)) {
+        const distKm = getDistanceKmErp(truckInfo.lat, truckInfo.lng, poi.lat, poi.lng);
+        const radiusKm = Math.max((poi.radius || 500) / 1000, 2.5);
+        if (distKm <= radiusKm) {
+          return {
+            confirmed: true,
+            source: 'GPS_LIVE',
+            poiName: poi.name,
+            timeStr: 'En direct',
+            label: `✅ Position GPS sur POI « ${poi.name} » (${distKm.toFixed(1)} km)`
+          };
+        }
+      }
+    }
+  }
+
+  let otherPoiNote = '';
+  if (Array.isArray(truckVisits) && truckVisits.length > 0) {
+    const latest = truckVisits[0];
+    const latestTime = latest.arrived_at ? new Date(latest.arrived_at).toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : '';
+    otherPoiNote = ` (Dernier POI vu : ${latest.poi_name} le ${latestTime})`;
+  }
+
+  return {
+    confirmed: false,
+    source: 'NONE',
+    poiName: null,
+    timeStr: '',
+    label: `❌ Non pointé au POI « ${targetLieu || targetVille || 'Affecté'} »${otherPoiNote}`
+  };
+}
+
+async function refreshSegmentsPoiData(forceRefresh = false) {
+  try {
+    window._SEGMENTS_LOADING_CLOUD = true;
+    const cloudBadge = document.getElementById('seg-cloud-status');
+    if (cloudBadge) {
+      cloudBadge.textContent = '⏳ Synchro Segments, Équipes & POI...';
+      cloudBadge.style.color = '#fbbf24';
+    }
+
+    // 1. Charger les segments (soit np_segments_erp en chunks, soit numiplan_teams SEGMENTS_ERP)
+    let allSegs = [];
+    let from = 0;
+    while (true) {
+      const { data, error } = await sb.from('np_segments_erp').select('*').range(from, from + 999);
+      if (error || !data || data.length === 0) break;
+      allSegs = allSegs.concat(data);
+      if (data.length < 1000) break;
+      from += 1000;
+    }
+
+    if (allSegs.length > 0) {
+      window._SEGMENTS_ERP_DATA = {
+        fileName: 'EDITION__LISTE_SEGMENTS.xlsx',
+        fileExportDate: '16/11/2026',
+        segments: allSegs
+      };
+    } else {
+      const { data: segRow } = await sb.from('numiplan_teams').select('payload').eq('team', 'SEGMENTS_ERP').maybeSingle();
+      if (segRow && segRow.payload && Array.isArray(segRow.payload.segments)) {
+        window._SEGMENTS_ERP_DATA = segRow.payload;
+      }
+    }
+
+    // 2. Charger les équipes Numiplan (A1..D2) pour les pannes, dispo, coordonnées GPS
+    const { data: teamsRows } = await sb.from('numiplan_teams').select('team, payload').in('team', ['A1','A2','B1','B2','C1','C2','D1','D2']);
+    window.TEAMS_DATA = {};
+    (teamsRows || []).forEach(r => {
+      window.TEAMS_DATA[r.team] = r.payload || {};
+    });
+
+    // 3. Charger les visites POI (np_poi_visits) et les POIs (np_pois)
+    const [visitsRes, poisRes] = await Promise.all([
+      sb.from('np_poi_visits').select('v,poi_name,arrived_at,last_seen_at,left_at,duration_hours').order('arrived_at', { ascending: false }).limit(3000),
+      sb.from('np_pois').select('id,name,lat,lng,radius').limit(1000)
+    ]);
+    if (visitsRes && Array.isArray(visitsRes.data)) window._SEGMENTS_POI_VISITS = visitsRes.data;
+    if (poisRes && Array.isArray(poisRes.data)) window._SEGMENTS_POIS_LIST = poisRes.data;
+
+    if (cloudBadge) {
+      cloudBadge.textContent = '☁️ Synchronisé Cloud & POI';
+      cloudBadge.style.color = '#34d399';
+    }
+  } catch (err) {
+    console.error('Erreur refreshSegmentsPoiData:', err);
+    showToast('Erreur synchro cloud: ' + err.message, true);
+  } finally {
+    window._SEGMENTS_LOADING_CLOUD = false;
+    renderSegmentsErpPage();
+  }
+}
+
+function setSegmentsDatePreset(preset) {
+  const segs = (window._SEGMENTS_ERP_DATA && window._SEGMENTS_ERP_DATA.segments) || [];
+  const dates = segs.map(s => s.date).filter(Boolean).sort();
+  const maxDate = dates[dates.length - 1] || new Date().toISOString().split('T')[0];
+  const maxDateObj = new Date(maxDate + 'T00:00:00');
+
+  const fromEl = document.getElementById('seg-date-from');
+  const toEl = document.getElementById('seg-date-to');
+
+  if (preset === 'all') {
+    fromEl.value = '';
+    toEl.value = '';
+  } else if (preset === 'lastday') {
+    fromEl.value = maxDate;
+    toEl.value = maxDate;
+  } else if (preset === 'prevday') {
+    const prev = new Date(maxDateObj);
+    prev.setDate(prev.getDate() - 1);
+    const pStr = prev.toISOString().split('T')[0];
+    fromEl.value = pStr;
+    toEl.value = pStr;
+  } else if (preset === 'last3') {
+    const d3 = new Date(maxDateObj);
+    d3.setDate(d3.getDate() - 2);
+    fromEl.value = d3.toISOString().split('T')[0];
+    toEl.value = maxDate;
+  } else if (preset === 'last7') {
+    const d7 = new Date(maxDateObj);
+    d7.setDate(d7.getDate() - 6);
+    fromEl.value = d7.toISOString().split('T')[0];
+    toEl.value = maxDate;
+  }
+  renderSegmentsErpPage();
+}
+
+function setSegmentsStatusFilter(statusVal) {
+  const sel = document.getElementById('seg-filter-status');
+  if (sel) sel.value = statusVal;
+  renderSegmentsErpPage();
+}
+
+function resetSegmentsErpFilters() {
+  document.getElementById('seg-date-from').value = '';
+  document.getElementById('seg-date-to').value = '';
+  document.getElementById('seg-filter-team').value = 'ALL';
+  document.getElementById('seg-filter-agence').value = 'ALL';
+  document.getElementById('seg-filter-status').value = 'ALL';
+  document.getElementById('seg-search').value = '';
+  renderSegmentsErpPage();
+}
+
+function switchSegmentsView(mode) {
+  window._SEGMENTS_VIEW_MODE = mode;
+  const btnTrucks = document.getElementById('btn-seg-view-trucks');
+  const btnTrips = document.getElementById('btn-seg-view-trips');
+  const viewTrucks = document.getElementById('seg-view-trucks');
+  const viewTrips = document.getElementById('seg-view-trips');
+
+  if (mode === 'trucks') {
+    btnTrucks.style.background = '#38bdf8';
+    btnTrucks.style.color = '#000';
+    btnTrips.style.background = 'rgba(255,255,255,0.06)';
+    btnTrips.style.color = 'var(--txt)';
+    viewTrucks.style.display = 'block';
+    viewTrips.style.display = 'none';
+  } else {
+    btnTrips.style.background = '#38bdf8';
+    btnTrips.style.color = '#000';
+    btnTrucks.style.background = 'rgba(255,255,255,0.06)';
+    btnTrucks.style.color = 'var(--txt)';
+    viewTrips.style.display = 'block';
+    viewTrucks.style.display = 'none';
+  }
+}
+
+function sortSegmentsTrucks(col) {
+  if (window._SEGMENTS_SORT.col === col) {
+    window._SEGMENTS_SORT.asc = !window._SEGMENTS_SORT.asc;
+  } else {
+    window._SEGMENTS_SORT.col = col;
+    window._SEGMENTS_SORT.asc = (col === 'tracteur' || col === 'chauffeur' || col === 'team');
+  }
+  renderSegmentsErpPage();
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// MOTEUR PRINCIPAL DE CALCUL ET RENDU DES RÈGLES NUMIPLAN
+// ══════════════════════════════════════════════════════════════════════════════
+function renderSegmentsErpPage() {
+  const badge = document.getElementById('cnt-segments');
+  if (!window._SEGMENTS_ERP_DATA || !Array.isArray(window._SEGMENTS_ERP_DATA.segments)) {
+    if (!window._SEGMENTS_LOADING_CLOUD) {
+      refreshSegmentsPoiData(false);
+    }
+    return;
+  }
+
+  const rawData = window._SEGMENTS_ERP_DATA;
+  const allSegments = rawData.segments || [];
+  if (badge) badge.textContent = `${allSegments.length} segments`;
+
+  const datesAll = allSegments.map(s => s.date).filter(Boolean).sort();
+  const minDateAll = datesAll[0] || '—';
+  const maxDateAll = datesAll[datesAll.length - 1] || '—';
+  const infoEl = document.getElementById('seg-file-info');
+  if (infoEl) {
+    infoEl.innerHTML = `📄 Fichier actif : <b style="color:#f8fafc">${rawData.fileName || 'Import ERP'}</b> • Période couverte : <b style="color:#38bdf8">${minDateAll}</b> au <b style="color:#38bdf8">${maxDateAll}</b> • Export ERP : <b>${rawData.fileExportDate || '—'}</b> (${allSegments.length} segments consolidés)`;
+  }
+
+  const refDateObj = parseErpDateTime(rawData.fileExportDate) || new Date();
+  const chargeRefMode = document.getElementById('seg-charge-ref-mode')?.value || 'dateSeg';
+
+  // Indexer les visites POI par plaque normalisée
+  const visitsByPlate = new Map();
+  (window._SEGMENTS_POI_VISITS || []).forEach(v => {
+    const p = normErpPlate(v.v);
+    if (!p) return;
+    if (!visitsByPlate.has(p)) visitsByPlate.set(p, []);
+    visitsByPlate.get(p).push(v);
+  });
+
+  // Indexer les pannes enregistrées dans Numiplan (toutes équipes A1..D2) par plaque normalisée
+  const pannesByPlate = new Map();
+  const seenPanneSigByPlate = new Map();
+  ['A1', 'A2', 'B1', 'B2', 'C1', 'C2', 'D1', 'D2'].forEach(eq => {
+    const tData = window.TEAMS_DATA[eq];
+    if (!tData || !Array.isArray(tData.pannes)) return;
+    tData.pannes.forEach(pn => {
+      if (!pn || !pn.immat) return;
+      const parts = String(pn.immat).split(/[\/,;]+/).map(s => normErpPlate(s)).filter(Boolean);
+      parts.forEach(pNorm => {
+        if (!pannesByPlate.has(pNorm)) {
+          pannesByPlate.set(pNorm, []);
+          seenPanneSigByPlate.set(pNorm, new Set());
+        }
+        const sig = `${pn.date || ''}|${pn.di || ''}|${(pn.desc || '').trim().slice(0, 50)}`;
+        const sigSet = seenPanneSigByPlate.get(pNorm);
+        if (sigSet.has(sig)) return;
+        sigSet.add(sig);
+        const dtObj = parseErpDateTime(pn.date);
+        const isoDate = dtObj ? dtObj.toISOString().split('T')[0] : (String(pn.date || '').match(/^\d{4}-\d{2}-\d{2}$/) ? pn.date : '');
+        pannesByPlate.get(pNorm).push({ ...pn, _team: eq, _isoDate: isoDate });
+      });
+    });
+  });
+
+  // Lecture des filtres
+  const dateFrom = document.getElementById('seg-date-from')?.value || '';
+  const dateTo = document.getElementById('seg-date-to')?.value || '';
+  const teamFilter = document.getElementById('seg-filter-team')?.value || 'ALL';
+  const agenceFilter = document.getElementById('seg-filter-agence')?.value || 'ALL';
+  const statusFilter = document.getElementById('seg-filter-status')?.value || 'ALL';
+  const searchVal = normErpStr(document.getElementById('seg-search')?.value || '');
+
+  // 1. Filtrer les segments par Date & Agence & Équipe
+  const filteredSegments = allSegments.filter(s => {
+    if (!s.tracteur && !searchVal) return false;
+    if (dateFrom && s.date && s.date < dateFrom) return false;
+    if (dateTo && s.date && s.date > dateTo) return false;
+    if (agenceFilter !== 'ALL' && s.agence !== agenceFilter) return false;
+
+    const tInfo = getTruckNumiplanInfo(s.tracteur);
+    if (['A1', 'A2', 'B1', 'B2', 'C1', 'C2', 'D1', 'D2'].includes(teamFilter) && tInfo.team !== teamFilter) return false;
+    if (teamFilter === 'HORS_FLOTTE' && ['A1', 'A2', 'B1', 'B2', 'C1', 'C2', 'D1', 'D2'].includes(tInfo.team)) return false;
+
+    if (searchVal) {
+      const hay = normErpStr(`${s.tracteur} ${s.affrete} ${s.cond1} ${tInfo.chauffeur} ${s.client} ${s.lieuDep} ${s.lieuArriv} ${s.villeDep} ${s.villeArr} ${s.seg} ${s.groupage} ${s.refCmd}`);
+      if (!hay.includes(searchVal)) return false;
+    }
+    return true;
+  });
+
+  // 2. Regrouper par Camion et dédoublonner les Voyages (Groupage / Jumelage)
+  const trucksMap = new Map();
+  const allDeduplicatedTrips = [];
+
+  filteredSegments.forEach(s => {
+    const plateKey = s.tracteur || 'SANS-CAMION';
+    if (!trucksMap.has(plateKey)) {
+      const tInfo = getTruckNumiplanInfo(s.tracteur);
+      trucksMap.set(plateKey, {
+        tracteur: plateKey,
+        team: tInfo.team,
+        geoloc: tInfo.geoloc,
+        lat: tInfo.lat,
+        lng: tInfo.lng,
+        numiplanChauffeur: tInfo.chauffeur,
+        chauffeur: s.affrete || s.cond1 || tInfo.chauffeur || '—',
+        agence: s.agence || '—',
+        rawSegments: [],
+        tripsMap: new Map(),
+        trips: [],
+        totalTrips: 0,
+        panneCount: 0,
+        pannePeriodCount: 0,
+        pannesList: [],
+        groupedSegmentsCount: 0,
+        chargeCount: 0,
+        chargeOver24: 0,
+        maxChargeHours: 0,
+        chargePoiOk: 0,
+        chargePoiKo: 0,
+        livreCount: 0,
+        livrePoiOk: 0,
+        livrePoiKo: 0,
+        confirmeCount: 0,
+        compteRenduCount: 0,
+        otherStatusCounts: {},
+        trackingCounts: {},
+        totalAchat: 0,
+        totalKmExpl: 0
+      });
+    }
+
+    const tr = trucksMap.get(plateKey);
+    tr.rawSegments.push(s);
+    if ((!tr.chauffeur || tr.chauffeur === '—') && (s.affrete || s.cond1)) {
+      tr.chauffeur = s.affrete || s.cond1;
+    }
+    tr.totalAchat += (Number(s.achat) || 0);
+    tr.totalKmExpl += (Number(s.kmExpl) || 0);
+
+    // Clé de dédoublonnage voyage (Groupage ou Jumelage du même jour)
+    let tripKey = '';
+    if (s.groupage) {
+      tripKey = `GRP_${plateKey}_${s.groupage}`;
+    } else if (s.jumlage === 'OUI') {
+      tripKey = `JUM_${plateKey}_${s.date}_${s.lieuDep}`;
+    } else {
+      tripKey = `SEG_${s.seg || Math.random()}`;
+    }
+
+    if (!tr.tripsMap.has(tripKey)) {
+      tr.tripsMap.set(tripKey, {
+        tripKey,
+        tracteur: plateKey,
+        team: tr.team,
+        agence: s.agence,
+        chauffeur: tr.chauffeur,
+        date: s.date,
+        segIds: [s.seg],
+        groupage: s.groupage,
+        isGrouped: Boolean(s.groupage || s.jumlage === 'OUI'),
+        clients: [s.client].filter(Boolean),
+        refCmds: [s.refCmd].filter(Boolean),
+        lieuxDep: [s.lieuDep].filter(Boolean),
+        lieuxArriv: [s.lieuArriv].filter(Boolean),
+        villesDep: [s.villeDep].filter(Boolean),
+        villesArr: [s.villeArr].filter(Boolean),
+        etatCmd: s.etatCmd || '—',
+        tracking: s.tracking || '—',
+        etatSeg: s.etatSeg || '—',
+        dtDepP: s.dtDepP,
+        dtDepR: s.dtDepR,
+        dateSeg: s.dateSeg,
+        dateSegM: s.dateSegM,
+        achat: Number(s.achat) || 0,
+        kmExpl: Number(s.kmExpl) || 0,
+        segments: [s]
+      });
+    } else {
+      const tp = tr.tripsMap.get(tripKey);
+      tp.isGrouped = true;
+      if (s.seg && !tp.segIds.includes(s.seg)) tp.segIds.push(s.seg);
+      if (s.client && !tp.clients.includes(s.client)) tp.clients.push(s.client);
+      if (s.refCmd && !tp.refCmds.includes(s.refCmd)) tp.refCmds.push(s.refCmd);
+      if (s.lieuDep && !tp.lieuxDep.includes(s.lieuDep)) tp.lieuxDep.push(s.lieuDep);
+      if (s.lieuArriv && !tp.lieuxArriv.includes(s.lieuArriv)) tp.lieuxArriv.push(s.lieuArriv);
+      if (s.villeDep && !tp.villesDep.includes(s.villeDep)) tp.villesDep.push(s.villeDep);
+      if (s.villeArr && !tp.villesArr.includes(s.villeArr)) tp.villesArr.push(s.villeArr);
+      tp.achat += (Number(s.achat) || 0);
+      tp.kmExpl += (Number(s.kmExpl) || 0);
+      tp.segments.push(s);
+      if (s.etatCmd === 'CHARGE' || (tp.etatCmd !== 'CHARGE' && s.etatCmd === 'LIVRE')) {
+        tp.etatCmd = s.etatCmd;
+      }
+      tr.groupedSegmentsCount++;
+    }
+  });
+
+  // 3. Évaluer chaque Voyage (Dépassement 24h pour CHARGÉ + Confirmation POI)
+  trucksMap.forEach(tr => {
+    const pNorm = normErpPlate(tr.tracteur);
+    const truckVisits = visitsByPlate.get(pNorm) || [];
+    const truckPannes = (pannesByPlate.get(pNorm) || []).slice().sort((a, b) => String(b._isoDate || b.date || '').localeCompare(String(a._isoDate || a.date || '')));
+    tr.pannesList = truckPannes;
+    tr.panneCount = truckPannes.length;
+    tr.pannePeriodCount = (dateFrom || dateTo)
+      ? truckPannes.filter(pn => (!dateFrom || (pn._isoDate && pn._isoDate >= dateFrom)) && (!dateTo || (pn._isoDate && pn._isoDate <= dateTo))).length
+      : truckPannes.length;
+    const tInfo = { team: tr.team, lat: tr.lat, lng: tr.lng, geoloc: tr.geoloc };
+
+    tr.trips = Array.from(tr.tripsMap.values());
+    tr.totalTrips = tr.trips.length;
+
+    tr.trips.forEach(tp => {
+      const isCharge = tp.etatCmd === 'CHARGE' || tp.tracking === 'CHARGE';
+      const isLivre = !isCharge && (tp.etatCmd === 'LIVRE' || tp.tracking === 'LIVRE');
+
+      tp.chargeHours = 0;
+      tp.isChargeOver24 = false;
+      if (isCharge) {
+        const refStr = chargeRefMode === 'dateSegM'
+          ? (tp.dateSegM || tp.dateSeg || tp.dtDepP)
+          : (tp.dateSeg || tp.dtDepP || tp.dateSegM);
+        const startObj = parseErpDateTime(refStr);
+        if (startObj && !isNaN(startObj.getTime())) {
+          const diffH = (refDateObj.getTime() - startObj.getTime()) / (1000 * 3600);
+          tp.chargeHours = Math.max(0, Math.round(diffH * 10) / 10);
+          if (tp.chargeHours > 24) {
+            tp.isChargeOver24 = true;
+          }
+        }
+      }
+
+      tp.poiChargeCheck = null;
+      if (isCharge || isLivre) {
+        let confirmedCharge = null;
+        for (const seg of tp.segments) {
+          const chk = checkPoiConfirmationForSegment(seg, 'CHARGE', truckVisits, tInfo, window._SEGMENTS_POIS_LIST);
+          if (chk.confirmed) { confirmedCharge = chk; break; }
+          if (!confirmedCharge) confirmedCharge = chk;
+        }
+        tp.poiChargeCheck = confirmedCharge;
+      }
+
+      tp.poiLivreCheck = null;
+      if (isLivre) {
+        let confirmedLivre = null;
+        for (const seg of tp.segments) {
+          const chk = checkPoiConfirmationForSegment(seg, 'LIVRE', truckVisits, tInfo, window._SEGMENTS_POIS_LIST);
+          if (chk.confirmed) { confirmedLivre = chk; break; }
+          if (!confirmedLivre) confirmedLivre = chk;
+        }
+        tp.poiLivreCheck = confirmedLivre;
+      }
+
+      if (isCharge) {
+        tr.chargeCount++;
+        if (tp.isChargeOver24) tr.chargeOver24++;
+        if (tp.chargeHours > tr.maxChargeHours) tr.maxChargeHours = tp.chargeHours;
+        if (tp.poiChargeCheck && tp.poiChargeCheck.confirmed) tr.chargePoiOk++;
+        else tr.chargePoiKo++;
+      } else if (isLivre) {
+        tr.livreCount++;
+        if (tp.poiLivreCheck && tp.poiLivreCheck.confirmed) tr.livrePoiOk++;
+        else tr.livrePoiKo++;
+      } else {
+        if (tp.etatCmd === 'CONFIRME') tr.confirmeCount++;
+        else if (tp.etatCmd === 'Compte Rendu') tr.compteRenduCount++;
+        const stKey = tp.etatCmd || 'AUTRE';
+        tr.otherStatusCounts[stKey] = (tr.otherStatusCounts[stKey] || 0) + 1;
+      }
+
+      if (tp.tracking && !['CHARGE', 'LIVRE', 'CONFIRME', '—'].includes(tp.tracking)) {
+        tr.trackingCounts[tp.tracking] = (tr.trackingCounts[tp.tracking] || 0) + 1;
+      }
+    });
+  });
+
+  // 4. Filtrer les camions selon le filtre Statut sélectionné
+  let trucksList = Array.from(trucksMap.values()).filter(tr => {
+    if (statusFilter === 'ALL') return true;
+    if (statusFilter === 'CHARGE_24H') return tr.chargeOver24 > 0;
+    if (statusFilter === 'HAS_CHARGE') return tr.chargeCount > 0;
+    if (statusFilter === 'CHARGE_POI_OK') return tr.chargePoiOk > 0;
+    if (statusFilter === 'CHARGE_POI_KO') return tr.chargePoiKo > 0;
+    if (statusFilter === 'HAS_LIVRE') return tr.livreCount > 0;
+    if (statusFilter === 'LIVRE_POI_OK') return tr.livrePoiOk > 0;
+    if (statusFilter === 'LIVRE_POI_KO') return tr.livrePoiKo > 0;
+    if (statusFilter === 'HAS_CONFIRME') return tr.confirmeCount > 0;
+    if (statusFilter === 'HAS_PANNE') return tr.panneCount > 0;
+    if (statusFilter === 'PANNE_3PLUS') return tr.panneCount >= 3;
+    if (statusFilter === 'ECART_J1_ERP_SEG') {
+      const chk = getDispoJ1ErpCheck(tr.tracteur, getTruckNumiplanInfo(tr.tracteur).lieuJ1);
+      return Boolean(chk && chk.hasErp && !chk.match);
+    }
+    return true;
+  });
+
+  // Tri de la liste des camions
+  const { col, asc } = window._SEGMENTS_SORT;
+  trucksList.sort((a, b) => {
+    let va = a[col], vb = b[col];
+    if (typeof va === 'string') {
+      return asc ? va.localeCompare(vb) : vb.localeCompare(va);
+    }
+    va = Number(va) || 0;
+    vb = Number(vb) || 0;
+    return asc ? (va - vb) : (vb - va);
+  });
+
+  // Construire la liste des voyages filtrés pour la Vue 2
+  trucksList.forEach(tr => {
+    tr.trips.forEach(tp => {
+      const isCharge = tp.etatCmd === 'CHARGE' || tp.tracking === 'CHARGE';
+      const isLivre = !isCharge && (tp.etatCmd === 'LIVRE' || tp.tracking === 'LIVRE');
+      if (statusFilter === 'CHARGE_24H' && !tp.isChargeOver24) return;
+      if (statusFilter === 'HAS_CHARGE' && !isCharge) return;
+      if (statusFilter === 'CHARGE_POI_OK' && !(isCharge && tp.poiChargeCheck?.confirmed)) return;
+      if (statusFilter === 'CHARGE_POI_KO' && !(isCharge && !tp.poiChargeCheck?.confirmed)) return;
+      if (statusFilter === 'HAS_LIVRE' && !isLivre) return;
+      if (statusFilter === 'LIVRE_POI_OK' && !(isLivre && tp.poiLivreCheck?.confirmed)) return;
+      if (statusFilter === 'LIVRE_POI_KO' && !(isLivre && !tp.poiLivreCheck?.confirmed)) return;
+      if (statusFilter === 'HAS_CONFIRME' && (isCharge || isLivre)) return;
+      allDeduplicatedTrips.push(tp);
+    });
+  });
+
+  window._SEGMENTS_COMPUTED = { trucks: trucksList, trips: allDeduplicatedTrips, visitsByPlate };
+
+  // 5. Mettre à jour les KPI cards
+  let sumTrips = 0, sumRawSegs = 0, sumGrouped = 0;
+  let sumCharge = 0, sumCharge24 = 0, trucksWithCharge24 = 0, sumChargePoiOk = 0;
+  let sumLivre = 0, sumLivrePoiOk = 0;
+  let sumConfirme = 0, sumCompteRendu = 0, sumProvisoire = 0;
+  let sumAchat = 0, sumKm = 0;
+
+  trucksList.forEach(tr => {
+    sumTrips += tr.totalTrips;
+    sumRawSegs += tr.rawSegments.length;
+    sumGrouped += tr.groupedSegmentsCount;
+    sumCharge += tr.chargeCount;
+    sumCharge24 += tr.chargeOver24;
+    if (tr.chargeOver24 > 0) trucksWithCharge24++;
+    sumChargePoiOk += tr.chargePoiOk;
+    sumLivre += tr.livreCount;
+    sumLivrePoiOk += tr.livrePoiOk;
+    sumConfirme += tr.confirmeCount;
+    sumCompteRendu += tr.compteRenduCount;
+    sumProvisoire += (tr.trackingCounts['PROVISOIRE'] || 0);
+    sumAchat += tr.totalAchat;
+    sumKm += tr.totalKmExpl;
+  });
+
+  const setTxt = (id, t) => { const el = document.getElementById(id); if (el) el.textContent = t; };
+  setTxt('seg-kpi-voyages', sumTrips.toLocaleString('fr-FR'));
+  setTxt('seg-kpi-voyages-sub', `${trucksList.length} camions • ${sumRawSegs} seg. (${sumGrouped} jumelés dédoublonnés)`);
+
+  setTxt('seg-kpi-charge24', sumCharge24.toLocaleString('fr-FR'));
+  setTxt('seg-kpi-charge24-sub', `${trucksWithCharge24} camion(s) concerné(s) sur ${sumCharge} voyages CHARGÉ`);
+
+  const chargePct = sumCharge > 0 ? Math.round((sumChargePoiOk / sumCharge) * 100) : 0;
+  setTxt('seg-kpi-charge-poi', `${sumChargePoiOk} / ${sumCharge}`);
+  setTxt('seg-kpi-charge-poi-sub', `${chargePct}% confirmés au POI Départ (${sumCharge - sumChargePoiOk} non pointés)`);
+
+  const livrePct = sumLivre > 0 ? Math.round((sumLivrePoiOk / sumLivre) * 100) : 0;
+  setTxt('seg-kpi-livre-poi', `${sumLivrePoiOk} / ${sumLivre}`);
+  setTxt('seg-kpi-livre-poi-sub', `${livrePct}% confirmés au POI Client (${sumLivre - sumLivrePoiOk} non pointés)`);
+
+  setTxt('seg-kpi-confirme', (sumConfirme + sumCompteRendu).toLocaleString('fr-FR'));
+  setTxt('seg-kpi-confirme-sub', `Confirmé: ${sumConfirme} • C.Rendu: ${sumCompteRendu} • Provisoire: ${sumProvisoire}`);
+
+  setTxt('seg-kpi-achat', `${Math.round(sumAchat).toLocaleString('fr-FR')} DA`);
+  const moyAchat = sumTrips > 0 ? Math.round(sumAchat / sumTrips) : 0;
+  setTxt('seg-kpi-achat-sub', `Moy: ${moyAchat.toLocaleString('fr-FR')} DA/voy. • ${Math.round(sumKm).toLocaleString('fr-FR')} km`);
+
+  setTxt('seg-count-trucks', trucksList.length);
+  setTxt('seg-count-trips', allDeduplicatedTrips.length);
+
+  // 6. Rendu Vue 1 : Par Camion
+  const trucksTbody = document.getElementById('seg-trucks-tbody');
+  if (trucksTbody) {
+    if (trucksList.length === 0) {
+      trucksTbody.innerHTML = `<tr><td colspan="13" style="text-align:center;padding:36px;color:var(--txt3)">Aucun camion ne correspond aux critères de recherche.</td></tr>`;
+    } else {
+      trucksTbody.innerHTML = trucksList.map(tr => {
+        const gpsDot = tr.geoloc === 'ON'
+          ? `<span title="GPS Actif" style="display:inline-block;width:9px;height:9px;border-radius:50%;background:#22c55e;box-shadow:0 0 6px #22c55e;margin-right:6px"></span>`
+          : `<span title="GPS Inactif / Hors flotte" style="display:inline-block;width:9px;height:9px;border-radius:50%;background:#64748b;margin-right:6px"></span>`;
+        const pinLink = (tr.lat && tr.lng)
+          ? `<a href="https://www.google.com/maps?q=${tr.lat},${tr.lng}" target="_blank" title="Voir position temps réel sur Google Maps" style="text-decoration:none;margin-left:5px">📍</a>`
+          : '';
+
+        const teamBadge = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2', 'D1', 'D2'].includes(tr.team)
+          ? `<span style="background:rgba(56,189,248,0.18);color:#38bdf8;border:1px solid rgba(56,189,248,0.4);padding:2px 7px;border-radius:6px;font-weight:800;font-size:11px">Éq. ${tr.team}</span>`
+          : `<span style="background:rgba(148,163,184,0.15);color:#94a3b8;padding:2px 7px;border-radius:6px;font-size:10px">${tr.agence}</span>`;
+
+        const grpNote = tr.groupedSegmentsCount > 0
+          ? `<div style="font-size:10px;color:#94a3b8;margin-top:2px">(${tr.rawSegments.length} seg. dont ${tr.groupedSegmentsCount} jumelé${tr.groupedSegmentsCount > 1 ? 's' : ''})</div>`
+          : '';
+
+        let chargeHtml = '<span style="color:var(--txt3)">0</span>';
+        if (tr.chargeCount > 0) {
+          const overBadge = tr.chargeOver24 > 0
+            ? `<div style="margin-top:4px"><span style="background:rgba(239,68,68,0.2);color:#f87171;border:1px solid #ef4444;padding:2px 7px;border-radius:6px;font-size:10px;font-weight:800;display:inline-block">🚨 ${tr.chargeOver24} &gt; 24h (max ${Math.round(tr.maxChargeHours)}h)</span></div>`
+            : `<div style="font-size:10px;color:#34d399;margin-top:2px">⏱️ &lt; 24h (${Math.round(tr.maxChargeHours)}h)</div>`;
+          chargeHtml = `<div style="font-weight:800;font-size:14px;color:#fbbf24">${tr.chargeCount}</div>${overBadge}`;
+        }
+
+        let chargePoiHtml = '<span style="color:var(--txt3)">—</span>';
+        if (tr.chargeCount > 0) {
+          if (tr.chargePoiOk === tr.chargeCount) {
+            chargePoiHtml = `<span style="background:rgba(16,185,129,0.18);color:#34d399;border:1px solid rgba(16,185,129,0.4);padding:3px 8px;border-radius:6px;font-size:11px;font-weight:700">✅ ${tr.chargePoiOk}/${tr.chargeCount} Confirmé POI</span>`;
+          } else if (tr.chargePoiOk > 0) {
+            chargePoiHtml = `<span style="background:rgba(245,158,11,0.18);color:#fbbf24;border:1px solid rgba(245,158,11,0.4);padding:3px 8px;border-radius:6px;font-size:11px;font-weight:700">⚠️ ${tr.chargePoiOk}/${tr.chargeCount} Confirmé POI</span>`;
+          } else {
+            chargePoiHtml = `<span style="background:rgba(239,68,68,0.18);color:#f87171;border:1px solid rgba(239,68,68,0.4);padding:3px 8px;border-radius:6px;font-size:11px;font-weight:700">❌ 0/${tr.chargeCount} Non pointé POI</span>`;
+          }
+        }
+
+        let livreHtml = tr.livreCount > 0
+          ? `<span style="font-weight:800;font-size:14px;color:#34d399">${tr.livreCount}</span>`
+          : '<span style="color:var(--txt3)">0</span>';
+
+        let livrePoiHtml = '<span style="color:var(--txt3)">—</span>';
+        if (tr.livreCount > 0) {
+          if (tr.livrePoiOk === tr.livreCount) {
+            livrePoiHtml = `<span style="background:rgba(16,185,129,0.18);color:#34d399;border:1px solid rgba(16,185,129,0.4);padding:3px 8px;border-radius:6px;font-size:11px;font-weight:700">✅ ${tr.livrePoiOk}/${tr.livreCount} Confirmé POI</span>`;
+          } else if (tr.livrePoiOk > 0) {
+            livrePoiHtml = `<span style="background:rgba(245,158,11,0.18);color:#fbbf24;border:1px solid rgba(245,158,11,0.4);padding:3px 8px;border-radius:6px;font-size:11px;font-weight:700">⚠️ ${tr.livrePoiOk}/${tr.livreCount} Confirmé (${tr.livrePoiKo} non pointé)</span>`;
+          } else {
+            livrePoiHtml = `<span style="background:rgba(239,68,68,0.18);color:#f87171;border:1px solid rgba(239,68,68,0.4);padding:3px 8px;border-radius:6px;font-size:11px;font-weight:700">❌ 0/${tr.livreCount} Non pointé POI</span>`;
+          }
+        }
+
+        const badgesOther = [];
+        if (tr.confirmeCount > 0) {
+          badgesOther.push(`<span style="background:rgba(167,139,250,0.18);color:#c084fc;border:1px solid rgba(167,139,250,0.4);padding:2px 7px;border-radius:6px;font-size:11px;font-weight:700">📋 CONFIRMÉ: ${tr.confirmeCount}</span>`);
+        }
+        if (tr.compteRenduCount > 0) {
+          badgesOther.push(`<span style="background:rgba(56,189,248,0.15);color:#38bdf8;border:1px solid rgba(56,189,248,0.35);padding:2px 7px;border-radius:6px;font-size:11px;font-weight:700">📝 C.Rendu: ${tr.compteRenduCount}</span>`);
+        }
+        for (const [tk, cnt] of Object.entries(tr.trackingCounts)) {
+          badgesOther.push(`<span style="background:rgba(148,163,184,0.14);color:#cbd5e1;padding:2px 6px;border-radius:5px;font-size:10px">${tk}: ${cnt}</span>`);
+        }
+        const otherHtml = badgesOther.length > 0 ? `<div style="display:flex;gap:4px;flex-wrap:wrap">${badgesOther.join('')}</div>` : '<span style="color:var(--txt3)">—</span>';
+
+        const rowStyle = tr.chargeOver24 > 0 ? 'style="background:rgba(239,68,68,0.06)"' : '';
+
+        return `
+          <tr ${rowStyle}>
+            <td class="mono" style="font-weight:800;color:var(--acc);white-space:nowrap">${gpsDot}${tr.tracteur}${pinLink}</td>
+            <td>${teamBadge}<div style="font-size:10px;color:var(--txt3);margin-top:2px">${tr.agence}</div></td>
+            <td style="font-weight:600">${tr.chauffeur}</td>
+            <td style="text-align:center">${(()=>{
+              const chk = getDispoJ1ErpCheck(tr.tracteur, getTruckNumiplanInfo(tr.tracteur).lieuJ1);
+              if (!chk || !chk.hasErp) return '<span style="color:var(--txt3)">—</span>';
+              if (chk.match) {
+                return `<span style="background:rgba(16,185,129,0.18);color:#34d399;border:1px solid rgba(16,185,129,0.4);padding:3px 8px;border-radius:6px;font-size:11px;font-weight:700">✅ J+1 = ${chk.erpVille}</span>`;
+              }
+              return `<div style="background:rgba(239,68,68,0.16);border:1px solid #ef4444;border-radius:6px;padding:3px 7px;font-size:10.5px"><div style="color:#fca5a5;font-weight:800">🚨 J+1 Numiplan : <b>${chk.lieuJ1}</b></div><div style="color:#fbbf24;font-weight:800;margin-top:2px">➔ ERP Ville Arriv : <b>${chk.erpVille}</b></div></div>`;
+            })()}</td>
+            <td style="text-align:center">
+              <span style="font-size:15px;font-weight:900;color:#38bdf8">${tr.totalTrips}</span>
+              ${grpNote}
+            </td>
+            <td style="text-align:center">${(()=>{
+              if (tr.panneCount === 0) return '<span style="color:var(--txt3)">0</span>';
+              const isRec = tr.panneCount >= 3;
+              const bg = isRec ? 'rgba(239,68,68,0.22)' : 'rgba(245,158,11,0.18)';
+              const col = isRec ? '#f87171' : '#fbbf24';
+              const brd = isRec ? 'rgba(239,68,68,0.5)' : 'rgba(245,158,11,0.45)';
+              return `<span style="background:${bg};color:${col};border:1px solid ${brd};padding:3px 8px;border-radius:6px;font-weight:800;font-size:11px" title="${tr.panneCount} panne(s) déclarée(s)">${tr.panneCount}</span>`;
+            })()}</td>
+            <td style="text-align:center">${chargeHtml}</td>
+            <td style="text-align:center">${chargePoiHtml}</td>
+            <td style="text-align:center">${livreHtml}</td>
+            <td style="text-align:center">${livrePoiHtml}</td>
+            <td>${otherHtml}</td>
+            <td class="mono" style="text-align:right;font-weight:800;color:#4ade80;white-space:nowrap">
+              ${Math.round(tr.totalAchat).toLocaleString('fr-FR')} DA
+              <div style="font-size:10px;color:var(--txt3);font-weight:400">${Math.round(tr.totalKmExpl).toLocaleString('fr-FR')} km</div>
+            </td>
+            <td style="text-align:center">
+              <button class="btn" onclick="openSegmentsTruckDetailModal('${tr.tracteur}')" style="background:rgba(56,189,248,0.15);color:#38bdf8;border:1px solid rgba(56,189,248,0.4);padding:5px 10px;font-size:11px;font-weight:700;border-radius:6px">
+                🔍 Détail (${tr.totalTrips})
+              </button>
+            </td>
+          </tr>
+        `;
+      }).join('');
+    }
+  }
+
+  // 7. Rendu Vue 2 : Liste Détaillée des Voyages
+  const tripsTbody = document.getElementById('seg-trips-tbody');
+  if (tripsTbody) {
+    if (allDeduplicatedTrips.length === 0) {
+      tripsTbody.innerHTML = `<tr><td colspan="10" style="text-align:center;padding:36px;color:var(--txt3)">Aucun voyage ne correspond aux filtres sélectionnés.</td></tr>`;
+    } else {
+      tripsTbody.innerHTML = allDeduplicatedTrips.slice(0, 500).map(tp => {
+        const isCharge = tp.etatCmd === 'CHARGE' || tp.tracking === 'CHARGE';
+        const isLivre = !isCharge && (tp.etatCmd === 'LIVRE' || tp.tracking === 'LIVRE');
+
+        let statusBadge = `<span style="background:rgba(167,139,250,0.18);color:#c084fc;padding:3px 8px;border-radius:6px;font-size:11px;font-weight:700">${tp.etatCmd}</span>`;
+        if (isCharge) {
+          const durBadge = tp.isChargeOver24
+            ? `<div style="margin-top:3px"><span style="background:#ef4444;color:#fff;padding:2px 6px;border-radius:4px;font-size:10px;font-weight:800">🚨 ${tp.chargeHours}h (&gt;24h)</span></div>`
+            : `<div style="font-size:10px;color:#fbbf24;margin-top:2px">⏱️ ${tp.chargeHours}h</div>`;
+          statusBadge = `<span style="background:rgba(245,158,11,0.2);color:#fbbf24;border:1px solid #f59e0b;padding:3px 8px;border-radius:6px;font-size:11px;font-weight:800">📦 CHARGÉ</span>${durBadge}`;
+        } else if (isLivre) {
+          statusBadge = `<span style="background:rgba(16,185,129,0.2);color:#34d399;border:1px solid #10b981;padding:3px 8px;border-radius:6px;font-size:11px;font-weight:800">🏁 LIVRÉ</span>`;
+        }
+
+        let poiHtml = '<span style="color:var(--txt3);font-size:11px">En attente de chargement / livraison</span>';
+        if (isCharge && tp.poiChargeCheck) {
+          const c = tp.poiChargeCheck;
+          poiHtml = `<div style="color:${c.confirmed ? '#34d399' : '#f87171'};font-size:11px;font-weight:700">${c.label}</div>`;
+        } else if (isLivre && tp.poiLivreCheck) {
+          const c = tp.poiLivreCheck;
+          poiHtml = `<div style="color:${c.confirmed ? '#34d399' : '#f87171'};font-size:11px;font-weight:700">${c.label}</div>`;
+        }
+
+        const grpBadge = tp.isGrouped
+          ? `<div style="font-size:10px;color:#38bdf8;font-weight:700">🔗 Groupage ${tp.groupage || 'Jumelé'} (${tp.segIds.length} seg.)</div>`
+          : '';
+
+        return `
+          <tr>
+            <td class="mono" style="font-size:11px;white-space:nowrap">${tp.date || '—'}<div style="font-size:10px;color:var(--txt3)">${tp.dateSeg ? tp.dateSeg.substring(11) : ''}</div></td>
+            <td class="mono" style="font-size:11px"><b>${tp.segIds.join(', ')}</b>${grpBadge}</td>
+            <td class="mono" style="font-weight:700;color:var(--acc)">${tp.tracteur}<div style="font-size:10px;color:var(--txt3)">Éq. ${tp.team} • ${tp.agence}</div></td>
+            <td style="font-size:11px">${tp.chauffeur}</td>
+            <td style="font-size:11px;font-weight:600">${tp.clients.join(' / ')}</td>
+            <td style="font-size:11px">
+              <span style="color:#fbbf24;font-weight:600">${tp.lieuxDep.join(' + ') || tp.villesDep.join(' + ')}</span>
+              <span style="color:var(--txt3)"> ➔ </span>
+              <span style="color:#38bdf8;font-weight:600">${tp.lieuxArriv.join(' + ') || tp.villesArr.join(' + ')}</span>
+            </td>
+            <td style="text-align:center">${statusBadge}</td>
+            <td style="text-align:center;font-size:11px">${tp.tracking}<div style="font-size:10px;color:var(--txt3)">${tp.etatSeg}</div></td>
+            <td>${poiHtml}</td>
+            <td class="mono" style="text-align:right;font-weight:700;color:#4ade80;white-space:nowrap">${Math.round(tp.achat).toLocaleString('fr-FR')} DA</td>
+          </tr>
+        `;
+      }).join('');
+    }
+  }
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// MODALE DÉTAIL D'UN CAMION
+// ══════════════════════════════════════════════════════════════════════════════
+function openSegmentsTruckDetailModal(tracteur) {
+  const comp = window._SEGMENTS_COMPUTED;
+  if (!comp || !Array.isArray(comp.trucks)) return;
+  const tr = comp.trucks.find(t => t.tracteur === tracteur);
+  if (!tr) return;
+
+  const titleEl = document.getElementById('seg-modal-title');
+  const subEl = document.getElementById('seg-modal-subtitle');
+  const sumEl = document.getElementById('seg-modal-summary');
+  const tbody = document.getElementById('seg-modal-tbody');
+  const histEl = document.getElementById('seg-modal-poi-history');
+
+  if (titleEl) titleEl.innerHTML = `🚛 Camion <span class="mono" style="color:#38bdf8">${tr.tracteur}</span> — Chauffeur : <b>${tr.chauffeur}</b> (Équipe ${tr.team} / ${tr.agence})`;
+  if (subEl) subEl.textContent = `Détail des ${tr.totalTrips} voyage(s) réalisé(s) (${tr.rawSegments.length} segment(s) ERP) et contrôle de cohérence avec les pointages POI GPS.`;
+
+  if (sumEl) {
+    sumEl.innerHTML = `
+      <div style="background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:8px 14px;font-size:12px">🔄 Cumul Voyages : <b style="color:#38bdf8">${tr.totalTrips}</b></div>
+      <div style="background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:8px 14px;font-size:12px">🔧 Pannes : <b style="color:${tr.panneCount >= 3 ? '#f87171' : tr.panneCount > 0 ? '#fbbf24' : '#34d399'}">${tr.panneCount}</b></div>
+      <div style="background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:8px 14px;font-size:12px">📦 Statut CHARGÉ : <b style="color:#fbbf24">${tr.chargeCount}</b> (dont <b style="color:#ef4444">${tr.chargeOver24} &gt; 24h</b>) • Confirmés POI : <b style="color:#34d399">${tr.chargePoiOk}/${tr.chargeCount}</b></div>
+      <div style="background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:8px 14px;font-size:12px">🏁 Statut LIVRÉ : <b style="color:#34d399">${tr.livreCount}</b> • Confirmés POI : <b style="color:#34d399">${tr.livrePoiOk}/${tr.livreCount}</b></div>
+      <div style="background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:8px 14px;font-size:12px">📋 Confirmé / Autres : <b style="color:#c084fc">${tr.confirmeCount + tr.compteRenduCount}</b></div>
+      <div style="background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:8px 14px;font-size:12px">💰 Total ACHAT : <b style="color:#4ade80">${Math.round(tr.totalAchat).toLocaleString('fr-FR')} DA</b> (${Math.round(tr.totalKmExpl).toLocaleString('fr-FR')} km)</div>
+    `;
+  }
+
+  if (tbody) {
+    tbody.innerHTML = tr.trips.map(tp => {
+      const isCharge = tp.etatCmd === 'CHARGE' || tp.tracking === 'CHARGE';
+      const isLivre = !isCharge && (tp.etatCmd === 'LIVRE' || tp.tracking === 'LIVRE');
+
+      let stHtml = `<span style="color:#c084fc;font-weight:700">${tp.etatCmd}</span>`;
+      if (isCharge) {
+        stHtml = `<span style="color:#fbbf24;font-weight:800">📦 CHARGÉ</span><div style="font-size:10px;color:${tp.isChargeOver24 ? '#ef4444' : '#94a3b8'};font-weight:700">${tp.isChargeOver24 ? '🚨 ' : '⏱️ '}${tp.chargeHours}h (Créé: ${tp.dateSeg || '—'})</div>`;
+      } else if (isLivre) {
+        stHtml = `<span style="color:#34d399;font-weight:800">🏁 LIVRÉ</span><div style="font-size:10px;color:#94a3b8">Modif: ${tp.dateSegM || '—'}</div>`;
+      }
+
+      const chargePoiCell = tp.poiChargeCheck
+        ? `<span style="color:${tp.poiChargeCheck.confirmed ? '#34d399' : '#f87171'};font-size:11px;font-weight:600">${tp.poiChargeCheck.label}</span>`
+        : '<span style="color:var(--txt3)">—</span>';
+
+      const livrePoiCell = tp.poiLivreCheck
+        ? `<span style="color:${tp.poiLivreCheck.confirmed ? '#34d399' : '#f87171'};font-size:11px;font-weight:600">${tp.poiLivreCheck.label}</span>`
+        : '<span style="color:var(--txt3)">—</span>';
+
+      return `
+        <tr>
+          <td class="mono" style="font-size:11px">${tp.date || '—'}</td>
+          <td class="mono" style="font-size:11px"><b>${tp.segIds.join(', ')}</b>${tp.isGrouped ? `<div style="font-size:10px;color:#38bdf8">Groupage ${tp.groupage || 'Jumelé'}</div>` : ''}</td>
+          <td style="font-size:11px"><b>${tp.clients.join(' / ')}</b><div style="font-size:10px;color:var(--txt3)">Réf: ${tp.refCmds.join(', ')}</div></td>
+          <td style="font-size:11px"><b style="color:#fbbf24">${tp.lieuxDep.join(' + ')}</b> (${tp.villesDep.join(', ')}) ➔ <b style="color:#38bdf8">${tp.lieuxArriv.join(' + ')}</b> (${tp.villesArr.join(', ')})</td>
+          <td style="text-align:center">${stHtml}</td>
+          <td style="text-align:center;font-size:11px">${tp.tracking} / ${tp.etatSeg}</td>
+          <td>${chargePoiCell}</td>
+          <td>${livrePoiCell}</td>
+          <td class="mono" style="text-align:right;font-weight:700;color:#4ade80">${Math.round(tp.achat).toLocaleString('fr-FR')} DA</td>
+        </tr>
+      `;
+    }).join('');
+  }
+
+  const pNorm = normErpPlate(tr.tracteur);
+  const visits = (comp.visitsByPlate && comp.visitsByPlate.get(pNorm)) || [];
+  if (histEl) {
+    let outHtml = '';
+    if (tr.pannesList && tr.pannesList.length > 0) {
+      const pItems = tr.pannesList.slice(0, 6).map(pn => `<span style="background:rgba(245,158,11,0.12);border:1px solid rgba(245,158,11,0.35);padding:2px 7px;border-radius:5px;color:#fde68a">🔧 <b>${pn.date || '—'}</b>${pn.di ? ' (' + pn.di + ')' : ''} : ${(pn.desc || 'Panne').slice(0, 45)}</span>`).join(' ');
+      outHtml += `<div style="margin-bottom:6px">🔧 <b>Pannes du camion ${tr.tracteur} (${tr.panneCount}) :</b> ${pItems}${tr.panneCount > 6 ? ' <i>… +' + (tr.panneCount - 6) + ' autre(s)</i>' : ''}</div>`;
+    } else {
+      outHtml += `<div style="margin-bottom:6px">🔧 <b>Pannes du camion ${tr.tracteur} :</b> Aucune panne enregistrée.</div>`;
+    }
+    if (visits.length === 0) {
+      outHtml += `<div>🛰️ <b>Historique POI GPS du camion ${tr.tracteur} :</b> Aucun pointage POI enregistré dans <code>np_poi_visits</code>.</div>`;
+    } else {
+      const vList = visits.slice(0, 8).map(v => {
+        const dStr = v.arrived_at ? new Date(v.arrived_at).toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : '';
+        return `<span style="background:rgba(56,189,248,0.12);border:1px solid rgba(56,189,248,0.3);padding:2px 7px;border-radius:5px;color:#e2e8f0">📍 <b>${v.poi_name}</b> (${dStr})</span>`;
+      }).join(' ');
+      outHtml += `<div>🛰️ <b>Derniers pointages POI GPS enregistrés pour ${tr.tracteur} (${visits.length}) :</b> ${vList}</div>`;
+    }
+    histEl.innerHTML = outHtml;
+  }
+
+  const modal = document.getElementById('modal-segments-truck-detail');
+  if (modal) modal.style.display = 'flex';
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// IMPORT FICHIER EXCEL TMS & PERSISTANCE MULTI-UTILISATEURS
+// ══════════════════════════════════════════════════════════════════════════════
+async function importSegmentsErpExcel(input) {
+  const file = input && input.files && input.files[0];
+  if (!file) return;
+
+  try {
+    showToast('⏳ Lecture et analyse du fichier Excel...');
+    const data = await file.arrayBuffer();
+    const wb = XLSX.read(data, { type: 'array' });
+    const ws = wb.Sheets[wb.SheetNames[0]];
+    const rawRows = XLSX.utils.sheet_to_json(ws, { defval: '' });
+
+    if (!rawRows.length) {
+      showToast('⚠️ Fichier vide ou illisible.', true);
+      return;
+    }
+
+    const normKey = s => String(s || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+    const firstRow = rawRows[0];
+    const keyMap = {};
+    Object.keys(firstRow).forEach(k => {
+      keyMap[normKey(k)] = k;
+    });
+
+    const getCol = (row, aliases) => {
+      for (const al of aliases) {
+        const direct = keyMap[normKey(al)];
+        if (direct && row[direct] !== undefined && row[direct] !== '') return row[direct];
+      }
+      return '';
+    };
+
+    const parsedSegs = [];
+    rawRows.forEach(r => {
+      const segId = String(getCol(r, ['SEGMENT', 'SEG', 'N° SEGMENT', 'NUMERO'])).trim();
+      if (!segId) return;
+
+      const dateRaw = getCol(r, ['DT.DEP P', 'DT DEP P', 'DATE DEPART', 'DATE DEPART PREVUE', 'DT DEPART', 'DATE']);
+      const dtDepRRaw = getCol(r, ['DT.DEP R', 'DT DEP R', 'DATE DEPART REELLE']);
+      const dateSegRaw = getCol(r, ['DATE SEGMENT', 'DATE SEG', 'CREATION', 'DATE CREATION']);
+      const dateSegMRaw = getCol(r, ['DATE MAJ', 'DATE MODIFICATION', 'MODIFICATION', 'DT MODIF']);
+
+      const parsedDate = formatErpDateIso(dateRaw);
+      const parsedDtDepP = parseErpDateTime(dateRaw);
+      const parsedDtDepR = parseErpDateTime(dtDepRRaw);
+      const parsedDateSeg = parseErpDateTime(dateSegRaw);
+      const parsedDateSegM = parseErpDateTime(dateSegMRaw);
+
+      const item = {
+        seg: segId,
+        date: parsedDate,
+        dtDepP: parsedDtDepP ? parsedDtDepP.toISOString() : (dateRaw ? String(dateRaw) : ''),
+        dtDepR: parsedDtDepR ? parsedDtDepR.toISOString() : (dtDepRRaw ? String(dtDepRRaw) : ''),
+        dateSeg: parsedDateSeg ? parsedDateSeg.toISOString() : (dateSegRaw ? String(dateSegRaw) : ''),
+        dateSegM: parsedDateSegM ? parsedDateSegM.toISOString() : (dateSegMRaw ? String(dateSegMRaw) : ''),
+        tracteur: String(getCol(r, ['TRACTEUR', 'CAMION', 'VEHICULE', 'IMMAT', 'IMMATRICULATION'])).trim(),
+        affrete: String(getCol(r, ['AFFRETE', 'TRANSPORTEUR', 'PRESTATAIRE'])).trim(),
+        cond1: String(getCol(r, ['COND 1', 'COND1', 'CONDUCTEUR', 'CHAUFFEUR', 'CHAUFFEUR 1'])).trim(),
+        client: String(getCol(r, ['CLIENT', 'NOM CLIENT', 'DESTINATAIRE'])).trim(),
+        lieuDep: String(getCol(r, ['LIEU DEP', 'LIEU DEPART', 'DEPOT DEPART', 'ORIGINE'])).trim(),
+        villeDep: String(getCol(r, ['VILLE DEP', 'VILLE DEPART'])).trim(),
+        lieuArriv: String(getCol(r, ['LIEU ARRIV', 'LIEU ARRIVEE', 'DEPOT ARRIVEE', 'DESTINATION'])).trim(),
+        villeArr: String(getCol(r, ['VILLE ARR', 'VILLE ARRIVEE'])).trim(),
+        groupage: String(getCol(r, ['GROUPAGE', 'N° GROUPAGE', 'CODE GROUPAGE'])).trim(),
+        jumlage: String(getCol(r, ['JUMLAGE', 'JUMELAGE', 'JUMELE'])).trim().toUpperCase(),
+        etatCmd: String(getCol(r, ['ETAT CMD', 'ETAT COMMANDE', 'STATUT CMD'])).trim(),
+        tracking: String(getCol(r, ['TRACKING', 'STATUT TRACKING'])).trim(),
+        etatSeg: String(getCol(r, ['ETAT SEG', 'ETAT SEGMENT', 'STATUT'])).trim(),
+        refCmd: String(getCol(r, ['REF CMD', 'REFERENCE', 'COMMANDE', 'OT', 'ORDRE'])).trim(),
+        agence: String(getCol(r, ['AGENCE', 'CODE AGENCE', 'SITE'])).trim(),
+        activite: String(getCol(r, ['ACTIVITE', 'TYPE ACTIVITE'])).trim(),
+        kmExpl: parseFloat(String(getCol(r, ['KM EXPLOITATION', 'KM EXPL', 'KM ERP', 'DISTANCE'])).replace(',', '.')) || 0,
+        kmCarto: parseFloat(String(getCol(r, ['KM CARTO', 'KM CARTO.', 'DISTANCE CARTO'])).replace(',', '.')) || 0,
+        achat: parseFloat(String(getCol(r, ['ACHAT', 'MONTANT ACHAT', 'PRIX ACHAT', 'COUT'])).replace(/[\s\u00A0]/g, '').replace(',', '.')) || 0
+      };
+
+      parsedSegs.push(item);
+    });
+
+    if (!parsedSegs.length) {
+      showToast('⚠️ Aucun segment valide détecté dans les colonnes.', true);
+      return;
+    }
+
+    showToast(`⏳ Enregistrement de ${parsedSegs.length} segments dans Supabase...`);
+
+    // Sauvegarde par lots dans np_segments_erp
+    const BATCH_SIZE = 100;
+    for (let i = 0; i < parsedSegs.length; i += BATCH_SIZE) {
+      const batch = parsedSegs.slice(i, i + BATCH_SIZE);
+      await sb.from('np_segments_erp').upsert(batch, { onConflict: 'seg' });
+    }
+
+    // Sauvegarde également du payload complet dans numiplan_teams (SEGMENTS_ERP) pour compatibilité
+    const payload = {
+      fileName: file.name,
+      fileExportDate: new Date().toISOString(),
+      segments: parsedSegs
+    };
+    await sb.from('numiplan_teams').upsert({
+      team: 'SEGMENTS_ERP',
+      payload,
+      updated_at: new Date().toISOString()
+    }, { onConflict: 'team' });
+
+    window._SEGMENTS_ERP_DATA = payload;
+    showToast(`✅ ${parsedSegs.length} segments importés et synchronisés !`);
+    renderSegmentsErpPage();
+
+  } catch (err) {
+    console.error('Erreur importSegmentsErpExcel:', err);
+    showToast('Erreur import: ' + err.message, true);
+  } finally {
+    if (input) input.value = '';
+  }
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// EXPORT EXCEL DU BILAN PAR CAMION ET DÉTAIL DES VOYAGES
+// ══════════════════════════════════════════════════════════════════════════════
+function exportSegmentsErpExcel() {
+  const comp = window._SEGMENTS_COMPUTED;
+  if (!comp || !Array.isArray(comp.trucks) || comp.trucks.length === 0) {
+    showToast('⚠️ Aucune donnée à exporter.', true);
+    return;
+  }
+  const wb = XLSX.utils.book_new();
+
+  const summaryRows = comp.trucks.map(tr => ({
+    'Camion (Tracteur)': tr.tracteur,
+    'Équipe Numiplan': tr.team,
+    'Agence ERP': tr.agence,
+    'Chauffeur': tr.chauffeur,
+    'Cumul Voyages (Dédoublonnés)': tr.totalTrips,
+    'Nb Pannes': tr.panneCount,
+    'Segments Bruts': tr.rawSegments.length,
+    'Statut CHARGÉ (Total)': tr.chargeCount,
+    'Statut CHARGÉ > 24h': tr.chargeOver24,
+    'Durée Max CHARGÉ (h)': tr.maxChargeHours,
+    'CHARGÉ Confirmé POI': tr.chargePoiOk,
+    'CHARGÉ Non Pointé POI': tr.chargePoiKo,
+    'Statut LIVRÉ (Total)': tr.livreCount,
+    'LIVRÉ Confirmé POI': tr.livrePoiOk,
+    'LIVRÉ Non Pointé POI': tr.livrePoiKo,
+    'Statut CONFIRMÉ': tr.confirmeCount,
+    'Statut Compte Rendu': tr.compteRenduCount,
+    'Tracking PROVISOIRE': tr.trackingCounts['PROVISOIRE'] || 0,
+    'Total ACHAT (DA)': Math.round(tr.totalAchat * 100) / 100,
+    'Total KM Exploitation': Math.round(tr.totalKmExpl * 10) / 10
+  }));
+
+  const detailRows = comp.trips.map(tp => ({
+    'Date Départ': tp.date,
+    'N° Segment(s)': tp.segIds.join(', '),
+    'Groupage': tp.groupage || '',
+    'Camion': tp.tracteur,
+    'Équipe': tp.team,
+    'Agence': tp.agence,
+    'Chauffeur': tp.chauffeur,
+    'Client(s)': tp.clients.join(' / '),
+    'Lieu Départ': tp.lieuxDep.join(' + '),
+    'Ville Départ': tp.villesDep.join(' + '),
+    'Lieu Arrivée': tp.lieuxArriv.join(' + '),
+    'Ville Arrivée': tp.villesArr.join(' + '),
+    'État Commande': tp.etatCmd,
+    'Tracking': tp.tracking,
+    'État Segment': tp.etatSeg,
+    'Durée CHARGÉ (h)': tp.chargeHours || '',
+    'Dépassement > 24h': tp.isChargeOver24 ? 'OUI (>24h)' : 'NON',
+    'Confirmation POI Départ (Chargé)': tp.poiChargeCheck ? tp.poiChargeCheck.label : '',
+    'Confirmation POI Arrivée (Livré)': tp.poiLivreCheck ? tp.poiLivreCheck.label : '',
+    'Montant ACHAT (DA)': Math.round(tp.achat * 100) / 100,
+    'KM Exploitation': Math.round(tp.kmExpl * 10) / 10
+  }));
+
+  const ws1 = XLSX.utils.json_to_sheet(summaryRows);
+  const ws2 = XLSX.utils.json_to_sheet(detailRows);
+  XLSX.utils.book_append_sheet(wb, ws1, 'Cumul Par Camion');
+  XLSX.utils.book_append_sheet(wb, ws2, 'Détail Voyages & POI');
+
+  const todayStr = new Date().toISOString().split('T')[0];
+  XLSX.writeFile(wb, `Numiplan_Bilan_Segments_POI_${todayStr}.xlsx`);
+  showToast('✅ Export Excel généré avec succès !');
+}
+
 async function initSession() {
   const user = sessionStorage.getItem('numiplan_username') || 'utilisateur';
-  const role = sessionStorage.getItem('numiplan_user_role') || 'equipe';
+  const role = sessionStorage.getItem('numiplan_user_role') || 'admin';
   const teamLock = sessionStorage.getItem('numiplan_team_lock') || '';
 
-  document.getElementById('u-name').textContent = user;
-  document.getElementById('u-team').textContent = teamLock || role.toUpperCase();
+  document.getElementById('u-name').textContent = user.toUpperCase();
+  document.getElementById('u-role').textContent = teamLock || role.toUpperCase();
 
   const { data: { session } } = await sb.auth.getSession();
   if (!session) {
@@ -509,266 +1919,7 @@ async function initSession() {
     return;
   }
 
-  loadSegmentsData();
-}
-
-async function loadSegmentsData() {
-  try {
-    showToast('⏳ Récupération de tous les segments...');
-    let allRows = [];
-    let from = 0;
-    const batchSize = 1000;
-    let keepGoing = true;
-
-    // Boucle de pagination pour charger la totalité des segments (dépasse la limite de 1000)
-    while (keepGoing) {
-      const { data, error } = await sb
-        .from('np_segments_erp')
-        .select('*')
-        .order('date', { ascending: false })
-        .range(from, from + batchSize - 1);
-
-      if (error) throw error;
-      if (data && data.length > 0) {
-        allRows.push(...data);
-        from += batchSize;
-        if (data.length < batchSize || allRows.length >= 10000) {
-          keepGoing = false;
-        }
-      } else {
-        keepGoing = false;
-      }
-    }
-
-    allSegments = allRows;
-    document.getElementById('segments-count-badge').textContent = `${allSegments.length.toLocaleString('fr-FR')} segments`;
-    document.getElementById('segments-meta').textContent = `Base consolidée · Dernière mise à jour : ${new Date().toLocaleTimeString('fr-FR')} · Période : ${allSegments.length ? (allSegments[allSegments.length-1].date + ' au ' + allSegments[0].date) : '—'}`;
-
-    populateFilters();
-    renderFilteredSegments();
-    showToast(`✅ ${allSegments.length} segments chargés avec succès`);
-  } catch (err) {
-    console.error('Erreur chargement segments:', err);
-    showToast('Erreur: ' + err.message, true);
-  }
-}
-
-function populateFilters() {
-  const agences = [...new Set(allSegments.map(s => s.agence).filter(Boolean))].sort();
-  const clients = [...new Set(allSegments.map(s => s.client).filter(Boolean))].sort();
-
-  const agSel = document.getElementById('flt-agence');
-  agSel.innerHTML = '<option value="">Toutes Agences</option>' + agences.map(a => `<option value="${a}">${a}</option>`).join('');
-
-  const clSel = document.getElementById('flt-client');
-  clSel.innerHTML = '<option value="">Tous Clients</option>' + clients.map(c => `<option value="${c}">${c}</option>`).join('');
-}
-
-function setPreset(preset, el) {
-  currentPreset = preset;
-  document.querySelectorAll('.preset-btn').forEach(b => b.classList.remove('active'));
-  el?.classList.add('active');
-  renderFilteredSegments();
-}
-
-function getPresetCutoffDate() {
-  if (currentPreset === 'all') return null;
-  const now = new Date();
-  if (currentPreset === 'today') return now.toISOString().split('T')[0];
-  const d = new Date();
-  if (currentPreset === '3d') d.setDate(d.getDate() - 3);
-  else if (currentPreset === '7d') d.setDate(d.getDate() - 7);
-  else if (currentPreset === '30d') d.setDate(d.getDate() - 30);
-  return d.toISOString().split('T')[0];
-}
-
-function renderFilteredSegments() {
-  const cutoff = getPresetCutoffDate();
-  const ag = document.getElementById('flt-agence').value;
-  const cl = document.getElementById('flt-client').value;
-  const q = document.getElementById('search-q').value.trim().toLowerCase();
-
-  const filtered = allSegments.filter(s => {
-    if (cutoff && s.date && s.date < cutoff) return false;
-    if (ag && s.agence !== ag) return false;
-    if (cl && s.client !== cl) return false;
-    if (q) {
-      const match = `${s.seg} ${s.tracteur} ${s.remorque} ${s.cond1} ${s.client} ${s.commande} ${s.ville_dep} ${s.ville_arr}`.toLowerCase();
-      if (!match.includes(q)) return false;
-    }
-    return true;
-  });
-
-  // KPIs
-  document.getElementById('kpi-total-segments').textContent = filtered.length.toLocaleString('fr-FR');
-  const distinctTrucks = new Set(filtered.map(s => s.tracteur).filter(Boolean)).size;
-  document.getElementById('kpi-total-trucks').textContent = distinctTrucks;
-  const totalKm = filtered.reduce((acc, s) => acc + (Number(s.km_expl) || 0), 0);
-  document.getElementById('kpi-total-km').textContent = Math.round(totalKm).toLocaleString('fr-FR') + ' km';
-  const totalAchat = filtered.reduce((acc, s) => acc + (Number(s.achat) || 0), 0);
-  document.getElementById('kpi-total-achat').textContent = Math.round(totalAchat).toLocaleString('fr-FR') + ' DA';
-
-  // Table Body
-  const tbody = document.getElementById('segments-table-body');
-  if (filtered.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="11" style="text-align:center;padding:40px;color:var(--txt-muted)">Aucun segment correspondant aux critères sélectionnés.</td></tr>';
-    return;
-  }
-
-  const shown = filtered.slice(0, 300);
-  tbody.innerHTML = shown.map(s => {
-    return `
-      <tr>
-        <td style="font-weight:600;white-space:nowrap">${s.date || '—'}</td>
-        <td style="font-family:'JetBrains Mono',monospace;color:#38bdf8;font-weight:700">${s.seg}</td>
-        <td style="font-family:'JetBrains Mono',monospace;font-weight:700">${s.tracteur || '—'}</td>
-        <td>${s.cond1 || s.affrete || '—'}</td>
-        <td><b>${s.client || '—'}</b></td>
-        <td><span style="font-size:10px;padding:2px 6px;border-radius:4px;background:#1e293b">${s.activite || 'SEC'}</span></td>
-        <td>${s.ville_dep || s.lieu_dep || '—'} → ${s.ville_arr || s.lieu_arriv || '—'}</td>
-        <td style="text-align:right;font-weight:700">${Math.round(s.km_expl || 0).toLocaleString('fr-FR')}</td>
-        <td style="text-align:right;color:var(--txt-muted)">${Math.round(s.km_carto || 0).toLocaleString('fr-FR')}</td>
-        <td style="text-align:right;color:#34d399;font-weight:700">${Math.round(s.achat || 0).toLocaleString('fr-FR')}</td>
-        <td style="text-align:center"><span style="font-size:11px;padding:2px 6px;border-radius:6px;background:rgba(56,189,248,0.15);color:#38bdf8">${s.etat_cmd || s.etat_seg || 'CONFIRMÉ'}</span></td>
-      </tr>
-    `;
-  }).join('');
-}
-
-// Helper robuste de parsing de colonnes
-function getColVal(row, ...keys) {
-  for (const k of keys) {
-    if (row[k] !== undefined && row[k] !== null && row[k] !== '') return row[k];
-    const upperK = k.toUpperCase().trim();
-    for (const rk of Object.keys(row)) {
-      if (rk.toUpperCase().trim() === upperK && row[rk] !== undefined && row[rk] !== null && row[rk] !== '') {
-        return row[rk];
-      }
-    }
-  }
-  return '';
-}
-
-function parseErpDateStr(val) {
-  if (!val) return null;
-  if (typeof val === 'number' && val > 20000 && val < 80000) {
-    const d = new Date(Math.round((val - 25569) * 86400 * 1000));
-    return d.toISOString().split('T')[0];
-  }
-  const s = String(val).trim();
-  const m1 = s.match(/(\d{4})[-/](\d{2})[-/](\d{2})/);
-  if (m1) return `${m1[1]}-${m1[2]}-${m1[3]}`;
-  const m2 = s.match(/(\d{2})[/.-](\d{2})[/.-](\d{4})/);
-  if (m2) return `${m2[3]}-${m2[2]}-${m2[1]}`;
-  return null;
-}
-
-// Importation Multi-utilisateurs (Upsert automatique dans np_segments_erp)
-async function handleSegmentsUpload(input) {
-  const file = input?.files?.[0];
-  if (!file) return;
-
-  try {
-    showToast('⏳ Analyse du fichier Segments ERP...');
-    const buf = await file.arrayBuffer();
-    const wb = XLSX.read(buf, { type: 'array' });
-    const sheet = wb.Sheets[wb.SheetNames[0]];
-    const rawData = XLSX.utils.sheet_to_json(sheet, { defval: '' });
-
-    if (!rawData.length) {
-      showToast('❌ Le fichier Excel ne contient aucune ligne.', true);
-      return;
-    }
-
-    showToast(`⏳ Traitement de ${rawData.length} lignes...`);
-
-    const records = [];
-    const seenSegs = new Set();
-    const currentUser = sessionStorage.getItem('numiplan_username') || 'utilisateur';
-
-    rawData.forEach(r => {
-      let segId = String(getColVal(r, 'SEGMENT', 'N° Segment', 'Segment', 'seg', 'ID')).trim();
-      const tracteur = String(getColVal(r, 'TRACTEUR', 'Tracteur', 'Matricule')).trim().toUpperCase();
-      const commande = String(getColVal(r, 'COMMANDE', 'Commande', 'N° Commande')).trim();
-      const dtDepP = String(getColVal(r, 'DT.DEP P', 'DT DEP P', 'Date Dép. Prévue', 'Date')).trim();
-      const dateSeg = String(getColVal(r, 'DATE SEG', 'Date Segment')).trim();
-      const dateRef = parseErpDateStr(dtDepP) || parseErpDateStr(dateSeg);
-
-      if (!segId) {
-        if (tracteur && commande) {
-          segId = `${tracteur}_${commande}_${dateRef || 'NODATE'}`;
-        } else {
-          return;
-        }
-      }
-
-      if (seenSegs.has(segId)) return;
-      seenSegs.add(segId);
-
-      records.push({
-        seg: segId,
-        date: dateRef,
-        tracteur: tracteur,
-        remorque: String(getColVal(r, 'REMORQUE', 'Remorque')).trim().toUpperCase(),
-        cond1: String(getColVal(r, 'COND 1', 'COND1', 'Chauffeur 1', 'Conducteur', 'Chauffeur')).trim(),
-        affrete: String(getColVal(r, 'AFFRETE', 'Affrété')).trim(),
-        client: String(getColVal(r, 'CLIENT', 'Client')).trim(),
-        commande: commande,
-        groupage: String(getColVal(r, 'GROUPAGE', 'Groupage')).trim().toUpperCase(),
-        ref_cmd: String(getColVal(r, 'REF CMD', 'Réf Commande')).trim(),
-        agence: String(getColVal(r, 'AGENCE', 'Agence')).trim(),
-        activite: String(getColVal(r, 'ACTIVITE', 'Activité')).trim(),
-        ville_dep: String(getColVal(r, 'VILLE DEP', 'Ville Départ')).trim(),
-        ville_arr: String(getColVal(r, 'VILLE ARRIV', 'Ville Arrivée')).trim(),
-        lieu_dep: String(getColVal(r, 'LIEU DEP', 'Lieu Départ')).trim(),
-        lieu_arriv: String(getColVal(r, 'LIEU ARRIV', 'Lieu Arrivée')).trim(),
-        dt_dep_p: dtDepP,
-        dt_dep_r: String(getColVal(r, 'DT.DEP R', 'DT DEP R', 'Date Dép. Réelle')).trim(),
-        dt_arr_p: String(getColVal(r, 'DT.ARRIV P', 'DT ARRIV P', 'Date Arr. Prévue')).trim(),
-        dt_arr_r: String(getColVal(r, 'DT.ARRIV. R', 'DT.ARRIV R', 'DT ARRIV R', 'Date Arr. Réelle')).trim(),
-        etat_cmd: String(getColVal(r, 'ETAT CMD', 'État Commande')).trim(),
-        etat_seg: String(getColVal(r, 'ETAT SEG', 'État Segment')).trim(),
-        tracking: String(getColVal(r, 'TRACKING', 'Tracking')).trim(),
-        km_expl: parseFloat(String(getColVal(r, 'KM EXPLOITATION', 'KM Exploité', 'KM_EXPL') || 0).replace(/\s/g,'').replace(',','.')) || 0,
-        km_carto: parseFloat(String(getColVal(r, 'KM CARTO', 'KM Carto') || 0).replace(/\s/g,'').replace(',','.')) || 0,
-        achat: parseFloat(String(getColVal(r, 'ACHAT', 'Montant Achat') || 0).replace(/\s/g,'').replace(',','.')) || 0,
-        jumlage: String(getColVal(r, 'JUMLAGE', 'Jumelage')).trim().toUpperCase(),
-        date_seg: dateSeg,
-        imported_by: currentUser
-      });
-    });
-
-    showToast(`💾 Enregistrement de ${records.length} segments dans Supabase...`);
-
-    // Inserer par lots de 200 avec upsert (resolution=merge-duplicates)
-    const batchSize = 200;
-    for (let i = 0; i < records.length; i += batchSize) {
-      const batch = records.slice(i, i + batchSize);
-      const { error } = await sb.from('np_segments_erp').upsert(batch, { onConflict: 'seg' });
-      if (error) throw error;
-    }
-
-    showToast(`✅ ${records.length} segments importés avec succès sans conflit !`);
-    loadSegmentsData();
-
-  } catch (err) {
-    console.error('Erreur import segments:', err);
-    showToast('Erreur import: ' + err.message, true);
-  } finally {
-    input.value = '';
-  }
-}
-
-function exportSegmentsExcel() {
-  if (!allSegments.length) {
-    showToast('⚠️ Aucun segment à exporter.', true);
-    return;
-  }
-  const wb = XLSX.utils.book_new();
-  const ws = XLSX.utils.json_to_sheet(allSegments);
-  XLSX.utils.book_append_sheet(wb, ws, 'Segments_ERP');
-  XLSX.writeFile(wb, `Segments_ERP_${new Date().toISOString().split('T')[0]}.xlsx`);
-  showToast('✅ Export Excel téléchargé');
+  refreshSegmentsPoiData(false);
 }
 
 window.addEventListener('DOMContentLoaded', initSession);
