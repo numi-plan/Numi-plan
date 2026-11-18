@@ -832,8 +832,8 @@
 
 <script>
 const SUPABASE_URL = "https://mfljrozyxyfkymzlnsmt.supabase.co";
-const SUPABASE_ANON = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1mbGpyb3p5eHlma3ltemxuc210Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDY3OTYzMjUsImV4cCI6MjA2MjM3MjMyNX0.4yzhJnShFlcMlS_b6Q25wtcChhKQsccUUPc_b4eunr8";
-const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON);
+const SUPABASE_KEY = "sb_publishable_sMb9uHOr4gpyqmZGrkY-YQ_z90TgNAB";
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
 // Distances officielles pour validation règle 400 km
 const CITY_DISTANCES = {
@@ -904,13 +904,23 @@ function normalizeMotif(r) {
   return "Non-conformité";
 }
 
+const safeQuery = async (queryBuilder) => {
+  try {
+    const res = await queryBuilder;
+    return res || { data: [] };
+  } catch (e) {
+    console.warn('Query error:', e);
+    return { data: [] };
+  }
+};
+
 async function loadNcData() {
   try {
     showToast('⏳ Synchronisation des Non-Conformités...');
     const [teamsRes, dispoRes, npNcRes] = await Promise.all([
-      sb.from('numiplan_teams').select('team, payload').in('team', ['A1','A2','B1','B2','C1','C2','D1','D2']),
-      sb.from('np_dispo').select('v, chauffeur, team').limit(1500),
-      sb.from('np_nc').select('*').limit(1500)
+      safeQuery(sb.from('numiplan_teams').select('team, payload').in('team', ['A1','A2','B1','B2','C1','C2','D1','D2'])),
+      safeQuery(sb.from('np_dispo').select('v, chauffeur, team').limit(1500)),
+      safeQuery(sb.from('np_nc').select('*').limit(1500))
     ]);
 
     allDispo = dispoRes.data || [];
@@ -963,6 +973,7 @@ async function loadNcData() {
   } catch (err) {
     console.error('Erreur chargement NC:', err);
     showToast('Erreur: ' + err.message, true);
+    renderNcTable();
   }
 }
 
@@ -1543,8 +1554,9 @@ async function initSession() {
   document.getElementById('u-name').textContent = user.toUpperCase();
   document.getElementById('u-role').textContent = userTeamLock || role.toUpperCase();
 
+  const isPortalAuthed = sessionStorage.getItem('numiplan_auth') === 'ok';
   const { data: { session } } = await sb.auth.getSession();
-  if (!session) {
+  if (!session && !isPortalAuthed) {
     window.location.href = 'portail.html';
     return;
   }
