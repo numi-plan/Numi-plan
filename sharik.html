@@ -1483,7 +1483,11 @@ function openPedigreeModal(encName) {
               ${d.ncs.map(nc => {
                 let badgeType = '';
                 let detailText = '';
-                if (nc.chgt) {
+                const motifLabel = nc.motif || (nc.type && nc.type.length > 5 ? nc.type : '');
+                if (motifLabel) {
+                  badgeType = `<span style="background:rgba(239,68,68,0.2);color:#ef4444;border:1px solid #ef4444;padding:2px 6px;border-radius:4px;font-size:10px;font-weight:700">${motifLabel}</span>`;
+                  detailText = nc.detail || nc.autre || nc.chgt || nc.autorise || nc.fausse || nc.refus || '—';
+                } else if (nc.chgt) {
                   badgeType = '<span style="background:rgba(239,68,68,0.2);color:#ef4444;border:1px solid #ef4444;padding:2px 6px;border-radius:4px;font-size:10px;font-weight:700">Chgt compte</span>';
                   detailText = nc.chgt;
                 } else if (nc.refus) {
