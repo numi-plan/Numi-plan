@@ -358,8 +358,7 @@
     border-radius: 6px;
     font-size: 11px;
     font-weight: 800;
-    text-transform: uppercase;
-    letter-spacing: 0.3px;
+    letter-spacing: 0.2px;
   }
   .badge-chgt {
     background: rgba(245, 158, 11, 0.15);
@@ -380,6 +379,21 @@
     background: rgba(168, 85, 247, 0.15);
     color: #c084fc;
     border: 1px solid rgba(168, 85, 247, 0.35);
+  }
+  .badge-securite {
+    background: rgba(239, 68, 68, 0.25);
+    color: #fca5a5;
+    border: 1px solid #ef4444;
+  }
+  .badge-injoignable {
+    background: rgba(249, 115, 22, 0.15);
+    color: #fb923c;
+    border: 1px solid rgba(249, 115, 22, 0.35);
+  }
+  .badge-retard {
+    background: rgba(234, 179, 8, 0.15);
+    color: #facc15;
+    border: 1px solid rgba(234, 179, 8, 0.35);
   }
   .badge-autre {
     background: rgba(148, 163, 184, 0.15);
@@ -484,7 +498,7 @@
     border: 1px solid var(--border-hover);
     border-radius: 16px;
     width: 100%;
-    max-width: 640px;
+    max-width: 680px;
     box-shadow: 0 20px 40px rgba(0, 0, 0, 0.6);
     overflow: hidden;
     animation: modalIn 0.25s ease-out;
@@ -522,6 +536,8 @@
     display: grid;
     grid-template-columns: 1fr 1fr;
     gap: 16px;
+    max-height: 75vh;
+    overflow-y: auto;
   }
   .form-group {
     display: flex;
@@ -592,7 +608,7 @@
   <div class="section-head">
     <div class="head-left">
       <h1><i class="fa-solid fa-clipboard-list" style="color:#ef4444"></i> Registre des Non-Conformités & Écarts</h1>
-      <p>Base consolidée multi-équipes synchronisée avec Supabase, Numiplan Dispo & Dossiers Sharik</p>
+      <p>Base consolidée multi-équipes synchronisée en temps réel avec Numiplan Dispo & Dossiers Sharik</p>
     </div>
     <div class="head-right">
       <button class="btn-action primary" onclick="openAddNcModal()"><i class="fa-solid fa-plus"></i> Déclarer une NC</button>
@@ -608,20 +624,20 @@
       <div class="kpi-value" id="kpi-total-nc" style="color:#f87171">0</div>
       <div class="kpi-sub">Toutes équipes confondues</div>
     </div>
-    <div class="kpi-card" onclick="filterByKpi('chgt')" style="border-color: rgba(245, 158, 11, 0.4);">
+    <div class="kpi-card" onclick="filterByKpi('Chargé à son compte')" style="border-color: rgba(245, 158, 11, 0.4);">
       <div class="kpi-title">CHGT À SON COMPTE <i class="fa-solid fa-shuffle" style="color:#fbbf24"></i></div>
       <div class="kpi-value" id="kpi-chgt-nc" style="color:#fbbf24">0</div>
-      <div class="kpi-sub">Trajets modifiés sans accord</div>
+      <div class="kpi-sub">Autorisé & Non autorisé</div>
     </div>
     <div class="kpi-card" onclick="filterByKpi('fausse')" style="border-color: rgba(239, 68, 68, 0.4);">
       <div class="kpi-title">FAUSSES DÉCLARATIONS <i class="fa-solid fa-ban" style="color:#f87171"></i></div>
       <div class="kpi-value" id="kpi-fausse-nc" style="color:#f87171">0</div>
       <div class="kpi-sub">Déclarations erronées / falsifiées</div>
     </div>
-    <div class="kpi-card" onclick="filterByKpi('refus')" style="border-color: rgba(168, 85, 247, 0.4);">
-      <div class="kpi-title">REFUS DE TRAVAIL <i class="fa-solid fa-hand" style="color:#c084fc"></i></div>
+    <div class="kpi-card" onclick="filterByKpi('Refus')" style="border-color: rgba(168, 85, 247, 0.4);">
+      <div class="kpi-title">REFUS DE MISSION <i class="fa-solid fa-hand" style="color:#c084fc"></i></div>
       <div class="kpi-value" id="kpi-refus-nc" style="color:#c084fc">0</div>
-      <div class="kpi-sub">Missions refusées par le chauffeur</div>
+      <div class="kpi-sub">Travail, COPIL, GPS & Orientation</div>
     </div>
     <div class="kpi-card" onclick="toggleRecidivesOnly()" style="border-color: rgba(239, 68, 68, 0.6);">
       <div class="kpi-title">RÉCIDIVISTES (≥ 2 NC) <i class="fa-solid fa-triangle-exclamation" style="color:#ef4444"></i></div>
@@ -638,15 +654,28 @@
   <!-- TOOLBAR & FILTRES -->
   <div class="toolbar">
     <div class="filter-group">
-      <input type="text" id="flt-search" class="input-control search-input" placeholder="🔍 Rechercher chauffeur, tracteur, trajet, CET..." oninput="renderNcTable()">
+      <input type="text" id="flt-search" class="input-control search-input" placeholder="🔍 Rechercher chauffeur, tracteur, trajet, CET, motif..." oninput="renderNcTable()">
       
-      <select id="flt-type" class="input-control" onchange="renderNcTable()">
-        <option value="">Tous les types</option>
-        <option value="chgt">Changement à son compte</option>
-        <option value="autorise">Changement autorisé</option>
-        <option value="fausse">Fausse déclaration</option>
-        <option value="refus">Refus de travail</option>
-        <option value="autre">Autre manquement</option>
+      <select id="flt-type" class="input-control" onchange="renderNcTable()" style="max-width:280px">
+        <option value="">Tous les motifs de non-conformité</option>
+        <option value="Chargé à son compte - Autorisé">Chargé à son compte - Autorisé</option>
+        <option value="Chargé à son compte - Non autorisé">Chargé à son compte - Non autorisé</option>
+        <option value="Refus de travail">Refus de travail</option>
+        <option value="Changement destination sans informer">Changement destination sans informer</option>
+        <option value="Retard de réalisation">Retard de réalisation</option>
+        <option value="Non-acheminement du camion au parc">Non-acheminement du camion au parc</option>
+        <option value="fausse déclaration">fausse déclaration</option>
+        <option value="Refus orientation">Refus orientation</option>
+        <option value="Refus d'aller au COPIL">Refus d'aller au COPIL</option>
+        <option value="Refus Réparation GPS">Refus Réparation GPS</option>
+        <option value="Injoignable plus de 24 heures">Injoignable plus de 24 heures</option>
+        <option value="Retard important dans le dépôt des BL">Retard important dans le dépôt des BL</option>
+        <option value="Non-respect des consignes de sécurité">Non-respect des consignes de sécurité</option>
+        <option value="Manquement à la discipline / comportement inapproprié">Manquement à la discipline / comportement inapproprié</option>
+        <option value="camion solo sans justification opérationnelle">camion solo sans justification opérationnelle</option>
+        <option value="Refus d’assistance à un autre Sharik en panne.">Refus d’assistance à un autre Sharik en panne.</option>
+        <option value="Retard dans la récupération du camion réparé.">Retard dans la récupération du camion réparé.</option>
+        <option value="Autre">Autre</option>
       </select>
 
       <select id="flt-team" class="input-control" onchange="renderNcTable()">
@@ -686,7 +715,7 @@
             <th style="width:75px">Équipe</th>
             <th>Chauffeur Sharik</th>
             <th style="width:130px">Véhicule</th>
-            <th style="width:140px">Type de Manquement</th>
+            <th style="width:190px">Motif de Non-Conformité</th>
             <th>Détail / Trajet Constaté</th>
             <th style="width:110px">Mise en Demeure</th>
             <th style="width:100px">Commission</th>
@@ -749,18 +778,31 @@
       </div>
 
       <div class="form-group full">
-        <label>Type de Non-Conformité</label>
-        <select id="modal-nc-type" class="input-control" onchange="toggleNcTypeFields(this.value)">
-          <option value="chgt">Changement à son compte</option>
-          <option value="autorise">Chargement à son compte autorisé (Limite 400 km)</option>
-          <option value="fausse">Fausse déclaration</option>
-          <option value="refus">Refus de travail / mission</option>
-          <option value="autre">Autre fait</option>
+        <label>Motif de la Non-Conformité (Liste Officielle)</label>
+        <select id="modal-nc-type" class="input-control" onchange="toggleNcTypeFields(this.value)" style="font-weight:600">
+          <option value="Chargé à son compte - Autorisé">Chargé à son compte - Autorisé</option>
+          <option value="Chargé à son compte - Non autorisé">Chargé à son compte - Non autorisé</option>
+          <option value="Refus de travail">Refus de travail</option>
+          <option value="Changement destination sans informer">Changement destination sans informer</option>
+          <option value="Retard de réalisation">Retard de réalisation</option>
+          <option value="Non-acheminement du camion au parc">Non-acheminement du camion au parc</option>
+          <option value="fausse déclaration">fausse déclaration</option>
+          <option value="Refus orientation">Refus orientation</option>
+          <option value="Refus d'aller au COPIL">Refus d'aller au COPIL</option>
+          <option value="Refus Réparation GPS">Refus Réparation GPS</option>
+          <option value="Injoignable plus de 24 heures">Injoignable plus de 24 heures</option>
+          <option value="Retard important dans le dépôt des BL">Retard important dans le dépôt des BL</option>
+          <option value="Non-respect des consignes de sécurité">Non-respect des consignes de sécurité</option>
+          <option value="Manquement à la discipline / comportement inapproprié">Manquement à la discipline / comportement inapproprié</option>
+          <option value="camion solo sans justification opérationnelle">camion solo sans justification opérationnelle</option>
+          <option value="Refus d’assistance à un autre Sharik en panne.">Refus d’assistance à un autre Sharik en panne.</option>
+          <option value="Retard dans la récupération du camion réparé.">Retard dans la récupération du camion réparé.</option>
+          <option value="Autre">Autre</option>
         </select>
       </div>
 
       <div class="form-group full" id="group-nc-detail">
-        <label id="lbl-nc-detail">Trajet / Détail (ex: BLIDA - ORAN)</label>
+        <label id="lbl-nc-detail">Trajet / Détail constaté (ex: BLIDA - ORAN)</label>
         <input type="text" id="modal-nc-detail" class="input-control" placeholder="Détail du trajet ou du constat...">
       </div>
 
@@ -841,6 +883,27 @@ function showToast(msg, isErr = false) {
   setTimeout(() => { t.style.display = 'none'; }, 3500);
 }
 
+// Détection et normalisation du motif de NC
+function normalizeMotif(r) {
+  if (r.motif) return r.motif;
+  if (r.type && r.type.length > 5) return r.type;
+  if (r.autorise) return "Chargé à son compte - Autorisé";
+  if (r.chgt) return "Chargé à son compte - Non autorisé";
+  if (r.fausse) return "fausse déclaration";
+  if (r.refus) return "Refus de travail";
+  if (r.autre) {
+    if (r.autre.includes('destination')) return "Changement destination sans informer";
+    if (r.autre.includes('parc')) return "Non-acheminement du camion au parc";
+    if (r.autre.includes('GPS')) return "Refus Réparation GPS";
+    if (r.autre.includes('COPIL')) return "Refus d'aller au COPIL";
+    if (r.autre.includes('orientation')) return "Refus orientation";
+    if (r.autre.includes('sécurité')) return "Non-respect des consignes de sécurité";
+    if (r.autre.includes('24')) return "Injoignable plus de 24 heures";
+    return "Autre";
+  }
+  return "Non-conformité";
+}
+
 async function loadNcData() {
   try {
     showToast('⏳ Synchronisation des Non-Conformités...');
@@ -872,9 +935,8 @@ async function loadNcData() {
       }
     });
 
-    // Également incorporer si des lignes sont dans np_nc
+    // Incorporer les lignes de np_nc
     (npNcRes.data || []).forEach((row, idx) => {
-      // Éviter doublons stricts si déjà dans compiled
       const exists = compiled.some(c => c.n === row.n && c.sharik === row.sharik && c.date === row.date);
       if (!exists) {
         compiled.push({
@@ -906,14 +968,14 @@ async function loadNcData() {
 
 function updateKpis() {
   const total = allNcList.length;
-  let chgt = 0, fausse = 0, refus = 0, autorise = 0, mises = 0;
+  let chgt = 0, fausse = 0, refus = 0, mises = 0;
   const driverCounts = {};
 
   allNcList.forEach(r => {
-    if (r.chgt) chgt++;
-    if (r.fausse) fausse++;
-    if (r.refus) refus++;
-    if (r.autorise) autorise++;
+    const m = normalizeMotif(r).toLowerCase();
+    if (m.includes('chargé à son compte') || m.includes('chgt') || r.chgt || r.autorise) chgt++;
+    if (m.includes('fausse') || r.fausse) fausse++;
+    if (m.includes('refus') || r.refus) refus++;
     if (r.mise && String(r.mise).trim() && String(r.mise).toUpperCase() !== 'NON') mises++;
     const ch = (r.sharik || '').trim().toUpperCase();
     if (ch) driverCounts[ch] = (driverCounts[ch] || 0) + 1;
@@ -936,7 +998,6 @@ function renderNcTable() {
   const dateFrom = document.getElementById('flt-date-from').value;
   const dateTo = document.getElementById('flt-date-to').value;
 
-  // Calcul du nombre de NC par chauffeur pour marquer les récidivistes
   const driverCounts = {};
   allNcList.forEach(r => {
     const ch = (r.sharik || '').trim().toUpperCase();
@@ -946,22 +1007,26 @@ function renderNcTable() {
   const filtered = allNcList.filter(r => {
     const ch = (r.sharik || '').trim().toUpperCase();
     const count = driverCounts[ch] || 0;
+    const motif = normalizeMotif(r);
 
     if (filterRecidivesOnly && count < 2) return false;
     if (teamF && r._team !== teamF) return false;
     if (dateFrom && (r.date || '') < dateFrom) return false;
     if (dateTo && (r.date || '') > dateTo) return false;
 
-    // Filtre par type
-    if (typeF === 'chgt' && !r.chgt) return false;
-    if (typeF === 'autorise' && !r.autorise) return false;
-    if (typeF === 'fausse' && !r.fausse) return false;
-    if (typeF === 'refus' && !r.refus) return false;
-    if (typeF === 'autre' && !r.autre) return false;
+    // Filtre par type/motif
+    if (typeF) {
+      if (motif !== typeF && !motif.toLowerCase().includes(typeF.toLowerCase())) {
+        if (typeF.includes('Autorisé') && !r.autorise) return false;
+        if (typeF.includes('Non autorisé') && !r.chgt) return false;
+        if (typeF.includes('fausse') && !r.fausse) return false;
+        if (typeF.includes('Refus') && !r.refus) return false;
+      }
+    }
 
     // Recherche plein texte
     if (q) {
-      const text = `${r.n||''} ${r.sharik||''} ${r.v||''} ${r.chgt||''} ${r.autorise||''} ${r.fausse||''} ${r.refus||''} ${r.autre||''} ${r.cet||''} ${r.mise||''}`.toLowerCase();
+      const text = `${r.n||''} ${r.sharik||''} ${r.v||''} ${motif} ${r.chgt||''} ${r.autorise||''} ${r.fausse||''} ${r.refus||''} ${r.autre||''} ${r.detail||''} ${r.cet||''} ${r.mise||''}`.toLowerCase();
       if (!text.includes(q)) return false;
     }
     return true;
@@ -987,27 +1052,34 @@ function renderNcTable() {
     const count = driverCounts[ch] || 1;
     const recidiveTag = count >= 2 ? `<span class="badge-recidive" title="${count} infractions au dossier">⚠️ ${count} NC</span>` : '';
 
+    const motif = normalizeMotif(r);
     let typeBadge = '';
-    let detail = '';
-    if (r.chgt) {
+    let detail = r.detail || '';
+
+    if (motif === 'Chargé à son compte - Autorisé') {
+      typeBadge = `<span class="badge badge-autorise"><i class="fa-solid fa-check"></i> Autorisé</span>`;
+      if (!detail) detail = r.autorise || '';
+    } else if (motif === 'Chargé à son compte - Non autorisé') {
       typeBadge = `<span class="badge badge-chgt"><i class="fa-solid fa-shuffle"></i> Chgt compte</span>`;
-      detail = r.chgt;
-    } else if (r.autorise) {
-      typeBadge = `<span class="badge badge-autorise"><i class="fa-solid fa-check"></i> Chgt autorisé</span>`;
-      detail = r.autorise;
-    } else if (r.fausse) {
+      if (!detail) detail = r.chgt || '';
+    } else if (motif.includes('fausse')) {
       typeBadge = `<span class="badge badge-fausse"><i class="fa-solid fa-ban"></i> Fausse décl.</span>`;
-      detail = r.fausse;
-    } else if (r.refus) {
-      typeBadge = `<span class="badge badge-refus"><i class="fa-solid fa-hand"></i> Refus travail</span>`;
-      detail = r.refus;
-    } else if (r.autre) {
-      typeBadge = `<span class="badge badge-autre"><i class="fa-solid fa-triangle-exclamation"></i> Autre</span>`;
-      detail = r.autre;
+      if (!detail) detail = r.fausse || '';
+    } else if (motif.includes('Refus')) {
+      typeBadge = `<span class="badge badge-refus"><i class="fa-solid fa-hand"></i> ${motif}</span>`;
+      if (!detail) detail = r.refus || '';
+    } else if (motif.includes('sécurité')) {
+      typeBadge = `<span class="badge badge-securite"><i class="fa-solid fa-triangle-exclamation"></i> Sécurité</span>`;
+    } else if (motif.includes('Injoignable')) {
+      typeBadge = `<span class="badge badge-injoignable"><i class="fa-solid fa-phone-slash"></i> Injoignable 24h</span>`;
+    } else if (motif.includes('Retard')) {
+      typeBadge = `<span class="badge badge-retard"><i class="fa-solid fa-clock"></i> ${motif}</span>`;
     } else {
-      typeBadge = `<span class="badge badge-chgt">Chgt compte</span>`;
-      detail = r.detail || '—';
+      typeBadge = `<span class="badge badge-autre">${motif}</span>`;
+      if (!detail) detail = r.autre || '';
     }
+
+    if (!detail) detail = r.chgt || r.autorise || r.fausse || r.refus || r.autre || '—';
 
     const miseBadge = (r.mise && String(r.mise).toUpperCase() !== 'NON') 
       ? `<span class="badge badge-mise">${r.mise}</span>` 
@@ -1042,11 +1114,11 @@ function renderNcTable() {
 function filterByKpi(type) {
   filterRecidivesOnly = false;
   document.getElementById('btn-toggle-recidive').classList.remove('active');
-  document.getElementById('flt-type').value = (type === 'mise' ? '' : type);
   if (type === 'mise') {
+    document.getElementById('flt-type').value = '';
     document.getElementById('flt-search').value = 'mise';
   } else {
-    document.getElementById('flt-search').value = '';
+    document.getElementById('flt-search').value = type;
   }
   renderNcTable();
 }
@@ -1105,7 +1177,6 @@ function autoFillVehicle(driverName) {
     if (found.team) document.getElementById('modal-nc-team').value = found.team;
     return;
   }
-  // Chercher dans l'historique NC
   const prevNc = allNcList.find(n => (n.sharik || '').trim().toUpperCase() === s && n.v);
   if (prevNc && prevNc.v) {
     document.getElementById('modal-nc-v').value = prevNc.v;
@@ -1135,21 +1206,24 @@ function toggleNcTypeFields(type) {
   const lblDetail = document.getElementById('lbl-nc-detail');
   const inputDetail = document.getElementById('modal-nc-detail');
 
-  if (type === 'autre') {
+  if (type === 'Autre') {
     autreGroup.style.display = 'flex';
     lblDetail.textContent = 'Objet / Titre résumé';
-    inputDetail.placeholder = 'Ex: Comportement inapproprié, retard...';
+    inputDetail.placeholder = 'Ex: Comportement inapproprié, faits divers...';
   } else {
     autreGroup.style.display = 'none';
-    if (type === 'chgt' || type === 'autorise') {
+    if (type.includes('Autorisé') || type.includes('Non autorisé')) {
       lblDetail.textContent = 'Trajet constaté (ex: BLIDA - ORAN)';
-      inputDetail.placeholder = 'DEPART - DESTINATION (Contrôle 400km)';
-    } else if (type === 'fausse') {
+      inputDetail.placeholder = 'DEPART - DESTINATION (Contrôle limite 400km)';
+    } else if (type.includes('fausse')) {
       lblDetail.textContent = 'Motif de la fausse déclaration';
       inputDetail.placeholder = 'Ex: Kilométrage erroné, faux motif panne...';
-    } else if (type === 'refus') {
-      lblDetail.textContent = 'Mission ou ordre refusé';
-      inputDetail.placeholder = 'Ex: Refus chargement Cevital Bejaia...';
+    } else if (type.includes('Refus')) {
+      lblDetail.textContent = 'Mission ou consigne refusée';
+      inputDetail.placeholder = 'Ex: Refus chargement Cevital Bejaia, refus COPIL...';
+    } else {
+      lblDetail.textContent = 'Détail / Trajet / Constat';
+      inputDetail.placeholder = 'Détails circonstanciés...';
     }
   }
 }
@@ -1161,12 +1235,12 @@ function openAddNcModal() {
   document.getElementById('modal-nc-team').value = userTeamLock || 'A1';
   document.getElementById('modal-nc-sharik').value = '';
   document.getElementById('modal-nc-v').value = '';
-  document.getElementById('modal-nc-type').value = 'chgt';
+  document.getElementById('modal-nc-type').value = 'Chargé à son compte - Non autorisé';
   document.getElementById('modal-nc-detail').value = '';
   document.getElementById('modal-nc-autre').value = '';
   document.getElementById('modal-nc-mise').value = '';
   document.getElementById('modal-nc-commission').value = '';
-  toggleNcTypeFields('chgt');
+  toggleNcTypeFields('Chargé à son compte - Non autorisé');
   document.getElementById('modal-nc').classList.add('active');
 }
 
@@ -1181,21 +1255,16 @@ function editNcRecord(index) {
   document.getElementById('modal-nc-sharik').value = r.sharik || '';
   document.getElementById('modal-nc-v').value = r.v || '';
 
-  let type = 'chgt';
-  let detailVal = '';
-  if (r.fausse) { type = 'fausse'; detailVal = r.fausse; }
-  else if (r.autorise) { type = 'autorise'; detailVal = r.autorise; }
-  else if (r.refus) { type = 'refus'; detailVal = r.refus; }
-  else if (r.autre) { type = 'autre'; detailVal = r.autre; }
-  else if (r.chgt) { type = 'chgt'; detailVal = r.chgt; }
+  const motif = normalizeMotif(r);
+  let detailVal = r.detail || r.autre || r.chgt || r.autorise || r.fausse || r.refus || '';
 
-  document.getElementById('modal-nc-type').value = type;
+  document.getElementById('modal-nc-type').value = motif;
   document.getElementById('modal-nc-detail').value = detailVal;
-  document.getElementById('modal-nc-autre').value = r.autre || '';
+  document.getElementById('modal-nc-autre').value = (motif === 'Autre') ? (r.autre || detailVal) : '';
   document.getElementById('modal-nc-mise').value = r.mise || '';
   document.getElementById('modal-nc-commission').value = r.commission || '';
 
-  toggleNcTypeFields(type);
+  toggleNcTypeFields(motif);
   document.getElementById('modal-nc').classList.add('active');
 }
 
@@ -1226,13 +1295,13 @@ async function saveNcRecord() {
     const editIdStr = document.getElementById('modal-nc-edit-id').value;
     const isEdit = editIdStr !== '';
 
-    if (type === 'autre' && !autreDetail) {
+    if (type === 'Autre' && !autreDetail && !detail) {
       alert('Veuillez préciser les faits dans la zone de texte.');
       return;
     }
 
     // Validation distance 400 km si chargement autorisé
-    if (type === 'autorise' && detail) {
+    if (type.includes('Autorisé') && detail) {
       const parts = detail.split(/[\-\➔\→\s]+/).map(p => p.trim().toUpperCase()).filter(p => p.length > 2);
       if (parts.length >= 2) {
         const dist = getCityDistance(parts[0], parts[1]);
@@ -1245,20 +1314,30 @@ async function saveNcRecord() {
 
     showToast('⏳ Enregistrement dans Supabase...');
 
-    // Déterminer numéro séquentiel
     const maxN = allNcList.reduce((m, r) => Math.max(m, r.n || 0), 0);
     const n = isEdit ? allNcList[parseInt(editIdStr)].n : (maxN + 1);
-
     const currentUser = sessionStorage.getItem('numiplan_username') || 'ADMIN';
+
+    let fausse = '', chgt = '', autorise = '', refus = '', autre = '';
+    if (type === 'Chargé à son compte - Autorisé') autorise = detail;
+    else if (type === 'Chargé à son compte - Non autorisé') chgt = detail;
+    else if (type === 'fausse déclaration') fausse = detail;
+    else if (type === 'Refus de travail') refus = detail;
+    else if (type === 'Autre') autre = autreDetail || detail;
+    else autre = (type + (detail ? ': ' + detail : ''));
+
     const ncObj = {
       n: n,
       sharik: sharik,
       v: v,
-      chgt: type === 'chgt' ? detail : '',
-      autorise: type === 'autorise' ? detail : '',
-      fausse: type === 'fausse' ? detail : '',
-      refus: type === 'refus' ? detail : '',
-      autre: type === 'autre' ? (autreDetail || detail) : '',
+      type: type,
+      motif: type,
+      detail: detail || autreDetail,
+      fausse: fausse,
+      chgt: chgt,
+      autorise: autorise,
+      refus: refus,
+      autre: autre,
       date: date,
       mise: mise,
       commission: commission,
@@ -1275,7 +1354,6 @@ async function saveNcRecord() {
       if (orig && orig._team === team && orig._idx != null) {
         currentPayload.nc[orig._idx] = ncObj;
       } else {
-        // Déplacer entre équipes si l'équipe a changé
         if (orig && orig._team && teamsPayloadMap[orig._team] && Array.isArray(teamsPayloadMap[orig._team].nc)) {
           teamsPayloadMap[orig._team].nc.splice(orig._idx, 1);
           await sb.from('numiplan_teams').upsert({
@@ -1320,10 +1398,7 @@ async function saveNcRecord() {
     closeNcModal();
     showToast('✅ Non-conformité enregistrée avec succès !');
 
-    // Préparation de la notification par email
     sendNcEmail(ncObj, true);
-
-    // Recharger les données
     loadNcData();
 
   } catch (err) {
@@ -1355,7 +1430,6 @@ async function deleteNcRecord(index) {
       if (error) throw error;
     }
 
-    // Tenter suppression dans np_nc si présent
     if (r.n) {
       try {
         await sb.from('np_nc').delete().eq('n', r.n);
@@ -1378,17 +1452,19 @@ function sendNcEmailByIndex(index) {
 function sendNcEmail(obj, isAuto = false) {
   try {
     const emailDest = 'grp_numilog_affretement@cevital.com';
-    let typeLabel = 'Non-conformité';
-    let detailTexte = '';
+    let typeLabel = obj.motif || obj.type || 'Non-conformité';
+    let detailTexte = obj.detail || '';
+    if (!detailTexte) {
+      if (obj.chgt) detailTexte = obj.chgt;
+      else if (obj.autorise) detailTexte = obj.autorise;
+      else if (obj.fausse) detailTexte = obj.fausse;
+      else if (obj.refus) detailTexte = obj.refus;
+      else if (obj.autre) detailTexte = obj.autre;
+    }
 
-    if (obj.chgt) { typeLabel = 'Changement à son compte'; detailTexte = obj.chgt; }
-    else if (obj.autorise) { typeLabel = 'Chargement à son compte autorisé'; detailTexte = obj.autorise; }
-    else if (obj.fausse) { typeLabel = 'Fausse déclaration'; detailTexte = obj.fausse; }
-    else if (obj.refus) { typeLabel = 'Refus de travail'; detailTexte = obj.refus; }
-    else if (obj.autre) { typeLabel = 'Autre manquement'; detailTexte = obj.autre; }
-    else if (obj.type) { typeLabel = obj.type; detailTexte = obj.detail || ''; }
-
-    const subject = encodeURIComponent(`[NUMIPLAN NC] ${obj.sharik} - ${obj.v || ''} (${obj._team || obj.team || ''})`.trim());
+    const dateStr = obj.date || '—';
+    const equipeStr = (obj._team || obj.team) ? ` (Équipe ${obj._team || obj.team})` : '';
+    const subject = encodeURIComponent(`[NUMIPLAN NC] ${obj.sharik} - ${obj.v || ''} (${typeLabel})`.trim());
     const body = encodeURIComponent(
 `Bonjour,
 
@@ -1398,15 +1474,15 @@ Une non-conformité a été enregistrée sur le portail NUMIPLAN concernant le c
   FICHE OFFICIELLE DE NON-CONFORMITÉ
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   N° Infraction    : ${obj.n || '—'}
-  Date             : ${obj.date || '—'}
+  Date             : ${dateStr}
   Équipe           : ${obj._team || obj.team || '—'}
   Chauffeur Sharik : ${obj.sharik}
   Véhicule (Immat) : ${obj.v || '—'}
-  Type NC          : ${typeLabel}
+  Motif NC         : ${typeLabel}
   Trajet / Constat : ${detailTexte || '—'}
   Mise en demeure  : ${obj.mise || '—'}
   Commission       : ${obj.commission || '—'}
-  Enregistré par   : ${obj.cet || '—'}
+  Enregistré par   : ${obj.cet || '—'}${equipeStr}
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 Notification automatique transmise à la cellule affrètement Cevital / Numilog.`
@@ -1436,13 +1512,8 @@ function exportNcExcel() {
   }
   const wb = XLSX.utils.book_new();
   const exportData = allNcList.map(r => {
-    let typeStr = '';
-    let detailStr = '';
-    if (r.chgt) { typeStr = 'Chgt compte'; detailStr = r.chgt; }
-    else if (r.autorise) { typeStr = 'Chgt autorisé'; detailStr = r.autorise; }
-    else if (r.fausse) { typeStr = 'Fausse déclaration'; detailStr = r.fausse; }
-    else if (r.refus) { typeStr = 'Refus travail'; detailStr = r.refus; }
-    else if (r.autre) { typeStr = 'Autre'; detailStr = r.autre; }
+    const motif = normalizeMotif(r);
+    let detailStr = r.detail || r.autre || r.chgt || r.autorise || r.fausse || r.refus || '';
 
     return {
       'N°': r.n || '',
@@ -1450,7 +1521,7 @@ function exportNcExcel() {
       'Équipe': r._team || r.team || '',
       'Chauffeur Sharik': r.sharik || '',
       'Véhicule': r.v || '',
-      'Type': typeStr,
+      'Motif': motif,
       'Détail / Trajet': detailStr,
       'Mise en demeure': r.mise || '',
       'Commission': r.commission || '',
@@ -1479,6 +1550,20 @@ async function initSession() {
   }
 
   loadNcData();
+
+  // Écoute en temps réel des créations dans numiplan_teams et np_nc
+  try {
+    sb.channel('realtime-nc')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'numiplan_teams' }, () => {
+        loadNcData();
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'np_nc' }, () => {
+        loadNcData();
+      })
+      .subscribe();
+  } catch (e) {
+    console.warn('Realtime channel error:', e);
+  }
 }
 
 window.addEventListener('DOMContentLoaded', initSession);
