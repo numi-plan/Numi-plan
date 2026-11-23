@@ -274,6 +274,36 @@
     border-color: var(--primary);
   }
 
+  /* BADGES AGENCE */
+  .badge-agency {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 3px 8px;
+    border-radius: 6px;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.3px;
+    white-space: nowrap;
+  }
+  .agency-a { background: rgba(56, 189, 248, 0.15); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.35); }
+  .agency-b { background: rgba(245, 158, 11, 0.15); color: #f59e0b; border: 1px solid rgba(245, 158, 11, 0.35); }
+  .agency-c { background: rgba(16, 185, 129, 0.15); color: #10b981; border: 1px solid rgba(16, 185, 129, 0.35); }
+  .agency-d { background: rgba(168, 85, 247, 0.15); color: #a855f7; border: 1px solid rgba(168, 85, 247, 0.35); }
+  .agency-other { background: rgba(148, 163, 184, 0.15); color: #94a3b8; border: 1px solid rgba(148, 163, 184, 0.35); }
+
+  .filter-bar-active {
+    display: flex;
+    gap: 12px;
+    margin-bottom: 14px;
+    flex-wrap: wrap;
+    align-items: center;
+    background: var(--bg-card);
+    padding: 12px 16px;
+    border-radius: 12px;
+    border: 1px solid var(--border);
+  }
+
   #toast {
     position: fixed;
     bottom: 24px;
@@ -361,12 +391,43 @@
     <span>🚨 Camions actuellement en attente chez les clients</span>
     <span id="active-count-lbl" style="font-size:12px;color:var(--txt-muted);font-weight:500"></span>
   </div>
+
+  <!-- FILTRES PAR AGENCE & RECHERCHE INSTANTANÉE -->
+  <div class="filter-bar-active">
+    <div style="display:flex;align-items:center;gap:8px">
+      <label for="flt-active-agency" style="font-size:12px;font-weight:700;color:var(--txt-muted)">
+        <i class="fa-solid fa-building" style="color:var(--primary)"></i> Filtrer par Agence :
+      </label>
+      <select id="flt-active-agency" class="input-control" onchange="renderActiveTable()" style="min-width:220px;font-weight:700;border-color:var(--primary);color:var(--primary);background:#0f182c;cursor:pointer">
+        <option value="ALL">🏢 Toutes les agences</option>
+        <option value="A">Agence A</option>
+        <option value="B">Agence B</option>
+        <option value="C">Agence C</option>
+        <option value="D">Agence D</option>
+      </select>
+    </div>
+
+    <div style="position:relative;flex:1;min-width:240px;max-width:420px;">
+      <i class="fa-solid fa-magnifying-glass" style="position:absolute;left:12px;top:50%;transform:translateY(-50%);color:var(--txt-dim);font-size:12px"></i>
+      <input type="text" id="flt-active-search" class="input-control" placeholder="Rechercher camion, chauffeur, client/POI…" oninput="renderActiveTable()" style="width:100%;padding-left:36px">
+    </div>
+
+    <button onclick="resetActiveFilters()" class="btn-nav" style="padding:7px 14px;font-size:11px">
+      <i class="fa-solid fa-rotate-left"></i> Réinitialiser
+    </button>
+
+    <button onclick="exportActiveExcel()" class="btn-nav" style="padding:7px 14px;font-size:11px;margin-left:auto;border-color:var(--accent-green);color:var(--accent-green)">
+      <i class="fa-solid fa-file-excel"></i> Exporter Camions en attente
+    </button>
+  </div>
+
   <div class="table-container" style="max-height: 48vh; overflow-y:auto">
     <table>
       <thead>
         <tr>
           <th>Camion</th>
           <th>Chauffeur</th>
+          <th>Agence</th>
           <th>Client / POI</th>
           <th>Heure d'Arrivée</th>
           <th>Dernier Signal</th>
@@ -374,7 +435,7 @@
         </tr>
       </thead>
       <tbody id="poi-active-tbody">
-        <tr><td colspan="6" style="text-align:center;padding:30px;color:var(--txt-muted)">Recherche des camions sur site...</td></tr>
+        <tr><td colspan="7" style="text-align:center;padding:30px;color:var(--txt-muted)">Recherche des camions sur site...</td></tr>
       </tbody>
     </table>
   </div>
@@ -387,7 +448,14 @@
     </button>
   </div>
   
-  <div style="display:flex;gap:10px;margin-bottom:14px;flex-wrap:wrap">
+  <div style="display:flex;gap:10px;margin-bottom:14px;flex-wrap:wrap;align-items:center;">
+    <select id="flt-hist-agency" class="input-control" onchange="renderHistoryTable()" style="min-width:170px;cursor:pointer">
+      <option value="ALL">🏢 Toutes agences</option>
+      <option value="A">Agence A</option>
+      <option value="B">Agence B</option>
+      <option value="C">Agence C</option>
+      <option value="D">Agence D</option>
+    </select>
     <input type="text" id="flt-hist-client" class="input-control" placeholder="🔍 Filtrer par client/POI…" oninput="renderHistoryTable()">
     <input type="text" id="flt-hist-truck" class="input-control" placeholder="🔍 Filtrer par camion…" oninput="renderHistoryTable()">
     <input type="date" id="flt-hist-date-from" class="input-control" onchange="renderHistoryTable()">
@@ -401,6 +469,7 @@
         <tr>
           <th>Date</th>
           <th>Camion</th>
+          <th>Agence</th>
           <th>Client / POI</th>
           <th>Arrivée</th>
           <th>Départ</th>
@@ -408,7 +477,7 @@
         </tr>
       </thead>
       <tbody id="poi-history-tbody">
-        <tr><td colspan="6" style="text-align:center;padding:30px;color:var(--txt-muted)">Chargement de l'historique...</td></tr>
+        <tr><td colspan="7" style="text-align:center;padding:30px;color:var(--txt-muted)">Chargement de l'historique...</td></tr>
       </tbody>
     </table>
   </div>
@@ -472,7 +541,7 @@ async function loadPoiData() {
       safeQuery(sb.from('np_pois').select('*').limit(2000)),
       safeQuery(sb.from('np_poi_visits').select('*').is('left_at', null).order('arrived_at', { ascending: false })),
       safeQuery(sb.from('np_poi_visits').select('*').not('left_at', 'is', null).order('left_at', { ascending: false }).limit(500)),
-      safeQuery(sb.from('np_dispo').select('v, chauffeur, etat').limit(500))
+      safeQuery(sb.from('np_dispo').select('v, chauffeur, etat, team').limit(1500))
     ]);
 
     poisList = poisRes.data || [];
@@ -484,7 +553,7 @@ async function loadPoiData() {
       if (d.v) dispoMap[d.v.trim().toUpperCase()] = d;
     });
 
-    // Compléter les visites actives avec chauffeur et durée
+    // Compléter les visites actives avec chauffeur, durée et agence
     const now = new Date();
     activeVisits.forEach(v => {
       const arr = new Date(v.arrived_at);
@@ -492,7 +561,17 @@ async function loadPoiData() {
       const d = dispoMap[(v.v || '').trim().toUpperCase()];
       v.chauffeur = d?.chauffeur || '—';
       v.etat = d?.etat || '';
+      if (!v.team && d?.team) v.team = d.team;
     });
+
+    // Compléter également l'historique avec l'agence si disponible
+    historyVisits.forEach(v => {
+      const d = dispoMap[(v.v || '').trim().toUpperCase()];
+      if (!v.team && d?.team) v.team = d.team;
+    });
+
+    // Remplir dynamiquement les filtres d'agence avec compteurs
+    populateAgencyFilters();
 
     // KPIs
     document.getElementById('kpi-total-pois').textContent = poisList.length.toLocaleString('fr-FR');
@@ -512,6 +591,82 @@ async function loadPoiData() {
   }
 }
 
+// Formatage d'affichage d'une Agence (Équipe)
+function formatAgency(raw) {
+  if (!raw) return { code: '—', label: 'Non défini', class: 'agency-other' };
+  const clean = String(raw).trim().toUpperCase();
+  const letter = clean.length > 0 ? clean[0] : '';
+  if (['A', 'B', 'C', 'D'].includes(letter)) {
+    return {
+      code: letter,
+      label: `Agence ${letter}`,
+      class: `agency-${letter.toLowerCase()}`
+    };
+  }
+  return {
+    code: clean,
+    label: `Agence ${clean}`,
+    class: 'agency-other'
+  };
+}
+
+// Peupler les sélecteurs d'agences avec compteurs en temps réel
+function populateAgencyFilters() {
+  const selActive = document.getElementById('flt-active-agency');
+  if (selActive) {
+    const curActive = selActive.value || 'ALL';
+    const countsActive = { 'ALL': activeVisits.length };
+    activeVisits.forEach(v => {
+      const raw = (v.team || '').trim().toUpperCase();
+      const ag = raw ? (['A','B','C','D'].includes(raw[0]) ? raw[0] : raw) : 'AUTRE';
+      countsActive[ag] = (countsActive[ag] || 0) + 1;
+    });
+
+    const agOrder = ['A', 'B', 'C', 'D'];
+    Object.keys(countsActive).forEach(k => {
+      if (k !== 'ALL' && !agOrder.includes(k) && k !== 'AUTRE') agOrder.push(k);
+    });
+    if (countsActive['AUTRE']) agOrder.push('AUTRE');
+
+    let html = `<option value="ALL">🏢 Toutes les agences (${activeVisits.length})</option>`;
+    agOrder.forEach(ag => {
+      const cnt = countsActive[ag] || 0;
+      const label = ag === 'AUTRE' ? 'Autres / Sans agence' : `Agence ${ag}`;
+      html += `<option value="${ag}">${label} (${cnt})</option>`;
+    });
+    selActive.innerHTML = html;
+    if (countsActive[curActive] !== undefined) selActive.value = curActive;
+    else selActive.value = 'ALL';
+  }
+
+  const selHist = document.getElementById('flt-hist-agency');
+  if (selHist) {
+    const curHist = selHist.value || 'ALL';
+    const countsHist = { 'ALL': historyVisits.length };
+    historyVisits.forEach(v => {
+      const raw = (v.team || '').trim().toUpperCase();
+      const ag = raw ? (['A','B','C','D'].includes(raw[0]) ? raw[0] : raw) : 'AUTRE';
+      countsHist[ag] = (countsHist[ag] || 0) + 1;
+    });
+
+    const agOrder = ['A', 'B', 'C', 'D'];
+    Object.keys(countsHist).forEach(k => {
+      if (k !== 'ALL' && !agOrder.includes(k) && k !== 'AUTRE') agOrder.push(k);
+    });
+    if (countsHist['AUTRE']) agOrder.push('AUTRE');
+
+    let html = `<option value="ALL">🏢 Toutes agences (${historyVisits.length})</option>`;
+    agOrder.forEach(ag => {
+      const cnt = countsHist[ag] || 0;
+      const label = ag === 'AUTRE' ? 'Autres' : `Agence ${ag}`;
+      html += `<option value="${ag}">${label} (${cnt})</option>`;
+    });
+    selHist.innerHTML = html;
+    if (countsHist[curHist] !== undefined) selHist.value = curHist;
+    else selHist.value = 'ALL';
+  }
+}
+
 function setLiveFilter(flt) {
   liveFilter = flt;
   document.getElementById('card-waiting').classList.toggle('active', flt === 'all');
@@ -521,15 +676,37 @@ function setLiveFilter(flt) {
 
 function renderActiveTable() {
   const tbody = document.getElementById('poi-active-tbody');
+  const selAgency = document.getElementById('flt-active-agency')?.value || 'ALL';
+  const q = (document.getElementById('flt-active-search')?.value || '').trim().toLowerCase();
+
   let list = activeVisits;
   if (liveFilter === 'alerts') {
     list = list.filter(v => v.duration_hours >= 2.0);
   }
 
-  document.getElementById('active-count-lbl').textContent = `${list.length} camion(s) affiché(s)`;
+  // Filtrage par Agence
+  if (selAgency !== 'ALL') {
+    list = list.filter(v => {
+      const raw = (v.team || '').trim().toUpperCase();
+      const agLetter = raw ? raw[0] : '';
+      if (selAgency === 'AUTRE') return !raw || !['A','B','C','D'].includes(agLetter);
+      return raw === selAgency || agLetter === selAgency;
+    });
+  }
+
+  // Filtrage par recherche plein texte (camion, chauffeur, client/poi)
+  if (q) {
+    list = list.filter(v => {
+      const agInfo = formatAgency(v.team);
+      const txt = `${v.v || ''} ${v.chauffeur || ''} ${v.poi_name || ''} ${v.team || ''} ${agInfo.label}`.toLowerCase();
+      return txt.includes(q);
+    });
+  }
+
+  document.getElementById('active-count-lbl').textContent = `${list.length} / ${activeVisits.length} camion(s) affiché(s)`;
 
   if (!list.length) {
-    tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;padding:30px;color:var(--txt-muted)">${liveFilter === 'alerts' ? 'Aucune alerte (> 2H) en cours pour le moment.' : 'Aucun camion n\'est actuellement chez un client.'}</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="7" style="text-align:center;padding:30px;color:var(--txt-muted)">${liveFilter === 'alerts' ? 'Aucune alerte (> 2H) pour cette sélection.' : 'Aucun camion ne correspond aux filtres sélectionnés.'}</td></tr>`;
     return;
   }
 
@@ -538,6 +715,7 @@ function renderActiveTable() {
     const mins = Math.round(((v.duration_hours || 0) - hours) * 60);
     const waitStr = `${hours}h ${mins}m`;
     const isAlert = v.duration_hours >= 2.0;
+    const agInfo = formatAgency(v.team);
 
     let panneTag = '';
     if (v.etat && v.etat.toLowerCase().includes('panne')) {
@@ -548,6 +726,7 @@ function renderActiveTable() {
       <tr style="${isAlert ? 'background:rgba(239,68,68,0.08);border-left:4px solid #ef4444' : ''}">
         <td style="font-family:'JetBrains Mono',monospace;font-weight:700;color:#38bdf8">${v.v}${panneTag}</td>
         <td>${v.chauffeur || '—'}</td>
+        <td><span class="badge-agency ${agInfo.class}">${agInfo.label}</span></td>
         <td style="font-weight:600">${v.poi_name || 'Site inconnu'}</td>
         <td>${v.arrived_at ? new Date(v.arrived_at).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) : '—'}</td>
         <td>${v.last_seen_at ? new Date(v.last_seen_at).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) : '—'}</td>
@@ -559,14 +738,83 @@ function renderActiveTable() {
   }).join('');
 }
 
+function resetActiveFilters() {
+  const sel = document.getElementById('flt-active-agency');
+  if (sel) sel.value = 'ALL';
+  const inp = document.getElementById('flt-active-search');
+  if (inp) inp.value = '';
+  renderActiveTable();
+  showToast('Filtres réinitialisés');
+}
+
+function exportActiveExcel() {
+  const selAgency = document.getElementById('flt-active-agency')?.value || 'ALL';
+  const q = (document.getElementById('flt-active-search')?.value || '').trim().toLowerCase();
+
+  let list = activeVisits;
+  if (liveFilter === 'alerts') list = list.filter(v => v.duration_hours >= 2.0);
+  if (selAgency !== 'ALL') {
+    list = list.filter(v => {
+      const raw = (v.team || '').trim().toUpperCase();
+      const agLetter = raw ? raw[0] : '';
+      if (selAgency === 'AUTRE') return !raw || !['A','B','C','D'].includes(agLetter);
+      return raw === selAgency || agLetter === selAgency;
+    });
+  }
+  if (q) {
+    list = list.filter(v => {
+      const agInfo = formatAgency(v.team);
+      const txt = `${v.v || ''} ${v.chauffeur || ''} ${v.poi_name || ''} ${v.team || ''} ${agInfo.label}`.toLowerCase();
+      return txt.includes(q);
+    });
+  }
+
+  if (!list.length) {
+    showToast('⚠️ Aucun camion à exporter pour ces filtres.', true);
+    return;
+  }
+
+  const exportData = list.map(v => {
+    const hours = Math.floor(v.duration_hours || 0);
+    const mins = Math.round(((v.duration_hours || 0) - hours) * 60);
+    const agInfo = formatAgency(v.team);
+    return {
+      'Camion': v.v,
+      'Chauffeur': v.chauffeur || '',
+      'Agence': agInfo.label,
+      'Client / POI': v.poi_name || '',
+      'Heure Arrivée': v.arrived_at ? new Date(v.arrived_at).toLocaleString('fr-FR') : '',
+      'Dernier Signal': v.last_seen_at ? new Date(v.last_seen_at).toLocaleString('fr-FR') : '',
+      'Temps Attente': `${hours}h ${mins}m`,
+      'Statut Alerte': (v.duration_hours >= 2.0) ? 'CRITIQUE (>2H)' : 'NORMAL'
+    };
+  });
+
+  const wb = XLSX.utils.book_new();
+  const ws = XLSX.utils.json_to_sheet(exportData);
+  XLSX.utils.book_append_sheet(wb, ws, 'Camions_En_Attente');
+  XLSX.writeFile(wb, `Numiplan_Camions_Attente_${selAgency}_${new Date().toISOString().split('T')[0]}.xlsx`);
+  showToast('✅ Export Excel généré avec succès');
+}
+
 function renderHistoryTable() {
   const tbody = document.getElementById('poi-history-tbody');
+  const selAgency = document.getElementById('flt-hist-agency')?.value || 'ALL';
   const qClient = (document.getElementById('flt-hist-client')?.value || '').trim().toLowerCase();
   const qTruck = (document.getElementById('flt-hist-truck')?.value || '').trim().toLowerCase();
   const dFrom = document.getElementById('flt-hist-date-from')?.value;
   const dTo = document.getElementById('flt-hist-date-to')?.value;
 
   const filtered = historyVisits.filter(v => {
+    if (selAgency !== 'ALL') {
+      const raw = (v.team || '').trim().toUpperCase();
+      const agLetter = raw ? raw[0] : '';
+      if (selAgency === 'AUTRE') {
+        if (raw && ['A','B','C','D'].includes(agLetter)) return false;
+      } else {
+        if (raw !== selAgency && agLetter !== selAgency) return false;
+      }
+    }
     if (qClient && !(v.poi_name || '').toLowerCase().includes(qClient)) return false;
     if (qTruck && !(v.v || '').toLowerCase().includes(qTruck)) return false;
     if (dFrom && v.arrived_at && v.arrived_at.split('T')[0] < dFrom) return false;
@@ -575,7 +823,7 @@ function renderHistoryTable() {
   });
 
   if (!filtered.length) {
-    tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:30px;color:var(--txt-muted)">Aucune visite trouvée pour les filtres sélectionnés.</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:30px;color:var(--txt-muted)">Aucune visite trouvée pour les filtres sélectionnés.</td></tr>';
     return;
   }
 
@@ -585,11 +833,13 @@ function renderHistoryTable() {
     const mins = Math.round((durH - hours) * 60);
     const durStr = durH > 0 ? `${hours}h ${mins}m` : '—';
     const dateStr = v.arrived_at ? new Date(v.arrived_at).toLocaleDateString('fr-FR') : '—';
+    const agInfo = formatAgency(v.team);
 
     return `
       <tr>
         <td style="font-weight:600">${dateStr}</td>
         <td style="font-family:'JetBrains Mono',monospace;font-weight:700;color:#38bdf8">${v.v}</td>
+        <td><span class="badge-agency ${agInfo.class}">${agInfo.label}</span></td>
         <td style="font-weight:600">${v.poi_name || '—'}</td>
         <td>${v.arrived_at ? new Date(v.arrived_at).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) : '—'}</td>
         <td>${v.left_at ? new Date(v.left_at).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) : '—'}</td>
@@ -600,6 +850,8 @@ function renderHistoryTable() {
 }
 
 function resetHistFilters() {
+  const sel = document.getElementById('flt-hist-agency');
+  if (sel) sel.value = 'ALL';
   document.getElementById('flt-hist-client').value = '';
   document.getElementById('flt-hist-truck').value = '';
   document.getElementById('flt-hist-date-from').value = '';
