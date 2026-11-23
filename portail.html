@@ -623,6 +623,14 @@
       applyLoggedUserUI();
     } else {
       document.getElementById('login-overlay').style.display = 'flex';
+      if (sessionStorage.getItem('numiplan_session_expired') === 'true') {
+        sessionStorage.removeItem('numiplan_session_expired');
+        const errBox = document.getElementById('login-err');
+        if (errBox) {
+          errBox.style.color = '#38bdf8';
+          errBox.textContent = '🔒 Session fermée pour inactivité (protection du quota Supabase). Veuillez vous reconnecter.';
+        }
+      }
     }
   });
 
