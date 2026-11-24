@@ -285,10 +285,12 @@
      Migration auto depuis l'ancien format data_A … data_D si besoin
      ═══════════════════════════════════════════════════════════════ -->
 <script>
+(function() {
+
   // Configuration Supabase (Client SDK standard UMD compatible document.write)
   const supabaseUrl = "https://mfljrozyxyfkymzlnsmt.supabase.co";
   const supabaseKey = "sb_publishable_sMb9uHOr4gpyqmZGrkY-YQ_z90TgNAB";
-  const supabase = (typeof window.supabase !== 'undefined' && window.supabase && typeof window.supabase.createClient === 'function')
+  var supabase = (typeof window.supabase !== 'undefined' && window.supabase && typeof window.supabase.createClient === 'function')
     ? window.supabase.createClient(supabaseUrl, supabaseKey)
     : (window.supabase || null);
   window.supabase = supabase; // Exposer globalement pour l'authentification et RLS
@@ -1288,7 +1290,7 @@
           .on(
             'postgres_changes',
             { event: '*', schema: 'public', table: 'numiplan_teams' },
-            payload => {
+            async payload => {
               if (payload.new && payload.new.team) {
                 const eq = payload.new.team; if (/^[ABCD]$/.test(eq)) return;
                 const data = payload.new.payload;
@@ -2228,6 +2230,8 @@
   }
 
   window._showFirebaseBadge = showFirebaseBadge;
+
+})();
 </script>
 <style>
 @keyframes blink-kpi {
