@@ -6,6 +6,7 @@
 <title>NUMIPLAN</title>
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600;700&family=IBM+Plex+Sans:wght@300;400;600;700&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
   // ═══════════════════════════════════════════════════════════════
   // SYSTEME DE PROTECTION DU CODE SOURCE & ANTI-INSPECTION NUMIPLAN
@@ -179,6 +180,11 @@
   })();
 </script>
 <script>
+  // Redirection immédiate vers le portail unifié si non authentifié
+  if (sessionStorage.getItem('numiplan_auth') !== 'ok') {
+    window.location.href = 'portail.html';
+  }
+
   function isRegistreOrDirectionSession() {
     const role = sessionStorage.getItem('numiplan_user_role');
     const lock = sessionStorage.getItem('numiplan_team_lock');
@@ -278,14 +284,13 @@
      FIREBASE — SYNC TEMPS RÉEL (1 document : numiplan/data → A/B/C/D)
      Migration auto depuis l'ancien format data_A … data_D si besoin
      ═══════════════════════════════════════════════════════════════ -->
-<script type="module">
-  // Load Supabase Client SDK
-  import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm";
-
-  // Configuration Supabase
+<script>
+  // Configuration Supabase (Client SDK standard UMD compatible document.write)
   const supabaseUrl = "https://mfljrozyxyfkymzlnsmt.supabase.co";
   const supabaseKey = "sb_publishable_sMb9uHOr4gpyqmZGrkY-YQ_z90TgNAB";
-  const supabase = createClient(supabaseUrl, supabaseKey);
+  const supabase = (typeof window.supabase !== 'undefined' && window.supabase && typeof window.supabase.createClient === 'function')
+    ? window.supabase.createClient(supabaseUrl, supabaseKey)
+    : (window.supabase || null);
   window.supabase = supabase; // Exposer globalement pour l'authentification et RLS
   
   async function ensureSupabaseAuth() {
@@ -1093,7 +1098,8 @@
         }
       }
 
-      const { data, error } = await supabase.from('numiplan_teams').select('*').in('team', ['A1','A2','B1','B2','C1','C2','D1','D2','SHARIK_EDITS','SEGMENTS_ERP','WEEKLY_REPORT']);
+      // CHARGEMENT ULTRA-RAPIDE : Équipes opérationnelles (~60 Ko au lieu de 1 500 Ko)
+      const { data, error } = await supabase.from('numiplan_teams').select('*').in('team', ['A1','A2','B1','B2','C1','C2','D1','D2','SHARIK_EDITS']);
       if (error) throw error;
       
       if (data) {
@@ -1206,8 +1212,36 @@
         }
 
         if (typeof populateLoginUserDropdown === 'function') populateLoginUserDropdown();
+        if (typeof renderDispo === 'function' && document.getElementById('page-dispo')?.classList.contains('active')) {
+          renderDispo(true);
+        }
         loadGlobalDispoForExtensions();
         if (typeof alignOdoWeeksGlobal === 'function') alignOdoWeeksGlobal();
+        // CHARGEMENT ULTRA-LÉGER DU RAC PAR CAMION (~15 Ko)
+        try {
+          const { data: racRows } = await supabase.from('np_weekly_rac').select('*');
+          if (racRows && racRows.length) {
+            window._WEEKLY_RAC_MAP = {};
+            let tFact = 0, tEcart = 0;
+            racRows.forEach(r => {
+              const p = String(r.plate || '').replace(/[\r\n\s\-]/g, '').toUpperCase();
+              if (p) window._WEEKLY_RAC_MAP[p] = r;
+              const noZ = p.replace(/^0+/, '');
+              if (noZ) window._WEEKLY_RAC_MAP[noZ] = r;
+              tFact += Number(r.facture || 0);
+              tEcart += Number(r.ecart || 0);
+            });
+            const gRac = tEcart > 0 ? (tFact / tEcart) * 100 : 0;
+            const badge = document.getElementById('cnt-weekly');
+            if (badge) {
+              badge.textContent = `${gRac.toFixed(0)}%`;
+              badge.style.background = '#f59e0b';
+            }
+          }
+        } catch (racErr) {
+          console.warn('Chargement np_weekly_rac:', racErr);
+        }
+
         if (typeof updateHeaderRAC === 'function') updateHeaderRAC();
   if (typeof renderDispo === 'function' && document.getElementById('page-dispo')?.classList.contains('active')) renderDispo();
         if (typeof window.refreshUserTeamFromSupabase === 'function') {
@@ -1304,7 +1338,32 @@
                   applyEquipeData(eq, data);
                   if (typeof populateLoginUserDropdown === 'function') populateLoginUserDropdown();
                   if (typeof alignOdoWeeksGlobal === 'function') alignOdoWeeksGlobal();
-                  if (typeof updateHeaderRAC === 'function') updateHeaderRAC();
+                  // CHARGEMENT ULTRA-LÉGER DU RAC PAR CAMION (~15 Ko)
+        try {
+          const { data: racRows } = await supabase.from('np_weekly_rac').select('*');
+          if (racRows && racRows.length) {
+            window._WEEKLY_RAC_MAP = {};
+            let tFact = 0, tEcart = 0;
+            racRows.forEach(r => {
+              const p = String(r.plate || '').replace(/[\r\n\s\-]/g, '').toUpperCase();
+              if (p) window._WEEKLY_RAC_MAP[p] = r;
+              const noZ = p.replace(/^0+/, '');
+              if (noZ) window._WEEKLY_RAC_MAP[noZ] = r;
+              tFact += Number(r.facture || 0);
+              tEcart += Number(r.ecart || 0);
+            });
+            const gRac = tEcart > 0 ? (tFact / tEcart) * 100 : 0;
+            const badge = document.getElementById('cnt-weekly');
+            if (badge) {
+              badge.textContent = `${gRac.toFixed(0)}%`;
+              badge.style.background = '#f59e0b';
+            }
+          }
+        } catch (racErr) {
+          console.warn('Chargement np_weekly_rac:', racErr);
+        }
+
+        if (typeof updateHeaderRAC === 'function') updateHeaderRAC();
   if (typeof renderDispo === 'function' && document.getElementById('page-dispo')?.classList.contains('active')) renderDispo();
                 }
               }
@@ -2540,18 +2599,32 @@ body.direction-isolated-view .table-wrap {
 
 </style>
 <script>
-  // Application immédiate de l'isolation Direction dès l'exécution du script
+  // Application immédiate de l'accès Direction dès l'exécution du script
   (function() {
     try {
+      const urlParams = new URLSearchParams(window.location.search);
+      const openDir = urlParams.get('direction') === 'true' ||
+                      urlParams.get('tab') === 'direction' ||
+                      sessionStorage.getItem('numiplan_open_direction') === 'true';
       const role = sessionStorage.getItem('numiplan_user_role');
       const username = sessionStorage.getItem('numiplan_username');
       const _un = (username || '').toUpperCase().trim();
-  if (role === 'direction_only' || role === 'readonly' || _un === 'REGISTRE' || _un.includes('REGISTRE')) {
-        document.documentElement.classList.add('direction-isolated-view');
+      const isDirOnly = role === 'direction_only' || role === 'readonly' || _un === 'REGISTRE' || _un.includes('REGISTRE');
+
+      if (openDir || isDirOnly) {
+        window._DIRECTION_UNLOCKED_SESSION = true;
+        if (isDirOnly) {
+          document.documentElement.classList.add('direction-isolated-view');
+        }
         window.addEventListener('DOMContentLoaded', () => {
-          document.body.classList.add('direction-isolated-view');
-          if (typeof applyDirectionOnlyIsolation === 'function') {
-            applyDirectionOnlyIsolation();
+          if (isDirOnly) {
+            document.body.classList.add('direction-isolated-view');
+            if (typeof applyDirectionOnlyIsolation === 'function') {
+              applyDirectionOnlyIsolation();
+            }
+          }
+          if (typeof ouvrirEspaceAdminDirection === 'function') {
+            ouvrirEspaceAdminDirection();
           }
         });
       }
@@ -2564,8 +2637,8 @@ body.direction-isolated-view .table-wrap {
      ÉCRAN DE CONNEXION
      ═══════════════════════════════════════════════════════════════ -->
 <div id="login-screen" style="
-  position:fixed;inset:0;background:#0a0e1a;z-index:99999;
-  display:flex;align-items:center;justify-content:center;
+  display:none;position:fixed;inset:0;background:#0a0e1a;z-index:99999;
+  align-items:center;justify-content:center;
   font-family:'IBM Plex Sans',sans-serif;">
   <div style="
     background:#111827;border:1px solid #2d3f65;border-radius:16px;
@@ -2966,11 +3039,23 @@ function applyTeamLockUI(eq) {
 
     const userRole = sessionStorage.getItem('numiplan_user_role');
     const username = sessionStorage.getItem('numiplan_username');
-    if (userRole === 'direction_only' || userRole === 'readonly' || username === 'REGISTRE') {
+    const openDir = sessionStorage.getItem('numiplan_open_direction') === 'true' ||
+                    new URLSearchParams(window.location.search).get('direction') === 'true' ||
+                    new URLSearchParams(window.location.search).get('tab') === 'direction';
+
+    if (openDir) {
+      sessionStorage.removeItem('numiplan_open_direction');
+      window._DIRECTION_UNLOCKED_SESSION = true;
+      setTimeout(() => {
+        if (typeof window.ouvrirEspaceAdminDirection === 'function') {
+          window.ouvrirEspaceAdminDirection(document.getElementById('tab-admin-direction'));
+        }
+      }, 150);
+    } else if (userRole === 'direction_only' || userRole === 'readonly' || username === 'REGISTRE') {
       setTimeout(() => {
         if (typeof applyDirectionOnlyIsolation === 'function') applyDirectionOnlyIsolation();
         if (typeof window.ouvrirEspaceAdminDirection === 'function') {
-          window.ouvrirEspaceAdminDirection();
+          window.ouvrirEspaceAdminDirection(document.getElementById('tab-admin-direction'));
         }
       }, 100);
     } else {
@@ -2994,6 +3079,47 @@ function applyTeamLockUI(eq) {
   }
 
   // 2. Fonction de connexion contrôlée STRICTEMENT par la table Supabase np_users
+  // =========================================================================
+  // VRAIE AUTHENTIFICATION SUPABASE (un compte par utilisateur)
+  // LEGACY_LOGIN_ENABLED = true  : ancien mode (mots de passe equipe) tolere pendant la transition
+  // LEGACY_LOGIN_ENABLED = false : seule la connexion Supabase individuelle est acceptee
+  // =========================================================================
+  const LEGACY_LOGIN_ENABLED = true;
+  const AUTH_EMAIL_DOMAIN = 'sharik.numilog.com';
+
+  async function tryAuthLogin(rawLogin, password) {
+    try {
+      if (!window.supabase) return null;
+      let login = String(rawLogin || '').trim().toLowerCase();
+      if (login === 'chergui') login = 'kheirdine.c';
+      if (login === 'adjouj') login = 'houssam.a';
+      if (!login || /\s/.test(login)) return null;
+      const email = login.includes('@') ? login : (login + '@' + AUTH_EMAIL_DOMAIN);
+      const { data, error } = await window.supabase.auth.signInWithPassword({ email, password });
+      if (error || !data || !data.user) return null;
+      const { data: prof, error: pErr } = await window.supabase
+        .from('profiles')
+        .select('login, nom, role, teams, actif')
+        .eq('user_id', data.user.id)
+        .maybeSingle();
+      if (pErr || !prof || prof.actif === false) {
+        try { await window.supabase.auth.signOut(); } catch (e) {}
+        return null;
+      }
+      return {
+        login: prof.login,
+        nom: prof.nom || prof.login,
+        role: prof.role || 'equipe',
+        team: (prof.teams || []).join(',') || null,
+        _verified: true
+      };
+    } catch (e) {
+      console.warn('tryAuthLogin:', e);
+      return null;
+    }
+  }
+  window.tryAuthLogin = tryAuthLogin;
+
   async function checkPassword() {
     try {
       const usernameInput = document.getElementById('username-input');
@@ -3016,9 +3142,17 @@ function applyTeamLockUI(eq) {
       const pClean = password.trim();
       const pUpper = pClean.toUpperCase();
 
+      // Connexion Supabase individuelle (prioritaire)
+      const verified = await tryAuthLogin(username, password);
+      if (!verified && !LEGACY_LOGIN_ENABLED) {
+        document.getElementById('pwd-error').textContent = '❌ Identifiant ou mot de passe incorrect';
+        setTimeout(() => { const el = document.getElementById('pwd-error'); if(el) el.textContent = ''; }, 3000);
+        return;
+      }
+
       // Cas A : Espace DIRECTION / REGISTRE
       if ((uClean.includes('REGISTRE') || uClean.includes('DIRECTION')) &&
-          (pClean === 'Numilog@26' || pUpper === 'NUMILOG@26' || pUpper === 'DIREX' || pClean === 'RexSharik@2026' || pUpper === 'REXSHARIK@2026')) {
+          (verified || pClean === 'Numilog@26' || pUpper === 'NUMILOG@26' || pUpper === 'DIREX' || pClean === 'RexSharik@2026' || pUpper === 'REXSHARIK@2026')) {
         sessionStorage.setItem('numiplan_auth', 'ok');
         sessionStorage.setItem('numiplan_username', 'REGISTRE');
         sessionStorage.setItem('numiplan_user_role', 'direction_only');
@@ -3031,7 +3165,7 @@ function applyTeamLockUI(eq) {
       }
 
       // Cas B : ADMIN (Superviseur Admin)
-      const isAdminMatch = (uClean === 'ADMIN' && (
+      const isAdminMatch = (uClean === 'ADMIN' && (verified ||
         pClean.toLowerCase() === 'sharik@admin' ||
         pClean.toLowerCase() === 'sharik@2026' ||
         pClean.toLowerCase() === 'admin@2026' ||
@@ -3049,7 +3183,7 @@ function applyTeamLockUI(eq) {
         if (loginScr) loginScr.style.display = 'none';
         if (typeof startSessionTimers === 'function') startSessionTimers();
         if (typeof window.reconnectRealtimeChannel === 'function') window.reconnectRealtimeChannel();
-        if (typeof window.loadInitialTeams === 'function') window.loadInitialTeams();
+        if (typeof window.loadInitialTeams === 'function') await window.loadInitialTeams();
         const eq = (typeof window.CURRENT_EQUIPE !== 'undefined' && window.CURRENT_EQUIPE) ? window.CURRENT_EQUIPE : 'A1';
         if (typeof window.switchEquipe === 'function') window.switchEquipe(eq);
         if (typeof window.applyTeamLockUI === 'function') window.applyTeamLockUI(eq);
@@ -3082,7 +3216,7 @@ function applyTeamLockUI(eq) {
       const localDef = userList.find(x => x.login.toLowerCase() === searchLogin || x.nom.toLowerCase() === searchLogin);
       const cachedSb = (window._SUPABASE_USERS || []).find(x => (x.login && x.login.toLowerCase() === searchLogin) || (x.nom && x.nom.toLowerCase() === searchLogin));
 
-      let sbUser = cachedSb || localDef || null;
+      let sbUser = verified || cachedSb || localDef || null;
 
       // 2. Si disponible, vérification Supabase protégée par un timeout strict de 1.2s (pour ne jamais figer l'écran)
       if (!cachedSb && window.supabase) {
@@ -3115,7 +3249,7 @@ function applyTeamLockUI(eq) {
       targetTeams.forEach(t => {
         if (TEAM_PASSWORDS[t]) validTeamPwds = validTeamPwds.concat(TEAM_PASSWORDS[t]);
       });
-      const isTeamMatch = validTeamPwds.some(pwd => pwd.toLowerCase() === pClean.toLowerCase()) || pClean.toLowerCase() === 'sharik@2026';
+      const isTeamMatch = !!verified || validTeamPwds.some(pwd => pwd.toLowerCase() === pClean.toLowerCase()) || pClean.toLowerCase() === 'sharik@2026';
 
       if (!isTeamMatch) {
         restoreSubmitBtn();
@@ -3157,7 +3291,7 @@ function applyTeamLockUI(eq) {
       if (loginScr) loginScr.style.display = 'none';
       if (typeof startSessionTimers === 'function') startSessionTimers();
       if (typeof window.reconnectRealtimeChannel === 'function') window.reconnectRealtimeChannel();
-      if (typeof window.loadInitialTeams === 'function') window.loadInitialTeams();
+      if (typeof window.loadInitialTeams === 'function') await window.loadInitialTeams();
       if (typeof window.switchEquipe === 'function') window.switchEquipe(targetTeam);
       if (typeof window.applyTeamLockUI === 'function') window.applyTeamLockUI(targetTeam);
       if (typeof window.checkPointageRequired === 'function') window.checkPointageRequired();
@@ -3172,11 +3306,15 @@ function applyTeamLockUI(eq) {
 
   
 function doLogout() {
+    try { if (window.supabase) window.supabase.auth.signOut(); } catch (e) {}
+    try {
+      Object.keys(localStorage).forEach(k => { if (/^sb-.*-auth-token/.test(k)) localStorage.removeItem(k); });
+    } catch (e) {}
     sessionStorage.removeItem('numiplan_auth');
     sessionStorage.removeItem('numiplan_team_lock');
     sessionStorage.removeItem('numiplan_username');
     sessionStorage.setItem('numiplan_session_expired', 'true');
-    window.location.reload();
+    window.location.href = 'portail.html';
   }
 
   var _inactivityTimer = null;
@@ -3638,6 +3776,10 @@ mark.hl { background: rgba(56,189,248,.25); color: var(--acc); border-radius: 3p
 
 <div class="app-layout">
 <div class="tabs-bar">
+  <a href="portail.html" class="tab-btn" style="background:rgba(56,189,248,0.12);color:#38bdf8;font-weight:700;border:1px solid rgba(56,189,248,0.3);text-decoration:none;display:flex;align-items:center;justify-content:space-between;margin-bottom:6px" title="Revenir au Portail Central pour accéder aux autres modules">
+    <span>🌐 Portail Central</span>
+    <span style="font-size:11px;opacity:0.8">➔</span>
+  </a>
   <button class="tab-btn active" onclick="switchTab('dispo',this)">
     <span>🚛 Disponibilité</span>
     <span style="display:flex;gap:4px;align-items:center">
@@ -3647,18 +3789,15 @@ mark.hl { background: rgba(56,189,248,.25); color: var(--acc); border-radius: 3p
     </span>
   </button>
   <button class="tab-btn" onclick="switchTab('pannes',this)">🔧 Pannes <span class="tab-count red" id="cnt-pannes" style="display:none;">—</span></button>
-  <button class="tab-btn" onclick="switchTab('nc',this)">⚠️ Non-conformités <span class="tab-count" id="cnt-nc" style="display:none;">—</span></button>
+  <!-- Menu NC transféré dans le portail (nc.html) -->
+  <span id="cnt-nc" style="display:none;"></span>
   <button class="tab-btn" onclick="switchTab('equip',this)">🔩 Équipements <span class="tab-count" id="cnt-equip">—</span></button>
-  <button class="tab-btn" id="tab-odo" onclick="switchTab('odo',this)">🛣️ Odomètre <span class="tab-count" id="cnt-odo" style="display:none;">—</span></button>
   <button class="tab-btn" onclick="switchTab('cspc',this)">🔷 CSPC <span class="tab-count" id="cnt-cspc">—</span></button>
   <button class="tab-btn" id="tab-incidents-livraison" onclick="switchTab('incidents-livraison',this)">🚨 Incidents Livraison <span class="tab-count" id="cnt-incidents-livraison" style="background:#ef4444">—</span></button>
   <button class="tab-btn" onclick="switchTab('tracabilite',this)">📜 Traçabilité <span class="tab-count" id="cnt-tracabilite" style="display:none;">—</span></button>
   <button class="tab-btn" id="tab-flashinfo" onclick="switchTab('flashinfo',this)">📢 Flash Info</button>
-  <button class="tab-btn" id="tab-poi" onclick="switchTab('poi',this)">🛰️ Suivi POI <span class="tab-count red" id="cnt-poi-alerts" style="display:none;background:#ef4444">—</span></button>
-  <button class="tab-btn" id="tab-segments" onclick="switchTab('segments',this)" style="border-color:rgba(56,189,248,.4)">&#x1F4E6; Voyages &amp; Segments <span class="tab-count" id="cnt-segments" style="background:#38bdf8;color:#000">-</span></button>
-  <button class="tab-btn" id="tab-fiche-sharik" onclick="switchTab('fiche-sharik',this)" style="border-color:rgba(16,185,129,.45)">🪪 Fiche Sharik <span class="tab-count" id="cnt-fiche-sharik" style="background:#10b981;color:#000">—</span></button>
-  <button class="tab-btn" id="tab-weekly" onclick="switchTab('weekly',this)" style="border-color:rgba(245,158,11,.45)">📊 Bilan Weekly <span class="tab-count" id="cnt-weekly" style="background:#f59e0b;color:#000">—</span></button>
   <button class="tab-btn" onclick="ouvrirHistoriqueAnomalies()" style="color:#fbbf24;border-color:rgba(251,191,36,.3)">📊 Historique Anomalies</button>
+  <button class="tab-btn" id="tab-admin-direction" onclick="ouvrirEspaceAdminDirection(this)" style="color:#38bdf8;border-color:rgba(56,189,248,.3)">🏛️ Direction &amp; Registre</button>
 </div>
 
 <!-- ══════════════ DISPO ══════════════ -->
@@ -5815,13 +5954,26 @@ mark.hl { background: rgba(56,189,248,.25); color: var(--acc); border-radius: 3p
       <div class="form-group"><label>Date</label><input id="f-nc-date" type="date"></div>
       <div class="form-group"><label>Sharik (chauffeur)</label><input id="f-nc-sharik" list="dl-chauffeurs" placeholder="NOM PRÉNOM" oninput="autoFillNcVehicle(this.value)" onchange="autoFillNcVehicle(this.value)"></div>
       <div class="form-group"><label>Véhicule</label><input id="f-nc-v" list="dl-vehicules" placeholder="001079-514-16" oninput="autoFillNcDriver(this.value)" onchange="autoFillNcDriver(this.value)"></div>
-      <div class="form-group"><label>Type NC</label>
-        <select id="f-nc-type" onchange="toggleNcAutre(this.value)">
-          <option value="chgt">Changement à son compte</option>
-          <option value="autorise">Chargement à son compte autorisé</option>
-          <option value="fausse">Fausse déclaration</option>
-          <option value="refus">Refus de travail</option>
-          <option value="autre">Autre</option>
+      <div class="form-group full"><label>Motif de la Non-Conformité</label>
+        <select id="f-nc-type" onchange="toggleNcAutre(this.value)" style="font-weight:600">
+          <option value="Chargé à son compte - Autorisé">Chargé à son compte - Autorisé</option>
+          <option value="Chargé à son compte - Non autorisé">Chargé à son compte - Non autorisé</option>
+          <option value="Refus de travail">Refus de travail</option>
+          <option value="Changement destination sans informer">Changement destination sans informer</option>
+          <option value="Retard de réalisation">Retard de réalisation</option>
+          <option value="Non-acheminement du camion au parc">Non-acheminement du camion au parc</option>
+          <option value="fausse déclaration">fausse déclaration</option>
+          <option value="Refus orientation">Refus orientation</option>
+          <option value="Refus d'aller au COPIL">Refus d'aller au COPIL</option>
+          <option value="Refus Réparation GPS">Refus Réparation GPS</option>
+          <option value="Injoignable plus de 24 heures">Injoignable plus de 24 heures</option>
+          <option value="Retard important dans le dépôt des BL">Retard important dans le dépôt des BL</option>
+          <option value="Non-respect des consignes de sécurité">Non-respect des consignes de sécurité</option>
+          <option value="Manquement à la discipline / comportement inapproprié">Manquement à la discipline / comportement inapproprié</option>
+          <option value="camion solo sans justification opérationnelle">camion solo sans justification opérationnelle</option>
+          <option value="Refus d’assistance à un autre Sharik en panne.">Refus d’assistance à un autre Sharik en panne.</option>
+          <option value="Retard dans la récupération du camion réparé.">Retard dans la récupération du camion réparé.</option>
+          <option value="Autre">Autre</option>
         </select></div>
       <div class="form-group"><label>Trajet / Détail</label><input id="f-nc-detail" placeholder="ORAN - ALGER"></div>
       <div class="form-group full" id="nc-autre-row" style="display:none"><label>Préciser les faits</label><textarea id="f-nc-autre-detail" placeholder="Décrivez les faits en détail…" style="min-height:70px;resize:vertical"></textarea></div>
@@ -10761,11 +10913,7 @@ function filterNC(sharik) {
   renderNC();
 }
 function goToNC() {
-  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
-  document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
-  document.getElementById('page-nc').classList.add('active');
-  document.querySelector("[onclick*=\"switchTab('nc')\"]").classList.add('active');
-  filterNC('');
+  window.location.href = 'nc.html';
 }
 function renderNC() {
   const q = document.getElementById('nc-search').value;
@@ -10813,16 +10961,24 @@ function renderNC() {
 }
 
 function editNC(idx) {
-  const r = DB.nc[idx];
+  const r = (DB.nc && DB.nc[idx]) ? DB.nc[idx] : null;
+  if (!r) return;
   document.getElementById('f-nc-date').value = r.date||today();
   document.getElementById('f-nc-sharik').value = r.sharik||'';
   document.getElementById('f-nc-v').value = r.v||'';
-  // detect type
-  if (r.fausse) { document.getElementById('f-nc-type').value='fausse'; document.getElementById('f-nc-detail').value=r.fausse; document.getElementById('f-nc-autre-detail').value=''; }
-  else if (r.autorise) { document.getElementById('f-nc-type').value='autorise'; document.getElementById('f-nc-detail').value=r.autorise; document.getElementById('f-nc-autre-detail').value=''; }
-  else if (r.refus) { document.getElementById('f-nc-type').value='refus'; document.getElementById('f-nc-detail').value=r.refus; document.getElementById('f-nc-autre-detail').value=''; }
-  else if (r.autre) { document.getElementById('f-nc-type').value='autre'; document.getElementById('f-nc-detail').value=''; document.getElementById('f-nc-autre-detail').value=r.autre; }
-  else { document.getElementById('f-nc-type').value='chgt'; document.getElementById('f-nc-detail').value=r.chgt||''; document.getElementById('f-nc-autre-detail').value=''; }
+  
+  let typeVal = r.motif || r.type || '';
+  let detailVal = r.detail || '';
+  if (!typeVal) {
+    if (r.fausse) { typeVal = 'fausse déclaration'; detailVal = r.fausse; }
+    else if (r.autorise) { typeVal = 'Chargé à son compte - Autorisé'; detailVal = r.autorise; }
+    else if (r.refus) { typeVal = 'Refus de travail'; detailVal = r.refus; }
+    else if (r.chgt) { typeVal = 'Chargé à son compte - Non autorisé'; detailVal = r.chgt; }
+    else if (r.autre) { typeVal = 'Autre'; detailVal = r.autre; }
+  }
+  document.getElementById('f-nc-type').value = typeVal || 'Chargé à son compte - Non autorisé';
+  document.getElementById('f-nc-detail').value = detailVal || r.detail || r.chgt || r.autorise || r.fausse || r.refus || '';
+  document.getElementById('f-nc-autre-detail').value = (typeVal === 'Autre') ? (r.autre || detailVal) : '';
   toggleNcAutre(document.getElementById('f-nc-type').value);
   document.getElementById('f-nc-mise').value = r.mise||'';
   document.getElementById('f-nc-commission').value = r.commission||'';
@@ -10832,16 +10988,31 @@ function editNC(idx) {
 function deleteNC(idx) {
   if (!_checkActionsLibres('deleteNC')) return;
   if (!confirm('Supprimer cette NC ?')) return;
-  const item = DB.nc[idx];
+  const item = (DB.nc && DB.nc[idx]) ? DB.nc[idx] : null;
   if (item && typeof tracerAction === 'function') {
     tracerAction('NC', 'SUPPRESSION_NC', item.v || item.sharik || '—', `Suppression NC N° ${item.n || '—'} (${item.sharik || ''})`, window.CURRENT_EQUIPE);
   }
-  DB.nc.splice(idx,1); saveDB(); renderNC(); showToast('✅ Supprimé');
+  if (Array.isArray(DB.nc)) {
+    DB.nc.splice(idx,1);
+    saveDB();
+    if (typeof renderNC === 'function') {
+      try { renderNC(); } catch (e) {}
+    }
+    showToast('✅ Non-conformité supprimée');
+  }
 }
 
 function toggleNcAutre(val) {
   const row = document.getElementById('nc-autre-row');
-  if (row) row.style.display = (val === 'autre') ? '' : 'none';
+  if (row) row.style.display = (val === 'Autre' || val === 'autre') ? '' : 'none';
+  const inputDetail = document.getElementById('f-nc-detail');
+  if (inputDetail) {
+    if (val && (val.includes('Autorisé') || val.includes('Non autorisé'))) {
+      inputDetail.placeholder = 'DEPART - DESTINATION (Contrôle 400km)';
+    } else {
+      inputDetail.placeholder = 'Détail ou constatation...';
+    }
+  }
 }
 
 function saveNC() {
@@ -10850,76 +11021,130 @@ function saveNC() {
   if (!sharik) { showToast('⚠️ Chauffeur requis', true); return; }
   const v = document.getElementById('f-nc-v').value.trim().toUpperCase();
   if (!v) { showToast('⚠️ Véhicule (Immatriculation) requis', true); return; }
+  if (!Array.isArray(DB.nc)) DB.nc = [];
   const maxN = DB.nc.reduce((m,r)=>Math.max(m,r.n||0),0);
   const type = document.getElementById('f-nc-type').value;
   const detail = document.getElementById('f-nc-detail').value.trim();
   const autreDetail = document.getElementById('f-nc-autre-detail').value.trim();
-  if (type === 'autre' && !autreDetail) { showToast('⚠️ Veuillez préciser les faits', true); return; }
+  if ((type === 'Autre' || type === 'autre') && !autreDetail && !detail) {
+    showToast('⚠️ Veuillez préciser les faits', true);
+    return;
+  }
+
+  // Compatibilité ascendante avec les anciennes clés
+  let fausse = '', chgt = '', autorise = '', refus = '', autre = '';
+  if (type === 'Chargé à son compte - Autorisé' || type === 'autorise') autorise = detail;
+  else if (type === 'Chargé à son compte - Non autorisé' || type === 'chgt') chgt = detail;
+  else if (type === 'fausse déclaration' || type === 'fausse') fausse = detail;
+  else if (type === 'Refus de travail' || type === 'refus') refus = detail;
+  else if (type === 'Autre' || type === 'autre') autre = autreDetail || detail;
+  else autre = (type + (detail ? ': ' + detail : ''));
+
   const obj = {
     n: maxN+1,
     sharik: sharik.toUpperCase(),
     v: v,
-    fausse: type==='fausse'?detail:'',
-    chgt: type==='chgt'?detail:'',
-    autorise: type==='autorise'?detail:'',
-    refus: type==='refus'?detail:'',
-    autre: type==='autre'?autreDetail:'',
+    type: type,
+    motif: type,
+    detail: detail || autreDetail,
+    fausse: fausse,
+    chgt: chgt,
+    autorise: autorise,
+    refus: refus,
+    autre: autre,
     date: document.getElementById('f-nc-date').value||today(),
     mise: document.getElementById('f-nc-mise').value.trim(),
     commission: document.getElementById('f-nc-commission').value.trim(),
-    cet: sessionStorage.getItem('numiplan_username') || ''
+    cet: sessionStorage.getItem('numiplan_username') || '',
+    team: window.CURRENT_EQUIPE || 'A1'
   };
+
   // Validation de distance limite 400km pour les chargements autorisés
-  if (type === 'autorise') {
-    const parts = detail.split(/[\-\➔\→\s]+/).map(p => p.trim().toUpperCase());
-    const validParts = parts.filter(p => p.length > 2);
-    if (validParts.length >= 2) {
-      const dist = getCityDistance(validParts[0], validParts[1]);
+  if (type.includes('Autorisé') || type === 'autorise') {
+    const parts = detail.split(/[\-\➔\→\s]+/).map(p => p.trim().toUpperCase()).filter(p => p.length > 2);
+    if (parts.length >= 2 && typeof getCityDistance === 'function') {
+      const dist = getCityDistance(parts[0], parts[1]);
       if (dist > 400) {
         showToast(`⚠️ Alerte : Distance de ${dist} km dépasse la limite autorisée de 400 km !`, true);
-        logMouvement("Dépassement Limite 400km", "Chauffeur", sharik.toUpperCase(), `Chargement autorisé de ${dist} km (> 400 km) : ${detail}`);
+        if (typeof logMouvement === 'function') {
+          logMouvement("Dépassement Limite 400km", "Chauffeur", sharik.toUpperCase(), `Chargement autorisé de ${dist} km (> 400 km) : ${detail}`);
+        }
       }
     }
   }
+
   const idx = parseInt(document.getElementById('nc-edit-idx').value);
-  if (idx >= 0) {
+  if (idx >= 0 && DB.nc[idx]) {
     obj.n = DB.nc[idx].n;
     obj.cet = DB.nc[idx].cet || sessionStorage.getItem('numiplan_username') || '';
     DB.nc[idx] = obj;
   } else {
     DB.nc.push(obj);
   }
+
   if (typeof tracerAction === 'function') {
-    tracerAction('NC', idx >= 0 ? 'MODIFICATION_NC' : 'CREATION_NC', v, `Chauffeur: ${sharik} | Type: ${type} | Détail: ${detail || autreDetail} | Date: ${obj.date}`, window.CURRENT_EQUIPE);
+    tracerAction('NC', idx >= 0 ? 'MODIFICATION_NC' : 'CREATION_NC', v, `Chauffeur: ${sharik} | Motif: ${type} | Détail: ${detail || autreDetail} | Date: ${obj.date}`, window.CURRENT_EQUIPE);
   }
-  saveDB(); closeModal('modal-nc'); renderNC(); showToast('✅ Non-conformité enregistrée (📧 Email préparé)');
+
+  // 1. Sauvegarde dans numiplan_teams via saveDB()
+  saveDB();
+
+  // 2. Synchronisation immédiate vers la table dédiée np_nc Supabase (visible dans portail nc.html)
+  if (window.sb) {
+    try {
+      window.sb.from('np_nc').upsert({
+        n: obj.n,
+        sharik: obj.sharik,
+        v: obj.v,
+        date: obj.date,
+        type: obj.type,
+        detail: obj.detail,
+        mise: obj.mise,
+        commission: obj.commission,
+        cet: obj.cet,
+        team: window.CURRENT_EQUIPE || 'A1',
+        updated_at: new Date().toISOString()
+      }, { onConflict: 'n' }).then(() => {}).catch(e => console.warn('Sync np_nc:', e));
+    } catch (e) {
+      console.warn('Sync np_nc err:', e);
+    }
+  }
+
+  closeModal('modal-nc');
+  if (typeof renderNC === 'function') {
+    try { renderNC(); } catch (e) {}
+  }
+  showToast('✅ Non-conformité enregistrée (📧 Email préparé)');
+
   // Envoi automatique email affrètement
   envoyerMailNC(obj, true);
 }
 
 function envoyerMailNCByIdx(idx) {
-  const obj = DB.nc[idx];
+  const obj = (DB.nc && DB.nc[idx]) ? DB.nc[idx] : null;
   if (obj) envoyerMailNC(obj, false);
 }
 
 function envoyerMailNC(obj, isAuto = false) {
   try {
     const emailDest = 'grp_numilog_affretement@cevital.com';
-    let typeLabel = 'Non-conformité';
-    let detailTexte = '';
-    if (obj.chgt) { typeLabel = 'Changement à son compte'; detailTexte = obj.chgt; }
-    else if (obj.autorise) { typeLabel = 'Chargement à son compte autorisé'; detailTexte = obj.autorise; }
-    else if (obj.fausse) { typeLabel = 'Fausse déclaration'; detailTexte = obj.fausse; }
-    else if (obj.refus) { typeLabel = 'Refus de travail'; detailTexte = obj.refus; }
-    else if (obj.autre) { typeLabel = 'Autre'; detailTexte = obj.autre; }
+    let typeLabel = obj.motif || obj.type || 'Non-conformité';
+    let detailTexte = obj.detail || '';
+    if (!detailTexte) {
+      if (obj.chgt) detailTexte = obj.chgt;
+      else if (obj.autorise) detailTexte = obj.autorise;
+      else if (obj.fausse) detailTexte = obj.fausse;
+      else if (obj.refus) detailTexte = obj.refus;
+      else if (obj.autre) detailTexte = obj.autre;
+    }
 
     const dateStr = (typeof fmtDate === 'function') ? fmtDate(obj.date) : (obj.date || '—');
-    const equipeStr = window.CURRENT_EQUIPE ? ` (Équipe ${window.CURRENT_EQUIPE})` : '';
-    const subject = encodeURIComponent(`[NON CONFORMITE] ${obj.sharik} - ${obj.v || ''}`.trim());
+    const equipeStr = (window.CURRENT_EQUIPE || obj.team) ? ` (Équipe ${window.CURRENT_EQUIPE || obj.team})` : '';
+    const subject = encodeURIComponent(`[NON CONFORMITE] ${obj.sharik} - ${obj.v || ''} (${typeLabel})`.trim());
     const body = encodeURIComponent(
 `Bonjour,
 
-Une non-conformité a été enregistrée sur SHARIK concernant le chauffeur ${obj.sharik}.
+Une non-conformité a été enregistrée sur SHARIK / NUMIPLAN concernant le chauffeur ${obj.sharik}.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   DÉTAIL DE LA NON-CONFORMITÉ
@@ -10927,14 +11152,14 @@ Une non-conformité a été enregistrée sur SHARIK concernant le chauffeur ${ob
   Date             : ${dateStr}
   Chauffeur        : ${obj.sharik}
   Véhicule         : ${obj.v || '—'}
-  Type NC          : ${typeLabel}
-  Trajet / Détail  : ${detailTexte || '—'}
+  Motif NC         : ${typeLabel}
+  Trajet / Constat : ${detailTexte || '—'}
   Mise en demeure  : ${obj.mise || '—'}
   Commission       : ${obj.commission || '—'}
   Saisi par        : ${obj.cet || '—'}${equipeStr}
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-Ce message a été généré automatiquement par SHARIK.`
+Ce message a été généré automatiquement par NUMIPLAN.`
     );
 
     const mailtoLink = `mailto:${emailDest}?subject=${subject}&body=${body}`;
@@ -12403,7 +12628,8 @@ function renderOdo() {
     return !q || (r.v+' '+r.chauffeur).toLowerCase().includes(q.toLowerCase());
   });
 
-  document.getElementById('cnt-odo').textContent = sourceOdoList.length;
+  const cntOdoEl = document.getElementById('cnt-odo');
+  if (cntOdoEl) cntOdoEl.textContent = sourceOdoList.length;
   
   // Déterminer les semaines (weeks) dynamiquement
   let weeks = [];
@@ -16507,20 +16733,20 @@ function declPanne(idx) {
 
 function declNC(idx) {
   if (!_checkActionsLibres('declNC')) return;
-  const r = DB.dispo[idx];
+  const r = (DB.dispo && DB.dispo[idx]) ? DB.dispo[idx] : null;
   if (!r) return;
-  switchTab('nc', null);
+  document.getElementById('nc-edit-idx').value = '-1';
   document.getElementById('f-nc-date').value = (typeof today === 'function') ? today() : new Date().toISOString().slice(0, 10);
   document.getElementById('f-nc-sharik').value = r.chauffeur || '';
   document.getElementById('f-nc-v').value = r.v || '';
-  document.getElementById('f-nc-type').value = 'chgt';
+  document.getElementById('f-nc-type').value = 'Chargé à son compte - Non autorisé';
   document.getElementById('f-nc-detail').value = '';
   document.getElementById('f-nc-autre-detail').value = '';
-  toggleNcAutre('chgt');
+  toggleNcAutre('Chargé à son compte - Non autorisé');
   document.getElementById('f-nc-mise').value = '';
   document.getElementById('f-nc-commission').value = '';
   openModal('modal-nc', -1);
-  showToast('⚠️ NC pré-remplie pour ' + (r.v ? r.v + ' (' + (r.chauffeur || '') + ')' : r.chauffeur));
+  showToast('⚠️ Déclaration NC pour ' + (r.v ? r.v + ' (' + (r.chauffeur || '') + ')' : r.chauffeur));
 }
 function autoFillNcVehicle(val) {
   if (!val) return;
@@ -19217,40 +19443,46 @@ window.selectHistoryDate = selectHistoryDate;
 // POI_SUPABASE_URL et POI_SUPABASE_KEY sont déclarées en haut du script (var) pour éviter la TDZ
 
 async function poiSupabaseFetch(endpoint, method = "GET", body = null) {
-  let token = POI_SUPABASE_KEY;
+  let token = null;
   if (window.supabase) {
     try {
-      const { data: { session } } = await window.supabase.auth.getSession();
-      if (session) {
+      let { data: { session } } = await window.supabase.auth.getSession();
+      if (!session && typeof ensureSupabaseAuth === 'function') {
+        await ensureSupabaseAuth();
+        const res = await window.supabase.auth.getSession();
+        session = res?.data?.session;
+      }
+      if (session && session.access_token) {
         token = session.access_token;
       }
     } catch (e) {
-      console.warn("Could not get active supabase session, falling back to anon key", e);
+      console.warn("Could not get active supabase session", e);
     }
   }
 
   const headers = {
     "apikey": POI_SUPABASE_KEY,
-    "Authorization": `Bearer ${token}`,
     "Content-Type": "application/json"
   };
+  if (token) {
+    headers["Authorization"] = `Bearer ${token}`;
+  }
   if (endpoint && endpoint.includes("on_conflict")) {
     headers["Prefer"] = "resolution=merge-duplicates";
   }
   const config = { method, headers };
   if (body) config.body = JSON.stringify(body);
-  const res = await fetch(`${POI_SUPABASE_URL}/rest/v1/${endpoint}`, config);
-  if (!res.ok) {
-    if (res.status === 401) {
-      console.warn("Session expirée (401), déconnexion...");
-      if (window.supabase) window.supabase.auth.signOut();
-      sessionStorage.clear();
-      showToast("⚠️ Votre session a expiré. Veuillez vous reconnecter.", true);
-      setTimeout(() => { window.location.reload(); }, 2000);
+  try {
+    const res = await fetch(`${POI_SUPABASE_URL}/rest/v1/${endpoint}`, config);
+    if (!res.ok) {
+      console.warn(`poiSupabaseFetch warning: ${res.status} for endpoint ${endpoint}`);
+      return null;
     }
-    throw new Error(`Supabase Error: ${res.status} ${await res.text()}`);
+    return res.status === 204 ? null : await res.json();
+  } catch (fetchErr) {
+    console.warn("poiSupabaseFetch network error:", fetchErr);
+    return null;
   }
-  return res.status === 204 ? null : await res.json();
 }
 
 // ─── POI CACHE & OPTIMIZATION ENGINE ───
@@ -21180,11 +21412,11 @@ document.addEventListener('keydown', (e) => {
 if (typeof window._DIRECTION_UNLOCKED_SESSION === 'undefined') window._DIRECTION_UNLOCKED_SESSION = false;
 
 async function ouvrirEspaceAdminDirection(btn) {
-  // Si déjà connecté avec le profil isolé direction_only, accès automatique
+  // Si déjà connecté avec le profil isolé direction_only ou admin, accès automatique
   const role = sessionStorage.getItem('numiplan_user_role');
   const username = sessionStorage.getItem('numiplan_username');
   const _un = (username || '').toUpperCase().trim();
-  if (role === 'direction_only' || role === 'readonly' || _un === 'REGISTRE' || _un.includes('REGISTRE')) {
+  if (role === 'direction_only' || role === 'readonly' || _un === 'REGISTRE' || _un.includes('REGISTRE') || role === 'admin' || window._DIRECTION_UNLOCKED_SESSION) {
     window._DIRECTION_UNLOCKED_SESSION = true;
   }
 
@@ -24900,7 +25132,7 @@ async function importSegmentsErpExcel(input) {
 
     window._SEGMENTS_ERP_DATA = payload;
 
-    // Sauvegarder dans Supabase (numiplan_teams -> SEGMENTS_ERP)
+    // Sauvegarder dans Supabase (numiplan_teams -> SEGMENTS_ERP) et synchroniser np_segments_erp
     if (window.supabase) {
       const { error } = await window.supabase
         .from('numiplan_teams')
@@ -24910,6 +25142,48 @@ async function importSegmentsErpExcel(input) {
           updated_at: new Date().toISOString()
         }, { onConflict: 'team' });
       if (error) console.warn('[Segments ERP] Erreur sauvegarde Cloud:', error);
+
+      // Synchroniser également np_segments_erp pour les filtres globaux
+      try {
+        await window.supabase.from('np_segments_erp').delete().neq('seg', '___none___');
+        const dbSegs = finalSegments.map(s => ({
+          seg: s.seg,
+          date: s.date || null,
+          tracteur: s.tracteur || '',
+          remorque: s.remorque || '',
+          cond1: s.cond1 || '',
+          affrete: s.affrete || '',
+          client: s.client || '',
+          commande: s.commande || '',
+          ref_cmd: s.commande || '',
+          groupage: s.groupage || '',
+          jumlage: s.jumlage || '',
+          agence: s.agence || '',
+          activite: s.activite || '',
+          ville_dep: s.villeDep || '',
+          ville_arr: s.villeArr || '',
+          lieu_dep: s.lieuDep || '',
+          lieu_arriv: s.lieuArriv || '',
+          dt_dep_p: s.dtDepP || '',
+          dt_dep_r: s.dtDepR || '',
+          etat_cmd: s.etatCmd || '',
+          etat_seg: s.etatSeg || '',
+          tracking: s.tracking || '',
+          km_expl: s.kmExpl || 0,
+          km_carto: s.kmCarto || 0,
+          achat: s.achat || 0,
+          date_seg: s.dateSeg || '',
+          date_seg_m: s.dateSegM || '',
+          imported_at: new Date().toISOString(),
+          imported_by: sessionStorage.getItem('numiplan_username') || 'utilisateur'
+        }));
+        const B_SIZE = 150;
+        for (let i = 0; i < dbSegs.length; i += B_SIZE) {
+          await window.supabase.from('np_segments_erp').upsert(dbSegs.slice(i, i + B_SIZE), { onConflict: 'seg' });
+        }
+      } catch (errSync) {
+        console.warn('[Segments ERP] Erreur sync np_segments_erp:', errSync);
+      }
     }
 
     // Réinitialiser les filtres dates pour couvrir le fichier importé
@@ -25966,11 +26240,19 @@ async function openAdminChefsEquipeModal() {
 
   let users = [];
   if (window.supabase) {
-    const { data } = await window.supabase.from('np_users').select('*').order('login');
-    if (Array.isArray(data) && data.length > 0) users = data;
+    try {
+      const { data, error } = await window.supabase.from('np_users').select('*').order('login');
+      if (!error && Array.isArray(data) && data.length > 0) users = data;
+    } catch(eUsers) {
+      console.warn('Erreur chargement np_users:', eUsers);
+    }
+  }
+  if (users.length === 0 && window._SUPABASE_USERS && Array.isArray(window._SUPABASE_USERS) && window._SUPABASE_USERS.length > 0) {
+    users = window._SUPABASE_USERS.map(u => ({ ...u }));
   }
   if (users.length === 0) {
-    users = (window.DEFAULT_NUMIPLAN_USERS || []).map(u => ({ ...u }));
+    const fallbackList = (typeof DEFAULT_NUMIPLAN_USERS !== 'undefined') ? DEFAULT_NUMIPLAN_USERS : (window.DEFAULT_NUMIPLAN_USERS || []);
+    users = fallbackList.map(u => ({ ...u }));
   }
   window._EDITING_NP_USERS = users;
 
@@ -27657,13 +27939,25 @@ function computeWeeklyPisTeamStats(weeklyData) {
 window.computeWeeklyPisTeamStats = computeWeeklyPisTeamStats;
 
 function getWeeklyRacCellHtml(plate) {
+  const norm = _normWeeklyPlate(plate);
+  if (!norm) return '<span style="color:var(--txt3)">—</span>';
+  const normNoZero = norm.replace(/^0+/, '');
+
+  // 1. Consultation ultra-rapide depuis np_weekly_rac (~15 Ko)
+  if (window._WEEKLY_RAC_MAP) {
+    const row = window._WEEKLY_RAC_MAP[norm] || (normNoZero ? window._WEEKLY_RAC_MAP[normNoZero] : null);
+    if (row) {
+      const pct = Number(row.rac_pct != null ? row.rac_pct : (row.racPct || 0));
+      const color = pct >= 70 ? '#34d399' : (pct >= 50 ? '#fbbf24' : '#f87171');
+      const title = `Weekly (RAC) : ${Math.round(row.facture || 0).toLocaleString('fr-FR')} km facturé / ${Math.round(row.ecart || 0).toLocaleString('fr-FR')} km`;
+      return `<span style="font-weight:800;font-size:12px;color:${color}" title="${title}">${pct.toFixed(0)}%</span>`;
+    }
+  }
+
   const active = getActiveWeeklyReport();
   if (!active || !Array.isArray(active.pisRows) || !active.pisRows.length) {
     return '<span style="color:var(--txt3);font-size:11px" title="Aucun Weekly actif cette semaine (remis à 0 chaque lundi)">0%</span>';
   }
-  const norm = _normWeeklyPlate(plate);
-  if (!norm) return '<span style="color:var(--txt3)">—</span>';
-  const normNoZero = norm.replace(/^0+/, '');
   if (!window._weeklyPisLookupCache || window._weeklyPisLookupCacheRef !== active) {
     const map = {};
     active.pisRows.forEach(r => {
@@ -28074,6 +28368,16 @@ function switchWeeklySubTab(tab) {
 window.switchWeeklySubTab = switchWeeklySubTab;
 
 function renderWeeklyReportPage() {
+  if (!window._WEEKLY_REPORT_DATA && window.supabase && !window._loadingWeeklyCloud) {
+    window._loadingWeeklyCloud = true;
+    window.supabase.from('np_weekly_imports').select('payload').eq('is_active', true).order('week_monday', { ascending: false }).limit(1).maybeSingle().then(({data, error}) => {
+      window._loadingWeeklyCloud = false;
+      if (data && data.payload) {
+        window._WEEKLY_REPORT_DATA = data.payload;
+        renderWeeklyReportPage();
+      }
+    }).catch(() => { window._loadingWeeklyCloud = false; });
+  }
   const raw = window._WEEKLY_REPORT_DATA;
   const active = getActiveWeeklyReport();
   const badge = document.getElementById('weekly-status-badge');
@@ -28347,6 +28651,43 @@ document.addEventListener('DOMContentLoaded', () => {
     if (typeof updateWeeklyBadgeAndHeader === 'function') updateWeeklyBadgeAndHeader();
   }, 600);
 });
+
+// ═══════════════════════════════════════════════════════════════
+// ROUTAGE AUTO DIRECTION / REGISTRE
+// ═══════════════════════════════════════════════════════════════
+function checkAndOpenDirectionAuto() {
+  try {
+    const urlParams = new URLSearchParams(window.location.search);
+    const openDir = urlParams.get('direction') === 'true' ||
+                    urlParams.get('tab') === 'direction' ||
+                    sessionStorage.getItem('numiplan_open_direction') === 'true';
+    const role = sessionStorage.getItem('numiplan_user_role');
+    const user = (sessionStorage.getItem('numiplan_username') || '').toUpperCase().trim();
+    const isDirOnly = role === 'direction_only' || role === 'readonly' || user === 'REGISTRE' || user.includes('REGISTRE');
+
+    if (openDir || isDirOnly) {
+      sessionStorage.removeItem('numiplan_open_direction');
+      window._DIRECTION_UNLOCKED_SESSION = true;
+
+      if (isDirOnly && typeof applyDirectionOnlyIsolation === 'function') {
+        applyDirectionOnlyIsolation();
+      }
+
+      if (typeof ouvrirEspaceAdminDirection === 'function') {
+        ouvrirEspaceAdminDirection(document.getElementById('tab-admin-direction'));
+      }
+    }
+  } catch(e) {
+    console.warn('checkAndOpenDirectionAuto error:', e);
+  }
+}
+
+// Déclenchement garanti immédiat et différé
+checkAndOpenDirectionAuto();
+setTimeout(checkAndOpenDirectionAuto, 50);
+setTimeout(checkAndOpenDirectionAuto, 200);
+setTimeout(checkAndOpenDirectionAuto, 600);
+window.addEventListener('load', checkAndOpenDirectionAuto);
 
 </script>
 
