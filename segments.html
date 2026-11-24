@@ -1015,20 +1015,22 @@ async function refreshSegmentsPoiData(forceRefresh = false) {
       };
     };
 
+    // Charger les métadonnées réelles du dernier import depuis numiplan_teams (SEGMENTS_ERP)
+    const { data: segRow } = await sb.from('numiplan_teams').select('payload,updated_at').eq('team', 'SEGMENTS_ERP').maybeSingle();
+    let metaFileName = segRow?.payload?.fileName || 'EDITION__LISTE_SEGMENTS.xlsx';
+    let metaExportDate = segRow?.payload?.fileExportDate || (segRow?.updated_at ? new Date(segRow.updated_at).toLocaleDateString('fr-FR') : '16/11/2026');
+
     if (allSegs.length > 0) {
       window._SEGMENTS_ERP_DATA = {
-        fileName: 'EDITION__LISTE_SEGMENTS.xlsx',
-        fileExportDate: '16/11/2026',
+        fileName: metaFileName,
+        fileExportDate: metaExportDate,
         segments: allSegs.map(normalizeSegment)
       };
-    } else {
-      const { data: segRow } = await sb.from('numiplan_teams').select('payload').eq('team', 'SEGMENTS_ERP').maybeSingle();
-      if (segRow && segRow.payload && Array.isArray(segRow.payload.segments)) {
-        window._SEGMENTS_ERP_DATA = {
-          ...segRow.payload,
-          segments: segRow.payload.segments.map(normalizeSegment)
-        };
-      }
+    } else if (segRow && segRow.payload && Array.isArray(segRow.payload.segments)) {
+      window._SEGMENTS_ERP_DATA = {
+        ...segRow.payload,
+        segments: segRow.payload.segments.map(normalizeSegment)
+      };
     }
 
     // 2. Charger les équipes Numiplan (A1..D2) pour les pannes, dispo, coordonnées GPS
@@ -1893,27 +1895,75 @@ async function importSegmentsErpExcel(input) {
 
     showToast(`⏳ Enregistrement de ${parsedSegs.length} segments dans Supabase...`);
 
-    // Sauvegarde par lots dans np_segments_erp
-    const BATCH_SIZE = 100;
-    for (let i = 0; i < parsedSegs.length; i += BATCH_SIZE) {
-      const batch = parsedSegs.slice(i, i + BATCH_SIZE);
-      await sb.from('np_segments_erp').upsert(batch, { onConflict: 'seg' });
+    // Préparer les objets strictement au format attendu par la table SQL np_segments_erp (colonnes snake_case)
+    const dbSegments = parsedSegs.map(s => ({
+      seg: s.seg,
+      date: s.date || null,
+      tracteur: s.tracteur || '',
+      remorque: s.remorque || '',
+      cond1: s.cond1 || '',
+      affrete: s.affrete || '',
+      client: s.client || '',
+      commande: s.refCmd || s.commande || '',
+      ref_cmd: s.refCmd || '',
+      groupage: s.groupage || '',
+      jumlage: s.jumlage || '',
+      agence: s.agence || '',
+      activite: s.activite || '',
+      ville_dep: s.villeDep || '',
+      ville_arr: s.villeArr || '',
+      lieu_dep: s.lieuDep || '',
+      lieu_arriv: s.lieuArriv || '',
+      dt_dep_p: s.dtDepP || '',
+      dt_dep_r: s.dtDepR || '',
+      etat_cmd: s.etatCmd || '',
+      etat_seg: s.etatSeg || '',
+      tracking: s.tracking || '',
+      km_expl: s.kmExpl || 0,
+      km_carto: s.kmCarto || 0,
+      achat: s.achat || 0,
+      date_seg: s.dateSeg || '',
+      date_seg_m: s.dateSegM || '',
+      imported_at: new Date().toISOString(),
+      imported_by: sessionStorage.getItem('numiplan_username') || 'utilisateur'
+    }));
+
+    // 1. Purger les anciens segments pour remplacer par le nouveau fichier
+    try {
+      await sb.from('np_segments_erp').delete().neq('seg', '___none___');
+    } catch (eDel) {
+      console.warn('Avertissement purge np_segments_erp:', eDel);
     }
 
-    // Sauvegarde également du payload complet dans numiplan_teams (SEGMENTS_ERP) pour compatibilité
+    // 2. Insérer par lots de 150 dans np_segments_erp avec vérification d'erreur
+    const BATCH_SIZE = 150;
+    for (let i = 0; i < dbSegments.length; i += BATCH_SIZE) {
+      const batch = dbSegments.slice(i, i + BATCH_SIZE);
+      const { error: bErr } = await sb.from('np_segments_erp').upsert(batch, { onConflict: 'seg' });
+      if (bErr) {
+        console.error('Erreur lot np_segments_erp:', bErr);
+        throw new Error('Erreur base np_segments_erp: ' + (bErr.message || JSON.stringify(bErr)));
+      }
+    }
+
+    // 3. Sauvegarder également les métadonnées et le payload dans numiplan_teams (SEGMENTS_ERP)
+    const exportDateStr = new Date().toLocaleDateString('fr-FR') + ' ' + new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
     const payload = {
       fileName: file.name,
-      fileExportDate: new Date().toISOString(),
+      fileExportDate: exportDateStr,
+      importedAt: new Date().toISOString(),
+      count: parsedSegs.length,
       segments: parsedSegs
     };
-    await sb.from('numiplan_teams').upsert({
+    const { error: teamErr } = await sb.from('numiplan_teams').upsert({
       team: 'SEGMENTS_ERP',
       payload,
       updated_at: new Date().toISOString()
     }, { onConflict: 'team' });
+    if (teamErr) console.warn('[SEGMENTS_ERP] Avertissement sauvegarde numiplan_teams:', teamErr);
 
     window._SEGMENTS_ERP_DATA = payload;
-    showToast(`✅ ${parsedSegs.length} segments importés et synchronisés !`);
+    showToast(`✅ ${parsedSegs.length} segments importés et mémorisés dans le Cloud !`);
     renderSegmentsErpPage();
 
   } catch (err) {
